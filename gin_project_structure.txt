@@ -1,0 +1,79 @@
+﻿АНАЛИЗ СТРУКТУРЫ ПРОЕКТА GIN
+=============================
+Дата: 03/03/2026 12:49:35
+Путь: C:\Users\Asus\WebstormProject\gin
+📁 ПРОВЕРКА СТРУКТУРЫ ПРОЕКТА
+-----------------------------
+✅ frontend: найден
+✅ backend: найден
+✅ alembic: найден (миграции БД)
+
+🎨 FRONTEND (TypeScript/JavaScript)
+------------------------------------
+Статистика frontend:
+  📄 Всего файлов: 16
+  📘 TS/JS файлы: 16
+  🎨 CSS файлы: 0
+  🌐 HTML файлы: 0
+
+Ключевые frontend файлы:
+
+Структура frontend:
+  📁 public/
+  📁 src/
+
+TypeScript файлы:
+  📄 frontend\src\main.ts
+  📄 frontend\src\vite-env.d.ts
+  📄 frontend\src\core\api.ts
+  📄 frontend\src\core\config.ts
+  📄 frontend\src\core\router.ts
+  📄 frontend\src\core\store.ts
+  📄 frontend\src\core\theme.ts
+  📄 frontend\src\modules\analytics\views\AnalyticsView.ts
+  📄 frontend\src\modules\auth\types.ts
+  📄 frontend\src\modules\auth\services\authService.ts
+  📄 frontend\src\modules\auth\views\LoginView.ts
+  📄 frontend\src\modules\settings\types.ts
+  📄 frontend\src\modules\settings\services\apiKeyService.ts
+  📄 frontend\src\modules\settings\services\settingsService.ts
+  📄 frontend\src\modules\settings\views\SettingsView.ts
+  📄 frontend\src\shared\components\Navbar.ts
+
+🗄️  ALEMBIC (Миграции БД)
+------------------------
+Статистика alembic:
+  📄 Всего файлов: 10
+  🔄 Миграций: 2
+
+Последние миграции:
+  📝 alembic\versions\0002_create_api_tokens.py (2026-03-02 23:45)
+  📝 alembic\versions\0001_init_schema.py (2026-03-02 23:40)
+
+✅ alembic.ini: найден в корне проекта
+
+📊 ОБЩАЯ СТАТИСТИКА ПРОЕКТА
+---------------------------
+Всего файлов: 6932
+Всего папок: 946
+
+Топ расширений:
+  .py : 3128
+  .pyc : 2596
+  без расширения : 339
+  .ts : 168
+  .js : 90
+  .txt : 83
+  .typed : 81
+  .exe : 64
+  .pyd : 62
+  .json : 38
+  .pyi : 37
+  .h : 31
+  .md : 23
+  .yaml : 21
+  .http : 21
+
+🔗 АНАЛИЗ СВЯЗЕЙ
+----------------
+
