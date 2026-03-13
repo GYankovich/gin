@@ -7,15 +7,15 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from contextlib import asynccontextmanager
 
-from app.modules.robots import start_scheduler, stop_scheduler
-from app.modules.robots.router import router as robots_router  # <-- ДОБАВЛЯЕМ ЭТОТ ИМПОРТ
+
 from app.core.config import settings
 from app.core.exceptions import validation_exception_handler
 from app.modules.auth.router import router as auth_router
 from app.modules.settings.router import router as settings_router
 from app.modules.tinvest.router import router as tinvest_router
 from app.modules.analytics.router import router as analytics_router
-
+from app.modules.robots import start_scheduler, stop_scheduler
+from app.modules.robots.router import router as robots_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -58,7 +58,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(settings_router, prefix="/api")
 app.include_router(tinvest_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api")
-app.include_router(robots_router, prefix="/api")  # <-- ДОБАВЛЯЕМ ПОДКЛЮЧЕНИЕ РОУТЕРА
+app.include_router(robots_router, prefix="/api")
 
 @app.get("/")
 async def root():

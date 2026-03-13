@@ -26,3 +26,4 @@ class ApiToken(Base):
 
     # Связь с пользователем - просто имя класса
     user = relationship("User", back_populates="api_tokens")
+    robots = relationship("TradingRobot", back_populates="token")

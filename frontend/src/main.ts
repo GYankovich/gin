@@ -7,6 +7,9 @@ import { Navbar } from './shared/components/Navbar';
 import { router } from './core/router';
 import { store } from './core/store';
 import { themeManager } from './core/theme';
+import { initAuthModule } from './modules/auth';
+import { initRobotsModule } from './modules/robots';
+
 
 console.log('🚀 GAnal Frontend starting...');
 
@@ -123,3 +126,4 @@ setTimeout(() => {
         }
     }
 }, 100);
+

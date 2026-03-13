@@ -29,6 +29,7 @@ class User(Base):
     phones = relationship("UserPhone", back_populates="user", cascade="all, delete-orphan")
     tokens = relationship("UserToken", back_populates="user", cascade="all, delete-orphan")
     tinvest_settings = relationship("TInvestSettings", back_populates="user", cascade="all, delete-orphan")
+    trading_robots = relationship("TradingRobot", back_populates="user", cascade="all, delete-orphan")
 
     # ВАЖНО: Используем строку с полным именем класса
     api_tokens = relationship(
