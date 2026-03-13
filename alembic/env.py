@@ -13,6 +13,8 @@ sys.path.append(str(backend_path))
 from app.core.config import settings
 from app.core.database import Base
 from app.modules.auth import models
+from app.modules.tinvest.models import PortfolioAccount, PortfolioSnapshot, PortfolioPosition
+from app.modules.settings.models import ApiToken
 
 config = context.config
 

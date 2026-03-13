@@ -14,7 +14,7 @@ interface AppState {
 class Store {
     private state: AppState = {
         user: null,
-        token: localStorage.getItem('token'),
+        token: localStorage.getItem('auth_token'), // ИЗМЕНЕНО: было 'token', стало 'auth_token'
         isLoading: false,
     };
 
@@ -32,9 +32,11 @@ class Store {
     setToken(token: string | null): void {
         this.state.token = token;
         if (token) {
-            localStorage.setItem('token', token);
-        } else {
+            localStorage.setItem('auth_token', token); // ИЗМЕНЕНО: сохраняем в auth_token
+            // Удаляем старый ключ если есть
             localStorage.removeItem('token');
+        } else {
+            localStorage.removeItem('auth_token');
         }
         this.notify();
     }

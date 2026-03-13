@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ENVIRONMENT: str = "development"
 
+    # В классе Settings добавьте:
+    TINVEST_API_URL: str = "https://invest-public-api.tinkoff.ru/rest"
+
     @property
     def DATABASE_URL(self) -> str:
         """URL для SQLAlchemy с правильным SSL режимом"""

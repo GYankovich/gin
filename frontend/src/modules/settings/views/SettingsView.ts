@@ -75,7 +75,7 @@ export class SettingsView {
         }
     }
 
-    private async handleAddKey(token: string, name: string): Promise<void> {
+    private async handleAddKey(token: string, name: string, refreshInterval: number): Promise<void> {
         this.modalError = null;
 
         if (!token.trim()) {
@@ -90,6 +90,12 @@ export class SettingsView {
             return;
         }
 
+        if (refreshInterval < 5 || refreshInterval > 1440) {
+            this.modalError = 'Интервал обновления должен быть от 5 до 1440 минут';
+            this.render();
+            return;
+        }
+
         this.isSaving = true;
         this.render();
 
@@ -98,6 +104,7 @@ export class SettingsView {
                 token,
                 key_type: 'tinvest',
                 name: name.trim() || null,
+                refresh_interval_minutes: refreshInterval
             });
 
             this.showMessage('success', 'Токен успешно добавлен');
@@ -178,6 +185,21 @@ export class SettingsView {
               </div>
             </div>
 
+            <div class="form-group">
+              <label class="form-label">Частота обновления портфеля (минуты)</label>
+              <input 
+                type="number" 
+                id="refresh-interval" 
+                class="form-input" 
+                placeholder="60"
+                min="5"
+                max="1440"
+                value="60"
+                autocomplete="off"
+              />
+              <span class="input-hint">От 5 до 1440 минут (от 5 минут до 24 часов)</span>
+            </div>
+
             ${this.modalError ? `
               <div class="modal-error">
                 <span class="error-icon">⚠️</span>
@@ -217,6 +239,10 @@ export class SettingsView {
                     <div class="mobile-key-row">
                         <span class="detail-label">Последнее использование:</span>
                         <span class="detail-value">${this.formatDate(key.last_used_at)}</span>
+                    </div>
+                    <div class="mobile-key-row">
+                        <span class="detail-label">Частота обновления:</span>
+                        <span class="detail-value">${key.refresh_interval_minutes || 60} мин</span>
                     </div>
                 </div>
             </div>
@@ -302,6 +328,7 @@ export class SettingsView {
                       <div class="col-last-used">
                         <span class="last-used">${this.formatDate(key.last_used_at)}</span>
                       </div>
+                      <div class="col-interval">${key.refresh_interval_minutes || 60} мин</div>
                       <div class="col-actions">
                         <button class="delete-btn" data-key-id="${key.id}" title="Удалить токен">
                           🗑️
@@ -381,7 +408,9 @@ export class SettingsView {
         modalSave?.addEventListener('click', async () => {
             const nameInput = document.getElementById('new-token-name') as HTMLInputElement;
             const tokenInput = document.getElementById('new-token-value') as HTMLInputElement;
-            await this.handleAddKey(tokenInput.value, nameInput.value);
+            const intervalInput = document.getElementById('refresh-interval') as HTMLInputElement;
+            const refreshInterval = intervalInput ? parseInt(intervalInput.value) || 60 : 60;
+            await this.handleAddKey(tokenInput.value, nameInput.value, refreshInterval);
         });
 
         document.querySelectorAll('.delete-btn, .mobile-delete-btn').forEach(btn => {

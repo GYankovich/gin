@@ -79,10 +79,10 @@ class ApiKeyService:
             # Создаем новый ключ
             insert_query = text("""
                                 INSERT INTO ganaly.api_tokens
-                                    (user_id, token, token_type, name, is_active, created_at)
+                                    (user_id, token, token_type, name, is_active, created_at, refresh_interval_minutes)
                                 VALUES
-                                    (:user_id, :token, :key_type, :name, 1, :created_at)
-                                    RETURNING id, name, token_type, is_active, created_at
+                                    (:user_id, :token, :key_type, :name, 1, :created_at, :refresh_interval_minutes)
+                                    RETURNING id, name, token_type, is_active, created_at, refresh_interval_minutes
                                 """)
 
             result = db.execute(
@@ -92,7 +92,8 @@ class ApiKeyService:
                     "token": token,
                     "key_type": key_type,
                     "name": name,
-                    "created_at": now
+                    "created_at": now,
+                    "refresh_interval_minutes": refresh_interval_minutes
                 }
             ).first()
 
@@ -332,6 +333,74 @@ class ApiKeyService:
         db.execute(query, {"key_id": key_id, "now": datetime.now(timezone.utc)})
         db.commit()
 
+
+@staticmethod
+def update_key(
+        db: Session,
+        key_id: int,
+        user_id: int,
+        name: Optional[str] = None,
+        is_active: Optional[bool] = None,
+        refresh_interval_minutes: Optional[int] = None
+) -> Optional[dict]:
+    """
+    Обновление информации о ключе, включая интервал обновления
+    """
+    # Проверяем, что ключ принадлежит пользователю
+    check_query = text("""
+                       SELECT id FROM ganaly.api_tokens
+                       WHERE id = :key_id AND user_id = :user_id
+                       """)
+
+    exists = db.execute(check_query, {"key_id": key_id, "user_id": user_id}).first()
+
+    if not exists:
+        return None
+
+    # Строим запрос обновления динамически
+    updates = []
+    params = {"key_id": key_id, "user_id": user_id, "now": datetime.now(timezone.utc)}
+
+    if name is not None:
+        updates.append("name = :name")
+        params["name"] = name
+
+    if is_active is not None:
+        updates.append("is_active = :is_active")
+        params["is_active"] = 1 if is_active else 0
+
+    if refresh_interval_minutes is not None:
+        updates.append("refresh_interval_minutes = :refresh_interval_minutes")
+        params["refresh_interval_minutes"] = refresh_interval_minutes
+
+    if not updates:
+        return ApiKeyService.get_key_by_id(db, key_id, user_id)
+
+    updates.append("updated_at = :now")
+    update_query = f"""
+        UPDATE ganaly.api_tokens
+        SET {', '.join(updates)}
+        WHERE id = :key_id AND user_id = :user_id
+        RETURNING id, name, token_type, is_active, created_at, refresh_interval_minutes, token
+    """
+
+    result = db.execute(text(update_query), params).first()
+
+    if not result:
+        return None
+
+    token = result[6]
+    masked_token = token[:6] + "*" * 10 + token[-4:] if len(token) > 20 else "*" * 20
+
+    return {
+        "id": result[0],
+        "name": result[1],
+        "key_type": result[2],
+        "is_active": bool(result[3]),
+        "created_at": result[4],
+        "refresh_interval_minutes": result[5],
+        "masked_token": masked_token
+    }
 
 # Создаем экземпляр сервиса
 api_key_service = ApiKeyService()

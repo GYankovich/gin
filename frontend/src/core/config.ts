@@ -12,6 +12,7 @@ export const config = {
     routes: {
         login: '/login',
         analytics: '/analytics',
-        settings: '/settings'
+        settings: '/settings',
+        trading: '/trading'
     }
 };

@@ -11,6 +11,7 @@ from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.core.config import settings
 
+
 SCHEMA = settings.DB_SCHEMA
 
 
@@ -31,10 +32,17 @@ class User(Base):
 
     # ВАЖНО: Используем строку с полным именем класса
     api_tokens = relationship(
-        "app.modules.settings.models.ApiToken",  # Полный путь к классу
+        "ApiToken",  # Полный путь к классу
         back_populates="user",
         cascade="all, delete-orphan",
         overlaps="api_tokens"
+    )
+
+    portfolio_accounts = relationship(
+        "PortfolioAccount",  # Полный путь
+        back_populates="user",
+        cascade="all, delete-orphan",
+        overlaps="portfolio_accounts"
     )
 
 class UserEmail(Base):
@@ -94,8 +102,6 @@ class AppConfig(Base):
     value = Column(String(512), nullable=False)
     description = Column(String(1024), nullable=True)
 
-
-# ВАЖНО: определяем TInvestSettings ПОСЛЕ User, но relationship в User уже использует строку
 class TInvestSettings(Base):
     __tablename__ = "tinvest_settings"
     __table_args__ = {"schema": SCHEMA}

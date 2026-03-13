@@ -8,12 +8,14 @@ class ApiKeyCreate(BaseModel):
     token: str = Field(..., min_length=10, description="API токен")
     key_type: str = Field(..., description="Тип ключа (tinvest, telegram и т.д.)")
     name: Optional[str] = Field(None, max_length=100, description="Название ключа")
+    refresh_interval_minutes: Optional[int] = Field(60, ge=5, le=1440, description="Частота обновления в минутах (минимум 5)")
 
 
 class ApiKeyUpdate(BaseModel):
     """Схема для обновления ключа"""
     name: Optional[str] = Field(None, max_length=100, description="Новое название")
     is_active: Optional[bool] = Field(None, description="Статус активности")
+    refresh_interval_minutes: Optional[int] = Field(None, ge=5, le=1440, description="Частота обновления в минутах")
 
 
 class ApiKeyResponse(BaseModel):
@@ -24,7 +26,8 @@ class ApiKeyResponse(BaseModel):
     is_active: bool
     created_at: datetime
     masked_token: str
-    message: Optional[str] = None  # Для сообщений типа "ключ уже существует"
+    refresh_interval_minutes: int = 60
+    message: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -6,6 +6,8 @@ export interface ApiKey {
     is_active: boolean;
     created_at: string;
     masked_token: string;
+    refresh_interval_minutes?: number;
+    last_used_at?: string | null;
 }
 
 export interface ApiKeyDetail extends ApiKey {
@@ -18,11 +20,13 @@ export interface ApiKeyCreate {
     token: string;
     key_type: string;
     name?: string | null;
+    refresh_interval_minutes?: number;
 }
 
 export interface ApiKeyUpdate {
     name?: string | null;
     is_active?: boolean | null;
+    refresh_interval_minutes?: number;
 }
 
 export interface ApiKeyListResponse {
@@ -40,3 +44,4 @@ export interface TInvestStatus {
     created_at?: string | null;
     last_used_at?: string | null;
 }
+

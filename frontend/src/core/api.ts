@@ -15,6 +15,16 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
 
     const authToken = token || store.getState().token;
 
+    // ОТЛАДКА
+    console.log('🔍 apiFetch called:', {
+        path,
+        method: fetchOptions.method || 'GET',
+        hasToken: !!authToken,
+        tokenPreview: authToken ? `${authToken.substring(0, 15)}...` : 'none',
+        headers: { ...headers, Authorization: authToken ? 'Bearer ***' : 'none' }
+    });
+
+
     if (authToken) {
         headers['Authorization'] = `Bearer ${authToken}`;
     }
@@ -25,6 +35,11 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
             ...fetchOptions,
             headers,
         });
+
+        console.log('🌐 Fetching:', url);
+        console.log('📥 Response status:', response.status);
+        console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
+
 
         let data;
         const contentType = response.headers.get('content-type');

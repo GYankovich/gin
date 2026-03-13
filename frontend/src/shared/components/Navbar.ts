@@ -41,6 +41,8 @@ export class Navbar {
         const initials = this.getInitials();
         const isDark = this.currentTheme === 'dark';
         const isAnalyticsActive = window.location.pathname === '/analytics';
+        const isTradingActive = window.location.pathname === '/trading';
+        const isSettingsActive = window.location.pathname === '/settings';
 
         return `
       <div class="navbar">
@@ -60,6 +62,9 @@ export class Navbar {
             ${!this.isMobile ? `
               <button class="nav-link ${isAnalyticsActive ? 'nav-link-active' : ''}" id="nav-analytics">
                 Аналитика
+              </button>
+              <button class="nav-link ${isTradingActive ? 'nav-link-active' : ''}" id="nav-trading">
+                Торговля
               </button>
             ` : ''}
           </div>
@@ -102,6 +107,10 @@ export class Navbar {
             <button class="mobile-menu-item ${isAnalyticsActive ? 'active' : ''}" id="mobile-analytics">
               <span class="menu-item-icon">📊</span>
               Аналитика
+            </button>
+            <button class="mobile-menu-item ${isTradingActive ? 'active' : ''}" id="mobile-trading">
+              <span class="menu-item-icon">🤖</span>
+              Торговля
             </button>
           </div>
         </div>
@@ -173,16 +182,12 @@ export class Navbar {
     }
 
     private attachEvents(): void {
-        // Используем setTimeout чтобы убедиться что DOM обновился
         setTimeout(() => {
             // Аватар
             const avatarWrapper = document.getElementById('avatar-wrapper');
             if (avatarWrapper) {
-                // Удаляем старые обработчики
                 const newWrapper = avatarWrapper.cloneNode(true) as HTMLElement;
                 avatarWrapper.parentNode?.replaceChild(newWrapper, avatarWrapper);
-
-                // Добавляем новый обработчик
                 newWrapper.addEventListener('click', this.handleAvatarClick);
             }
 
@@ -193,6 +198,16 @@ export class Navbar {
                 analyticsBtn.parentNode?.replaceChild(newBtn, analyticsBtn);
                 newBtn.addEventListener('click', () => {
                     router.navigate('/analytics');
+                });
+            }
+
+            // Торговля (десктоп)
+            const tradingBtn = document.getElementById('nav-trading');
+            if (tradingBtn) {
+                const newBtn = tradingBtn.cloneNode(true) as HTMLElement;
+                tradingBtn.parentNode?.replaceChild(newBtn, tradingBtn);
+                newBtn.addEventListener('click', () => {
+                    router.navigate('/trading');
                 });
             }
 
@@ -226,6 +241,16 @@ export class Navbar {
                 });
             }
 
+            const mobileTrading = document.getElementById('mobile-trading');
+            if (mobileTrading) {
+                const newMobileTrading = mobileTrading.cloneNode(true) as HTMLElement;
+                mobileTrading.parentNode?.replaceChild(newMobileTrading, mobileTrading);
+                newMobileTrading.addEventListener('click', () => {
+                    router.navigate('/trading');
+                    this.closeMobileMenu();
+                });
+            }
+
             // Дропдаун элементы
             const settingsItem = document.getElementById('dropdown-settings');
             if (settingsItem) {
@@ -255,7 +280,6 @@ export class Navbar {
                 });
             }
 
-            // Добавляем глобальный обработчик для закрытия дропдауна
             this.addGlobalListeners();
 
         }, 0);

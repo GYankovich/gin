@@ -81,8 +81,15 @@ async def get_current_user(
     """
     Получает текущего пользователя из JWT токена
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info("="*50)
+    logger.info("🔐 get_current_user called")
+    logger.info(f"Token received: {token[:20] if token else 'None'}...")
+
     if not token:
-        logger.error("No token provided")
+        logger.error("❌ No token provided")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
@@ -92,17 +99,19 @@ async def get_current_user(
     # Декодируем токен
     payload = decode_token(token)
     if not payload:
-        logger.error("Invalid token payload")
+        logger.error("❌ Invalid token payload")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    logger.info(f"✅ Token decoded, payload: {payload}")
+
     # Получаем user_id из payload
     user_id = payload.get("sub")
     if not user_id:
-        logger.error("No user_id in token payload")
+        logger.error("❌ No user_id in token payload")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token format",
@@ -113,20 +122,20 @@ async def get_current_user(
     try:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
-            logger.error(f"User {user_id} not found")
+            logger.error(f"❌ User {user_id} not found")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User not found",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        logger.info(f"✅ User found: {user.login} (id: {user.id})")
         return user
     except Exception as e:
-        logger.error(f"Database error in get_current_user: {str(e)}")
+        logger.error(f"❌ Database error in get_current_user: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
-
 
 async def get_optional_current_user(
         token: str = Depends(oauth2_scheme),

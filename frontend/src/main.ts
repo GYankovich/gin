@@ -1,6 +1,8 @@
 import { LoginView } from './modules/auth/views/LoginView';
 import { AnalyticsView } from './modules/analytics/views/AnalyticsView';
 import { SettingsView } from './modules/settings/views/SettingsView';
+import { TradingView } from './modules/trading/views/TradingView';
+import { TradingCreateView } from './modules/trading/views/TradingCreateView';
 import { Navbar } from './shared/components/Navbar';
 import { router } from './core/router';
 import { store } from './core/store';
@@ -54,35 +56,41 @@ function renderContent(view: any): void {
 
 // Регистрируем маршруты
 router.register('/login', () => {
-    // Для логина не показываем навбар
     const app = document.getElementById('app');
     if (app) {
         app.innerHTML = ''; // Очищаем полностью
         const loginView = new LoginView(app);
         loginView.render();
-
-        // Сбрасываем навбар при выходе на логин
         navbar = null;
     }
 });
 
 router.register('/analytics', () => {
     initAppLayout();
-    if (navbar) {
-        navbar.render(); // Перерендериваем навбар (обновляем активную ссылку)
-    }
+    if (navbar) navbar.render();
     const analyticsView = new AnalyticsView();
     renderContent(analyticsView);
 });
 
 router.register('/settings', async () => {
     initAppLayout();
-    if (navbar) {
-        navbar.render(); // Перерендериваем навбар (обновляем активную ссылку)
-    }
+    if (navbar) navbar.render();
     const settingsView = new SettingsView(contentContainer);
     await settingsView.loadData();
-    // Не вызываем renderContent, так как SettingsView сам рендерит себя в переданный контейнер
+});
+
+router.register('/trading', () => {
+    initAppLayout();
+    if (navbar) navbar.render();
+    const tradingView = new TradingView();
+    renderContent(tradingView);
+});
+
+router.register('/trading/create', () => {
+    initAppLayout();
+    if (navbar) navbar.render();
+    const tradingCreateView = new TradingCreateView();
+    renderContent(tradingCreateView);
 });
 
 router.register('/', () => {
