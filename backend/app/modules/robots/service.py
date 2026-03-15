@@ -457,6 +457,72 @@ class RobotService:
             "success_rate": (robot.successful_trades / robot.total_trades * 100) if robot.total_trades > 0 else 0
         }
 
+# Добавь в конец класса RobotService (замени старую версию)
+
+    @staticmethod
+    async def run_all_due_updates():
+        """
+        Запускается scheduler'ом - обновляет портфели для всех активных токенов
+        """
+        from app.core.database import SessionLocal
+        from app.modules.tinvest.models import ApiToken
+        from app.modules.robots.workers.portfolio_updater import PortfolioUpdaterWorker
+        import logging
+        logger = logging.getLogger(__name__)
+
+        db = SessionLocal()
+        results = []
+
+        try:
+            # Получаем все активные токены
+            active_tokens = db.query(ApiToken).filter(
+                ApiToken.is_active == True
+            ).all()
+
+            logger.info(f"🔄 Portfolio updater found {len(active_tokens)} active tokens")
+
+            # Создаем воркер
+            worker = PortfolioUpdaterWorker()
+            worker.db = db  # Передаем сессию БД в воркер
+
+            # Для каждого токена запускаем обновление
+            for token in active_tokens:
+                try:
+                    result = await worker.work(
+                        token_id=token.id,
+                        user_id=token.user_id,
+                        token=token.token
+                    )
+                    results.append(result)
+
+                    logger.info(f"✅ Token {token.id}: "
+                                f"accounts: {result.get('accounts_found', 0)}, "
+                                f"snapshots: {result.get('snapshots_saved', 0)}")
+
+                except Exception as e:
+                    error_result = {
+                        "token_id": token.id,
+                        "user_id": token.user_id,
+                        "error": str(e),
+                        "accounts_found": 0,
+                        "portfolios_updated": 0,
+                        "snapshots_saved": 0
+                    }
+                    results.append(error_result)
+                    logger.error(f"❌ Token {token.id} failed: {e}")
+
+            return results
+
+        except Exception as e:
+            logger.error(f"❌ Portfolio updater error: {e}")
+            return [{
+                "error": str(e),
+                "accounts_found": 0,
+                "portfolios_updated": 0,
+                "snapshots_saved": 0
+            }]
+        finally:
+            db.close()
 
 # Создаем экземпляр сервиса
 robot_service = RobotService()
