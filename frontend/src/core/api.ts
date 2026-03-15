@@ -1,5 +1,4 @@
-import { store } from './store';
-import { router } from './router'; // Импортируем router для навигации
+import { router } from './router';
 
 interface ApiOptions extends RequestInit {
     token?: string | null;
@@ -13,17 +12,14 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
         ...fetchOptions.headers,
     };
 
-    const authToken = token || store.getState().token;
+    const authToken = token || localStorage.getItem('auth_token');
 
-    // ОТЛАДКА
     console.log('🔍 apiFetch called:', {
         path,
         method: fetchOptions.method || 'GET',
         hasToken: !!authToken,
         tokenPreview: authToken ? `${authToken.substring(0, 15)}...` : 'none',
-        headers: { ...headers, Authorization: authToken ? 'Bearer ***' : 'none' }
     });
-
 
     if (authToken) {
         headers['Authorization'] = `Bearer ${authToken}`;
@@ -36,11 +32,6 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
             headers,
         });
 
-        console.log('🌐 Fetching:', url);
-        console.log('📥 Response status:', response.status);
-        console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
-
-
         let data;
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
@@ -50,19 +41,15 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
         }
 
         if (!response.ok) {
-            // Обрабатываем разные HTTP статусы
             if (response.status === 401) {
                 console.error('🔒 Session expired or unauthorized');
 
-                // Очищаем данные пользователя
-                store.setToken(null);
-                store.setUser(null);
+                // SIMPLIFIED: Clear only localStorage
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('user');
 
-                // Показываем сообщение пользователю
-                const errorMessage = data?.detail || 'Сессия истекла. Пожалуйста, войдите снова';
+                const errorMessage = data?.detail || 'Session expired. Please login again';
 
-                // Перенаправляем на страницу логина
-                // Используем setTimeout чтобы избежать конфликтов с текущим рендерингом
                 setTimeout(() => {
                     window.location.href = '/login';
                 }, 100);
@@ -71,28 +58,24 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
             }
 
             if (response.status === 422) {
-                const errorMsg = data?.detail?.[0]?.msg || 'Некорректные данные';
+                const errorMsg = data?.detail?.[0]?.msg || 'Invalid data';
                 throw new Error(errorMsg);
             }
 
             if (response.status === 500) {
-                throw new Error('Ошибка сервера. Попробуйте позже');
+                throw new Error('Server error. Try again later');
             }
 
-            // Общая ошибка
-            const errorMsg = data?.detail || data || 'Произошла ошибка';
+            const errorMsg = data?.detail || data || 'An error occurred';
             throw new Error(typeof errorMsg === 'string' ? errorMsg : JSON.stringify(errorMsg));
         }
 
         return data as T;
 
     } catch (error: any) {
-        // Обрабатываем сетевые ошибки
         if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
-            throw new Error('Ошибка сети. Сервер не отвечает');
+            throw new Error('Network error. Server is not responding');
         }
-
-        // Пробрасываем ошибку дальше
         throw error;
     }
 }
