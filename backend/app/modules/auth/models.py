@@ -115,4 +115,4 @@ class TInvestSettings(Base):
     # Используем строку для обратной связи
     user = relationship("User", back_populates="tinvest_settings")
 
-from app.modules.settings.models import ApiToken
+from app.modules.tinvest.models import ApiToken
