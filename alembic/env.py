@@ -6,15 +6,13 @@ from sqlalchemy import engine_from_config, pool, text
 from alembic import context
 
 # Добавляем путь к backend
-backend_path = Path(__file__).parent.parent / "backend"
-sys.path.append(str(backend_path))
+sys.path.append(str(Path(__file__).parent / 'backend'))
 
 # Импортируем настройки и модели
 from app.core.config import settings
 from app.core.database import Base
 from app.modules.auth import models
-from app.modules.tinvest.models import PortfolioAccount, PortfolioSnapshot, PortfolioPosition
-from app.modules.settings.models import ApiToken
+from app.modules.tinvest.models import PortfolioAccount, PortfolioSnapshot, PortfolioPosition, ApiToken
 
 config = context.config
 
