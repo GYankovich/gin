@@ -1,10 +1,12 @@
+# app/modules/auth/router.py
 """
 Маршруты для модуля авторизации
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer
 from typing import Optional
+
 from app.core.database import get_db
 from . import schemas, service
 
@@ -12,6 +14,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # Схема для получения токена из заголовка Authorization
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
+
 
 async def get_token_from_header(authorization: Optional[str] = Depends(oauth2_scheme)) -> str:
     """
@@ -72,13 +75,12 @@ async def login(
 
 @router.get("/me", response_model=schemas.UserOut)
 async def get_current_user(
-        token: str = Depends(get_token_from_header),  # используем свою зависимость
+        token: str = Depends(get_token_from_header),
         db: Session = Depends(get_db)
 ):
     """
     Получение информации о текущем пользователе
     """
-    # Теперь валидация токена происходит в вашем сервисе
     user = service.auth_service.get_user_from_token(db, token)
 
     if not user:
@@ -91,9 +93,10 @@ async def get_current_user(
     return schemas.UserOut(
         id=user["id"],
         login=user["login"],
-        email=user["email"],
-        phone=user["phone"]
+        email=user.get("email"),
+        phone=user.get("phone")
     )
+
 
 @router.post("/logout")
 async def logout(
@@ -105,3 +108,26 @@ async def logout(
     """
     service.auth_service.logout_user(db, token)
     return {"message": "Successfully logged out"}
+
+
+@router.post("/clean-tokens")
+async def clean_expired_tokens(
+        db: Session = Depends(get_db)
+):
+    """
+    Очистка просроченных токенов (можно вызывать по расписанию)
+    """
+    count = service.auth_service.clean_expired_tokens(db)
+    return {"message": f"Cleaned {count} expired tokens"}
+
+
+@router.get("/validate-token")
+async def validate_token(
+        token: str = Depends(oauth2_scheme),
+        db: Session = Depends(get_db)
+):
+    """
+    Проверка валидности токена
+    """
+    is_valid = service.auth_service.validate_token(db, token)
+    return {"valid": is_valid}

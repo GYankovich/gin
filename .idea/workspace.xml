@@ -4,7 +4,17 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 0.9.2 - Роботы торговые (сломано)" />
+    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 0.9.2 - Роботы торговые (сломано)">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/analytics/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/analytics/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/analytics/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/analytics/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/auth/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/auth/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/auth/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/auth/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/settings/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/settings/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/token_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/token_service.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -185,7 +195,7 @@
       <breakpoints>
         <line-breakpoint enabled="true" log-message="true" suspend="NONE" type="python-line">
           <url>file://$PROJECT_DIR$/backend/app/modules/tinvest/router.py</url>
-          <line>88</line>
+          <line>116</line>
           <option name="timeStamp" value="1" />
         </line-breakpoint>
       </breakpoints>

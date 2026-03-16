@@ -1,4 +1,5 @@
-from typing import Optional, List
+# app/modules/tinvest/token_service.py
+from typing import Optional, List, Tuple
 import logging
 from datetime import datetime, timezone
 
@@ -7,8 +8,8 @@ from sqlalchemy import text
 from fastapi import HTTPException, status
 
 from app.modules.tinvest.methods import create_tbank_client
-from app.modules.tinvest.models import ApiToken
-from app.modules.tinvest.schemas import TokenCreate, TokenUpdate
+from . import queries, utils
+from .schemas import TokenCreate, TokenUpdate, TokenResponse
 
 logger = logging.getLogger(__name__)
 
@@ -16,81 +17,110 @@ logger = logging.getLogger(__name__)
 class TokenService:
     """Сервис для управления API токенами"""
 
-    @staticmethod
-    async def get_user_token(db: Session, user_id: int) -> Optional[str]:
+    def __init__(self):
+        self.db: Optional[Session] = None
+
+    def _execute(self, query: str, params: dict, fetch_one: bool = False):
+        """Утилита для выполнения запросов"""
+        result = self.db.execute(text(query), params)
+        return result.first() if fetch_one else result
+
+    def _row_to_token_dict(self, row) -> dict:
+        """Преобразует строку результата в словарь токена"""
+        if not row:
+            return {}
+
+        return {
+            "id": utils.safe_int(row[0]),
+            "user_id": utils.safe_int(row[1]) if len(row) > 1 else None,
+            "token_type": utils.safe_str(row[2]) if len(row) > 2 else "",
+            "token": utils.safe_str(row[3]) if len(row) > 3 else "",
+            "token_name": utils.safe_str(row[4], None) if len(row) > 4 else None,
+            "is_active": utils.safe_bool(row[5]) if len(row) > 5 else True,
+            "created_at": row[6] if len(row) > 6 else None,
+            "updated_at": row[7] if len(row) > 7 else None,
+            "last_used_at": row[8] if len(row) > 8 else None,
+            "expires_at": row[9] if len(row) > 9 else None,
+        }
+
+    async def get_user_token(self, db: Session, user_id: int) -> Optional[str]:
         """
         Получение активного токена пользователя (для обратной совместимости)
         """
-        query = text("""
-                     SELECT token, id FROM ganaly.api_tokens
-                     WHERE user_id = :user_id
-                       AND token_type = 'tinvest'
-                       AND is_active = 1
-                     ORDER BY created_at DESC
-                         LIMIT 1
-                     """)
-
-        result = db.execute(query, {"user_id": user_id}).first()
+        self.db = db
+        query = queries.build_get_user_token_query()
+        result = self._execute(query, {"user_id": user_id}, fetch_one=True)
 
         if result:
-            token = result[0]
-            token_id = result[1]
+            token = utils.safe_str(result[0])
+            token_id = utils.safe_int(result[1])
 
             # Обновляем время последнего использования
-            await TokenService.update_last_used(db, token_id)
+            await self.update_last_used(db, token_id)
 
             return token
 
         return None
 
-    @staticmethod
     async def get_user_tokens(
+            self,
             db: Session,
             user_id: int,
             include_inactive: bool = False
-    ) -> List[ApiToken]:
+    ) -> List[dict]:
         """
         Получение всех токенов пользователя
         """
-        query = db.query(ApiToken).filter(
-            ApiToken.user_id == user_id,
-            ApiToken.token_type == 'tinvest'
+        self.db = db
+        query, params_template = queries.build_get_user_tokens_query(
+            include_inactive=include_inactive
         )
 
-        if not include_inactive:
-            query = query.filter(ApiToken.is_active == 1)
+        params = {"user_id": user_id}
+        results = self._execute(query, params).fetchall()
 
-        return query.order_by(ApiToken.created_at.desc()).all()
+        tokens = []
+        for row in results:
+            token_dict = self._row_to_token_dict(row)
+            tokens.append(token_dict)
 
-    @staticmethod
-    async def get_token_by_id(db: Session, token_id: int, user_id: int) -> ApiToken:
+        return tokens
+
+    async def get_token_by_id(
+            self,
+            db: Session,
+            token_id: int,
+            user_id: int
+    ) -> Optional[dict]:
         """
         Получение токена по ID (с проверкой принадлежности пользователю)
         """
-        token = db.query(ApiToken).filter(
-            ApiToken.id == token_id,
-            ApiToken.user_id == user_id
-        ).first()
+        self.db = db
+        query = queries.build_get_token_by_id_query()
+        result = self._execute(
+            query,
+            {"token_id": token_id, "user_id": user_id},
+            fetch_one=True
+        )
 
-        if not token:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Токен не найден"
-            )
+        if not result:
+            return None
 
-        return token
+        return self._row_to_token_dict(result)
 
-    @staticmethod
     async def create_token(
+            self,
             db: Session,
             user_id: int,
             token_data: TokenCreate
-    ) -> ApiToken:
+    ) -> dict:
         """
         Создание нового токена
         """
+        self.db = db
+
         # Проверяем валидность токена
-        is_valid, message, accounts = await TokenService.test_token(token_data.token)
+        is_valid, message, accounts = await self.test_token(token_data.token)
 
         if not is_valid:
             raise HTTPException(
@@ -98,65 +128,128 @@ class TokenService:
                 detail=f"Невалидный токен: {message}"
             )
 
-        # Создаем токен
-        db_token = ApiToken(
-            user_id=user_id,
-            token_type=token_data.token_type,
-            token=token_data.token,
-            token_name=token_data.token_name,
-            is_active=1,
-            created_at=datetime.now(timezone.utc)
+        # Проверяем, не существует ли уже такой токен
+        check_query = queries.build_check_token_exists_query()
+        existing = self._execute(
+            check_query,
+            {"user_id": user_id, "token": token_data.token},
+            fetch_one=True
         )
 
-        db.add(db_token)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Токен уже существует"
+            )
+
+        # Создаем токен
+        insert_query = queries.build_create_token_query()
+        now = datetime.now(timezone.utc)
+
+        result = self._execute(
+            insert_query,
+            {
+                "user_id": user_id,
+                "token_type": token_data.token_type,
+                "token": token_data.token,
+                "token_name": token_data.token_name,
+                "created_at": now
+            },
+            fetch_one=True
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Не удалось создать токен"
+            )
+
         db.commit()
-        db.refresh(db_token)
+        logger.info(f"✅ Created new token for user {user_id}, id: {result[0]}")
 
-        logger.info(f"✅ Created new token for user {user_id}, id: {db_token.id}")
+        token_dict = self._row_to_token_dict(result)
 
-        return db_token
+        # Возвращаем ответ с маскированным токеном
+        return {
+            **token_dict,
+            "token_preview": utils.mask_token(token_dict["token"])
+        }
 
-    @staticmethod
     async def update_token(
+            self,
             db: Session,
             token_id: int,
             user_id: int,
             token_data: TokenUpdate
-    ) -> ApiToken:
+    ) -> Optional[dict]:
         """
         Обновление токена
         """
-        token = await TokenService.get_token_by_id(db, token_id, user_id)
+        self.db = db
 
-        # Обновляем поля
+        # Проверяем существование токена
+        token = await self.get_token_by_id(db, token_id, user_id)
+        if not token:
+            return None
+
+        # Определяем, какие поля обновляем
+        fields_to_update = []
+        params = {
+            "token_id": token_id,
+            "user_id": user_id,
+            "now": datetime.now(timezone.utc)
+        }
+
         if token_data.token_name is not None:
-            token.token_name = token_data.token_name
+            fields_to_update.append("token_name")
+            params["token_name"] = token_data.token_name
 
         if token_data.is_active is not None:
-            token.is_active = 1 if token_data.is_active else 0
+            fields_to_update.append("is_active")
+            params["is_active"] = 1 if token_data.is_active else 0
 
-        token.updated_at = datetime.now(timezone.utc)
+        if not fields_to_update:
+            # Ничего не обновляем, возвращаем текущий токен
+            token_dict = token
+            token_dict["token_preview"] = utils.mask_token(token_dict["token"])
+            return token_dict
+
+        # Строим и выполняем запрос обновления
+        update_query, _ = queries.build_update_token_query(fields_to_update)
+        result = self._execute(update_query, params, fetch_one=True)
+
+        if not result:
+            return None
+
         db.commit()
-        db.refresh(token)
-
         logger.info(f"✅ Updated token {token_id} for user {user_id}")
 
-        return token
+        token_dict = self._row_to_token_dict(result)
+        token_dict["token_preview"] = utils.mask_token(token_dict["token"])
 
-    @staticmethod
-    async def delete_token(db: Session, token_id: int, user_id: int):
+        return token_dict
+
+    async def delete_token(self, db: Session, token_id: int, user_id: int) -> bool:
         """
         Удаление токена
         """
-        token = await TokenService.get_token_by_id(db, token_id, user_id)
+        self.db = db
+        query = queries.build_delete_token_query()
+        result = self._execute(
+            query,
+            {"token_id": token_id, "user_id": user_id},
+            fetch_one=True
+        )
 
-        db.delete(token)
-        db.commit()
+        if result:
+            db.commit()
+            logger.info(f"✅ Deleted token {token_id} for user {user_id}")
+            return True
 
-        logger.info(f"✅ Deleted token {token_id} for user {user_id}")
+        return False
 
     @staticmethod
-    async def test_token(token: str) -> tuple[bool, str, Optional[List]]:
+    async def test_token(token: str) -> Tuple[bool, str, Optional[List]]:
         """
         Тестирование валидности токена через запрос к API
         """
@@ -185,19 +278,48 @@ class TokenService:
             else:
                 return False, f"Ошибка проверки токена: {error_msg}", None
 
-    @staticmethod
-    async def update_last_used(db: Session, token_id: int):
+    async def update_last_used(self, db: Session, token_id: int):
         """
         Обновление времени последнего использования токена
         """
+        self.db = db
         try:
-            token = db.query(ApiToken).filter(ApiToken.id == token_id).first()
-            if token:
-                token.last_used_at = datetime.now(timezone.utc)
-                db.commit()
+            query = queries.build_update_last_used_query()
+            self._execute(
+                query,
+                {"token_id": token_id, "now": datetime.now(timezone.utc)}
+            )
+            db.commit()
         except Exception as e:
             logger.error(f"Error updating last_used for token {token_id}: {e}")
             db.rollback()
+
+    async def get_token_stats(self, db: Session, token_id: int, user_id: int) -> Optional[dict]:
+        """
+        Получение статистики использования токена
+        """
+        self.db = db
+
+        # Проверяем принадлежность токена
+        token = await self.get_token_by_id(db, token_id, user_id)
+        if not token:
+            return None
+
+        query = queries.build_get_token_stats_query()
+        result = self._execute(query, {"token_id": token_id}, fetch_one=True)
+
+        if not result:
+            return {
+                "total_requests": 0,
+                "last_used": token["last_used_at"],
+                "accounts_accessed": 0
+            }
+
+        return {
+            "total_requests": utils.safe_int(result[0]),
+            "last_used": result[1] or token["last_used_at"],
+            "accounts_accessed": utils.safe_int(result[2])
+        }
 
 
 # Создаем экземпляр сервиса
