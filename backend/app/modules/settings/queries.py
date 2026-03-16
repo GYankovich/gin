@@ -96,7 +96,8 @@ def build_get_user_keys_query(
                      token_type,
                      is_active,
                      created_at,
-                     token
+                     token,
+                     refresh_interval_minutes
                  FROM ganaly.api_tokens
                  WHERE user_id = :user_id \
                  """

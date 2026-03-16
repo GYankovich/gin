@@ -4,16 +4,46 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 0.9.2 - Роботы торговые (сломано)">
+    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 1.0.2 - repair robots for update portfolio">
+      <change afterPath="$PROJECT_DIR$/backend/app/models/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/app/modules/robots/base/base_robot.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/app/modules/robots/common/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/app/modules/robots/common/logger.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/app/modules/robots/common/utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/robot.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/scheduler.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/app/modules/robots/queries.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/logs/robots/robot_15_portfolio_updater_token15_2026-03-16_14.log" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/logs/robots_2026-03-16_12-16.log" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/logs/robots_2026-03-16_16-20.log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/analytics/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/analytics/router.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/analytics/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/analytics/service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/auth/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/auth/router.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/auth/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/auth/service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/settings/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/settings/service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/router.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/token_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/token_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/auth/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/auth/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/scheduler.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/scheduler.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/strategies/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/trading/strategies/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/strategies/base.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/trading/strategies/base.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/strategies/ma_cross.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/trading/strategies/ma_cross.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading_service.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/workers/base_worker.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/workers/portfolio_updater.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/settings/queries.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/settings/queries.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/venv/Lib/site-packages/anyio/_backends/_asyncio.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/Lib/site-packages/anyio/_backends/_asyncio.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/venv/Lib/site-packages/anyio/to_process.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/Lib/site-packages/anyio/to_process.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/venv/Lib/site-packages/black/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/Lib/site-packages/black/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/venv/Lib/site-packages/black/concurrency.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/Lib/site-packages/black/concurrency.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/venv/Lib/site-packages/uvicorn/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/Lib/site-packages/uvicorn/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/venv/Lib/site-packages/uvicorn/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/Lib/site-packages/uvicorn/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/venv/Lib/site-packages/uvicorn/server.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/Lib/site-packages/uvicorn/server.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/venv/Lib/site-packages/uvicorn/workers.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/Lib/site-packages/uvicorn/workers.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -89,11 +119,11 @@
       <recent name="C:\Users\Asus\WebstormProject\gin\backend\alembic\versions" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\Users\Asus\WebstormProject\gin\backend\app\modules\robots\trading" />
       <recent name="C:\Users\Asus\WebstormProject\gin\backend\app\modules\tinvest" />
       <recent name="C:\Users\Asus\WebstormProject\gin\backend\app\modules\settings" />
       <recent name="C:\Users\Asus\WebstormProject\gin\alembic\versions" />
       <recent name="C:\Users\Asus\WebstormProject\gin" />
-      <recent name="C:\Users\Asus\WebstormProject\gin\frontend\src\modules\auth\views" />
     </key>
   </component>
   <component name="SharedIndexes">
@@ -178,7 +208,15 @@
       <option name="project" value="LOCAL" />
       <updated>1773646408065</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="v 1.0.1 - refactor sql queries for requests">
+      <option name="closed" value="true" />
+      <created>1773657041993</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1773657041993</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -188,7 +226,9 @@
     <MESSAGE value="v 0.8.0 - Логин и настройка токена" />
     <MESSAGE value="v 0.9.0 - Роботы торговые" />
     <MESSAGE value="v 0.9.2 - Роботы торговые (сломано)" />
-    <option name="LAST_COMMIT_MESSAGE" value="v 0.9.2 - Роботы торговые (сломано)" />
+    <MESSAGE value="v 1.0.1 - refactor sql queries for requests" />
+    <MESSAGE value="v 1.0.2 - repair robots for update portfolio" />
+    <option name="LAST_COMMIT_MESSAGE" value="v 1.0.2 - repair robots for update portfolio" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

@@ -1,77 +1,62 @@
+# app/modules/robots/scheduler.py
 import asyncio
 import logging
-from datetime import datetime, timedelta
-from croniter import croniter
-from app.modules.robots.trading_service import TradingRobotExecutor
-from app.modules.robots.service import robot_service
-from app.modules.robots.models import TradingRobot  # ✅ Добавлен импорт
-from app.core.database import SessionLocal  # ✅ Добавлен импорт
+from datetime import datetime
 
+from app.core.database import SessionLocal
+from app.modules.robots.portfolio_updater.scheduler import PortfolioUpdaterScheduler
+from app.modules.robots.common.logger import get_logger
 
 logger = logging.getLogger(__name__)
+system_log = get_logger("SYSTEM", "SCHEDULER")
 
 
 class RobotScheduler:
     """
-    Планировщик для запуска роботов
+    Главный планировщик всех роботов
     """
 
     def __init__(self):
         self.running = False
         self.task = None
-        # Храним время последнего запуска для каждого токена
-        self.last_run_time = {}
+        self.portfolio_updater = PortfolioUpdaterScheduler()
 
     async def _run_cycle(self):
-        """
-        Один цикл проверки и запуска
-        """
+        """Один цикл работы планировщика"""
+        db = SessionLocal()
+
         try:
-            logger.info("🔄 Running robot scheduler cycle")
-            results = await robot_service.run_all_due_updates()
+            system_log.info("🔄 Запуск цикла обновления")
 
-            # ✅ Исправлено: results теперь словарь, а не список
-            logger.info(f"📊 Scheduler results: {results}")
+            # Запускаем обновление портфелей
+            result = await self.portfolio_updater.run_update_cycle(db)
 
-            # Логируем результаты
-            if results.get('error'):
-                logger.error(f"❌ Scheduler error: {results['error']}")
-            else:
-                logger.info(f"✅ Checked {results.get('checked', 0)} of {results.get('total', 0)} robots")
-
-                # Если есть ошибки, логируем их
-                for error in results.get('errors', []):
-                    logger.warning(f"⚠️ Robot {error.get('robot_id')}: {error.get('error')}")
+            system_log.info(f"✅ Цикл завершен: {result}")
 
         except Exception as e:
-            logger.error(f"Error in scheduler cycle: {e}", exc_info=True)
+            system_log.error(f"❌ Ошибка в цикле: {e}")
+        finally:
+            db.close()
 
     async def _run_loop(self):
-        """
-        Основной цикл планировщика
-        """
+        """Основной цикл"""
         while self.running:
             await self._run_cycle()
-            await self._run_trading_robots()  # Запуск торговых роботов
             # Проверяем каждые 60 секунд
             await asyncio.sleep(60)
 
     async def start(self):
-        """
-        Запуск планировщика
-        """
+        """Запуск планировщика"""
         if self.running:
-            logger.warning("Scheduler already running")
+            system_log.warning("Планировщик уже запущен")
             return
 
         self.running = True
-        logger.info("🚀 Starting robot scheduler")
+        system_log.info("🚀 Запуск главного планировщика")
         self.task = asyncio.create_task(self._run_loop())
 
     async def stop(self):
-        """
-        Остановка планировщика
-        """
+        """Остановка планировщика"""
         self.running = False
         if self.task:
             self.task.cancel()
@@ -79,57 +64,44 @@ class RobotScheduler:
                 await self.task
             except asyncio.CancelledError:
                 pass
-        logger.info("🛑 Robot scheduler stopped")
+        system_log.info("🛑 Планировщик остановлен")
 
-    async def _run_trading_robots(self):
+    async def force_update(self, db, token_id: int = None):
         """
-        Запуск всех активных торговых роботов по расписанию
+        Принудительное обновление (для API)
         """
-        db = SessionLocal()
-        try:
-            robots = db.query(TradingRobot).filter(TradingRobot.is_active == 1).all()
-            now = datetime.utcnow()
+        if token_id:
+            # Обновляем конкретный токен
+            from app.modules.robots.portfolio_updater.robot import PortfolioUpdaterRobot
+            robot = PortfolioUpdaterRobot("manual")
+            robot.db = db
 
-            for robot in robots:
-                if not robot.schedule_cron:
-                    continue
+            query = "SELECT id, user_id, token FROM ganaly.api_tokens WHERE id = :id AND is_active = 1"
+            token_data = db.execute(text(query), {"id": token_id}).first()
 
-                try:
-                    # Проверяем по cron, нужно ли запускать сейчас
-                    cron = croniter(robot.schedule_cron, now)
-                    prev = cron.get_prev(datetime)
+            if not token_data:
+                return {"error": f"Token {token_id} not found"}
 
-                    # Если прошло меньше 60 секунд с предыдущего запуска
-                    if (now - prev).total_seconds() < 60:
-                        logger.info(f"Starting trading robot {robot.id} ({robot.name})")
-                        asyncio.create_task(self._run_single_trading_robot(robot.id))
-
-                except Exception as e:
-                    logger.error(f"Cron error for robot {robot.id}: {e}")
-
-        finally:
-            db.close()
-
-    async def _run_single_trading_robot(self, robot_id: int):
-        """
-        Запуск одного торгового робота
-        """
-        try:
-            async with TradingRobotExecutor(robot_id) as executor:
-                await executor.execute()
-        except Exception as e:
-            logger.error(f"Trading robot {robot_id} failed: {e}")
+            result = await robot.run(
+                user_id=token_data[1],
+                token_id=token_id,
+                token=token_data[2]
+            )
+            return {"result": result}
+        else:
+            # Обновляем всё
+            return await self.portfolio_updater.run_update_cycle(db)
 
 
-# Создаем глобальный экземпляр
+# Глобальный экземпляр
 scheduler = RobotScheduler()
 
 
 async def start_scheduler():
-    """Запуск планировщика при старте приложения"""
+    """Запуск планировщика"""
     await scheduler.start()
 
 
 async def stop_scheduler():
-    """Остановка планировщика при остановке приложения"""
+    """Остановка планировщика"""
     await scheduler.stop()

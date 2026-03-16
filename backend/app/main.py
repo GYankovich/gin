@@ -16,6 +16,8 @@ from app.modules.tinvest.router import router as tinvest_router
 from app.modules.analytics.router import router as analytics_router
 from app.modules.robots import start_scheduler, stop_scheduler
 from app.modules.robots.router import router as robots_router
+from app.modules.robots.common.logger import get_logger, close_logger  # ← ИСПРАВЛЕНО
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -24,11 +26,20 @@ async def lifespan(app: FastAPI):
     """
     # Запуск при старте
     print("🚀 Starting up...")
+
+    # Инициализируем логгер роботов
+    system_log = get_logger("SYSTEM", "MAIN")  # ← ИСПРАВЛЕНО
+    system_log.info("🚀 Приложение запущено")
+
     await start_scheduler()
     yield
+
     # Остановка при завершении
     print("🛑 Shutting down...")
+    system_log.info("🛑 Приложение остановлено")
+
     await stop_scheduler()
+    close_logger()  # ← ИСПРАВЛЕНО
 
 
 app = FastAPI(
@@ -60,6 +71,7 @@ app.include_router(tinvest_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api")
 app.include_router(robots_router, prefix="/api")
 
+
 @app.get("/")
 async def root():
     """Корневой эндпоинт для проверки"""
@@ -68,6 +80,7 @@ async def root():
         "docs": "/docs",
         "environment": settings.ENVIRONMENT
     }
+
 
 @app.get("/health")
 async def health_check():

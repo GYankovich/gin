@@ -22,37 +22,30 @@ class ApiToken(Base):
     __table_args__ = (
         Index("ix_api_tokens_user_type", "user_id", "token_type"),
         Index("ix_api_tokens_token", "token"),
-        {"schema": SCHEMA, "extend_existing": True}  # ← ВАЖНО: добавляем extend_existing
+        {"schema": SCHEMA, "extend_existing": True}
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.user.id", ondelete="CASCADE"), nullable=False)
 
-    token_type = Column(String(50), nullable=False)  # 'tinvest', 'telegram', etc.
+    token_type = Column(String(50), nullable=False)
     token = Column(Text, nullable=False)
-    token_name = Column(String(255), nullable=True)  # Название токена (например "Основной", "Тестовый")
+    token_name = Column(String(255), nullable=True)
 
-    # Статус
-    is_active = Column(Integer, nullable=False, default=1)  # 1 - активен, 0 - отключен
+    is_active = Column(Integer, nullable=False, default=1)
+    refresh_interval_minutes = Column(Integer, nullable=False, default=60)
 
-    # Метаданные
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), nullable=True, onupdate=datetime.utcnow)
     last_used_at = Column(DateTime(timezone=True), nullable=True)
-    expires_at = Column(DateTime(timezone=True), nullable=True)  # Если токен имеет срок действия
+    expires_at = Column(DateTime(timezone=True), nullable=True)
 
-    # Дополнительные данные
     extra_data = Column(JSON, nullable=True)
 
-    # Связи
+    # Связи - используем имена классов
     user = relationship("User", back_populates="api_tokens")
     robots = relationship("TradingRobot", back_populates="token")
 
-    def mask_token(self, preview_length: int = 8) -> str:
-        """Возвращает замаскированный токен для отображения"""
-        if len(self.token) > preview_length * 2:
-            return f"{self.token[:preview_length]}...{self.token[-preview_length:]}"
-        return "***"
 
 class PortfolioAccount(Base):
     """
@@ -67,7 +60,6 @@ class PortfolioAccount(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.user.id", ondelete="CASCADE"), nullable=False)
 
-    # Данные из API
     account_id = Column(String(50), nullable=False, unique=True)
     account_type = Column(String(50), nullable=False)
     account_name = Column(String(255), nullable=True)
@@ -76,13 +68,12 @@ class PortfolioAccount(Base):
     closed_date = Column(DateTime(timezone=True), nullable=True)
     access_level = Column(String(50), nullable=True)
 
-    # Локальные поля
     is_active = Column(Integer, nullable=False, default=1)
     last_sync_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), nullable=True, onupdate=datetime.utcnow)
 
-    # Связи
+    # Связи - используем имена классов
     user = relationship("User", back_populates="portfolio_accounts")
     snapshots = relationship("PortfolioSnapshot", back_populates="account", cascade="all, delete-orphan")
     operations = relationship("PortfolioOperation", back_populates="account", cascade="all, delete-orphan")

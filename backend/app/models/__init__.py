@@ -1,0 +1,53 @@
+# app/models/__init__.py
+"""
+Единая точка импорта всех моделей SQLAlchemy
+Импортируем в правильном порядке, чтобы избежать циклических зависимостей
+"""
+
+# Сначала базовые модели auth
+from app.modules.auth.models import (
+    User,
+    UserEmail,
+    UserPhone,
+    UserToken,
+    AppConfig
+)
+
+# Затем модели tinvest
+from app.modules.tinvest.models import (
+    ApiToken,
+    PortfolioAccount,
+    PortfolioSnapshot,
+    PortfolioPosition,
+    PortfolioOperation,
+    PortfolioOrder,
+    InstrumentCache
+)
+
+# Затем модели robots
+from app.modules.robots.models import (
+    TradingRobot,
+    RobotTrade,
+    RobotLog,
+    RobotSignal
+)
+
+# Для обратной совместимости
+__all__ = [
+    'User',
+    'UserEmail',
+    'UserPhone',
+    'UserToken',
+    'AppConfig',
+    'ApiToken',
+    'PortfolioAccount',
+    'PortfolioSnapshot',
+    'PortfolioPosition',
+    'PortfolioOperation',
+    'PortfolioOrder',
+    'InstrumentCache',
+    'TradingRobot',
+    'RobotTrade',
+    'RobotLog',
+    'RobotSignal'
+]
