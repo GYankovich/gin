@@ -1,20 +1,21 @@
 # Python
-backend/venv/
-backend/__pycache__/
-*.pyc
+__pycache__/
+*.py[cod]
+*.so
 .Python
-
-# Frontend
-frontend/node_modules/
-frontend/dist/
-
-# Environments
+.venv/
+venv/
 .env
-.env.local
+*.db
 
 # IDE
 .idea/
 .vscode/
+
+# Node
+node_modules/
+dist/
+npm-debug.log*
 
 # System
 .DS_Store
