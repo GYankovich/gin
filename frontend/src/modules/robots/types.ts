@@ -1,69 +1,74 @@
-// Типы для роботов
-export interface RobotToken {
-    id: number;
-    token_name: string | null;
-    token_preview: string;
-    is_active: boolean;
-}
+// frontend/src/modules/robots/types.ts
 
-export interface Robot {
-    id: number;
-    name: string;
-    description: string | null;
-    robot_type: 'grid' | 'trend' | 'arbitrage';
-    token_id: number | null;
-    token?: RobotToken | null;
-
-    // Статус
-    status: 'active' | 'stopped' | 'error';
-    is_active: number;
-
-    // Параметры стратегии
-    strategy_params: Record<string, any>;
-
-    // Риск-менеджмент
-    max_daily_loss: number | null;
-    max_position_size: number | null;
-    allowed_instruments: string[] | null;
-
-    // Статистика
-    total_trades: number;
-    successful_trades: number;
-    total_profit: number;
-    total_profit_percent: number;
-
-    // Временные метки
-    created_at: string;
-    updated_at: string | null;
-    started_at: string | null;
-    stopped_at: string | null;
-    last_error: string | null;
-    last_error_at: string | null;
-}
-
-export interface RobotCreate {
-    name: string;
+export interface StrategyParam {
+    type: 'integer' | 'float' | 'string' | 'boolean' | 'array';
+    default?: any;
+    min?: number;
+    max?: number;
+    enum?: string[];
+    label: string;
     description?: string;
-    robot_type: string;
-    token_id?: number;
+}
+
+export interface StrategyInfo {
+    name: string;
+    title: string;
+    description: string;
+    params_schema: Record<string, StrategyParam>;
+}
+
+export interface RobotBase {
+    name: string;
+    display_name?: string;
+    description?: string;
+    robot_type: 'portfolio_updater' | 'trading';
+    strategy_name?: string;
     strategy_params: Record<string, any>;
     max_daily_loss?: number;
     max_position_size?: number;
     allowed_instruments?: string[];
 }
 
+export interface RobotCreate extends RobotBase {
+    token_id?: number;
+}
+
 export interface RobotUpdate {
     name?: string;
+    display_name?: string;
     description?: string;
     token_id?: number | null;
     strategy_params?: Record<string, any>;
     max_daily_loss?: number | null;
     max_position_size?: number | null;
     allowed_instruments?: string[] | null;
-    status?: string;
+    status?: 'active' | 'stopped' | 'error';
 }
 
-// Типы для сделок
+export interface Robot extends RobotBase {
+    id: number;
+    user_id: number;
+    token_id: number | null;
+    status: 'active' | 'stopped' | 'error';
+    is_active: number;
+    total_trades: number;
+    successful_trades: number;
+    total_profit: number;
+    total_profit_percent: number;
+    created_at: string;
+    updated_at: string | null;
+    started_at: string | null;
+    stopped_at: string | null;
+    last_error: string | null;
+    last_error_at: string | null;
+    last_heartbeat_at: string | null;
+}
+
+export interface RobotListResponse {
+    total: number;
+    items: Robot[];
+}
+
 export interface RobotTrade {
     id: number;
     robot_id: number;
@@ -75,7 +80,6 @@ export interface RobotTrade {
     price: number;
     total_amount: number;
     commission: number | null;
-    order_id: string | null;
     profit: number | null;
     profit_percent: number | null;
     status: 'open' | 'closed' | 'cancelled';
@@ -83,17 +87,26 @@ export interface RobotTrade {
     closed_at: string | null;
 }
 
-// Типы для логов
 export interface RobotLog {
     id: number;
-    robot_id: number;
-    level: 'INFO' | 'WARNING' | 'ERROR' | 'DEBUG';
-    message: string;
-    details: Record<string, any> | null;
-    created_at: string;
+    robot_name: string;
+    robot_version: string | null;
+    token_id: number | null;
+    user_id: number | null;
+    started_at: string;
+    finished_at: string | null;
+    duration_ms: number | null;
+    success: boolean;
+    error_message: string | null;
 }
 
-// Типы для статистики
+export interface RobotLogListResponse {
+    total: number;
+    logs: RobotLog[];
+    limit: number;
+    offset: number;
+}
+
 export interface RobotStats {
     total_trades: number;
     successful_trades: number;
@@ -110,7 +123,13 @@ export interface RobotStats {
     last_trade_at: string | null;
 }
 
-// Типы для токенов
+export interface TokenInfo {
+    id: number;
+    token_name: string | null;
+    token_preview: string;
+    is_active: boolean;
+}
+
 export interface AvailableToken {
     id: number;
     token_name: string | null;

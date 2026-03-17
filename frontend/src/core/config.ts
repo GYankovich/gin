@@ -13,6 +13,6 @@ export const config = {
         login: '/login',
         analytics: '/analytics',
         settings: '/settings',
-        trading: '/trading'
+        // trading: '/trading'
     }
 };

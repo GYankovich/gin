@@ -1,31 +1,18 @@
-import { router } from '../../core/router';
-import { RobotsView } from './views/RobotsView';
-import { RobotCreateView } from './views/RobotCreateView';
-import { RobotDetailView } from './views/RobotDetailView';
-import { RobotEditView } from './views/RobotEditView';
+// frontend/src/modules/robots/index.ts
 
-export function initRobotsModule() {
-    // Регистрируем маршруты
-    router.register('/robots', () => {
-        const view = new RobotsView();
-        view.render();
-    });
-
-    router.register('/robots/create', () => {
-        const view = new RobotCreateView();
-        view.render();
-    });
-
-    router.register('/robots/:id', (params) => {
-        const view = new RobotDetailView(parseInt(params.id));
-        view.render();
-    });
-
-    router.register('/robots/:id/edit', (params) => {
-        const view = new RobotEditView(parseInt(params.id));
-        view.render();
-    });
-}
-
-export * from './types';
+// Экспортируем сервис
 export { robotService } from './services/robotService';
+
+// Экспортируем типы
+export * from './types';
+
+// Экспортируем компоненты
+export { RobotCard } from './components/RobotCard';
+export { RobotForm } from './components/RobotForm';
+export { RobotList } from './components/RobotList';
+export { StrategyConfig } from './components/StrategyConfig';
+
+// Экспортируем страницы
+export { RobotsPage } from './pages/RobotsPage';
+export { RobotDetailPage } from './pages/RobotDetailPage';
+export { CreateRobotPage } from './pages/CreateRobotPage';

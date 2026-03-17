@@ -10,6 +10,11 @@ import { themeManager } from './core/theme';
 import { initAuthModule } from './modules/auth';
 import { initRobotsModule } from './modules/robots';
 
+// Импортируем представления для роботов
+import { RobotsPage } from './modules/robots/pages/RobotsPage';
+import { RobotDetailPage } from './modules/robots/pages/RobotDetailPage';
+import { CreateRobotPage } from './modules/robots/pages/CreateRobotPage';
+
 
 console.log('🚀 GAnal Frontend starting...');
 
@@ -82,18 +87,45 @@ router.register('/settings', async () => {
     await settingsView.loadData();
 });
 
-router.register('/trading', () => {
+// Маршруты для роботов
+router.register('/robots', () => {
     initAppLayout();
     if (navbar) navbar.render();
-    const tradingView = new TradingView();
-    renderContent(tradingView);
+    const robotsPage = new RobotsPage();
+    renderContent(robotsPage);
 });
 
-router.register('/trading/create', () => {
+router.register('/robots/create', () => {
     initAppLayout();
     if (navbar) navbar.render();
-    const tradingCreateView = new TradingCreateView();
-    renderContent(tradingCreateView);
+    const createPage = new CreateRobotPage();
+    renderContent(createPage);
+});
+
+router.register('/robots/:id', (params?: { id?: string }) => {
+    const robotId = params?.id ? parseInt(params.id) : 0;
+    if (!robotId) {
+        router.navigate('/robots');
+        return;
+    }
+
+    initAppLayout();
+    if (navbar) navbar.render();
+    const detailPage = new RobotDetailPage(robotId);
+    renderContent(detailPage);
+});
+
+router.register('/robots/:id/edit', (params?: { id?: string }) => {
+    const robotId = params?.id ? parseInt(params.id) : 0;
+    if (!robotId) {
+        router.navigate('/robots');
+        return;
+    }
+
+    initAppLayout();
+    if (navbar) navbar.render();
+    // TODO: Создать страницу редактирования
+    router.navigate(`/robots/${robotId}`);
 });
 
 router.register('/', () => {
@@ -126,4 +158,3 @@ setTimeout(() => {
         }
     }
 }, 100);
-

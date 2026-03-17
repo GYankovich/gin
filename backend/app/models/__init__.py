@@ -26,7 +26,7 @@ from app.modules.tinvest.models import (
 
 # Затем модели robots
 from app.modules.robots.models import (
-    TradingRobot,
+    Robot,
     RobotTrade,
     RobotLog,
     RobotSignal
@@ -46,7 +46,7 @@ __all__ = [
     'PortfolioOperation',
     'PortfolioOrder',
     'InstrumentCache',
-    'TradingRobot',
+    'Robot',
     'RobotTrade',
     'RobotLog',
     'RobotSignal'

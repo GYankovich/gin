@@ -5,6 +5,7 @@ from datetime import datetime
 
 from app.core.database import SessionLocal
 from app.modules.robots.portfolio_updater.scheduler import PortfolioUpdaterScheduler
+from app.modules.robots.trading.scheduler import TradingScheduler
 from app.modules.robots.common.logger import get_logger
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,7 @@ class RobotScheduler:
         self.running = False
         self.task = None
         self.portfolio_updater = PortfolioUpdaterScheduler()
+        self.trading_scheduler = TradingScheduler()  # Добавляем торгового планировщика
 
     async def _run_cycle(self):
         """Один цикл работы планировщика"""
@@ -29,9 +31,14 @@ class RobotScheduler:
             system_log.info("🔄 Запуск цикла обновления")
 
             # Запускаем обновление портфелей
-            result = await self.portfolio_updater.run_update_cycle(db)
+            portfolio_result = await self.portfolio_updater.run_update_cycle(db)
+            system_log.info(f"📊 Портфели: {portfolio_result}")
 
-            system_log.info(f"✅ Цикл завершен: {result}")
+            # Запускаем торговых роботов
+            trading_result = await self.trading_scheduler.run_trading_cycle(db)
+            system_log.info(f"📊 Торговля: {trading_result}")
+
+            system_log.info("✅ Цикл завершен")
 
         except Exception as e:
             system_log.error(f"❌ Ошибка в цикле: {e}")
@@ -90,7 +97,10 @@ class RobotScheduler:
             return {"result": result}
         else:
             # Обновляем всё
-            return await self.portfolio_updater.run_update_cycle(db)
+            return {
+                "portfolio": await self.portfolio_updater.run_update_cycle(db),
+                "trading": await self.trading_scheduler.run_trading_cycle(db)
+            }
 
 
 # Глобальный экземпляр

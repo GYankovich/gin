@@ -44,7 +44,7 @@ class User(Base):
     )
 
     trading_robots = relationship(
-        "TradingRobot",
+        "Robot",
         back_populates="user",
         cascade="all, delete-orphan"
     )

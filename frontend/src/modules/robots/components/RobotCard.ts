@@ -1,69 +1,171 @@
-import { router } from '../../../core/router';
-import type { Robot } from '../types';
+// frontend/src/modules/robots/components/RobotCard.ts
+import { Robot } from '../types';
 
 export class RobotCard {
-    private element: HTMLElement;
+    private robot: Robot;
+    private onStart: (id: number) => void;
+    private onStop: (id: number) => void;
+    private onEdit: (id: number) => void;
+    private onDelete: (id: number) => void;
+    private onViewDetails: (id: number) => void;
+    private container: HTMLElement | null = null;
 
-    constructor(private robot: Robot) {
-        this.element = document.createElement('div');
-        this.element.className = 'robot-card';
+    constructor(
+        robot: Robot,
+        onStart: (id: number) => void,
+        onStop: (id: number) => void,
+        onEdit: (id: number) => void,
+        onDelete: (id: number) => void,
+        onViewDetails: (id: number) => void
+    ) {
+        this.robot = robot;
+        this.onStart = onStart;
+        this.onStop = onStop;
+        this.onEdit = onEdit;
+        this.onDelete = onDelete;
+        this.onViewDetails = onViewDetails;
     }
 
-    private getStatusClass(): string {
+    private getStatusIcon(): string {
         switch (this.robot.status) {
-            case 'active': return 'status-active';
-            case 'error': return 'status-error';
-            default: return 'status-stopped';
+            case 'active': return '🟢';
+            case 'stopped': return '⏸️';
+            case 'error': return '🔴';
+            default: return '⚪';
         }
     }
 
-    private formatProfit(): string {
-        const profit = this.robot.total_profit;
-        const percent = this.robot.total_profit_percent;
-        const sign = profit >= 0 ? '+' : '';
-        const color = profit >= 0 ? 'green' : 'red';
-
-        return `<span style="color: ${color}">${sign}${profit.toFixed(2)} ₽ (${sign}${percent.toFixed(2)}%)</span>`;
+    private getStatusText(): string {
+        switch (this.robot.status) {
+            case 'active': return 'Активен';
+            case 'stopped': return 'Остановлен';
+            case 'error': return `Ошибка${this.robot.last_error ? ': ' + this.robot.last_error.substring(0, 50) + '...' : ''}`;
+            default: return 'Неизвестно';
+        }
     }
 
-    render(): HTMLElement {
-        const statusClass = this.getStatusClass();
+    private formatProfit(profit: number): string {
+        const sign = profit >= 0 ? '+' : '';
+        return `${sign}${profit.toFixed(2)} ₽`;
+    }
 
-        this.element.innerHTML = `
-            <div class="robot-card-header">
-                <h3>${this.robot.name}</h3>
-                <span class="robot-status ${statusClass}">${this.robot.status}</span>
-            </div>
-            <div class="robot-card-body">
-                <div class="robot-type">Тип: ${this.robot.robot_type}</div>
-                <div class="robot-token">
-                    Токен: ${this.robot.token?.token_preview || 'Не выбран'}
+    private formatDate(dateStr: string | null): string {
+        if (!dateStr) return '—';
+        return new Date(dateStr).toLocaleString();
+    }
+
+    render(container: HTMLElement): void {
+        this.container = container;
+        const profitClass = this.robot.total_profit >= 0 ? 'profit-positive' : 'profit-negative';
+
+        container.innerHTML = `
+            <div class="robot-card ${this.robot.status}" data-robot-id="${this.robot.id}">
+                <div class="robot-card-header">
+                    <div class="robot-title">
+                        <span class="status-icon">${this.getStatusIcon()}</span>
+                        <h3>${this.robot.display_name || this.robot.name}</h3>
+                    </div>
+                    <div class="robot-type">
+                        ${this.robot.robot_type === 'trading' ? 'Торговый' : 'Обновление портфеля'}
+                    </div>
                 </div>
-                <div class="robot-stats-preview">
-                    <div>Сделок: ${this.robot.total_trades}</div>
-                    <div>Прибыль: ${this.formatProfit()}</div>
+
+                <div class="robot-card-body">
+                    <div class="robot-status" title="${this.robot.last_error || ''}">
+                        ${this.getStatusText()}
+                    </div>
+
+                    ${this.robot.robot_type === 'trading' ? `
+                        <div class="robot-stats">
+                            <div class="stat">
+                                <span class="stat-label">Сделок:</span>
+                                <span class="stat-value">${this.robot.total_trades}</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Успешных:</span>
+                                <span class="stat-value">${this.robot.successful_trades}</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Прибыль:</span>
+                                <span class="stat-value ${profitClass}">
+                                    ${this.formatProfit(this.robot.total_profit)}
+                                </span>
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <div class="robot-times">
+                        <div class="time">
+                            <span>Создан:</span>
+                            ${this.formatDate(this.robot.created_at)}
+                        </div>
+                        ${this.robot.last_heartbeat_at ? `
+                            <div class="time">
+                                <span>Последняя активность:</span>
+                                ${this.formatDate(this.robot.last_heartbeat_at)}
+                            </div>
+                        ` : ''}
+                    </div>
                 </div>
-                <div class="robot-description">
-                    ${this.robot.description || 'Нет описания'}
+
+                <div class="robot-card-actions">
+                    ${this.robot.status === 'active' ? `
+                        <button class="btn-stop" data-action="stop" title="Остановить">⏸️</button>
+                    ` : `
+                        <button class="btn-start" data-action="start" title="Запустить" ${!this.robot.token_id ? 'disabled' : ''}>
+                            ▶️
+                        </button>
+                    `}
+                    <button class="btn-edit" data-action="edit" title="Редактировать">✏️</button>
+                    <button class="btn-delete" data-action="delete" title="Удалить">🗑️</button>
                 </div>
-            </div>
-            <div class="robot-card-footer">
-                <button class="btn-view" data-id="${this.robot.id}">Подробнее</button>
-                <button class="btn-start" data-id="${this.robot.id}" ${this.robot.status === 'active' ? 'disabled' : ''}>
-                    ${this.robot.status === 'active' ? 'Запущен' : 'Запустить'}
-                </button>
-                <button class="btn-stop" data-id="${this.robot.id}" ${this.robot.status !== 'active' ? 'disabled' : ''}>
-                    Остановить
-                </button>
+
+                ${!this.robot.token_id ? `
+                    <div class="robot-warning">Нет токена доступа</div>
+                ` : ''}
             </div>
         `;
 
-        // Добавляем обработчики
-        const viewBtn = this.element.querySelector('.btn-view');
-        viewBtn?.addEventListener('click', () => {
-            router.navigate(`/robots/${this.robot.id}`);
-        });
+        // Добавляем обработчики событий
+        setTimeout(() => {
+            const card = container.querySelector('.robot-card');
+            const startBtn = container.querySelector('[data-action="start"]');
+            const stopBtn = container.querySelector('[data-action="stop"]');
+            const editBtn = container.querySelector('[data-action="edit"]');
+            const deleteBtn = container.querySelector('[data-action="delete"]');
 
-        return this.element;
+            card?.addEventListener('click', (e) => {
+                // Не открываем детали при клике на кнопки
+                const target = e.target as HTMLElement;
+                if (target.closest('button')) return;
+                this.onViewDetails(this.robot.id);
+            });
+
+            startBtn?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.onStart(this.robot.id);
+            });
+
+            stopBtn?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.onStop(this.robot.id);
+            });
+
+            editBtn?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.onEdit(this.robot.id);
+            });
+
+            deleteBtn?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (confirm('Вы уверены, что хотите удалить этого робота?')) {
+                    this.onDelete(this.robot.id);
+                }
+            });
+        }, 0);
+    }
+
+    destroy(): void {
+        this.container = null;
     }
 }

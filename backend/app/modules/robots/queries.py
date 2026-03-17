@@ -3,39 +3,59 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
+# === ЗАПРОСЫ ДЛЯ РОБОТОВ ===
+
 def build_get_user_robots_query(
         include_inactive: bool = False,
-        robot_type: Optional[str] = None
+        robot_type: Optional[int] = None
 ) -> tuple[str, Dict[str, Any]]:
     """
     Строит запрос для получения всех роботов пользователя
     """
     base_query = """
                  SELECT
-                     id, user_id, token_id, name, display_name, description, robot_type,
-                     strategy_params, max_daily_loss, max_position_size, allowed_instruments,
-                     status, is_active,
-                     total_trades, successful_trades, total_profit, total_profit_percent,
-                     created_at, updated_at, started_at, stopped_at, last_error, last_error_at,
-                     last_heartbeat_at
-                 FROM ganaly.trading_robots
-                 WHERE user_id = :user_id \
+                     r.id,
+                     r.user_id,
+                     r.token_id,
+                     r.name,
+                     r.type as type_id,
+                     dt.name as type_name,
+                     r.status as status_id,
+                     ds.name as status_name,
+                     r.config,
+                     r.last_started,
+                     r.last_error,
+                     r.last_error_at,
+                     r.usercre,
+                     r.date_creation,
+                     r.usermod,
+                     r.date_modification,
+                     COUNT(DISTINCT t.id) as total_trades,
+                     SUM(CASE WHEN t.profit > 0 THEN 1 ELSE 0 END) as successful_trades,
+                     COALESCE(SUM(t.profit), 0) as total_profit
+                 FROM ganaly.robots r
+                          LEFT JOIN ganaly.robot_trades t ON r.id = t.robot_id
+                          LEFT JOIN ganaly.dictionary dt ON r.type = dt.id AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
+                          LEFT JOIN ganaly.dictionary ds ON r.status = ds.id AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
+                 WHERE r.user_id = :user_id \
                  """
 
     params = {"user_id": ":user_id"}
     conditions = []
 
     if not include_inactive:
-        conditions.append("is_active = 1")
+        # Получаем ID статуса "Включен" из dictionary
+        conditions.append("r.status = (SELECT id FROM ganaly.dictionary WHERE table_name = 'ROBOT' AND column_name = 'STATUS' AND num_value = 1)")
 
     if robot_type:
-        conditions.append("robot_type = :robot_type")
+        # Получаем ID типа робота из dictionary
+        conditions.append("r.type = (SELECT id FROM ganaly.dictionary WHERE table_name = 'ROBOT' AND column_name = 'TYPE' AND num_value = :robot_type)")
         params["robot_type"] = robot_type
 
     if conditions:
         base_query += " AND " + " AND ".join(conditions)
 
-    base_query += " ORDER BY created_at DESC"
+    base_query += " GROUP BY r.id, dt.name, ds.name ORDER BY r.date_creation DESC"
 
     return base_query, params
 
@@ -44,21 +64,40 @@ def build_get_robot_by_id_query() -> str:
     """Получение робота по ID с проверкой владельца"""
     return """
            SELECT
-               id, user_id, token_id, name, display_name, description, robot_type,
-               strategy_params, max_daily_loss, max_position_size, allowed_instruments,
-               status, is_active,
-               total_trades, successful_trades, total_profit, total_profit_percent,
-               created_at, updated_at, started_at, stopped_at, last_error, last_error_at,
-               last_heartbeat_at
-           FROM ganaly.trading_robots
-           WHERE id = :robot_id AND user_id = :user_id \
+               r.id,
+               r.user_id,
+               r.token_id,
+               r.name,
+               r.type as type_id,
+               dt.name as type_name,
+               dt.num_value as type_value,
+               r.status as status_id,
+               ds.name as status_name,
+               ds.num_value as status_value,
+               r.config,
+               r.last_started,
+               r.last_error,
+               r.last_error_at,
+               r.usercre,
+               r.date_creation,
+               r.usermod,
+               r.date_modification,
+               COUNT(DISTINCT t.id) as total_trades,
+               SUM(CASE WHEN t.profit > 0 THEN 1 ELSE 0 END) as successful_trades,
+               COALESCE(SUM(t.profit), 0) as total_profit
+           FROM ganaly.robots r
+                    LEFT JOIN ganaly.robot_trades t ON r.id = t.robot_id
+                    LEFT JOIN ganaly.dictionary dt ON r.type = dt.id AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
+                    LEFT JOIN ganaly.dictionary ds ON r.status = ds.id AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
+           WHERE r.id = :robot_id AND r.user_id = :user_id
+           GROUP BY r.id, dt.name, dt.num_value, ds.name, ds.num_value \
            """
 
 
 def build_check_robot_ownership_query() -> str:
     """Проверка принадлежности робота пользователю"""
     return """
-           SELECT id FROM ganaly.trading_robots
+           SELECT id FROM ganaly.robots
            WHERE id = :robot_id AND user_id = :user_id \
            """
 
@@ -66,7 +105,7 @@ def build_check_robot_ownership_query() -> str:
 def build_check_robot_name_exists_query() -> str:
     """Проверка уникальности имени робота для пользователя"""
     return """
-           SELECT id FROM ganaly.trading_robots
+           SELECT id FROM ganaly.robots
            WHERE user_id = :user_id AND name = :name \
            """
 
@@ -74,21 +113,14 @@ def build_check_robot_name_exists_query() -> str:
 def build_create_robot_query() -> str:
     """Создание нового робота"""
     return """
-           INSERT INTO ganaly.trading_robots
-           (user_id, token_id, name, display_name, description, robot_type, strategy_params,
-            max_daily_loss, max_position_size, allowed_instruments,
-            status, is_active, created_at)
+           INSERT INTO ganaly.robots
+               (user_id, token_id, name, type, status, config, usercre, date_creation)
            VALUES
-               (:user_id, :token_id, :name, :display_name, :description, :robot_type, :strategy_params,
-                :max_daily_loss, :max_position_size, :allowed_instruments,
-                :status, :is_active, :created_at)
+               (:user_id, :token_id, :name, :type, :status, :config, :usercre, :created_at)
                RETURNING
-            id, user_id, token_id, name, display_name, description, robot_type,
-            strategy_params, max_daily_loss, max_position_size, allowed_instruments,
-            status, is_active,
-            total_trades, successful_trades, total_profit, total_profit_percent,
-            created_at, updated_at, started_at, stopped_at, last_error, last_error_at,
-            last_heartbeat_at \
+            id, user_id, token_id, name, type, status, config,
+            last_started, last_error, last_error_at,
+            usercre, date_creation, usermod, date_modification \
            """
 
 
@@ -97,29 +129,24 @@ def build_update_robot_query(fields: List[str]) -> tuple[str, Dict[str, Any]]:
     Динамически строит запрос обновления робота
     """
     base_query = """
-                 UPDATE ganaly.trading_robots
-                 SET {updates}, updated_at = :now
+                 UPDATE ganaly.robots
+                 SET {updates}, usermod = :usermod, date_modification = :now
                  WHERE id = :robot_id AND user_id = :user_id
                      RETURNING
-                     id, user_id, token_id, name, display_name, description, robot_type,
-                     strategy_params, max_daily_loss, max_position_size, allowed_instruments,
-                     status, is_active,
-                     total_trades, successful_trades, total_profit, total_profit_percent,
-                     created_at, updated_at, started_at, stopped_at, last_error, last_error_at,
-                     last_heartbeat_at \
+                     id, user_id, token_id, name, type, status, config,
+                     last_started, last_error, last_error_at,
+                     usercre, date_creation, usermod, date_modification \
                  """
 
     field_mapping = {
         "name": "name = :name",
-        "display_name": "display_name = :display_name",
-        "description": "description = :description",
         "token_id": "token_id = :token_id",
-        "strategy_params": "strategy_params = :strategy_params",
-        "max_daily_loss": "max_daily_loss = :max_daily_loss",
-        "max_position_size": "max_position_size = :max_position_size",
-        "allowed_instruments": "allowed_instruments = :allowed_instruments",
+        "type": "type = :type",
         "status": "status = :status",
-        "is_active": "is_active = :is_active"
+        "config": "config = :config",
+        "last_started": "last_started = :last_started",
+        "last_error": "last_error = :last_error",
+        "last_error_at": "last_error_at = :last_error_at"
     }
 
     updates = [field_mapping[f] for f in fields if f in field_mapping]
@@ -132,6 +159,7 @@ def build_update_robot_query(fields: List[str]) -> tuple[str, Dict[str, Any]]:
     params = {
         "robot_id": ":robot_id",
         "user_id": ":user_id",
+        "usermod": ":usermod",
         "now": ":now"
     }
 
@@ -142,11 +170,25 @@ def build_update_robot_query(fields: List[str]) -> tuple[str, Dict[str, Any]]:
     return query, params
 
 
-def build_update_robot_heartbeat_query() -> str:
-    """Обновление времени heartbeat робота"""
+def build_update_robot_last_started_query() -> str:
+    """Обновление времени последнего запуска робота"""
     return """
-           UPDATE ganaly.trading_robots
-           SET last_heartbeat_at = :now
+           UPDATE ganaly.robots
+           SET last_started = :now,
+               usermod = :usermod,
+               date_modification = :now
+           WHERE id = :robot_id \
+           """
+
+
+def build_update_robot_error_query() -> str:
+    """Обновление информации об ошибке робота"""
+    return """
+           UPDATE ganaly.robots
+           SET last_error = :error,
+               last_error_at = :now,
+               usermod = :usermod,
+               date_modification = :now
            WHERE id = :robot_id \
            """
 
@@ -154,20 +196,56 @@ def build_update_robot_heartbeat_query() -> str:
 def build_delete_robot_query() -> str:
     """Удаление робота"""
     return """
-           DELETE FROM ganaly.trading_robots
+           DELETE FROM ganaly.robots
            WHERE id = :robot_id AND user_id = :user_id
                RETURNING id \
            """
 
 
-def build_get_active_robots_for_scheduler_query() -> str:
-    """Получение активных роботов для планировщика"""
+# === ЗАПРОСЫ ДЛЯ СПРАВОЧНИКОВ ===
+
+def build_get_dictionary_values_query(
+        table_name: str,
+        column_name: str,
+        include_hidden: bool = False
+) -> tuple[str, Dict[str, Any]]:
+    """
+    Получение значений из справочника
+    """
+    query = """
+            SELECT
+                id,
+                num_value,
+                string_value,
+                name,
+                description
+            FROM ganaly.dictionary
+            WHERE table_name = :table_name
+              AND column_name = :column_name \
+            """
+
+    params = {
+        "table_name": table_name,
+        "column_name": column_name
+    }
+
+    if not include_hidden:
+        query += " AND hide_from_ui = 0"
+
+    query += " ORDER BY num_value NULLS LAST, name"
+
+    return query, params
+
+
+def build_get_dictionary_id_by_value_query() -> str:
+    """
+    Получение ID записи в справочнике по значению
+    """
     return """
-           SELECT
-               id, user_id, token_id, name, display_name, robot_type,
-               strategy_params, status, last_heartbeat_at
-           FROM ganaly.trading_robots
-           WHERE is_active = 1 AND status = 'active' \
+           SELECT id FROM ganaly.dictionary
+           WHERE table_name = :table_name
+             AND column_name = :column_name
+             AND num_value = :num_value \
            """
 
 
@@ -244,15 +322,11 @@ def build_close_trade_query() -> str:
 
 
 def build_update_robot_stats_after_trade_query() -> str:
-    """Обновление статистики робота после сделки"""
+    """Обновление статистики робота после сделки (теперь через агрегацию, но оставим для совместимости)"""
     return """
-           UPDATE ganaly.trading_robots
-           SET total_trades = total_trades + 1,
-               successful_trades = successful_trades + :success_increment,
-               total_profit = total_profit + :profit,
-               total_profit_percent = total_profit_percent + :profit_percent
-           WHERE id = :robot_id \
-           """
+        -- Статистика теперь считается на лету через агрегацию
+        SELECT 1
+    """
 
 
 def build_get_trade_stats_query(robot_id: int) -> tuple[str, Dict[str, Any]]:
@@ -290,6 +364,7 @@ def build_create_robot_log_query() -> str:
                 :started_at, :endpoint, :request_data)
                RETURNING id \
            """
+
 
 def build_update_robot_log_success_query() -> str:
     """
@@ -336,7 +411,6 @@ def build_get_robot_logs_query(
                  SELECT
                      id,
                      robot_name,
-                     robot_display_name,
                      robot_version,
                      token_id,
                      user_id,
@@ -419,7 +493,7 @@ def build_clean_old_logs_query(days: int = 30) -> tuple[str, Dict[str, Any]]:
     return query, params
 
 
-# === ЗАПРОСЫ ДЛЯ ТОКЕНОВ ===
+# === ЗАПРОСЫ ДЛЯ ТОКЕНОВ (ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ) ===
 
 def build_get_token_with_refresh_info_query() -> str:
     """
@@ -441,7 +515,6 @@ def build_get_token_with_refresh_info_query() -> str:
 def build_get_tokens_for_update_query() -> str:
     """
     Получение всех активных токенов, которые требуют обновления
-    Учитывает refresh_interval_minutes и время последнего использования
     """
     return """
            SELECT
@@ -504,46 +577,13 @@ def build_update_token_last_used_query() -> str:
            """
 
 
-def build_update_token_refresh_interval_query() -> str:
-    """
-    Обновление интервала обновления токена
-    """
-    return """
-           UPDATE ganaly.api_tokens
-           SET refresh_interval_minutes = :interval,
-               updated_at = :now
-           WHERE id = :token_id AND user_id = :user_id
-               RETURNING id \
-           """
-
-
-# === ЗАПРОСЫ ДЛЯ ПОРТФЕЛЕЙ ===
+# === ЗАПРОСЫ ДЛЯ ПОРТФЕЛЕЙ (ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ) ===
 
 def build_get_account_by_id_query() -> str:
     """Получение счета по ID"""
     return """
            SELECT id FROM ganaly.portfolio_accounts
            WHERE user_id = :user_id AND account_id = :account_id \
-           """
-
-
-def build_get_accounts_by_user_query() -> str:
-    """
-    Получение всех счетов пользователя
-    """
-    return """
-           SELECT
-               id,
-               account_id,
-               account_type,
-               account_name,
-               account_status,
-               opened_date,
-               last_sync_at,
-               created_at
-           FROM ganaly.portfolio_accounts
-           WHERE user_id = :user_id AND is_active = 1
-           ORDER BY created_at DESC \
            """
 
 
@@ -572,65 +612,6 @@ def build_update_account_query() -> str:
                updated_at = :now
            WHERE id = :db_account_id \
            """
-
-
-def build_update_account_sync_time_query() -> str:
-    """
-    Обновление времени синхронизации счета
-    """
-    return """
-           UPDATE ganaly.portfolio_accounts
-           SET last_sync_at = :now
-           WHERE id = :account_id \
-           """
-
-
-def build_get_last_snapshot_query() -> str:
-    """
-    Получение последнего снимка портфеля
-    """
-    return """
-           SELECT
-               id,
-               snapshot_date,
-               total_amount_portfolio,
-               currency
-           FROM ganaly.portfolio_snapshots
-           WHERE account_id = :account_id
-           ORDER BY snapshot_date DESC
-               LIMIT 1 \
-           """
-
-
-def build_get_snapshots_by_account_query(
-        account_id: int,
-        limit: int = 10,
-        from_date: Optional[datetime] = None
-) -> tuple[str, Dict[str, Any]]:
-    """
-    Получение снимков портфеля по счету
-    """
-    base_query = """
-                 SELECT
-                     id,
-                     snapshot_date,
-                     total_amount_portfolio,
-                     daily_yield,
-                     expected_yield,
-                     currency
-                 FROM ganaly.portfolio_snapshots
-                 WHERE account_id = :account_id \
-                 """
-
-    params = {"account_id": account_id, "limit": limit}
-
-    if from_date:
-        base_query += " AND snapshot_date >= :from_date"
-        params["from_date"] = from_date
-
-    base_query += " ORDER BY snapshot_date DESC LIMIT :limit"
-
-    return base_query, params
 
 
 def build_create_snapshot_query() -> str:
@@ -669,134 +650,44 @@ def build_create_position_query() -> str:
                 :position_uid, :instrument_uid) \
            """
 
+# === ДОПОЛНИТЕЛЬНЫЕ ЗАПРОСЫ ДЛЯ РОБОТОВ ===
 
-def build_get_positions_by_snapshot_query(snapshot_id: int) -> tuple[str, Dict[str, Any]]:
+def build_update_robot_heartbeat_query() -> str:
     """
-    Получение всех позиций снимка
+    Обновление времени последнего heartbeat робота
     """
-    query = """
-            SELECT
-                id,
-                figi,
-                ticker,
-                instrument_type,
-                quantity,
-                current_price,
-                (current_price * quantity) as total_value,
-                expected_yield,
-                daily_yield,
-                average_position_price,
-                blocked
-            FROM ganaly.portfolio_positions
-            WHERE snapshot_id = :snapshot_id
-            ORDER BY total_value DESC \
-            """
-
-    params = {"snapshot_id": snapshot_id}
-    return query, params
-
-
-# === ЗАПРОСЫ ДЛЯ СИГНАЛОВ ===
-
-def build_create_signal_query() -> str:
-    """Создание записи о сигнале"""
     return """
-           INSERT INTO ganaly.robot_signals
-           (robot_id, figi, ticker, signal_type, signal_strength,
-            indicators, price_at_signal, created_at)
-           VALUES
-               (:robot_id, :figi, :ticker, :signal_type, :signal_strength,
-                :indicators, :price_at_signal, :created_at)
-               RETURNING id \
+           UPDATE ganaly.robots
+           SET last_heartbeat_at = :now,
+               usermod = :usermod,
+               date_modification = :now
+           WHERE id = :robot_id
            """
 
 
-def build_get_signals_by_robot_query(
-        robot_id: int,
-        limit: int = 50,
-        executed_only: bool = False
-) -> tuple[str, Dict[str, Any]]:
+def build_get_active_robots_for_scheduler_query() -> str:
     """
-    Получение сигналов робота
+    Получение активных роботов для планировщика
+    Возвращает роботов со статусом "Включен" (num_value = 1)
     """
-    query = """
-            SELECT
-                id,
-                figi,
-                ticker,
-                signal_type,
-                signal_strength,
-                indicators,
-                price_at_signal,
-                was_executed,
-                executed_trade_id,
-                created_at
-            FROM ganaly.robot_signals
-            WHERE robot_id = :robot_id \
-            """
-
-    params = {"robot_id": robot_id, "limit": limit}
-
-    if executed_only:
-        query += " AND was_executed = 1"
-
-    query += " ORDER BY created_at DESC LIMIT :limit"
-
-    return query, params
-
-
-def build_mark_signal_executed_query() -> str:
-    """Отметка сигнала как исполненного"""
     return """
-           UPDATE ganaly.robot_signals
-           SET was_executed = 1, executed_trade_id = :trade_id
-           WHERE id = :signal_id \
+           SELECT
+               r.id,
+               r.user_id,
+               r.token_id,
+               r.name,
+               dt.num_value as type_value,
+               dt.name as type_name,
+               r.config,
+               ds.num_value as status_value,
+               r.last_started,
+               r.last_heartbeat_at
+           FROM ganaly.robots r
+                    LEFT JOIN ganaly.dictionary dt ON r.type = dt.id AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
+                    LEFT JOIN ganaly.dictionary ds ON r.status = ds.id AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
+           WHERE ds.num_value = 1  -- только активные роботы (статус "Включен")
+           ORDER BY r.date_creation DESC \
            """
-
-
-# === ЗАПРОСЫ ДЛЯ СТАТИСТИКИ ===
-
-def build_get_robot_stats_query(robot_id: int) -> tuple[str, Dict[str, Any]]:
-    """
-    Строит запрос для получения статистики робота
-    """
-    query = """
-            SELECT
-                COUNT(*) as total_trades,
-                SUM(CASE WHEN profit > 0 THEN 1 ELSE 0 END) as successful_trades,
-                SUM(CASE WHEN profit < 0 THEN 1 ELSE 0 END) as failed_trades,
-                COALESCE(AVG(profit), 0) as avg_profit,
-                MAX(profit) as max_profit,
-                MIN(profit) as min_profit,
-                SUM(profit) as total_profit,
-                MAX(closed_at) as last_trade_at
-            FROM ganaly.robot_trades
-            WHERE robot_id = :robot_id AND status = 'closed' \
-            """
-
-    params = {"robot_id": robot_id}
-    return query, params
-
-
-def build_get_trades_by_day_query(robot_id: int, days: int = 30) -> tuple[str, Dict[str, Any]]:
-    """
-    Строит запрос для группировки сделок по дням
-    """
-    query = """
-            SELECT
-                DATE(created_at) as day,
-                COUNT(*) as trade_count,
-                SUM(profit) as daily_profit
-            FROM ganaly.robot_trades
-            WHERE robot_id = :robot_id
-              AND status = 'closed'
-              AND created_at >= CURRENT_DATE - INTERVAL ':days days'
-            GROUP BY DATE(created_at)
-            ORDER BY day DESC \
-            """
-
-    params = {"robot_id": robot_id, "days": days}
-    return query, params
 
 
 def build_get_robot_health_query(robot_id: int) -> tuple[str, Dict[str, Any]]:
@@ -805,16 +696,20 @@ def build_get_robot_health_query(robot_id: int) -> tuple[str, Dict[str, Any]]:
     """
     query = """
             SELECT
-                status,
-                is_active,
-                last_error,
-                last_error_at,
-                started_at,
-                stopped_at,
-                last_heartbeat_at,
-                EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - last_heartbeat_at)) as seconds_since_heartbeat
-            FROM ganaly.trading_robots
-            WHERE id = :robot_id \
+                r.id,
+                r.name,
+                dt.name as type_name,
+                ds.name as status_name,
+                ds.num_value as status_value,
+                r.last_error,
+                r.last_error_at,
+                r.last_started,
+                r.last_heartbeat_at,
+                EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - r.last_heartbeat_at)) as seconds_since_heartbeat
+            FROM ganaly.robots r
+                     LEFT JOIN ganaly.dictionary dt ON r.type = dt.id AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
+                     LEFT JOIN ganaly.dictionary ds ON r.status = ds.id AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
+            WHERE r.id = :robot_id
             """
 
     params = {"robot_id": robot_id}
@@ -827,17 +722,150 @@ def build_get_all_robots_health_query() -> str:
     """
     return """
            SELECT
-               id,
-               name,
-               display_name,
-               robot_type,
-               status,
-               is_active,
-               last_heartbeat_at,
-               EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - last_heartbeat_at)) as seconds_since_heartbeat
-           FROM ganaly.trading_robots
-           WHERE is_active = 1
+               r.id,
+               r.name,
+               dt.name as type_name,
+               ds.name as status_name,
+               ds.num_value as status_value,
+               r.last_heartbeat_at,
+               EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - r.last_heartbeat_at)) as seconds_since_heartbeat
+           FROM ganaly.robots r
+                    LEFT JOIN ganaly.dictionary dt ON r.type = dt.id AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
+                    LEFT JOIN ganaly.dictionary ds ON r.status = ds.id AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
+           WHERE ds.num_value = 1  -- только активные роботы
            ORDER BY
-               CASE WHEN last_heartbeat_at IS NULL THEN 0 ELSE 1 END,
-               last_heartbeat_at ASC \
+               CASE WHEN r.last_heartbeat_at IS NULL THEN 0 ELSE 1 END,
+               r.last_heartbeat_at ASC
            """
+
+
+def build_get_robot_config_schema_query(robot_type: int) -> tuple[str, Dict[str, Any]]:
+    """
+    Получение схемы конфигурации для типа робота
+    """
+    query = """
+            SELECT
+                config_key,
+                config_value,
+                description,
+                is_required
+            FROM ganaly.robot_configs
+            WHERE robot_type = :robot_type
+            ORDER BY config_key
+            """
+
+    params = {"robot_type": robot_type}
+    return query, params
+
+
+def build_get_robot_types_query() -> tuple[str, Dict[str, Any]]:
+    """
+    Получение всех типов роботов из справочника
+    """
+    query = """
+            SELECT
+                id,
+                num_value,
+                name,
+                description
+            FROM ganaly.dictionary
+            WHERE table_name = 'ROBOT'
+              AND column_name = 'TYPE'
+              AND hide_from_ui = 0
+            ORDER BY num_value
+            """
+
+    params = {}
+    return query, params
+
+
+def build_get_robot_statuses_query() -> tuple[str, Dict[str, Any]]:
+    """
+    Получение всех статусов роботов из справочника
+    """
+    query = """
+            SELECT
+                id,
+                num_value,
+                name,
+                description
+            FROM ganaly.dictionary
+            WHERE table_name = 'ROBOT'
+              AND column_name = 'STATUS'
+              AND hide_from_ui = 0
+            ORDER BY num_value
+            """
+
+    params = {}
+    return query, params
+
+
+def build_get_active_robots_by_type_query(robot_type: int) -> tuple[str, Dict[str, Any]]:
+    """
+    Получение активных роботов определенного типа
+    """
+    query = """
+            SELECT
+                r.id,
+                r.user_id,
+                r.token_id,
+                r.name,
+                r.config,
+                t.token
+            FROM ganaly.robots r
+                     JOIN ganaly.api_tokens t ON r.token_id = t.id
+            WHERE r.type = :robot_type
+              AND r.status = (SELECT id FROM ganaly.dictionary WHERE table_name = 'ROBOT' AND column_name = 'STATUS' AND num_value = 1)
+              AND t.is_active = 1
+            """
+
+    params = {"robot_type": robot_type}
+    return query, params
+
+
+def build_update_robot_config_query() -> str:
+    """
+    Обновление конфигурации робота
+    """
+    return """
+           UPDATE ganaly.robots
+           SET config = config || :config,
+               usermod = :usermod,
+               date_modification = :now
+           WHERE id = :robot_id AND user_id = :user_id
+               RETURNING id
+           """
+
+
+def build_get_robot_stats_by_date_range_query(
+        robot_id: int,
+        from_date: datetime,
+        to_date: datetime
+) -> tuple[str, Dict[str, Any]]:
+    """
+    Получение статистики робота за период
+    """
+    query = """
+            SELECT
+                DATE(created_at) as trade_date,
+                COUNT(*) as trades_count,
+                SUM(CASE WHEN profit > 0 THEN 1 ELSE 0 END) as profitable_count,
+                SUM(CASE WHEN profit < 0 THEN 1 ELSE 0 END) as loss_count,
+                COALESCE(SUM(profit), 0) as total_profit,
+                AVG(profit) as avg_profit,
+                MAX(profit) as max_profit,
+                MIN(profit) as min_profit
+            FROM ganaly.robot_trades
+            WHERE robot_id = :robot_id
+              AND status = 'closed'
+              AND created_at BETWEEN :from_date AND :to_date
+            GROUP BY DATE(created_at)
+            ORDER BY trade_date DESC
+            """
+
+    params = {
+        "robot_id": robot_id,
+        "from_date": from_date,
+        "to_date": to_date
+    }
+    return query, params

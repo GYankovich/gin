@@ -3,65 +3,61 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
-# === БАЗОВЫЕ СХЕМЫ (существующие) ===
+# === СХЕМА ДЛЯ ЗАПРОСА СПИСКА РОБОТОВ ===
+
+class RobotListRequest(BaseModel):
+    """Запрос на получение списка роботов"""
+    include_inactive: bool = Field(False, description="Включать неактивных роботов")
+    robot_type: Optional[int] = Field(None, description="Фильтр по типу робота (num_value из dictionary)")
+
+
+# === БАЗОВЫЕ СХЕМЫ ===
 
 class RobotBase(BaseModel):
     """Базовая схема робота"""
-    name: str = Field(..., min_length=3, max_length=255)
-    display_name: Optional[str] = Field(None, description="Отображаемое имя для логов")
-    description: Optional[str] = None
-    robot_type: str = Field(..., description="Тип робота: portfolio_updater, trading")
-    strategy_params: Dict[str, Any] = Field(default_factory=dict)
-
-    # Риск-менеджмент
-    max_daily_loss: Optional[float] = Field(None, ge=0, le=100)
-    max_position_size: Optional[float] = Field(None, ge=0)
-    allowed_instruments: Optional[List[str]] = None
+    name: Optional[str] = Field(None, min_length=3, max_length=255)
+    token_id: Optional[int] = Field(None, description="ID токена")
+    type: int = Field(..., description="Тип робота (ID из dictionary)")
+    config: Dict[str, Any] = Field(default_factory=dict)
 
 
 class RobotCreate(RobotBase):
     """Создание робота"""
-    token_id: Optional[int] = Field(None, description="ID токена для торговли")
+    name: Optional[str] = None  # Теперь может быть null
+    status: Optional[int] = Field(0, description="Статус робота (ID из dictionary)")
 
 
 class RobotUpdate(BaseModel):
     """Обновление робота"""
-    name: Optional[str] = Field(None, min_length=3, max_length=255)
-    display_name: Optional[str] = None
-    description: Optional[str] = None
+    name: Optional[str] = None
     token_id: Optional[int] = None
-    strategy_params: Optional[Dict[str, Any]] = None
-    max_daily_loss: Optional[float] = Field(None, ge=0, le=100)
-    max_position_size: Optional[float] = Field(None, ge=0)
-    allowed_instruments: Optional[List[str]] = None
-    status: Optional[str] = Field(None, pattern="^(active|stopped|error)$")
-
-
-class RobotAction(BaseModel):
-    """Действие с роботом"""
-    action: str = Field(..., pattern="^(start|stop|pause|restart)$")
+    type: Optional[int] = None
+    status: Optional[int] = None
+    config: Optional[Dict[str, Any]] = None
 
 
 # === СХЕМЫ ДЛЯ ОТВЕТОВ ===
+
+class DictionaryItem(BaseModel):
+    """Элемент справочника"""
+    id: int
+    name: str
+    value: Optional[int] = None
+
 
 class RobotInDB(RobotBase):
     """Робот из БД"""
     id: int
     user_id: int
-    token_id: Optional[int]
-    status: str
-    is_active: int
-    total_trades: int
-    successful_trades: int
-    total_profit: float
-    total_profit_percent: float
-    created_at: datetime
-    updated_at: Optional[datetime]
-    started_at: Optional[datetime]
-    stopped_at: Optional[datetime]
-    last_error: Optional[str]
-    last_error_at: Optional[datetime]
-    last_heartbeat_at: Optional[datetime]
+    type: DictionaryItem
+    status: DictionaryItem
+    last_started: Optional[datetime] = None
+    last_error: Optional[str] = None
+    last_error_at: Optional[datetime] = None
+    usercre: Optional[int] = None
+    date_creation: datetime
+    usermod: Optional[int] = None
+    date_modification: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -73,51 +69,7 @@ class RobotListResponse(BaseModel):
     items: List[RobotInDB]
 
 
-# === НОВЫЕ СХЕМЫ ДЛЯ ЛОГОВ ===
-
-class RobotLogBase(BaseModel):
-    """Базовая схема лога"""
-    robot_name: str
-    robot_version: Optional[str]
-    token_id: Optional[int]
-    user_id: Optional[int]
-    endpoint: str
-    level: str
-    started_at: datetime
-    finished_at: Optional[datetime]
-    duration_ms: Optional[int]
-    success: bool
-    error_message: Optional[str]
-
-
-class RobotLogInDB(RobotLogBase):
-    """Лог из БД"""
-    id: int
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class RobotLogListResponse(BaseModel):
-    """Список логов"""
-    total: int
-    logs: List[RobotLogInDB]
-    limit: int
-    offset: int
-
-
-class RobotLogStats(BaseModel):
-    """Статистика по логам"""
-    robot_name: str
-    total_runs: int
-    successful: int
-    failed: int
-    avg_duration_ms: float
-    last_run: Optional[datetime]
-
-
-# === СХЕМЫ ДЛЯ СДЕЛОК (без изменений) ===
+# === СХЕМЫ ДЛЯ СДЕЛОК ===
 
 class RobotTradeBase(BaseModel):
     """Базовая схема сделки"""
@@ -149,6 +101,39 @@ class RobotTradeInDB(RobotTradeBase):
 
     class Config:
         from_attributes = True
+
+
+# === СХЕМЫ ДЛЯ ЛОГОВ ===
+
+class RobotLogBase(BaseModel):
+    """Базовая схема лога"""
+    robot_name: str
+    robot_version: Optional[str]
+    token_id: Optional[int]
+    user_id: Optional[int]
+    endpoint: str
+    started_at: datetime
+    finished_at: Optional[datetime]
+    duration_ms: Optional[int]
+    success: bool
+    error_message: Optional[str]
+
+
+class RobotLogInDB(RobotLogBase):
+    """Лог из БД"""
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class RobotLogListResponse(BaseModel):
+    """Список логов"""
+    total: int
+    logs: List[RobotLogInDB]
+    limit: int
+    offset: int
 
 
 # === СХЕМЫ ДЛЯ СТАТИСТИКИ ===

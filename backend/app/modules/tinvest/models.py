@@ -44,7 +44,7 @@ class ApiToken(Base):
 
     # Связи - используем имена классов
     user = relationship("User", back_populates="api_tokens")
-    robots = relationship("TradingRobot", back_populates="token")
+    robots = relationship("Robot", back_populates="token")
 
 
 class PortfolioAccount(Base):

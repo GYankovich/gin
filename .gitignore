@@ -7,7 +7,7 @@ __pycache__/
 venv/
 .env
 *.db
-*.log
+logs/
 
 # IDE
 .idea/

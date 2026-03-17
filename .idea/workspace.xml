@@ -5,45 +5,35 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 1.0.2 - repair robots for update portfolio">
-      <change afterPath="$PROJECT_DIR$/backend/app/models/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/modules/robots/base/base_robot.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/modules/robots/common/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/modules/robots/common/logger.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/modules/robots/common/utils.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/robot.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/scheduler.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/modules/robots/queries.py" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/logs/robots/robot_15_portfolio_updater_token15_2026-03-16_14.log" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/logs/robots_2026-03-16_12-16.log" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/logs/robots_2026-03-16_16-20.log" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/models/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/models/__init__.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/modules/auth/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/auth/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/__init__.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/queries.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/queries.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/router.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/scheduler.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/scheduler.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/schemas.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/strategies/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/trading/strategies/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/strategies/base.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/trading/strategies/base.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/strategies/ma_cross.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/trading/strategies/ma_cross.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading_service.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/workers/base_worker.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/workers/portfolio_updater.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/settings/queries.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/settings/queries.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/Lib/site-packages/anyio/_backends/_asyncio.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/Lib/site-packages/anyio/_backends/_asyncio.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/Lib/site-packages/anyio/to_process.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/Lib/site-packages/anyio/to_process.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/Lib/site-packages/black/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/Lib/site-packages/black/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/Lib/site-packages/black/concurrency.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/Lib/site-packages/black/concurrency.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/Lib/site-packages/uvicorn/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/Lib/site-packages/uvicorn/config.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/Lib/site-packages/uvicorn/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/Lib/site-packages/uvicorn/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/Lib/site-packages/uvicorn/server.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/Lib/site-packages/uvicorn/server.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/Lib/site-packages/uvicorn/workers.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/Lib/site-packages/uvicorn/workers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/core/config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/core/config.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/main.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/main.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/RobotCard.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/RobotStats.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/RobotTrades.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/index.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/services/robotService.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/types.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/views/RobotCreateView.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/views/RobotsView.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/trading/services/tradingService.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/trading/types.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/trading/views/TradingCreateView.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/trading/views/TradingView.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/shared/components/Navbar.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/components/Navbar.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/shared/styles/robots.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/styles/robots.css" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -90,26 +80,26 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "DefaultHtmlFileTemplate": "HTML File",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "Python.config.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "1.0",
-    "last_opened_file_path": "C:/Users/Asus/WebstormProject/gin/alembic/versions",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "org.jetbrains.plugins.github.ui.GithubSettingsConfigurable",
-    "ts.external.directory.path": "C:\\Users\\Asus\\WebstormProject\\gin\\node_modules\\typescript\\lib",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python.config.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;1.0&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Asus/WebstormProject/gin/alembic/versions&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;org.jetbrains.plugins.github.ui.GithubSettingsConfigurable&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;C:\\Users\\Asus\\WebstormProject\\gin\\node_modules\\typescript\\lib&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\Asus\WebstormProject\gin\alembic\versions" />
@@ -159,6 +149,7 @@
       <workItem from="1772699078157" duration="3233000" />
       <workItem from="1772816813694" duration="36251000" />
       <workItem from="1773518786674" duration="3072000" />
+      <workItem from="1773741047705" duration="7725000" />
     </task>
     <task id="LOCAL-00001" summary="v 0.8.0 - Логин и настройка токена">
       <option name="closed" value="true" />
@@ -216,7 +207,15 @@
       <option name="project" value="LOCAL" />
       <updated>1773657041993</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="v 1.0.2 - repair robots for update portfolio">
+      <option name="closed" value="true" />
+      <created>1773672648707</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1773672648707</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
