@@ -14,40 +14,63 @@ export class CreateRobotPage {
 
     constructor() {
         console.log('🤖 CreateRobotPage constructor called');
+        console.log('📍 Current path:', window.location.pathname);
+        console.log('🔑 Token present:', !!localStorage.getItem('auth_token'));
     }
 
     async loadData(): Promise<void> {
         console.log('📊 ===== LOAD CREATE PAGE DATA =====');
         console.log('📊 Loading strategies and tokens...');
+        console.log('📊 Current state:', {
+            loading: this.loading,
+            strategiesCount: this.strategies.length,
+            tokensCount: this.availableTokens.length,
+            initialized: this.initialized
+        });
 
         this.loading = true;
 
+        // Если контейнер уже есть, обновляем отображение
         if (this.container) {
+            console.log('🖼️ Container exists, rendering loading state');
             this.render(this.container);
+        } else {
+            console.log('⚠️ Container not ready yet');
         }
 
         try {
+            // Проверяем наличие токена авторизации
             const token = localStorage.getItem('auth_token');
             if (!token) {
                 console.error('❌ No auth token found!');
                 router.navigate('/login');
                 return;
             }
+            console.log('✅ Auth token present');
 
-            console.log('📡 Fetching strategies and tokens...');
-            const [strategies, tokens] = await Promise.all([
-                robotService.getStrategies(),
-                robotService.getAvailableTokens()
-            ]);
-
+            console.log('📡 Fetching strategies from /api/robots/trading/strategies...');
+            const strategies = await robotService.getStrategies();
             console.log('✅ Strategies loaded:', strategies);
+
+            console.log('📡 Fetching tokens from /api/apikey/data...');
+            const tokens = await robotService.getAvailableTokens();
             console.log('✅ Tokens loaded:', tokens);
 
             this.strategies = strategies || [];
             this.availableTokens = tokens || [];
 
+            console.log('📊 Data loaded successfully:', {
+                strategiesCount: this.strategies.length,
+                tokensCount: this.availableTokens.length
+            });
+
         } catch (error) {
             console.error('❌ Failed to load data:', error);
+            if (error instanceof Error) {
+                console.error('❌ Error name:', error.name);
+                console.error('❌ Error message:', error.message);
+                console.error('❌ Error stack:', error.stack);
+            }
             this.strategies = [];
             this.availableTokens = [];
 
@@ -56,52 +79,53 @@ export class CreateRobotPage {
             }
         } finally {
             this.loading = false;
-            console.log('📊 Loading finished');
+            console.log('📊 Loading finished, strategies:', this.strategies.length);
+            console.log('📊 Loading finished, tokens:', this.availableTokens.length);
 
+            // Всегда перерендериваем после загрузки, если контейнер существует
             if (this.container) {
+                console.log('🖼️ Container exists, re-rendering with data');
                 this.render(this.container);
+            } else {
+                console.log('⚠️ Container missing, cannot render');
             }
         }
     }
 
     private showError(error: unknown): void {
-        if (!this.container) return;
+        if (!this.container) {
+            console.log('⚠️ Cannot show error - container missing');
+            return;
+        }
+
+        console.log('❌ Showing error state');
+        const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
 
         this.container.innerHTML = `
-            <div style="text-align: center; padding: 2rem;">
-                <h3 style="color: #f44336;">Ошибка загрузки</h3>
-                <p>${error instanceof Error ? error.message : 'Неизвестная ошибка'}</p>
-                <button id="retry-load" style="
-                    margin-top: 1rem;
-                    padding: 0.5rem 2rem;
-                    background: #3498db;
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    cursor: pointer;
-                ">
-                    Повторить
-                </button>
-                <button id="go-back" style="
-                    margin-top: 1rem;
-                    margin-left: 1rem;
-                    padding: 0.5rem 2rem;
-                    background: #666;
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    cursor: pointer;
-                ">
-                    Назад
-                </button>
+            <div class="create-robot-page">
+                <div class="error-container">
+                    <div class="error-icon">❌</div>
+                    <h2 class="error-title">Ошибка загрузки</h2>
+                    <p class="error-message">${errorMessage}</p>
+                    <div class="error-actions">
+                        <button class="btn-primary" id="retry-load">
+                            Повторить
+                        </button>
+                        <button class="btn-secondary" id="go-back">
+                            Назад
+                        </button>
+                    </div>
+                </div>
             </div>
         `;
 
         setTimeout(() => {
             document.getElementById('retry-load')?.addEventListener('click', () => {
+                console.log('🔄 Retry button clicked');
                 this.loadData();
             });
             document.getElementById('go-back')?.addEventListener('click', () => {
+                console.log('👈 Back button clicked');
                 router.navigate('/robots');
             });
         }, 0);
@@ -109,14 +133,52 @@ export class CreateRobotPage {
 
     private handleSubmit = async (data: RobotCreate): Promise<void> => {
         console.log('📤 Submitting robot creation:', data);
+
+        const submitBtn = document.querySelector('.btn-primary[type="submit"]') as HTMLButtonElement;
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Создание...';
+        }
+
         try {
             await robotService.createRobot(data);
             console.log('✅ Robot created successfully');
-            router.navigate('/robots');
+
+            this.showNotification('success', 'Робот успешно создан!');
+
+            setTimeout(() => {
+                router.navigate('/robots');
+            }, 1500);
+
         } catch (error) {
             console.error('❌ Failed to create robot:', error);
-            alert(`Не удалось создать робота: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`);
+
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Создать робота';
+            }
+
+            this.showNotification(
+                'error',
+                `Не удалось создать робота: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
+            );
         }
+    }
+
+    private showNotification(type: 'success' | 'error', message: string): void {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.innerHTML = `
+            <div class="notification-icon">${type === 'success' ? '✅' : '❌'}</div>
+            <div class="notification-message">${message}</div>
+        `;
+
+        document.body.appendChild(notification);
+        setTimeout(() => notification.classList.add('show'), 10);
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
     }
 
     private handleCancel = (): void => {
@@ -126,61 +188,43 @@ export class CreateRobotPage {
 
     render(container: HTMLElement): void {
         console.log('🎨 ===== RENDER CREATE PAGE =====');
-        console.log('🎨 Rendering CreateRobotPage', {
-            loading: this.loading,
-            strategiesCount: this.strategies.length,
-            tokensCount: this.availableTokens.length
-        });
 
         this.container = container;
+        container.className = 'create-robot-page';
 
         if (this.loading) {
+            console.log('⏳ Rendering loading state');
             container.innerHTML = `
-                <div style="text-align: center; padding: 4rem;">
-                    <div style="
-                        display: inline-block;
-                        width: 50px;
-                        height: 50px;
-                        border: 4px solid #f3f3f3;
-                        border-top: 4px solid #3498db;
-                        border-radius: 50%;
-                        animation: spin 1s linear infinite;
-                        margin-bottom: 1rem;
-                    "></div>
-                    <div style="color: #666;">Загрузка...</div>
+                <div class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Загрузка данных для создания робота...</div>
                 </div>
-                <style>
-                    @keyframes spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-                </style>
             `;
 
+            // Загружаем данные только один раз при первом рендере
             if (!this.initialized) {
+                console.log('📊 First render, initializing data load');
                 this.initialized = true;
                 setTimeout(() => {
-                    console.log('⏰ Timeout triggered, loading data');
+                    console.log('⏰ Timeout triggered, calling loadData()');
                     this.loadData();
                 }, 100);
             }
             return;
         }
 
-        if (this.strategies.length === 0) {
+        // Если загрузка завершена, но данных нет
+        if (!this.loading && this.strategies.length === 0) {
+            console.log('📭 No strategies available, showing empty state');
             container.innerHTML = `
-                <div style="text-align: center; padding: 2rem;">
-                    <h3>Нет доступных стратегий</h3>
-                    <button id="go-back" style="
-                        margin-top: 1rem;
-                        padding: 0.5rem 2rem;
-                        background: #666;
-                        color: white;
-                        border: none;
-                        border-radius: 6px;
-                        cursor: pointer;
-                    ">
-                        Назад
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <h2 class="empty-state-title">Нет доступных стратегий</h2>
+                    <p class="empty-state-description">
+                        Для создания торгового робота необходимо иметь хотя бы одну стратегию.
+                    </p>
+                    <button class="btn-secondary" id="go-back">
+                        Вернуться к списку
                     </button>
                 </div>
             `;
@@ -193,7 +237,39 @@ export class CreateRobotPage {
             return;
         }
 
+        // Данные загружены успешно
+        console.log('📦 Rendering form with data:', {
+            strategies: this.strategies,
+            tokens: this.availableTokens
+        });
+
+        // Очищаем контейнер
+        container.innerHTML = '';
+
+        // Создаем структуру формы
+        const formContainer = document.createElement('div');
+        formContainer.className = 'create-robot-form-container';
+
+        formContainer.innerHTML = `
+            <div class="form-header">
+                <h1 class="form-title">Создание нового робота</h1>
+                <p class="form-description">
+                    Заполните конфигурацию для вашего торгового робота. 
+                    Все параметры можно будет изменить позже.
+                </p>
+            </div>
+            <div id="robot-form-placeholder"></div>
+        `;
+
+        container.appendChild(formContainer);
+
         // Создаем форму
+        const formPlaceholder = document.getElementById('robot-form-placeholder');
+        if (!formPlaceholder) {
+            console.error('❌ Form placeholder not found');
+            return;
+        }
+
         if (!this.form) {
             console.log('🆕 Creating new RobotForm instance');
             this.form = new RobotForm(
@@ -206,10 +282,8 @@ export class CreateRobotPage {
             );
         }
 
-        // Рендерим форму
-        container.innerHTML = ''; // Очищаем контейнер
         console.log('🎯 Rendering RobotForm');
-        this.form.render(container);
+        this.form.render(formPlaceholder);
     }
 
     destroy(): void {

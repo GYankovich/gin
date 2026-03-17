@@ -3,6 +3,7 @@ import { RobotList } from '../components/RobotList';
 import { robotService } from '../services/robotService';
 import { Robot } from '../types';
 import { router } from '../../../core/router';
+import { CreateRobotModal } from '../components/CreateRobotModal';
 
 export class RobotsPage {
     private robots: Robot[] = [];
@@ -25,11 +26,7 @@ export class RobotsPage {
 
         this.loading = true;
 
-        // НЕ вызываем render() здесь, так как container может быть undefined
-        // Мы вызовем render после установки container в методе render()
-
         try {
-            // Проверяем наличие токена
             const token = localStorage.getItem('auth_token');
             console.log('🔑 Auth token:', token ? `${token.substring(0, 20)}...` : 'NOT FOUND');
 
@@ -39,7 +36,6 @@ export class RobotsPage {
                 return;
             }
 
-            // Определяем параметры запроса
             const includeInactive = this.filter !== 'all';
 
             console.log(`🔍 Fetching robots with params:`, {
@@ -47,7 +43,7 @@ export class RobotsPage {
                 filter: this.filter
             });
 
-            console.log('📡 Making API request to /robots...');
+            console.log('📡 Making API request to /robots/data...');
 
             const startTime = Date.now();
             const response = await robotService.getRobots(includeInactive);
@@ -56,13 +52,9 @@ export class RobotsPage {
             console.log(`✅ API request completed in ${endTime - startTime}ms`);
             console.log('📦 API Response:', response);
 
-            // Проверяем структуру ответа
             if (response && Array.isArray(response.items)) {
                 console.log(`📊 Received ${response.items.length} robots`);
                 this.robots = response.items;
-            } else if (Array.isArray(response)) {
-                console.log('⚠️ Response is array, wrapping in items');
-                this.robots = response;
             } else {
                 console.warn('⚠️ Unexpected response format:', response);
                 this.robots = [];
@@ -71,7 +63,6 @@ export class RobotsPage {
         } catch (error) {
             console.error('❌ Failed to load robots:', error);
 
-            // Детальный вывод ошибки
             if (error instanceof Error) {
                 console.error('❌ Error name:', error.name);
                 console.error('❌ Error message:', error.message);
@@ -80,7 +71,6 @@ export class RobotsPage {
 
             this.robots = [];
 
-            // Показываем ошибку через render, но только если container уже установлен
             if (this.container) {
                 this.showError(error);
             }
@@ -88,7 +78,6 @@ export class RobotsPage {
             this.loading = false;
             console.log('📊 Loading finished, robots count:', this.robots.length);
 
-            // Перерендериваем после загрузки, но только если container уже установлен
             if (this.container) {
                 this.render(this.container);
             }
@@ -98,52 +87,61 @@ export class RobotsPage {
     private showError(error: unknown): void {
         if (!this.container) return;
 
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'error-message';
-        errorDiv.innerHTML = `
-            <div style="text-align: center; padding: 2rem;">
-                <h3 style="color: #f44336; margin-bottom: 1rem;">Ошибка загрузки</h3>
-                <p style="color: #666; margin-bottom: 1rem;">${error instanceof Error ? error.message : 'Неизвестная ошибка'}</p>
-                <button id="retry-load" style="
-                    background: #f44336;
-                    color: white;
-                    border: none;
-                    padding: 0.5rem 2rem;
-                    border-radius: 6px;
-                    cursor: pointer;
-                    margin-right: 1rem;
-                ">
-                    Повторить
-                </button>
-                <button id="check-auth" style="
-                    background: #666;
-                    color: white;
-                    border: none;
-                    padding: 0.5rem 2rem;
-                    border-radius: 6px;
-                    cursor: pointer;
-                ">
-                    Проверить авторизацию
-                </button>
+        this.container.innerHTML = `
+            <div class="robots-page">
+                <div class="error-state">
+                    <div class="error-icon">❌</div>
+                    <h2 class="error-title">Ошибка загрузки</h2>
+                    <p class="error-message">${error instanceof Error ? error.message : 'Неизвестная ошибка'}</p>
+                    <div class="error-actions">
+                        <button class="btn-primary" id="retry-load">Повторить</button>
+                        <button class="btn-secondary" id="check-auth">Проверить авторизацию</button>
+                    </div>
+                </div>
             </div>
         `;
 
-        this.container.innerHTML = '';
-        this.container.appendChild(errorDiv);
-
         setTimeout(() => {
             document.getElementById('retry-load')?.addEventListener('click', () => {
-                console.log('🔄 Retry button clicked');
                 this.loadData();
             });
 
             document.getElementById('check-auth')?.addEventListener('click', () => {
-                console.log('🔍 Checking auth...');
                 const token = localStorage.getItem('auth_token');
                 const user = localStorage.getItem('user');
                 alert(`Token: ${token ? 'есть' : 'нет'}\nUser: ${user ? 'есть' : 'нет'}`);
             });
         }, 0);
+    }
+
+    private openCreateModal(): void {
+        // Создаем контейнер для модального окна
+        const modalContainer = document.createElement('div');
+        modalContainer.id = 'robot-modal-container';
+        modalContainer.style.position = 'fixed';
+        modalContainer.style.top = '0';
+        modalContainer.style.left = '0';
+        modalContainer.style.right = '0';
+        modalContainer.style.bottom = '0';
+        modalContainer.style.zIndex = '9999';
+        // Убираем pointer-events: none - это блокировало клики
+
+        document.body.appendChild(modalContainer);
+
+        const modal = new CreateRobotModal(
+            modalContainer,
+            () => {
+                // При закрытии удаляем контейнер
+                modalContainer.remove();
+            },
+            () => {
+                // При успешном создании удаляем контейнер и перезагружаем список
+                modalContainer.remove();
+                this.loadData();
+            }
+        );
+
+        modal.loadData();
     }
 
     private handleStart = async (id: number): Promise<void> => {
@@ -154,7 +152,7 @@ export class RobotsPage {
             await this.loadData();
         } catch (error) {
             console.error(`❌ Failed to start robot ${id}:`, error);
-            alert(`Не удалось запустить робота`);
+            alert('Не удалось запустить робота');
         }
     }
 
@@ -166,7 +164,7 @@ export class RobotsPage {
             await this.loadData();
         } catch (error) {
             console.error(`❌ Failed to stop robot ${id}:`, error);
-            alert(`Не удалось остановить робота`);
+            alert('Не удалось остановить робота');
         }
     }
 
@@ -187,7 +185,7 @@ export class RobotsPage {
             await this.loadData();
         } catch (error) {
             console.error(`❌ Failed to delete robot ${id}:`, error);
-            alert(`Не удалось удалить робота`);
+            alert('Не удалось удалить робота');
         }
     }
 
@@ -207,90 +205,50 @@ export class RobotsPage {
         console.log('🎨 Rendering RobotsPage', {
             loading: this.loading,
             robotsCount: this.robots.length,
-            containerExists: !!container,
             initialized: this.initialized
         });
 
         this.container = container;
+        container.className = 'robots-page';
 
-        // Если грузимся - показываем загрузку
         if (this.loading) {
-            console.log('⏳ Showing loading state');
             container.innerHTML = `
-                <div class="robots-page">
-                    <div class="loading-container" style="text-align: center; padding: 4rem;">
-                        <div class="loading-spinner" style="
-                            display: inline-block;
-                            width: 50px;
-                            height: 50px;
-                            border: 4px solid #f3f3f3;
-                            border-top: 4px solid #3498db;
-                            border-radius: 50%;
-                            animation: spin 1s linear infinite;
-                        "></div>
-                        <div style="margin-top: 1rem; color: #666;">
-                            Загрузка роботов...
-                        </div>
-                    </div>
+                <div class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Загрузка роботов...</div>
                 </div>
-                <style>
-                    @keyframes spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-                </style>
             `;
 
-            // Загружаем данные если ещё не загружены
             if (!this.initialized) {
-                console.log('📊 First render, triggering data load');
                 this.initialized = true;
-
-                // Используем setTimeout, чтобы не блокировать рендер
                 setTimeout(() => {
-                    console.log('⏰ Timeout triggered, calling loadData');
                     this.loadData();
                 }, 100);
             }
             return;
         }
 
-        // Если есть ошибка и robots пустой - показываем сообщение об ошибке
         if (this.robots.length === 0 && !this.loading) {
-            console.log('📭 No robots, showing empty state');
             container.innerHTML = `
-        <div class="robots-page">
-            <!-- Шапка УДАЛЕНА -->
-            
-            <div style="text-align: center; padding: 4rem; background: #f9f9f9; border-radius: 12px;">
-                <div style="font-size: 4rem; margin-bottom: 1rem;">🤖</div>
-                <h2>Нет роботов</h2>
-                <p style="color: #666; margin-bottom: 2rem;">Создайте своего первого торгового робота</p>
-                <button id="create-first-robot" style="
-                    background: #3498db;
-                    color: white;
-                    border: none;
-                    padding: 0.75rem 2rem;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    font-size: 1rem;
-                ">
-                    + Создать робота
-                </button>
-            </div>
-        </div>
-    `;
+                <div class="empty-state">
+                    <div class="empty-state-icon">🤖</div>
+                    <h2 class="empty-state-title">У вас пока нет роботов</h2>
+                    <p class="empty-state-description">
+                        Создайте своего первого торгового робота и начните автоматизировать торговлю
+                    </p>
+                    <button class="btn-primary" id="create-first-robot">
+                        <span style="font-size: 1.2rem; margin-right: 0.3rem;">✨</span>
+                        Создать первого робота
+                        <span style="font-size: 1.2rem; margin-left: 0.3rem;">🚀</span>
+                    </button>
+                </div>
+            `;
 
-            // Добавляем обработчик
             setTimeout(() => {
                 const createBtn = document.getElementById('create-first-robot');
                 if (createBtn) {
-                    console.log('➕ Adding click handler to create button');
-                    createBtn.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        console.log('➕ Create robot button clicked');
-                        router.navigate('/robots/create');
+                    createBtn.addEventListener('click', () => {
+                        this.openCreateModal();
                     });
                 }
             }, 0);
@@ -298,12 +256,7 @@ export class RobotsPage {
             return;
         }
 
-        // Если есть роботы - показываем список
-        console.log('📋 Creating RobotList with', this.robots.length, 'robots');
-
-        // Создаем или обновляем RobotList
         if (!this.robotList) {
-            console.log('🆕 Creating new RobotList instance');
             this.robotList = new RobotList(
                 this.robots,
                 this.handleStart,
@@ -316,7 +269,6 @@ export class RobotsPage {
                 this.handleFilterChange
             );
         } else {
-            console.log('🔄 Updating existing RobotList');
             this.robotList.updateProps({
                 robots: this.robots,
                 loading: this.loading,
@@ -324,9 +276,7 @@ export class RobotsPage {
             });
         }
 
-        // Очищаем контейнер и рендерим список
         container.innerHTML = '';
-        console.log('🎯 Rendering RobotList');
         this.robotList.render(container);
     }
 

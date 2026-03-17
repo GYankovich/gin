@@ -484,31 +484,39 @@ async def force_scheduler_update(
         )
 
 
-# === ВРЕМЕННЫЙ ДЕБАГ-ЭНДПОИНТ ===
 
-@router.get("/debug/tokens-to-update")
-async def debug_tokens_to_update(
-        db: Session = Depends(get_db)
+@router.get("/types")
+async def get_robot_types(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
 ):
     """
-    Отладка - показывает какие токены требуют обновления
+    Получение списка доступных типов роботов из справочника
     """
-    from .queries import build_get_tokens_for_update_query
+    query = """
+            SELECT
+                id,
+                num_value,
+                name,
+                description,
+                hide_from_ui
+            FROM ganaly.dictionary
+            WHERE table_name = 'ROBOT'
+              AND column_name = 'TYPE'
+              AND hide_from_ui = 0
+            ORDER BY num_value \
+            """
 
-    query = build_get_tokens_for_update_query()
-    results = db.execute(text(query)).fetchall()
+    result = db.execute(text(query)).fetchall()
 
-    tokens = []
-    for row in results:
-        tokens.append({
+    types = []
+    for row in result:
+        types.append({
             "id": row[0],
-            "user_id": row[1],
-            "refresh_interval": row[3],
-            "last_used_at": row[4],
-            "created_at": row[5]
+            "num_value": row[1],
+            "name": row[2],
+            "description": row[3],
+            "hide_from_ui": row[4]
         })
 
-    return {
-        "total": len(tokens),
-        "tokens": tokens
-    }
+    return types

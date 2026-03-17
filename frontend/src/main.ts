@@ -1,14 +1,12 @@
 import { LoginView } from './modules/auth/views/LoginView';
 import { AnalyticsView } from './modules/analytics/views/AnalyticsView';
 import { SettingsView } from './modules/settings/views/SettingsView';
-import { TradingView } from './modules/trading/views/TradingView';
-import { TradingCreateView } from './modules/trading/views/TradingCreateView';
 import { Navbar } from './shared/components/Navbar';
 import { router } from './core/router';
 import { store } from './core/store';
 import { themeManager } from './core/theme';
-import { initAuthModule } from './modules/auth';
-import { initRobotsModule } from './modules/robots';
+import './shared/styles/robots.css';
+import './shared/styles/modal.css';
 
 // Импортируем представления для роботов
 import { RobotsPage } from './modules/robots/pages/RobotsPage';

@@ -63,8 +63,9 @@ def upgrade():
         INSERT INTO {SCHEMA}.dictionary 
             (table_name, column_name, num_value, name, description)
         VALUES 
-            ('ROBOT', 'STATUS', 0, 'Выключен', 'Робот остановлен'),
-            ('ROBOT', 'STATUS', 1, 'Включен', 'Робот активен и работает')
+            ('ROBOT', 'STATUS', 1, 'Выключен', 'Робот остановлен'),
+            ('ROBOT', 'STATUS', 2, 'Включен', 'Робот активен и работает')
+            ('ROBOT', 'STATUS', 0, 'Удален', 'Робот удален')
     """)
 
     # ROBOT TYPE

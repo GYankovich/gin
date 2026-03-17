@@ -546,9 +546,8 @@ def build_get_user_tokens_query(user_id: int, include_inactive: bool = False) ->
                 user_id,
                 token_type,
                 token,
-                token_name,
+                name,
                 is_active,
-                refresh_interval_minutes,
                 last_used_at,
                 created_at
             FROM ganaly.api_tokens
