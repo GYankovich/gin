@@ -4,19 +4,29 @@ from datetime import datetime
 
 
 # === ЗАПРОСЫ ДЛЯ РОБОТОВ ===
-
 def build_get_user_robots_query(
-        include_inactive: bool = False,
-        robot_type: Optional[int] = None
+        robot_status: Optional[List[int]] = None,
+        robot_type: Optional[List[int]] = None,
+        robot_name: Optional[str] = None,
+        token_type: Optional[List[int]] = None,
+        limit: int = 100,
+        offset: int = 0,
+        sort_by: Optional[str] = None,
+        sort_order: str = "asc"
 ) -> tuple[str, Dict[str, Any]]:
     """
     Строит запрос для получения всех роботов пользователя
+    Возвращает: id, name, token_type, type, status_name, last_started, last_error
     """
     base_query = """
                  SELECT
                      r.id,
                      r.user_id,
-                     r.token_id,
+                     t.id,
+                     t.name,
+                     t.is_active,
+                     t.token_type,
+                     da.name,
                      r.name,
                      r.type as type_id,
                      dt.name as type_name,
@@ -26,36 +36,117 @@ def build_get_user_robots_query(
                      r.last_started,
                      r.last_error,
                      r.last_error_at,
+                     r.last_stopped,
                      r.usercre,
                      r.date_creation,
                      r.usermod,
-                     r.date_modification,
-                     COUNT(DISTINCT t.id) as total_trades,
-                     SUM(CASE WHEN t.profit > 0 THEN 1 ELSE 0 END) as successful_trades,
-                     COALESCE(SUM(t.profit), 0) as total_profit
+                     r.date_modification
                  FROM ganaly.robots r
-                          LEFT JOIN ganaly.robot_trades t ON r.id = t.robot_id
-                          LEFT JOIN ganaly.dictionary dt ON r.type = dt.id AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
-                          LEFT JOIN ganaly.dictionary ds ON r.status = ds.id AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
-                 WHERE r.user_id = :user_id \
+                          JOIN ganaly.api_tokens t ON r.token_id = t.id
+                          join ganaly.dictionary da ON t.token_type = da.num_value AND da.table_name = 'TOKEN' AND da.column_name = 'TYPE'
+                          JOIN ganaly.dictionary dt ON r.type = dt.num_value AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
+                          JOIN ganaly.dictionary ds ON r.status = ds.num_value AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
+                 WHERE r.user_id = :user_id
+                     AND R.STATUS != 0
                  """
 
-    params = {"user_id": ":user_id"}
+    params = {}
     conditions = []
 
-    if not include_inactive:
-        # Получаем ID статуса "Включен" из dictionary
-        conditions.append("r.status = (SELECT id FROM ganaly.dictionary WHERE table_name = 'ROBOT' AND column_name = 'STATUS' AND num_value = 1)")
+    # Фильтр по статусу
+    if robot_status:
+        placeholders = ','.join([f':status_{i}' for i in range(len(robot_status))])
+        conditions.append(f"r.status IN ({placeholders})")
+        for i, status in enumerate(robot_status):
+            params[f'status_{i}'] = status
 
+    # Фильтр по типу робота
     if robot_type:
-        # Получаем ID типа робота из dictionary
-        conditions.append("r.type = (SELECT id FROM ganaly.dictionary WHERE table_name = 'ROBOT' AND column_name = 'TYPE' AND num_value = :robot_type)")
-        params["robot_type"] = robot_type
+        placeholders = ','.join([f':type_{i}' for i in range(len(robot_type))])
+        conditions.append(f"r.type IN ({placeholders})")
+        for i, rt in enumerate(robot_type):
+            params[f'type_{i}'] = rt
+
+    # Фильтр по названию робота (поиск)
+    if robot_name:
+        conditions.append("r.name ILIKE :robot_name")
+        params["robot_name"] = f"%{robot_name}%"
+
+    # Фильтр по типу токена
+    if token_type:
+        placeholders = ','.join([f':token_type_{i}' for i in range(len(token_type))])
+        conditions.append(f"t.token_type IN ({placeholders})")
+        for i, tt in enumerate(token_type):
+            params[f'token_type_{i}'] = tt
 
     if conditions:
         base_query += " AND " + " AND ".join(conditions)
 
-    base_query += " GROUP BY r.id, dt.name, ds.name ORDER BY r.date_creation DESC"
+    # Сортировка
+    sort_mapping = {
+        "status": "r.status",
+        "name": "r.name",
+        "token_type": "t.token_type"
+    }
+
+    if sort_by and sort_by in sort_mapping:
+        order = "ASC" if sort_order.lower() == "asc" else "DESC"
+        base_query += f" ORDER BY {sort_mapping[sort_by]} {order}, r.date_creation DESC"
+    else:
+        base_query += " ORDER BY r.date_creation DESC"
+
+    # Пагинация
+    base_query += " LIMIT :limit OFFSET :offset"
+    params["limit"] = limit
+    params["offset"] = offset
+
+    return base_query, params
+
+
+def build_count_user_robots_query(
+        robot_status: Optional[List[int]] = None,
+        robot_type: Optional[List[int]] = None,
+        robot_name: Optional[str] = None,
+        token_type: Optional[List[int]] = None
+) -> tuple[str, Dict[str, Any]]:
+    """
+    Строит запрос для подсчета количества роботов пользователя
+    """
+    base_query = """
+                 SELECT COUNT(*)
+                 FROM ganaly.robots r
+                          JOIN ganaly.api_tokens t ON r.token_id = t.id
+                 WHERE r.user_id = :user_id
+                     AND R.STATUS != 0
+                 """
+
+    params = {}
+    conditions = []
+
+    if robot_status:
+        placeholders = ','.join([f':status_{i}' for i in range(len(robot_status))])
+        conditions.append(f"r.status IN ({placeholders})")
+        for i, status in enumerate(robot_status):
+            params[f'status_{i}'] = status
+
+    if robot_type:
+        placeholders = ','.join([f':type_{i}' for i in range(len(robot_type))])
+        conditions.append(f"r.type IN ({placeholders})")
+        for i, rt in enumerate(robot_type):
+            params[f'type_{i}'] = rt
+
+    if robot_name:
+        conditions.append("r.name ILIKE :robot_name")
+        params["robot_name"] = f"%{robot_name}%"
+
+    if token_type:
+        placeholders = ','.join([f':token_type_{i}' for i in range(len(token_type))])
+        conditions.append(f"t.token_type IN ({placeholders})")
+        for i, tt in enumerate(token_type):
+            params[f'token_type_{i}'] = tt
+
+    if conditions:
+        base_query += " AND " + " AND ".join(conditions)
 
     return base_query, params
 
@@ -66,32 +157,36 @@ def build_get_robot_by_id_query() -> str:
            SELECT
                r.id,
                r.user_id,
-               r.token_id,
+               t.id,
+               t.name,
+               t.is_active,
+               t.token_type,
+               da.name,
                r.name,
                r.type as type_id,
                dt.name as type_name,
-               dt.num_value as type_value,
                r.status as status_id,
                ds.name as status_name,
-               ds.num_value as status_value,
                r.config,
                r.last_started,
                r.last_error,
                r.last_error_at,
+               r.last_stopped,
                r.usercre,
                r.date_creation,
                r.usermod,
-               r.date_modification,
-               COUNT(DISTINCT t.id) as total_trades,
-               SUM(CASE WHEN t.profit > 0 THEN 1 ELSE 0 END) as successful_trades,
-               COALESCE(SUM(t.profit), 0) as total_profit
+               r.date_modification
            FROM ganaly.robots r
-                    LEFT JOIN ganaly.robot_trades t ON r.id = t.robot_id
-                    LEFT JOIN ganaly.dictionary dt ON r.type = dt.id AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
-                    LEFT JOIN ganaly.dictionary ds ON r.status = ds.id AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
+                    JOIN ganaly.api_tokens t ON r.token_id = t.id 
+                    join ganaly.dictionary da ON t.token_type = da.num_value AND da.table_name = 'TOKEN' AND da.column_name = 'TYPE'
+                    JOIN ganaly.dictionary dt ON r.type = dt.num_value AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
+                    JOIN ganaly.dictionary ds ON r.status = ds.num_value AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
            WHERE r.id = :robot_id AND r.user_id = :user_id
-           GROUP BY r.id, dt.name, dt.num_value, ds.name, ds.num_value \
            """
+
+
+
+
 
 
 def build_check_robot_ownership_query() -> str:
@@ -118,9 +213,9 @@ def build_create_robot_query() -> str:
            VALUES
                (:user_id, :token_id, :name, :type, :status, :config, :usercre, :created_at)
                RETURNING
-            id, user_id, token_id, name, type, status, config,
-            last_started, last_error, last_error_at,
-            usercre, date_creation, usermod, date_modification \
+               id, user_id, token_id, name, type, status, config,
+               last_started, last_error, last_error_at,
+               usercre, date_creation, usermod, date_modification
            """
 
 
@@ -201,6 +296,27 @@ def build_delete_robot_query() -> str:
                RETURNING id \
            """
 
+# app/modules/robots/queries.py
+
+def build_change_robot_status_query() -> str:
+    """
+    Изменение статуса робота
+    status: 1 - активен, 2 - остановлен
+    """
+    return """
+           UPDATE ganaly.robots
+           SET status = :status,
+               last_started = CASE WHEN :status = 1 THEN :now ELSE last_started END,
+               last_stopped = CASE WHEN :status = 2 THEN :now ELSE last_stopped END,
+               usermod = :usermod,
+               date_modification = :now
+           WHERE id = :robot_id AND user_id = :user_id
+               RETURNING
+               id, user_id, token_id, name, type, status, config,
+               last_started, last_error, last_error_at,
+               usercre, date_creation, usermod, date_modification
+           """
+
 
 # === ЗАПРОСЫ ДЛЯ СПРАВОЧНИКОВ ===
 
@@ -236,16 +352,12 @@ def build_get_dictionary_values_query(
 
     return query, params
 
-
-def build_get_dictionary_id_by_value_query() -> str:
-    """
-    Получение ID записи в справочнике по значению
-    """
+def build_check_token_query() -> str:
+    """Проверка существования и активности токена"""
     return """
-           SELECT id FROM ganaly.dictionary
-           WHERE table_name = :table_name
-             AND column_name = :column_name
-             AND num_value = :num_value \
+           SELECT id
+           FROM ganaly.api_tokens
+           WHERE id = :token_id AND user_id = :user_id AND is_active = 1
            """
 
 

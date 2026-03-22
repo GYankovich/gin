@@ -1,6 +1,6 @@
 // frontend/src/modules/robots/components/CreateRobotModal.ts
-import { robotService } from '../services/robotService';
-import { router } from '../../../core/router';
+import { CustomSelect } from '../../../shared/components/CustomSelect';
+import type { SelectOption } from '../../../shared/types/select.types';
 
 interface RobotType {
     id: number;
@@ -28,6 +28,47 @@ export class CreateRobotModal {
         name: '',
         type: '',
         token_id: ''
+    };
+
+    private typeSelect: CustomSelect | null = null;
+    private tokenSelect: CustomSelect | null = null;
+
+    private handleOverlayClick = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+
+        // Проверяем, не кликнули ли мы внутри селекта
+        const isSelectClick = target.closest('.custom-select-wrapper') !== null;
+        const isDropdownClick = target.closest('.custom-select-dropdown') !== null;
+
+        console.log('🖱️ Modal overlay click', {
+            target: target.className,
+            isSelectClick,
+            isDropdownClick
+        });
+
+        // Если клик по overlay и не по селекту - закрываем
+        if (target.classList.contains('modal-overlay') && !isSelectClick && !isDropdownClick) {
+            console.log('🔴 Closing modal due to overlay click');
+            this.close();
+        }
+    };
+
+    private handleContentClick = (e: MouseEvent) => {
+        // Останавливаем всплытие для всех кликов внутри контента
+        e.stopPropagation();
+    };
+
+    private handleEscapeKey = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            const anySelectOpen = document.querySelector('.custom-select-dropdown.open') !== null;
+
+            console.log('🔑 Escape key pressed', { anySelectOpen });
+
+            if (!anySelectOpen) {
+                console.log('🔴 Closing modal due to Escape');
+                this.close();
+            }
+        }
     };
 
     constructor(container: HTMLElement, onClose: () => void, onSuccess: () => void) {
@@ -87,35 +128,18 @@ export class CreateRobotModal {
 
     private showError(error: unknown): void {
         this.container.innerHTML = `
-            <div class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                <div class="flex items-end justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                    <div class="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75" aria-hidden="true"></div>
-                    <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-                    
-                    <div class="inline-block w-full max-w-lg overflow-hidden text-left align-bottom transition-all transform bg-white rounded-lg shadow-xl dark:bg-gray-800 sm:my-8 sm:align-middle">
-                        <div class="px-4 pt-5 pb-4 bg-white dark:bg-gray-800 sm:p-6 sm:pb-4">
-                            <div class="sm:flex sm:items-start">
-                                <div class="flex items-center justify-center flex-shrink-0 w-12 h-12 mx-auto bg-red-100 rounded-full dark:bg-red-900 sm:mx-0 sm:h-10 sm:w-10">
-                                    <svg class="w-6 h-6 text-red-600 dark:text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                                    </svg>
-                                </div>
-                                <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                                    <h3 class="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100" id="modal-title">
-                                        Ошибка загрузки
-                                    </h3>
-                                    <div class="mt-2">
-                                        <p class="text-sm text-gray-500 dark:text-gray-400">
-                                            ${error instanceof Error ? error.message : 'Не удалось загрузить данные'}
-                                        </p>
-                                    </div>
-                                </div>
+            <div class="modal-overlay">
+                <div class="modal-container">
+                    <div class="modal-content">
+                        <div class="modal-error">
+                            <div class="modal-error-icon">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                </svg>
                             </div>
-                        </div>
-                        <div class="px-4 py-3 bg-gray-50 dark:bg-gray-700 sm:px-6 sm:flex sm:flex-row-reverse">
-                            <button type="button" 
-                                class="inline-flex justify-center w-full px-4 py-2 text-base font-medium text-white bg-red-600 border border-transparent rounded-md shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
-                                onclick="this.closest('[role=dialog]').remove()">
+                            <h3 class="modal-error-title">Ошибка загрузки</h3>
+                            <p class="modal-error-message">${error instanceof Error ? error.message : 'Не удалось загрузить данные'}</p>
+                            <button class="btn-create" id="modal-close-error-btn">
                                 Закрыть
                             </button>
                         </div>
@@ -123,6 +147,28 @@ export class CreateRobotModal {
                 </div>
             </div>
         `;
+
+        setTimeout(() => {
+            const closeBtn = document.getElementById('modal-close-error-btn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.close();
+                });
+            }
+
+            const overlay = this.container.querySelector('.modal-overlay');
+            if (overlay) {
+                overlay.addEventListener('click', this.handleOverlayClick);
+            }
+
+            const content = this.container.querySelector('.modal-content');
+            if (content) {
+                content.addEventListener('click', this.handleContentClick);
+            }
+
+            document.addEventListener('keydown', this.handleEscapeKey);
+        }, 0);
     }
 
     private handleInputChange(field: keyof typeof this.formData, value: string): void {
@@ -131,6 +177,7 @@ export class CreateRobotModal {
 
     private async handleSubmit(e: Event): Promise<void> {
         e.preventDefault();
+        e.stopPropagation();
 
         if (!this.formData.name || !this.formData.type || !this.formData.token_id) {
             alert('Пожалуйста, заполните все поля');
@@ -138,13 +185,12 @@ export class CreateRobotModal {
         }
 
         const typeValue = parseInt(this.formData.type);
-        const status = typeValue === 1 ? 2 : 1;
+
 
         const submitData = {
             name: this.formData.name,
             type: typeValue,
             token_id: parseInt(this.formData.token_id),
-            status: status
         };
 
         console.log('📤 Creating robot:', submitData);
@@ -165,6 +211,9 @@ export class CreateRobotModal {
             }
 
             console.log('✅ Robot created successfully');
+
+            document.removeEventListener('keydown', this.handleEscapeKey);
+
             this.onSuccess();
             this.close();
 
@@ -175,121 +224,189 @@ export class CreateRobotModal {
     }
 
     private close(): void {
+        console.log('🔴 Closing modal');
+
+        document.removeEventListener('keydown', this.handleEscapeKey);
+
+        const overlay = this.container.querySelector('.modal-overlay');
+        if (overlay) {
+            overlay.removeEventListener('click', this.handleOverlayClick);
+        }
+
+        const content = this.container.querySelector('.modal-content');
+        if (content) {
+            content.removeEventListener('click', this.handleContentClick);
+        }
+
+        if (this.typeSelect) {
+            this.typeSelect.destroy();
+            this.typeSelect = null;
+        }
+        if (this.tokenSelect) {
+            this.tokenSelect.destroy();
+            this.tokenSelect = null;
+        }
+
         this.container.innerHTML = '';
         this.onClose();
+    }
+
+    private initCustomSelects(): void {
+        const typeOptions: SelectOption[] = this.robotTypes.map(type => ({
+            value: type.num_value,
+            label: type.name,
+            description: type.description
+        }));
+
+        const typeContainer = document.getElementById('robot-type-select');
+        if (typeContainer) {
+            typeContainer.innerHTML = '';
+            this.typeSelect = new CustomSelect(typeContainer, {
+                options: typeOptions,
+                placeholder: 'Выберите тип робота',
+                label: 'Тип робота',
+                required: true,
+                searchable: true,
+                onChange: (value) => {
+                    this.formData.type = value as string;
+                }
+            });
+        }
+
+        const tokenOptions: SelectOption[] = this.tokens.map(token => ({
+            value: token.id,
+            label: token.token_name || 'Без имени',
+            description: token.token_preview
+        }));
+
+        const tokenContainer = document.getElementById('token-id-select');
+        if (tokenContainer) {
+            tokenContainer.innerHTML = '';
+            this.tokenSelect = new CustomSelect(tokenContainer, {
+                options: tokenOptions,
+                placeholder: 'Выберите токен',
+                label: 'Токен доступа',
+                required: true,
+                searchable: true,
+                onChange: (value) => {
+                    this.formData.token_id = value as string;
+                }
+            });
+        }
     }
 
     render(): void {
         if (this.loading) {
             this.container.innerHTML = `
-            <div class="modal-overlay">
-                <div class="modal-container">
-                    <div class="modal-content">
-                        <div class="modal-loading">
-                            <div class="modal-spinner"></div>
-                            <div class="modal-loading-text">Загрузка данных...</div>
+                <div class="modal-overlay">
+                    <div class="modal-container">
+                        <div class="modal-content">
+                            <div class="modal-loading">
+                                <div class="modal-spinner"></div>
+                                <div class="modal-loading-text">Загрузка данных...</div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        `;
+            `;
+
+            setTimeout(() => {
+                const overlay = this.container.querySelector('.modal-overlay');
+                if (overlay) {
+                    overlay.addEventListener('click', this.handleOverlayClick);
+                }
+
+                const content = this.container.querySelector('.modal-content');
+                if (content) {
+                    content.addEventListener('click', this.handleContentClick);
+                }
+
+                document.addEventListener('keydown', this.handleEscapeKey);
+            }, 0);
+
             return;
         }
 
         this.container.innerHTML = `
-        <div class="modal-overlay">
-            <div class="modal-container">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <div>
+            <div class="modal-overlay">
+                <div class="modal-container">
+                    <div class="modal-content">
+                        <div class="modal-header">
                             <h3>Создание нового робота</h3>
-                            <p>Заполните информацию для создания</p>
+                            <button class="close-btn" id="modal-close-btn">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
                         </div>
-                        <button class="close-btn" onclick="this.closest('.modal-overlay').remove()">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                        </button>
+
+                        <form class="modal-form" id="create-robot-form" autocomplete="off">
+                            <div class="form-group">
+                                <label for="robot-name">
+                                    Название робота <span class="required">*</span>
+                                </label>
+                                <input type="text" id="robot-name" required
+                                    placeholder="Например: Торговый робот 1"
+                                    value="${this.formData.name}">
+                            </div>
+
+                            <div class="form-group" id="robot-type-select">
+                                <!-- Сюда будет вставлен кастомный селект -->
+                            </div>
+
+                            <div class="form-group" id="token-id-select">
+                                <!-- Сюда будет вставлен кастомный селект -->
+                            </div>
+
+                            <div class="modal-actions">
+                                <button type="submit" class="btn-create">
+                                    Создать робота
+                                </button>
+                            </div>
+                        </form>
                     </div>
-
-                    <form class="modal-form" id="create-robot-form" autocomplete="off">
-                        <div class="form-group">
-                            <label for="robot-name">
-                                Название робота <span class="required">*</span>
-                            </label>
-                            <input type="text" id="robot-name" required
-                                placeholder="Например: Торговый робот 1"
-                                value="${this.formData.name}">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="robot-type">
-                                Тип робота <span class="required">*</span>
-                            </label>
-                            <select id="robot-type" required>
-                                <option value="">Выберите тип робота</option>
-                                ${this.robotTypes.map(type => `
-                                    <option value="${type.num_value}" ${this.formData.type === type.num_value.toString() ? 'selected' : ''}>
-                                        ${type.name}
-                                    </option>
-                                `).join('')}
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="token-id">
-                                Токен доступа <span class="required">*</span>
-                            </label>
-                            <select id="token-id" required>
-                                <option value="">Выберите токен</option>
-                                ${this.tokens.map(token => `
-                                    <option value="${token.id}" ${this.formData.token_id === token.id.toString() ? 'selected' : ''}>
-                                        ${token.token_name || 'Без имени'} (${token.token_preview || '***'})
-                                    </option>
-                                `).join('')}
-                            </select>
-                        </div>
-
-                        <div class="modal-actions">
-                            <button type="button" class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">
-                                Отмена
-                            </button>
-                            <button type="submit" class="btn btn-primary">
-                                Создать робота
-                            </button>
-                        </div>
-                    </form>
                 </div>
             </div>
-        </div>
-    `;
+        `;
 
+        this.initCustomSelects();
 
         setTimeout(() => {
             const form = document.getElementById('create-robot-form');
             const nameInput = document.getElementById('robot-name') as HTMLInputElement;
-            const typeSelect = document.getElementById('robot-type') as HTMLSelectElement;
-            const tokenSelect = document.getElementById('token-id') as HTMLSelectElement;
+            const closeBtn = document.getElementById('modal-close-btn');
+            const overlay = this.container.querySelector('.modal-overlay');
+            const content = this.container.querySelector('.modal-content');
 
             if (nameInput) {
                 nameInput.addEventListener('input', (e) => {
+                    e.stopPropagation();
                     this.handleInputChange('name', (e.target as HTMLInputElement).value);
                 });
+                nameInput.addEventListener('click', (e) => e.stopPropagation());
+                nameInput.addEventListener('mousedown', (e) => e.stopPropagation());
             }
 
-            if (typeSelect) {
-                typeSelect.addEventListener('change', (e) => {
-                    this.handleInputChange('type', (e.target as HTMLSelectElement).value);
+            if (closeBtn) {
+                closeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.close();
                 });
+                closeBtn.addEventListener('mousedown', (e) => e.stopPropagation());
             }
 
-            if (tokenSelect) {
-                tokenSelect.addEventListener('change', (e) => {
-                    this.handleInputChange('token_id', (e.target as HTMLSelectElement).value);
-                });
+            if (overlay) {
+                overlay.addEventListener('click', this.handleOverlayClick);
+            }
+
+            if (content) {
+                content.addEventListener('click', this.handleContentClick);
+                content.addEventListener('mousedown', (e) => e.stopPropagation());
             }
 
             form?.addEventListener('submit', (e) => this.handleSubmit(e));
+
+            document.addEventListener('keydown', this.handleEscapeKey);
         }, 0);
     }
 }

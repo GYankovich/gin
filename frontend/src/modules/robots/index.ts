@@ -14,5 +14,3 @@ export { StrategyConfig } from './components/StrategyConfig';
 
 // Экспортируем страницы
 export { RobotsPage } from './pages/RobotsPage';
-export { RobotDetailPage } from './pages/RobotDetailPage';
-export { CreateRobotPage } from './pages/CreateRobotPage';

@@ -12,8 +12,8 @@ from fastapi import HTTPException, status
 from app.modules.tinvest.token_service import token_service
 from app.modules.tinvest.service import tinvest_service
 from . import queries, schemas
-from .portfolio_updater.robot import PortfolioUpdaterRobot  # ← ИСПРАВЛЕНО
-from .portfolio_updater.scheduler import PortfolioUpdaterScheduler  # ← ИСПРАВЛЕНО
+from .portfolio_updater.robot import PortfolioUpdaterRobot
+from .portfolio_updater.scheduler import PortfolioUpdaterScheduler
 
 logger = logging.getLogger(__name__)
 
@@ -150,25 +150,32 @@ class RobotService:
             db: Session,
             user_id: int,
             include_inactive: bool = False,
-            robot_type: Optional[str] = None
+            robot_type: Optional[int] = None
     ) -> List[dict]:
         """Получение всех роботов пользователя"""
         self.db = db
 
-        query, params_template = queries.build_get_user_robots_query(
+        query, params = queries.build_get_user_robots_query(
             include_inactive=include_inactive,
             robot_type=robot_type
         )
+        params["user_id"] = user_id
 
-        params = {"user_id": user_id}
-        if robot_type:
-            params["robot_type"] = robot_type
-
-        results = self._execute(query, params).fetchall()
+        results = db.execute(text(query), params).fetchall()
 
         robots = []
         for row in results:
-            robot_dict = self._row_to_robot_dict(row)
+            robot_dict = {
+                "id": row[0],
+                "name": row[1],
+                "token_type": row[2],
+                "type": row[3],
+                "status_name": row[4],
+                "last_started": row[5],
+                "last_error": row[6],
+                "last_error_at": row[7]
+
+            }
             robots.append(robot_dict)
 
         return robots
@@ -178,16 +185,15 @@ class RobotService:
             db: Session,
             robot_id: int,
             user_id: int
-    ) -> Optional[dict]:
+    ) -> dict:
         """Получение робота по ID (с проверкой владельца)"""
         self.db = db
 
         query = queries.build_get_robot_by_id_query()
-        result = self._execute(
-            query,
-            {"robot_id": robot_id, "user_id": user_id},
-            fetch_one=True
-        )
+        result = db.execute(
+            text(query),
+            {"robot_id": robot_id, "user_id": user_id}
+        ).first()
 
         if not result:
             raise HTTPException(
@@ -195,7 +201,34 @@ class RobotService:
                 detail="Робот не найден"
             )
 
-        return self._row_to_robot_dict(result)
+        robot_dict = {
+            "id": result[0],
+            "user_id": result[1],
+            "token":{
+                "id": result[2],
+                "name":result[3],
+                "status":result[4],
+                "type":result[5],
+                "typeName": result[6]
+            },
+            "name": result[7],
+            "type": result[8],
+            "typeName": result[9],
+            "status": result[10],
+            "statusName": result[11],
+            "config": result[12] or {},
+            "last_started": result[13],
+            "last_error": result[14],
+            "last_error_at": result[15],
+            "last_stopped": result[16],
+            "usercre": result[17],
+            "date_creation": result[18],
+            "usermod": result[19],
+            "date_modification": result[20]
+        }
+
+        return robot_dict
+
 
     async def create_robot(
             self,
@@ -205,42 +238,95 @@ class RobotService:
     ) -> dict:
         """Создание нового робота"""
         self.db = db
+        logger.info(f"📝 Creating robot for user {user_id}")
+        logger.info(f"📦 Robot data: {robot_data}")
 
-        # Проверяем токен, если указан
-        if robot_data.token_id:
-            token = await token_service.get_token_by_id(
-                db,
-                robot_data.token_id,
-                user_id
+        # Проверяем уникальность имени
+        check_name_query = queries.build_check_robot_name_exists_query()
+        existing = db.execute(
+            text(check_name_query),
+            {"user_id": user_id, "name": robot_data.name}
+        ).first()
+
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Робот с таким именем уже существует"
             )
-            if not token or not token.get("is_active"):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Выбранный токен не активен"
-                )
+
+        # Проверяем токен
+        check_token_query = queries.build_check_token_query()
+        token = db.execute(
+            text(check_token_query),
+            {"token_id": robot_data.token_id, "user_id": user_id}
+        ).first()
+
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Токен не найден или не активен"
+            )
+
+        # Получаем ID типа робота из справочника
+        type_query = queries.build_get_dictionary_id_by_value_query()
+        type_id = db.execute(
+            text(type_query),
+            {
+                "table_name": "ROBOT",
+                "column_name": "TYPE",
+                "num_value": robot_data.type
+            }
+        ).scalar()
+
+        if not type_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Неверный тип робота: {robot_data.type}"
+            )
+
+        # Логика статуса:
+        # Если тип = 1 (Portfolio), то статус = 1 (Активен)
+        # Если тип = 2 (Trading), то статус = 2 (Остановлен)
+        status_value = 1 if robot_data.type == 1 else 2
+
+        # Получаем ID статуса из справочника
+        status_query = queries.build_get_dictionary_id_by_value_query()
+        status_id = db.execute(
+            text(status_query),
+            {
+                "table_name": "ROBOT",
+                "column_name": "STATUS",
+                "num_value": status_value
+            }
+        ).scalar()
+
+        if not status_id:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Статус робота {status_value} не найден в справочнике"
+            )
 
         now = datetime.now(timezone.utc)
 
+        # Преобразуем словарь в JSON-строку для PostgreSQL
+        import json
+        config_json = json.dumps({})
+
         # Создаем робота
         insert_query = queries.build_create_robot_query()
-        result = self._execute(
-            insert_query,
+        result = db.execute(
+            text(insert_query),
             {
                 "user_id": user_id,
                 "token_id": robot_data.token_id,
                 "name": robot_data.name,
-                "description": robot_data.description,
-                "robot_type": robot_data.robot_type,
-                "strategy_params": json.dumps(robot_data.strategy_params or {}),
-                "max_daily_loss": robot_data.max_daily_loss,
-                "max_position_size": robot_data.max_position_size,
-                "allowed_instruments": json.dumps(robot_data.allowed_instruments or []),
-                "status": "stopped",
-                "is_active": 0,
+                "type": type_id,
+                "status": status_id,
+                "config": config_json,
+                "usercre": user_id,
                 "created_at": now
-            },
-            fetch_one=True
-        )
+            }
+        ).first()
 
         if not result:
             raise HTTPException(
@@ -250,14 +336,60 @@ class RobotService:
 
         db.commit()
 
-        robot_dict = self._row_to_robot_dict(result)
+        # Получаем созданного робота с полной информацией
+        robot = await self.get_robot_by_id(db, result[0], user_id)
 
-        # Добавляем лог
-        await self._add_log(db, robot_dict["id"], "INFO", f"Робот '{robot_dict['name']}' создан")
+        logger.info(f"✅ Created robot {robot['id']} for user {user_id} (type: {robot_data.type}, status: {status_value})")
 
-        logger.info(f"✅ Created robot {robot_dict['id']} for user {user_id}")
+        return robot
 
-        return robot_dict
+
+
+    async def change_robot_status(
+            self,
+            db: Session,
+            robot_id: int,
+            user_id: int,
+            new_status: int  # 1 - включить, 2 - выключить
+    ) -> dict:
+        self.db = db
+        robot = await self.get_robot_by_id(db, robot_id, user_id)
+
+        if new_status == 1:
+            token = robot.get("token", {})
+            if not token.get("id") or token.get("status") != 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="У робота нет активного токена доступа"
+                )
+
+        now = datetime.now(timezone.utc)
+
+        # Обновляем статус
+        update_query = queries.build_change_robot_status_query()
+        result = db.execute(
+            text(update_query),
+            {
+                "robot_id": robot_id,
+                "user_id": user_id,
+                "status": new_status,
+                "now": now,
+                "usermod": user_id
+            }
+        ).first()
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Не удалось изменить статус робота"
+            )
+
+        db.commit()
+
+        # Получаем обновленного робота
+        updated_robot = await self.get_robot_by_id(db, robot_id, user_id)
+
+        return updated_robot
 
     async def update_robot(
             self,
@@ -529,215 +661,6 @@ class RobotService:
             )
             raise
 
-    # === ТОРГОВЫЕ ОПЕРАЦИИ ===
-
-    async def create_trade(
-            self,
-            db: Session,
-            robot_id: int,
-            user_id: int,
-            trade_data: schemas.RobotTradeCreate
-    ) -> dict:
-        """Создание записи о сделке"""
-        self.db = db
-
-        # Проверяем робота
-        robot = await self.get_robot_by_id(db, robot_id, user_id)
-
-        now = datetime.now(timezone.utc)
-        total_amount = trade_data.quantity * trade_data.price
-
-        # Создаем сделку
-        insert_query = queries.build_create_trade_query()
-        result = self._execute(
-            insert_query,
-            {
-                "robot_id": robot_id,
-                "figi": trade_data.figi,
-                "ticker": trade_data.ticker,
-                "instrument_type": trade_data.instrument_type,
-                "side": trade_data.side,
-                "quantity": trade_data.quantity,
-                "price": trade_data.price,
-                "total_amount": total_amount,
-                "order_id": trade_data.order_id,
-                "status": "open",
-                "created_at": now
-            },
-            fetch_one=True
-        )
-
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Не удалось создать сделку"
-            )
-
-        trade_id = result[0]
-
-        # Обновляем статистику робота
-        update_query = queries.build_update_robot_stats_after_trade_query()
-        self._execute(
-            update_query,
-            {
-                "robot_id": robot_id,
-                "success_increment": 0,
-                "profit": 0,
-                "profit_percent": 0
-            }
-        )
-
-        db.commit()
-
-        await self._add_log(
-            db, robot_id, "INFO",
-            f"Сделка создана: {trade_data.side} {trade_data.quantity} {trade_data.ticker} по {trade_data.price}"
-        )
-
-        # Получаем созданную сделку
-        return await self.get_trade_by_id(db, trade_id, user_id)
-
-    async def close_trade(
-            self,
-            db: Session,
-            trade_id: int,
-            user_id: int,
-            close_price: float
-    ) -> dict:
-        """Закрытие сделки"""
-        self.db = db
-
-        # Получаем сделку с проверкой робота
-        trade_query = """
-                      SELECT t.*, r.user_id
-                      FROM ganaly.robot_trades t
-                               JOIN ganaly.trading_robots r ON t.robot_id = r.id
-                      WHERE t.id = :trade_id \
-                      """
-
-        trade_result = self._execute(
-            trade_query,
-            {"trade_id": trade_id},
-            fetch_one=True
-        )
-
-        if not trade_result or trade_result[-1] != user_id:  # последнее поле - user_id
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Сделка не найдена"
-            )
-
-        # Преобразуем в словарь для удобства
-        trade_dict = self._row_to_trade_dict(trade_result[:-1])  # без user_id
-
-        if trade_dict.get("status") != "open":
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Сделка уже закрыта"
-            )
-
-        # Рассчитываем прибыль
-        if trade_dict["side"] == "buy":
-            profit = (close_price - trade_dict["price"]) * trade_dict["quantity"]
-        else:
-            profit = (trade_dict["price"] - close_price) * trade_dict["quantity"]
-
-        profit_percent = (profit / trade_dict["total_amount"]) * 100
-
-        now = datetime.now(timezone.utc)
-
-        # Закрываем сделку
-        close_query = queries.build_close_trade_query()
-        close_result = self._execute(
-            close_query,
-            {
-                "trade_id": trade_id,
-                "closed_at": now,
-                "profit": profit,
-                "profit_percent": profit_percent
-            },
-            fetch_one=True
-        )
-
-        if not close_result:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Не удалось закрыть сделку"
-            )
-
-        robot_id = close_result[1]
-
-        # Обновляем статистику робота
-        update_query = queries.build_update_robot_stats_after_trade_query()
-        self._execute(
-            update_query,
-            {
-                "robot_id": robot_id,
-                "success_increment": 1 if profit > 0 else 0,
-                "profit": profit,
-                "profit_percent": profit_percent
-            }
-        )
-
-        db.commit()
-
-        await self._add_log(
-            db, robot_id, "INFO",
-            f"Сделка закрыта: прибыль {profit:.2f} ({profit_percent:.2f}%)"
-        )
-
-        # Получаем обновленную сделку
-        return await self.get_trade_by_id(db, trade_id, user_id)
-
-    async def get_trade_by_id(self, db: Session, trade_id: int, user_id: int) -> Optional[dict]:
-        """Получение сделки по ID с проверкой"""
-        self.db = db
-
-        query = """
-                SELECT t.*
-                FROM ganaly.robot_trades t
-                         JOIN ganaly.trading_robots r ON t.robot_id = r.id
-                WHERE t.id = :trade_id AND r.user_id = :user_id \
-                """
-
-        result = self._execute(
-            query,
-            {"trade_id": trade_id, "user_id": user_id},
-            fetch_one=True
-        )
-
-        if not result:
-            return None
-
-        return self._row_to_trade_dict(result)
-
-    async def get_robot_trades(
-            self,
-            db: Session,
-            robot_id: int,
-            user_id: int,
-            limit: int = 100,
-            status: Optional[str] = None
-    ) -> List[dict]:
-        """Получение списка сделок робота"""
-        self.db = db
-
-        # Проверяем робота
-        await self.get_robot_by_id(db, robot_id, user_id)
-
-        query, params = queries.build_get_robot_trades_query(
-            robot_id=robot_id,
-            limit=limit,
-            status=status
-        )
-
-        results = self._execute(query, params).fetchall()
-
-        trades = []
-        for row in results:
-            trades.append(self._row_to_trade_dict(row))
-
-        return trades
 
     # === ЛОГИ ===
 
@@ -752,17 +675,21 @@ class RobotService:
         """Добавление лога"""
         self.db = db
 
-        insert_query = queries.build_create_log_query()
-        self._execute(
-            insert_query,
+        insert_query = """
+                       INSERT INTO ganaly.robot_logs
+                           (robot_id, level, message, details, created_at)
+                       VALUES
+                           (:robot_id, :level, :message, :details, :created_at)
+                       """
+        db.execute(
+            text(insert_query),
             {
                 "robot_id": robot_id,
                 "level": level.upper(),
                 "message": message,
                 "details": json.dumps(details) if details else None,
                 "created_at": datetime.now(timezone.utc)
-            },
-            fetch_one=False
+            }
         )
         db.commit()
 
@@ -803,37 +730,45 @@ class RobotService:
         robot = await self.get_robot_by_id(db, robot_id, user_id)
 
         # Основная статистика
-        stats_query, stats_params = queries.build_get_robot_stats_query(robot_id)
+        stats_query, stats_params = queries.build_get_trade_stats_query(robot_id)
         stats = self._execute(stats_query, stats_params, fetch_one=True)
 
         # Статистика по дням
-        daily_query, daily_params = queries.build_get_trades_by_day_query(robot_id)
+        from datetime import datetime, timedelta
+        end_date = datetime.now(timezone.utc)
+        start_date = end_date - timedelta(days=30)
+
+        daily_query, daily_params = queries.build_get_robot_stats_by_date_range_query(
+            robot_id=robot_id,
+            from_date=start_date,
+            to_date=end_date
+        )
         daily_results = self._execute(daily_query, daily_params).fetchall()
 
         # Последние сделки
-        recent_trades = await self.get_robot_trades(db, robot_id, user_id, limit=100)
+        recent_trades = await self.get_robot_trades(db, robot_id, user_id, limit=10)
 
         # Формируем результат
         if stats:
             total_trades = self._safe_int(stats[0])
-            successful = self._safe_int(stats[1])
-            failed = self._safe_int(stats[2])
-            success_rate = (successful / total_trades * 100) if total_trades > 0 else 0
+            profitable_trades = self._safe_int(stats[1])
+            loss_trades = self._safe_int(stats[2])
+            success_rate = (profitable_trades / total_trades * 100) if total_trades > 0 else 0
 
             result = {
                 "total_trades": total_trades,
-                "successful_trades": successful,
-                "failed_trades": failed,
+                "successful_trades": profitable_trades,
+                "failed_trades": loss_trades,
                 "success_rate": success_rate,
-                "total_profit": self._safe_float(stats[6]),
+                "total_profit": self._safe_float(stats[4]),
+                "total_profit_percent": 0,  # TODO: рассчитать процент от начального капитала
                 "average_profit_per_trade": self._safe_float(stats[3]),
-                "biggest_win": self._safe_float(stats[4]),
-                "biggest_loss": self._safe_float(stats[5]),
+                "biggest_win": self._safe_float(stats[5]),
+                "biggest_loss": self._safe_float(stats[6]),
                 "last_trade_at": stats[7],
                 "active_since": robot.get("started_at"),
                 "trades_by_day": [],
-                "profit_by_day": {},
-                "recent_trades": recent_trades[:10]
+                "profit_by_day": {}
             }
 
             # Добавляем статистику по дням
@@ -842,9 +777,9 @@ class RobotService:
                 result["trades_by_day"].append({
                     "date": day_str,
                     "count": self._safe_int(day_row[1]),
-                    "profit": self._safe_float(day_row[2])
+                    "profit": self._safe_float(day_row[4])
                 })
-                result["profit_by_day"][day_str] = self._safe_float(day_row[2])
+                result["profit_by_day"][day_str] = self._safe_float(day_row[4])
 
             return result
 
@@ -854,6 +789,7 @@ class RobotService:
             "failed_trades": 0,
             "success_rate": 0,
             "total_profit": 0,
+            "total_profit_percent": 0,
             "average_profit_per_trade": 0,
             "biggest_win": 0,
             "biggest_loss": 0,
@@ -861,7 +797,7 @@ class RobotService:
             "active_since": robot.get("started_at"),
             "trades_by_day": [],
             "profit_by_day": {},
-            "recent_trades": []
+            "recent_trades": recent_trades
         }
 
     async def _handle_error(self, db: Session, robot: dict, error: str):
@@ -896,8 +832,6 @@ class RobotService:
         которые требуют обновления (учитывая refresh_interval_minutes)
         """
         from app.core.database import SessionLocal
-        from app.modules.robots.portfolio_updater.robot import PortfolioUpdaterRobot  # ← ИСПРАВЛЕНО
-        from app.modules.robots.portfolio_updater.scheduler import PortfolioUpdaterScheduler  # ← ИСПРАВЛЕНО
 
         db = SessionLocal()
         self.db = db

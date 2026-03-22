@@ -4,15 +4,31 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 1.0.3 - REBUILD robots tables (for update portfolio and reding)">
+    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 1.0.4 - create robot modal">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic/versions/0007_create_dictionary_table.py" beforeDir="false" afterPath="$PROJECT_DIR$/alembic/versions/0007_create_dictionary_table.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/alembic/versions/0002_create_api_tokens.py" beforeDir="false" afterPath="$PROJECT_DIR$/alembic/versions/0002_create_api_tokens.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/alembic/versions/0008_create_robots_table.py" beforeDir="false" afterPath="$PROJECT_DIR$/alembic/versions/0008_create_robots_table.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/queries.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/queries.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/queries.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/queries.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/main.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/main.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/pages/CreateRobotPage.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/robots/pages/CreateRobotPage.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/auth/views/LoginView.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/auth/views/LoginView.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/CreateRobotModal.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/robots/components/CreateRobotModal.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/RobotCard.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/RobotForm.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/RobotList.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/StrategyConfig.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/robots/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/pages/CreateRobotPage.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/pages/RobotDetailPage.ts" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/pages/RobotsPage.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/robots/pages/RobotsPage.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/shared/styles/navbar.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/styles/navbar.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/services/robotService.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/robots/services/robotService.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/types.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/robots/types.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/shared/components/Navbar.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/components/Navbar.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/shared/styles/modal.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/styles/modal.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/shared/styles/navbar.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/styles/navbar.css" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/shared/styles/robots.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/styles/robots.css" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -26,8 +42,8 @@
         <option value="JavaScript File" />
         <option value="HTML File" />
         <option value="Python Script" />
-        <option value="TypeScript File" />
         <option value="CSS File" />
+        <option value="TypeScript File" />
       </list>
     </option>
   </component>
@@ -64,6 +80,7 @@
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "DefaultHtmlFileTemplate": "HTML File",
+    "JavaScript Debug.localhost:8000.executor": "Debug",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "Python.config.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
@@ -97,6 +114,16 @@
       <recent name="C:\Users\Asus\WebstormProject\gin\alembic\versions" />
       <recent name="C:\Users\Asus\WebstormProject\gin" />
     </key>
+  </component>
+  <component name="RunManager">
+    <configuration name="localhost:8000" type="JavascriptDebugType" temporary="true" nameIsGenerated="true" uri="http://localhost:8000">
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="JavaScript Debug.localhost:8000" />
+      </list>
+    </recent_temporary>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
@@ -132,7 +159,9 @@
       <workItem from="1772816813694" duration="36251000" />
       <workItem from="1773518786674" duration="3072000" />
       <workItem from="1773741047705" duration="8511000" />
-      <workItem from="1773760035596" duration="10472000" />
+      <workItem from="1773760035596" duration="46332000" />
+      <workItem from="1773918891611" duration="17358000" />
+      <workItem from="1774170738768" duration="7787000" />
     </task>
     <task id="LOCAL-00001" summary="v 0.8.0 - Логин и настройка токена">
       <option name="closed" value="true" />
@@ -206,7 +235,15 @@
       <option name="project" value="LOCAL" />
       <updated>1773759075342</updated>
     </task>
-    <option name="localTasksCounter" value="10" />
+    <task id="LOCAL-00010" summary="v 1.0.4 - create robot modal">
+      <option name="closed" value="true" />
+      <created>1773783718691</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1773783718691</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -219,7 +256,8 @@
     <MESSAGE value="v 1.0.1 - refactor sql queries for requests" />
     <MESSAGE value="v 1.0.2 - repair robots for update portfolio" />
     <MESSAGE value="v 1.0.3 - REBUILD robots tables (for update portfolio and reding)" />
-    <option name="LAST_COMMIT_MESSAGE" value="v 1.0.3 - REBUILD robots tables (for update portfolio and reding)" />
+    <MESSAGE value="v 1.0.4 - create robot modal" />
+    <option name="LAST_COMMIT_MESSAGE" value="v 1.0.4 - create robot modal" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

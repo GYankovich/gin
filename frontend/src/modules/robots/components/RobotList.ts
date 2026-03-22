@@ -1,197 +1,133 @@
 // frontend/src/modules/robots/components/RobotList.ts
-import { Robot } from '../types';
-import { RobotCard } from './RobotCard';
+
+import { RobotCard, RobotCardData } from './RobotCard';
 
 export class RobotList {
-    private robots: Robot[];
-    private onStart: (id: number) => void;
-    private onStop: (id: number) => void;
-    private onEdit: (id: number) => void;
-    private onDelete: (id: number) => void;
-    private onViewDetails: (id: number) => void;
-    private loading: boolean;
-    private filter: 'all' | 'active' | 'stopped' | 'error';
-    private onFilterChange?: (filter: string) => void;
-    private container: HTMLElement | null = null;
-
-    private robotCards: Map<number, RobotCard> = new Map();
+    private container: HTMLElement;
+    private robots: RobotCardData[];
+    private onToggle: (id: number, statusCode: number) => void;
+    private isLoading: boolean;
+    private filter: string;
+    private onFilterChange: (filter: string) => void;
+    private cards: RobotCard[] = [];
 
     constructor(
-        robots: Robot[],
-        onStart: (id: number) => void,
-        onStop: (id: number) => void,
-        onEdit: (id: number) => void,
-        onDelete: (id: number) => void,
-        onViewDetails: (id: number) => void,
-        loading: boolean = false,
-        filter: 'all' | 'active' | 'stopped' | 'error' = 'all',
-        onFilterChange?: (filter: string) => void
+        robots: RobotCardData[],
+        onToggle: (id: number, statusCode: number) => void,
+        isLoading: boolean = false,
+        filter: string = 'all',
+        onFilterChange: (filter: string) => void
     ) {
         this.robots = robots;
-        this.onStart = onStart;
-        this.onStop = onStop;
-        this.onEdit = onEdit;
-        this.onDelete = onDelete;
-        this.onViewDetails = onViewDetails;
-        this.loading = loading;
+        this.onToggle = onToggle;
+        this.isLoading = isLoading;
         this.filter = filter;
         this.onFilterChange = onFilterChange;
     }
 
     updateProps(props: {
-        robots?: Robot[];
-        loading?: boolean;
-        filter?: 'all' | 'active' | 'stopped' | 'error';
+        robots: RobotCardData[];
+        loading: boolean;
+        filter: string;
     }): void {
-        if (props.robots !== undefined) this.robots = props.robots;
-        if (props.loading !== undefined) this.loading = props.loading;
-        if (props.filter !== undefined) this.filter = props.filter;
-        this.renderContent();
+        this.robots = props.robots;
+        this.isLoading = props.loading;
+        this.filter = props.filter;
+        this.render();
     }
 
-    private getFilteredRobots(): Robot[] {
-        return this.robots.filter(robot => {
-            if (this.filter === 'all') return true;
-            if (this.filter === 'active') return robot.status === 'active';
-            if (this.filter === 'stopped') return robot.status === 'stopped';
-            if (this.filter === 'error') return robot.status === 'error';
-            return true;
-        });
+    private getFilteredRobots(): RobotCardData[] {
+        switch (this.filter) {
+            case 'active':
+                return this.robots.filter(r => r.status === 1);
+            case 'stopped':
+                return this.robots.filter(r => r.status === 2);
+            case 'error':
+                return this.robots.filter(r => r.last_error !== null);
+            default:
+                return this.robots;
+        }
     }
 
-    private getStats() {
-        return {
-            total: this.robots.length,
-            active: this.robots.filter(r => r.status === 'active').length,
-            stopped: this.robots.filter(r => r.status === 'stopped').length,
-            error: this.robots.filter(r => r.status === 'error').length,
-            totalProfit: this.robots.reduce((sum, r) => sum + r.total_profit, 0)
-        };
-    }
+    render(container?: HTMLElement): void {
+        if (container) {
+            this.container = container;
+        }
 
-    private renderContent(): void {
         if (!this.container) return;
 
         const filteredRobots = this.getFilteredRobots();
-        const stats = this.getStats();
-        const statsHtml = `
-            <div class="robots-stats">
-                <div class="stat-card">
-                    <div class="stat-value">${stats.total}</div>
-                    <div class="stat-label">Всего роботов</div>
-                </div>
-                <div class="stat-card active">
-                    <div class="stat-value">${stats.active}</div>
-                    <div class="stat-label">Активных</div>
-                </div>
-                <div class="stat-card stopped">
-                    <div class="stat-value">${stats.stopped}</div>
-                    <div class="stat-label">Остановлено</div>
-                </div>
-                <div class="stat-card error">
-                    <div class="stat-value">${stats.error}</div>
-                    <div class="stat-label">С ошибками</div>
-                </div>
-                <div class="stat-card profit">
-                    <div class="stat-value ${stats.totalProfit >= 0 ? 'profit-positive' : 'profit-negative'}">
-                        ${stats.totalProfit >= 0 ? '+' : ''}${stats.totalProfit.toFixed(2)} ₽
-                    </div>
-                    <div class="stat-label">Общая прибыль</div>
-                </div>
-            </div>
-        `;
-
-        const filtersHtml = this.onFilterChange ? `
-            <div class="robots-filters">
-                <button class="${this.filter === 'all' ? 'active' : ''}" data-filter="all">Все</button>
-                <button class="${this.filter === 'active' ? 'active' : ''}" data-filter="active">Активные</button>
-                <button class="${this.filter === 'stopped' ? 'active' : ''}" data-filter="stopped">Остановленные</button>
-                <button class="${this.filter === 'error' ? 'active' : ''}" data-filter="error">С ошибками</button>
-            </div>
-        ` : '';
-
-        if (this.loading) {
-            this.container.innerHTML = `
-                ${statsHtml}
-                ${filtersHtml}
-                <div class="loading">Загрузка роботов...</div>
-            `;
-            return;
-        }
-
-        if (filteredRobots.length === 0) {
-            this.container.innerHTML = `
-                ${statsHtml}
-                ${filtersHtml}
-                <div class="empty-state">
-                    <p>Нет роботов для отображения</p>
-                    <button id="create-first-robot">Создать первого робота</button>
-                </div>
-            `;
-
-            setTimeout(() => {
-                document.getElementById('create-first-robot')?.addEventListener('click', () => {
-                    window.location.href = '/robots/create';
-                });
-            }, 0);
-
-            return;
-        }
-
-        // Очищаем старые карточки
-        this.robotCards.clear();
-
-        const robotsGrid = document.createElement('div');
-        robotsGrid.className = 'robots-grid';
-
-        filteredRobots.forEach(robot => {
-            const cardContainer = document.createElement('div');
-            cardContainer.className = 'robot-card-container';
-
-            const card = new RobotCard(
-                robot,
-                this.onStart,
-                this.onStop,
-                this.onEdit,
-                this.onDelete,
-                this.onViewDetails
-            );
-
-            card.render(cardContainer);
-            this.robotCards.set(robot.id, card);
-            robotsGrid.appendChild(cardContainer);
-        });
 
         this.container.innerHTML = `
-            ${statsHtml}
-            ${filtersHtml}
+            <div class="robots-filters">
+                <button class="filter-btn ${this.filter === 'all' ? 'active' : ''}" data-filter="all">
+                    Все <span class="filter-count">${this.robots.length}</span>
+                </button>
+                <button class="filter-btn ${this.filter === 'active' ? 'active' : ''}" data-filter="active">
+                    Активные <span class="filter-count">${this.robots.filter(r => r.status === 1).length}</span>
+                </button>
+                <button class="filter-btn ${this.filter === 'stopped' ? 'active' : ''}" data-filter="stopped">
+                    Остановлены <span class="filter-count">${this.robots.filter(r => r.status === 2).length}</span>
+                </button>
+                <button class="filter-btn ${this.filter === 'error' ? 'active' : ''}" data-filter="error">
+                    Ошибка <span class="filter-count">${this.robots.filter(r => r.last_error !== null).length}</span>
+                </button>
+            </div>
+            
+            <div class="robots-list" id="robots-list"></div>
         `;
 
-        this.container.appendChild(robotsGrid);
+        const list = document.getElementById('robots-list');
 
-        // Добавляем обработчики фильтров
-        if (this.onFilterChange) {
-            setTimeout(() => {
-                document.querySelectorAll('.robots-filters button').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const filter = (e.target as HTMLElement).getAttribute('data-filter');
-                        if (filter && this.onFilterChange) {
-                            this.onFilterChange(filter);
-                        }
-                    });
+        if (list) {
+            this.cards.forEach(card => card.destroy());
+            this.cards = [];
+
+            if (filteredRobots.length === 0) {
+                list.innerHTML = `
+                    <div class="no-results">
+                        <p>Нет роботов, соответствующих выбранному фильтру</p>
+                    </div>
+                `;
+            } else {
+                list.innerHTML = '';
+
+                filteredRobots.forEach(robot => {
+                    const cardContainer = document.createElement('div');
+                    cardContainer.className = 'robot-card-wrapper';
+                    list.appendChild(cardContainer);
+
+                    const card = new RobotCard(
+                        cardContainer,
+                        robot,
+                        this.onToggle,
+                        this.isLoading
+                    );
+                    card.render();
+                    this.cards.push(card);
                 });
-            }, 0);
+            }
         }
+
+        this.attachFilterEvents();
     }
 
-    render(container: HTMLElement): void {
-        this.container = container;
-        this.renderContent();
+    private attachFilterEvents(): void {
+        const filterBtns = this.container.querySelectorAll('.filter-btn');
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.target as HTMLElement;
+                const filter = target.dataset.filter;
+                if (filter) {
+                    this.onFilterChange(filter);
+                }
+            });
+        });
     }
 
     destroy(): void {
-        this.robotCards.forEach(card => card.destroy());
-        this.robotCards.clear();
-        this.container = null;
+        this.cards.forEach(card => card.destroy());
+        this.cards = [];
+        this.container.innerHTML = '';
     }
 }

@@ -327,6 +327,10 @@ export class Navbar {
             console.error('❌ Navbar: container is undefined');
             return;
         }
+        if (window.location.pathname === '/login') {
+            this.container.innerHTML = '';
+            return;
+        }
 
         // Удаляем глобальные слушатели перед перерисовкой
         this.removeGlobalListeners();

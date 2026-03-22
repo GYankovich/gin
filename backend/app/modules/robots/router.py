@@ -7,7 +7,7 @@ import logging
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.modules.auth.models import User
-from . import schemas, service
+from . import schemas, service, queries
 from .scheduler import scheduler
 from .portfolio_updater.robot import PortfolioUpdaterRobot
 from .common.logger import get_logger
@@ -15,8 +15,9 @@ from .common.logger import get_logger
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/robots", tags=["Trading Robots"])
 
+# app/modules/robots/router.py
 
-# === УПРАВЛЕНИЕ РОБОТАМИ ===
+# === ПРОСМОТР РОБОТА ===
 
 @router.post("/data", response_model=schemas.RobotListResponse)
 async def get_robots(
@@ -26,125 +27,71 @@ async def get_robots(
 ):
     """
     Получение списка всех роботов пользователя
-    Фильтрация по статусу и типу
     """
-    logger.info(f"📊 Getting robots for user {current_user.id}")
 
-    # Получаем ID статуса "Включен" из справочника
-    status_active_id = db.execute(
-        text("""
-             SELECT id FROM ganaly.dictionary
-             WHERE table_name = 'ROBOT'
-               AND column_name = 'STATUS'
-               AND num_value = 1
-             """)
-    ).scalar()
-
-    # Базовый запрос
-    query = """
-            SELECT
-                r.id,
-                r.user_id,
-                r.token_id,
-                r.name,
-                r.type as type_id,
-                dt.name as type_name,
-                dt.num_value as type_value,
-                r.status as status_id,
-                ds.name as status_name,
-                ds.num_value as status_value,
-                r.config,
-                r.last_started,
-                r.last_error,
-                r.last_error_at,
-                r.usercre,
-                r.date_creation,
-                r.usermod,
-                r.date_modification
-            FROM ganaly.robots r
-                     LEFT JOIN ganaly.dictionary dt ON r.type = dt.id AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
-                     LEFT JOIN ganaly.dictionary ds ON r.status = ds.id AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
-            WHERE r.user_id = :user_id \
-            """
-
-    params = {"user_id": current_user.id}
-
-    # Фильтр по статусу (только активные, если не запрошены неактивные)
-    if not request.include_inactive:
-        query += " AND r.status = :status_active_id"
-        params["status_active_id"] = status_active_id
-
-    # Фильтр по типу робота
-    if request.robot_type:
-        # Получаем ID типа робота из справочника
-        type_id = db.execute(
-            text("""
-                 SELECT id FROM ganaly.dictionary
-                 WHERE table_name = 'ROBOT'
-                   AND column_name = 'TYPE'
-                   AND num_value = :type_value
-                 """),
-            {"type_value": request.robot_type}
-        ).scalar()
-
-        if type_id:
-            query += " AND r.type = :type_id"
-            params["type_id"] = type_id
-
-    query += " ORDER BY r.date_creation DESC"
+    # Строим запрос для получения данных
+    query, params = queries.build_get_user_robots_query(
+        robot_status=request.robot_status,
+        robot_type=request.robot_type,
+        robot_name=request.robot_name,
+        token_type=request.token_type,
+        limit=request.limit,
+        offset=request.offset,
+        sort_by=request.sort_by,
+        sort_order=request.sort_order
+    )
+    params["user_id"] = current_user.id
 
     # Выполняем запрос
     result = db.execute(text(query), params).fetchall()
 
-    # Формируем ответ
+    # Строим запрос для подсчета общего количества
+    count_query, count_params = queries.build_count_user_robots_query(
+        robot_status=request.robot_status,
+        robot_type=request.robot_type,
+        robot_name=request.robot_name,
+        token_type=request.token_type
+    )
+    count_params["user_id"] = current_user.id
+    total = db.execute(text(count_query), count_params).scalar() or 0
+
     robots = []
     for row in result:
         robot_dict = {
             "id": row[0],
             "user_id": row[1],
-            "token_id": row[2],
-            "name": row[3],
-            "type": {
-                "id": row[4],
-                "name": row[5],
-                "value": row[6]
+            "token": {
+                "id": row[2],
+                "name": row[3],
+                "status": row[4],
+                "type": row[5],
+                "typeName": row[6]
             },
-            "status": {
-                "id": row[7],
-                "name": row[8],
-                "value": row[9]
-            },
-            "config": row[10] or {},
-            "last_started": row[11],
-            "last_error": row[12],
-            "last_error_at": row[13],
-            "usercre": row[14],
-            "date_creation": row[15],
-            "usermod": row[16],
-            "date_modification": row[17]
+            "name": row[7],
+            "type": row[8],
+            "typeName": row[9],
+            "status": row[10],
+            "statusName": row[11],
+            "config": row[12] if row[12] is not None else {},
+            "last_started": row[13],
+            "last_error": row[14],
+            "last_error_at": row[15],
+            "last_stopped": row[16],
+            "usercre": row[17],
+            "date_creation": row[18],
+            "usermod": row[19],
+            "date_modification": row[20]
         }
         robots.append(robot_dict)
 
-    logger.info(f"✅ Found {len(robots)} robots for user {current_user.id}")
-
     return schemas.RobotListResponse(
-        total=len(robots),
-        items=robots
+        total=total,
+        items=robots,
+        limit=request.limit,
+        offset=request.offset
     )
 
-
-@router.get("/data/{robot_id}", response_model=schemas.RobotInDB)
-async def get_robot(
-        robot_id: int,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
-):
-    """
-    Получение информации о конкретном роботе
-    """
-    robot = await service.robot_service.get_robot_by_id(db, robot_id, current_user.id)
-    return schemas.RobotInDB.model_validate(robot)
-
+# === ИЗМЕНЕНИЕ РОБОТА ===
 
 @router.post("/create", response_model=schemas.RobotInDB, status_code=status.HTTP_201_CREATED)
 async def create_robot(
@@ -154,64 +101,106 @@ async def create_robot(
 ):
     """
     Создание нового робота
+
+    - **name**: Название робота (обязательно)
+    - **type**: Тип робота (1 - Portfolio, 2 - Trading)
+    - **token_id**: ID токена доступа
     """
-    robot = await service.robot_service.create_robot(db, current_user.id, robot_data)
-    return schemas.RobotInDB.model_validate(robot)
+    logger.info(f"🤖 Creating robot for user {current_user.id}")
+    logger.info(f"📦 Received data: {robot_data}")
+
+    # Валидация
+    if robot_data.type not in [1, 2]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Тип робота должен быть 1 (Portfolio) или 2 (Trading)"
+        )
+
+    try:
+        robot = await service.robot_service.create_robot(db, current_user.id, robot_data)
+        logger.info(f"✅ Robot created successfully: {robot['id']}")
+        return schemas.RobotInDB.model_validate(robot)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error creating robot: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при создании робота: {str(e)}"
+        )
 
 
-@router.post("/update/{robot_id}", response_model=schemas.RobotInDB)
-async def update_robot(
-        robot_id: int,
-        robot_data: schemas.RobotUpdate,
+
+@router.post("/change_status", response_model=schemas.RobotInDB)
+async def change_robot_status(
+        request: schemas.ChangeStatusRequest,
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """
-    Обновление параметров робота
-    """
-    robot = await service.robot_service.update_robot(db, robot_id, current_user.id, robot_data)
-    return schemas.RobotInDB.model_validate(robot)
+
+    if request.status not in [1, 2]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Статус должен быть 1 (Включить) или 2 (Выключить)"
+        )
+
+    try:
+        robot = await service.robot_service.change_robot_status(
+            db,
+            request.robotId,
+            current_user.id,
+            request.status
+        )
+        return schemas.RobotInDB.model_validate(robot)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при изменении статуса робота: {str(e)}"
+        )
 
 
-@router.post("/delete/{robot_id}", status_code=status.HTTP_200_OK)
-async def delete_robot(
-        robot_id: int,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
-):
-    """
-    Удаление (деактивация) робота
-    """
-    await service.robot_service.delete_robot(db, robot_id, current_user.id)
-    return {"message": "Robot successfully deleted", "success": True}
 
+#
+# @router.get("/data/{robot_id}", response_model=schemas.RobotInDB)
+# async def get_robot(
+#         robot_id: int,
+#         db: Session = Depends(get_db),
+#         current_user: User = Depends(get_current_user)
+# ):
+#     """
+#     Получение информации о конкретном роботе
+#     """
+#     robot = await service.robot_service.get_robot_by_id(db, robot_id, current_user.id)
+#     return schemas.RobotInDB.model_validate(robot)
+#
+# @router.post("/update/{robot_id}", response_model=schemas.RobotInDB)
+# async def update_robot(
+#         robot_id: int,
+#         robot_data: schemas.RobotUpdate,
+#         db: Session = Depends(get_db),
+#         current_user: User = Depends(get_current_user)
+# ):
+#     """
+#     Обновление параметров робота
+#     """
+#     robot = await service.robot_service.update_robot(db, robot_id, current_user.id, robot_data)
+#     return schemas.RobotInDB.model_validate(robot)
+#
+#
+# @router.post("/delete/{robot_id}", status_code=status.HTTP_200_OK)
+# async def delete_robot(
+#         robot_id: int,
+#         db: Session = Depends(get_db),
+#         current_user: User = Depends(get_current_user)
+# ):
+#     """
+#     Удаление (деактивация) робота
+#     """
+#     await service.robot_service.delete_robot(db, robot_id, current_user.id)
+#     return {"message": "Robot successfully deleted", "success": True}
 
-# === УПРАВЛЕНИЕ СОСТОЯНИЕМ ===
-
-@router.post("/{robot_id}/start", response_model=schemas.RobotInDB)
-async def start_robot(
-        robot_id: int,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
-):
-    """
-    Запуск робота
-    """
-    robot = await service.robot_service.start_robot(db, robot_id, current_user.id)
-    return schemas.RobotInDB.model_validate(robot)
-
-
-@router.post("/{robot_id}/stop", response_model=schemas.RobotInDB)
-async def stop_robot(
-        robot_id: int,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
-):
-    """
-    Остановка робота
-    """
-    robot = await service.robot_service.stop_robot(db, robot_id, current_user.id)
-    return schemas.RobotInDB.model_validate(robot)
 
 
 # === СТРАТЕГИИ ===
@@ -316,29 +305,6 @@ async def run_portfolio_updater(
         )
 
 
-# === СДЕЛКИ ===
-
-@router.get("/{robot_id}/trades", response_model=List[schemas.RobotTradeInDB])
-async def get_robot_trades(
-        robot_id: int,
-        limit: int = Query(100, ge=1, le=1000),
-        status: Optional[str] = Query(None, description="Фильтр по статусу сделки"),
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
-):
-    """
-    Получение списка сделок робота
-    """
-    trades = await service.robot_service.get_robot_trades(
-        db,
-        robot_id,
-        current_user.id,
-        limit=limit,
-        status=status
-    )
-
-    return [schemas.RobotTradeInDB.model_validate(t) for t in trades]
-
 
 # === ЛОГИ ===
 
@@ -434,20 +400,6 @@ async def get_robot_log_stats(
 
     return stats
 
-
-# === СТАТИСТИКА ===
-
-@router.get("/{robot_id}/stats", response_model=schemas.RobotStats)
-async def get_robot_stats(
-        robot_id: int,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
-):
-    """
-    Получение расширенной статистики робота
-    """
-    stats = await service.robot_service.get_robot_stats(db, robot_id, current_user.id)
-    return schemas.RobotStats.model_validate(stats)
 
 
 # === УПРАВЛЕНИЕ ПЛАНИРОВЩИКОМ ===

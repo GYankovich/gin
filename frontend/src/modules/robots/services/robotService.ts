@@ -7,7 +7,6 @@ import type {
     RobotListResponse,
     RobotTrade,
     RobotLog,
-    RobotStats,
     StrategyInfo,
     AvailableToken,
     RobotLogListResponse
@@ -28,6 +27,21 @@ interface ApiKeyListResponse {
     total: number;
     limit: number;
     offset: number;
+}
+
+interface RobotListItem {
+    id: number;
+    name: string;
+    token_type: string | null;
+    type: number;
+    status_name: string;
+    last_started: string | null;
+    last_error: string | null;
+}
+
+interface RobotListResponse {
+    total: number;
+    items: RobotListItem[];
 }
 
 export class RobotService {
@@ -320,25 +334,6 @@ export class RobotService {
         }
     }
 
-    /**
-     * Получение статистики робота
-     * @param robotId - ID робота
-     */
-    async getRobotStats(robotId: number): Promise<RobotStats> {
-        const url = `${this.baseUrl}/${robotId}/stats`;
-        console.log(`🔍 API Request: GET ${url}`);
-
-        try {
-            const response = await apiFetch<RobotStats>(url, {
-                method: 'GET'
-            });
-            console.log(`📦 Stats for robot ${robotId}:`, response);
-            return response;
-        } catch (error) {
-            console.error(`❌ API Error in getRobotStats ${robotId}:`, error);
-            throw error;
-        }
-    }
 
     // === Логи (общие) ===
 

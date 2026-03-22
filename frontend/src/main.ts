@@ -7,12 +7,11 @@ import { store } from './core/store';
 import { themeManager } from './core/theme';
 import './shared/styles/robots.css';
 import './shared/styles/modal.css';
+import './shared/styles/navbar.css';
+import './shared/styles/select.css';
 
 // Импортируем представления для роботов
 import { RobotsPage } from './modules/robots/pages/RobotsPage';
-import { RobotDetailPage } from './modules/robots/pages/RobotDetailPage';
-import { CreateRobotPage } from './modules/robots/pages/CreateRobotPage';
-
 
 console.log('🚀 GAnal Frontend starting...');
 
@@ -43,6 +42,9 @@ function initAppLayout(): void {
     if (!navbar) {
         navbar = new Navbar(navbarContainer);
     }
+
+    // Убираем класс no-navbar для страниц с навбаром
+    document.body.classList.remove('no-navbar');
 }
 
 // Функция для рендеринга контента
@@ -65,6 +67,10 @@ router.register('/login', () => {
     const app = document.getElementById('app');
     if (app) {
         app.innerHTML = ''; // Очищаем полностью
+
+        // Добавляем класс для body (убираем отступ)
+        document.body.classList.add('no-navbar');
+
         const loginView = new LoginView(app);
         loginView.render();
         navbar = null;
@@ -154,5 +160,8 @@ setTimeout(() => {
         } else {
             router.navigate('/login');
         }
+    } else if (currentPath !== '/login') {
+        // Для всех остальных страниц (кроме логина) убеждаемся, что нет класса no-navbar
+        document.body.classList.remove('no-navbar');
     }
 }, 100);

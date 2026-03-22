@@ -2,30 +2,18 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-
-# === СХЕМА ДЛЯ ЗАПРОСА СПИСКА РОБОТОВ ===
-
-class RobotListRequest(BaseModel):
-    """Запрос на получение списка роботов"""
-    include_inactive: bool = Field(False, description="Включать неактивных роботов")
-    robot_type: Optional[int] = Field(None, description="Фильтр по типу робота (num_value из dictionary)")
-
-
 # === БАЗОВЫЕ СХЕМЫ ===
 
-class RobotBase(BaseModel):
-    """Базовая схема робота"""
-    name: Optional[str] = Field(None, min_length=3, max_length=255)
-    token_id: Optional[int] = Field(None, description="ID токена")
-    type: int = Field(..., description="Тип робота (ID из dictionary)")
-    config: Dict[str, Any] = Field(default_factory=dict)
 
 
-class RobotCreate(RobotBase):
+class RobotCreate(BaseModel):
     """Создание робота"""
-    name: Optional[str] = None  # Теперь может быть null
-    status: Optional[int] = Field(0, description="Статус робота (ID из dictionary)")
+    name: str = Field(..., min_length=1, max_length=255, description="Название робота")
+    type: int = Field(..., description="Тип робота (num_value из dictionary: 1 - Portfolio, 2 - Trading)")
+    token_id: int = Field(..., description="ID токена доступа")
 
+    class Config:
+        from_attributes = True
 
 class RobotUpdate(BaseModel):
     """Обновление робота"""
@@ -36,7 +24,20 @@ class RobotUpdate(BaseModel):
     config: Optional[Dict[str, Any]] = None
 
 
-# === СХЕМЫ ДЛЯ ОТВЕТОВ ===
+
+
+
+
+
+
+class ChangeStatusRequest(BaseModel):
+    """Запрос на изменение статуса робота"""
+    robotId: int = Field(..., description="ID робота")
+    status: int = Field(..., description="Новый статус: 1 - Включить, 2 - Выключить")
+
+    class Config:
+        from_attributes = True
+
 
 class DictionaryItem(BaseModel):
     """Элемент справочника"""
@@ -45,15 +46,30 @@ class DictionaryItem(BaseModel):
     value: Optional[int] = None
 
 
-class RobotInDB(RobotBase):
-    """Робот из БД"""
+class TokenInfo(BaseModel):
+    """Информация о токене"""
+    id: Optional[int] = None
+    name: Optional[str] = None
+    status: Optional[int] = None
+    type: Optional[int] = None
+    typeName: Optional[str] = None
+
+
+class RobotInDB(BaseModel):
+    """Полная схема робота из БД"""
     id: int
     user_id: int
-    type: DictionaryItem
-    status: DictionaryItem
+    token: TokenInfo = Field(default_factory=TokenInfo)
+    name: str
+    type: int
+    typeName: str
+    status: int
+    statusName: str
+    config: Dict[str, Any] = Field(default_factory=dict)
     last_started: Optional[datetime] = None
     last_error: Optional[str] = None
     last_error_at: Optional[datetime] = None
+    last_stopped: Optional[datetime] = None
     usercre: Optional[int] = None
     date_creation: datetime
     usermod: Optional[int] = None
@@ -63,44 +79,30 @@ class RobotInDB(RobotBase):
         from_attributes = True
 
 
+class RobotListRequest(BaseModel):
+    """Запрос на получение списка роботов"""
+    robot_status: Optional[List[int]] = Field(None, description="Фильтр по статусам (1 - активен, 2 - остановлен)")
+    robot_type: Optional[List[int]] = Field(None, description="Фильтр по типам роботов")
+    robot_name: Optional[str] = Field(None, description="Поиск по названию")
+    token_type: Optional[List[int]] = Field(None, description="Фильтр по типам токенов")
+    limit: int = Field(100, ge=1, le=1000, description="Количество записей")
+    offset: int = Field(0, ge=0, description="Смещение")
+    sort_by: Optional[str] = Field(None, description="Поле для сортировки (status, name, token_type)")
+    sort_order: Optional[str] = Field("asc", description="Направление сортировки (asc, desc)")
+
+
 class RobotListResponse(BaseModel):
     """Список роботов"""
     total: int
-    items: List[RobotInDB]
+    items: List[RobotInDB]  # ← Используем RobotInDB
+    limit: int
+    offset: int
 
 
-# === СХЕМЫ ДЛЯ СДЕЛОК ===
-
-class RobotTradeBase(BaseModel):
-    """Базовая схема сделки"""
-    figi: str
-    ticker: Optional[str]
-    instrument_type: str
-    side: str
-    quantity: float
-    price: float
-    order_id: Optional[str]
 
 
-class RobotTradeCreate(RobotTradeBase):
-    """Создание сделки"""
-    robot_id: int
 
 
-class RobotTradeInDB(RobotTradeBase):
-    """Сделка из БД"""
-    id: int
-    robot_id: int
-    total_amount: float
-    commission: Optional[float]
-    profit: Optional[float]
-    profit_percent: Optional[float]
-    status: str
-    created_at: datetime
-    closed_at: Optional[datetime]
-
-    class Config:
-        from_attributes = True
 
 
 # === СХЕМЫ ДЛЯ ЛОГОВ ===
@@ -134,22 +136,3 @@ class RobotLogListResponse(BaseModel):
     logs: List[RobotLogInDB]
     limit: int
     offset: int
-
-
-# === СХЕМЫ ДЛЯ СТАТИСТИКИ ===
-
-class RobotStats(BaseModel):
-    """Статистика робота"""
-    total_trades: int
-    successful_trades: int
-    failed_trades: int
-    success_rate: float
-    total_profit: float
-    total_profit_percent: float
-    average_profit_per_trade: float
-    biggest_win: float
-    biggest_loss: float
-    trades_by_day: List[Dict[str, Any]]
-    profit_by_day: Dict[str, float]
-    active_since: Optional[datetime]
-    last_trade_at: Optional[datetime]

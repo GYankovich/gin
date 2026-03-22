@@ -26,7 +26,7 @@ def build_get_user_tokens_query(
                      user_id,
                      token_type,
                      token,
-                     token_name,
+                     name,
                      is_active,
                      created_at,
                      updated_at,
@@ -54,7 +54,7 @@ def build_get_token_by_id_query() -> str:
                user_id,
                token_type,
                token,
-               token_name,
+               name,
                is_active,
                created_at,
                updated_at,
@@ -77,7 +77,7 @@ def build_create_token_query() -> str:
     """Создание нового токена"""
     return """
            INSERT INTO ganaly.api_tokens
-               (user_id, token_type, token, token_name, is_active, created_at)
+               (user_id, token_type, token, name, is_active, created_at)
            VALUES
                (:user_id, :token_type, :token, :token_name, 1, :created_at)
                RETURNING

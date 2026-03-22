@@ -29,7 +29,7 @@ def upgrade():
         sa.Column('status', sa.Integer(), nullable=False, server_default='0'),  # ссылка на dictionary
         sa.Column('config', sa.JSON(), nullable=False, server_default='{}'),
         sa.Column('last_started', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('last_error', sa.Text(), nullable=True),
+        sa.Column('last_stopped', sa.DateTime(timezone=True), nullable=True),        sa.Column('last_error', sa.Text(), nullable=True),
         sa.Column('last_error_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('usercre', sa.BigInteger(), nullable=True),
         sa.Column('date_creation', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),

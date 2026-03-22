@@ -206,12 +206,16 @@ export class LoginView {
 
     render(): void {
         if (!this.container) {
-            console.error('❌ Container is undefined');
             return;
         }
+      document.body.classList.add('no-navbar');
 
-        console.log('🎨 Rendering LoginView');
         this.container.innerHTML = this.renderTemplate();
         this.attachEvents();
+    }
+
+    destroy(): void {
+        console.log('🧹 Destroying LoginView');
+        document.body.classList.remove('no-navbar');
     }
 }

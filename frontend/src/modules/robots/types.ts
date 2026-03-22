@@ -107,22 +107,6 @@ export interface RobotLogListResponse {
     offset: number;
 }
 
-export interface RobotStats {
-    total_trades: number;
-    successful_trades: number;
-    failed_trades: number;
-    success_rate: number;
-    total_profit: number;
-    total_profit_percent: number;
-    average_profit_per_trade: number;
-    biggest_win: number;
-    biggest_loss: number;
-    trades_by_day: Array<{date: string, count: number, profit: number}>;
-    profit_by_day: Record<string, number>;
-    active_since: string | null;
-    last_trade_at: string | null;
-}
-
 export interface TokenInfo {
     id: number;
     token_name: string | null;
