@@ -4,29 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 1.0.4 - create robot modal">
+    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 1.0.5 - robots create\view\change_status">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic/versions/0002_create_api_tokens.py" beforeDir="false" afterPath="$PROJECT_DIR$/alembic/versions/0002_create_api_tokens.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic/versions/0008_create_robots_table.py" beforeDir="false" afterPath="$PROJECT_DIR$/alembic/versions/0008_create_robots_table.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/queries.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/queries.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/router.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/schemas.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/queries.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/queries.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/main.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/main.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/modules/auth/views/LoginView.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/auth/views/LoginView.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/CreateRobotModal.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/robots/components/CreateRobotModal.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/RobotCard.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/RobotForm.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/RobotList.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/StrategyConfig.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/robots/index.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/pages/CreateRobotPage.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/pages/RobotDetailPage.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/RobotCard.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/robots/components/RobotCard.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/pages/RobotsPage.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/robots/pages/RobotsPage.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/services/robotService.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/robots/services/robotService.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/types.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/robots/types.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/shared/components/Navbar.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/components/Navbar.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/shared/components/CustomSelect.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/components/CustomSelect.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/shared/styles/modal.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/styles/modal.css" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/shared/styles/navbar.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/styles/navbar.css" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/shared/styles/robots.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/styles/robots.css" afterDir="false" />
@@ -77,28 +60,28 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "DefaultHtmlFileTemplate": "HTML File",
-    "JavaScript Debug.localhost:8000.executor": "Debug",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "Python.config.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "1.0",
-    "last_opened_file_path": "C:/Users/Asus/WebstormProject/gin/alembic/versions",
-    "list.type.of.created.stylesheet": "CSS",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "org.jetbrains.plugins.github.ui.GithubSettingsConfigurable",
-    "ts.external.directory.path": "C:\\Users\\Asus\\WebstormProject\\gin\\node_modules\\typescript\\lib",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;DefaultHtmlFileTemplate&quot;: &quot;HTML File&quot;,
+    &quot;JavaScript Debug.localhost:8000.executor&quot;: &quot;Debug&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python.config.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;1.0&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Asus/WebstormProject/gin/alembic/versions&quot;,
+    &quot;list.type.of.created.stylesheet&quot;: &quot;CSS&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;org.jetbrains.plugins.github.ui.GithubSettingsConfigurable&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;C:\\Users\\Asus\\WebstormProject\\gin\\node_modules\\typescript\\lib&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\Asus\WebstormProject\gin\alembic\versions" />
@@ -161,7 +144,8 @@
       <workItem from="1773741047705" duration="8511000" />
       <workItem from="1773760035596" duration="46332000" />
       <workItem from="1773918891611" duration="17358000" />
-      <workItem from="1774170738768" duration="7787000" />
+      <workItem from="1774170738768" duration="11640000" />
+      <workItem from="1774216353239" duration="23448000" />
     </task>
     <task id="LOCAL-00001" summary="v 0.8.0 - Логин и настройка токена">
       <option name="closed" value="true" />
@@ -243,7 +227,15 @@
       <option name="project" value="LOCAL" />
       <updated>1773783718691</updated>
     </task>
-    <option name="localTasksCounter" value="11" />
+    <task id="LOCAL-00011" summary="v 1.0.5 - robots create\view\change_status">
+      <option name="closed" value="true" />
+      <created>1774205643375</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1774205643375</updated>
+    </task>
+    <option name="localTasksCounter" value="12" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -257,7 +249,8 @@
     <MESSAGE value="v 1.0.2 - repair robots for update portfolio" />
     <MESSAGE value="v 1.0.3 - REBUILD robots tables (for update portfolio and reding)" />
     <MESSAGE value="v 1.0.4 - create robot modal" />
-    <option name="LAST_COMMIT_MESSAGE" value="v 1.0.4 - create robot modal" />
+    <MESSAGE value="v 1.0.5 - robots create\view\change_status" />
+    <option name="LAST_COMMIT_MESSAGE" value="v 1.0.5 - robots create\view\change_status" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

@@ -1,3 +1,42 @@
+/* navbar.css - чистая версия */
+
+body {
+    padding-top: 64px;
+    margin: 0;
+    transition: padding-top 0.3s ease;
+}
+
+body.navbar-scrolled {
+    padding-top: 56px;
+}
+
+@media (max-width: 768px) {
+    body {
+        padding-top: 60px;
+    }
+}
+
+body.no-navbar {
+    padding-top: 0;
+}
+
+html {
+    overflow-y: auto;
+}
+
+.main-content {
+    min-height: calc(100vh - 64px);
+    width: 100%;
+    position: relative;
+    z-index: 1;
+}
+
+@media (max-width: 768px) {
+    .main-content {
+        min-height: calc(100vh - 60px);
+    }
+}
+
 .navbar {
     position: fixed;
     top: 0;
@@ -19,7 +58,7 @@
 
 .navbar.scrolled {
     height: 56px;
-    background: var(--navbar-bg-scrolled, var(--navbar-bg));
+    background: var(--navbar-bg-scrolled);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
 }
 
@@ -56,7 +95,7 @@
 }
 
 .logo-g {
-    background: var(--accent-gradient, linear-gradient(135deg, #f97316 0%, #fb923c 100%));
+    background: var(--accent-gradient);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -88,20 +127,14 @@
     transform: translateY(-1px);
 }
 
-/* Светлая тема - исправляем ховер */
 [data-theme="light"] .nav-link:hover {
-    background: #e9edf2;  /* Чуть темнее чем фон, но не белый */
-    color: #f97316;  /* Оранжевый цвет при ховере */
+    background: #e9edf2;
+    color: #f97316;
 }
 
 [data-theme="light"] .nav-link-active {
     background: var(--accent-gradient);
     color: white !important;
-}
-
-[data-theme="light"] .nav-link-active:hover {
-    color: white !important;
-    opacity: 0.95;
 }
 
 .nav-link-active {
@@ -126,81 +159,6 @@
     gap: 1.5rem;
 }
 
-/* Тема и уведомления */
-.navbar-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-right: 0.5rem;
-}
-
-.icon-button {
-    width: 40px;
-    height: 40px;
-    border: none;
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: 1.3rem;
-    cursor: pointer;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-    position: relative;
-}
-
-.icon-button:hover {
-    background: var(--hover-bg);
-    color: var(--text-primary);
-    transform: translateY(-1px);
-}
-
-/* Светлая тема для иконок */
-[data-theme="light"] .icon-button:hover {
-    background: #e9edf2;
-    color: #f97316;
-}
-
-.notification-badge {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    width: 8px;
-    height: 8px;
-    background: #ef4444;
-    border-radius: 50%;
-    border: 2px solid var(--navbar-bg);
-}
-
-.theme-toggle {
-    width: 40px;
-    height: 40px;
-    border: none;
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: 1.2rem;
-    cursor: pointer;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-}
-
-.theme-toggle:hover {
-    background: var(--hover-bg);
-    color: var(--text-primary);
-    transform: rotate(15deg);
-}
-
-/* Светлая тема для переключателя темы */
-[data-theme="light"] .theme-toggle:hover {
-    background: #e9edf2;
-    color: #f97316;
-}
-
-/* Аватар */
 .avatar-wrapper {
     cursor: pointer;
     position: relative;
@@ -228,23 +186,6 @@
     border-color: rgba(255, 255, 255, 0.2);
 }
 
-.avatar:active {
-    transform: scale(0.98);
-}
-
-/* Статус онлайн */
-.avatar-status {
-    position: absolute;
-    bottom: 2px;
-    right: 2px;
-    width: 10px;
-    height: 10px;
-    background: #10b981;
-    border-radius: 50%;
-    border: 2px solid var(--navbar-bg);
-}
-
-/* Дропдаун */
 .dropdown {
     position: absolute;
     top: calc(100% + 10px);
@@ -257,8 +198,6 @@
     z-index: 1001;
     overflow: hidden;
     animation: dropdown-appear 0.2s ease-out;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
 }
 
 @keyframes dropdown-appear {
@@ -305,21 +244,11 @@
     padding-left: 1.5rem;
 }
 
-/* Светлая тема для dropdown */
-[data-theme="light"] .dropdown-item:hover {
-    background: #e9edf2;
-    color: #f97316;
-}
-
 .dropdown-icon {
     font-size: 1.2rem;
     width: 24px;
     text-align: center;
     color: var(--text-secondary);
-}
-
-.dropdown-item:hover .dropdown-icon {
-    color: var(--accent-primary);
 }
 
 .dropdown-divider {
@@ -328,16 +257,6 @@
     margin: 0.5rem 0;
 }
 
-.dropdown-footer {
-    padding: 0.75rem 1rem;
-    background: var(--hover-bg);
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    text-align: center;
-    border-top: 1px solid var(--border-color);
-}
-
-/* Мобильное меню */
 .mobile-menu-button {
     width: 42px;
     height: 42px;
@@ -351,17 +270,6 @@
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
-}
-
-.mobile-menu-button:hover {
-    background: var(--hover-bg);
-    transform: scale(1.05);
-}
-
-/* Светлая тема для мобильной кнопки */
-[data-theme="light"] .mobile-menu-button:hover {
-    background: #e9edf2;
-    color: #f97316;
 }
 
 .mobile-menu {
@@ -395,7 +303,6 @@
     justify-content: space-between;
     background: var(--navbar-bg);
     backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
 }
 
 .mobile-menu-close {
@@ -411,17 +318,6 @@
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
-}
-
-.mobile-menu-close:hover {
-    background: var(--border-color);
-    transform: rotate(90deg);
-}
-
-/* Светлая тема для кнопки закрытия */
-[data-theme="light"] .mobile-menu-close:hover {
-    background: #d1d9e6;
-    color: #f97316;
 }
 
 .mobile-menu-items {
@@ -456,37 +352,16 @@
     border-color: var(--accent-primary);
 }
 
-/* Светлая тема для мобильных пунктов */
-[data-theme="light"] .mobile-menu-item:hover {
-    background: #e9edf2;
-    color: #f97316;
-    border-color: #f97316;
-}
-
-[data-theme="light"] .mobile-menu-item.active {
-    background: var(--accent-gradient);
-    color: white;
-    border: none;
-}
-
 .mobile-menu-item.active {
     background: var(--accent-gradient);
     color: white;
     border: none;
 }
 
-.mobile-menu-item.active .menu-item-icon {
-    color: white;
-}
-
 .menu-item-icon {
     font-size: 1.5rem;
     width: 32px;
     color: var(--text-secondary);
-}
-
-.mobile-menu-item.active .menu-item-icon {
-    color: white;
 }
 
 .mobile-menu-footer {
@@ -532,7 +407,6 @@
     color: var(--text-secondary);
 }
 
-/* Адаптивность */
 @media (max-width: 768px) {
     .navbar {
         padding: 0 1rem;
@@ -544,10 +418,6 @@
     }
 
     .nav-items {
-        display: none;
-    }
-
-    .navbar-actions {
         display: none;
     }
 
@@ -595,7 +465,6 @@
     }
 }
 
-/* Темная тема */
 [data-theme="dark"] {
     --navbar-bg: rgba(30, 41, 59, 0.9);
     --navbar-bg-scrolled: rgba(30, 41, 59, 0.95);
@@ -609,7 +478,6 @@
     --accent-gradient: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
 }
 
-/* Светлая тема */
 [data-theme="light"] {
     --navbar-bg: rgba(255, 255, 255, 0.9);
     --navbar-bg-scrolled: rgba(255, 255, 255, 0.95);
@@ -617,13 +485,13 @@
     --text-primary: #1e293b;
     --text-secondary: #64748b;
     --text-muted: #94a3b8;
-    --hover-bg: #e9edf2;  /* Сделал чуть темнее */
+    --hover-bg: #e9edf2;
     --card-bg: #ffffff;
     --bg-primary: #f8fafc;
     --accent-gradient: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
 }
 
-/* Дополнительные эффекты */
+
 .navbar::after {
     content: '';
     position: absolute;
@@ -646,43 +514,4 @@
     background: white;
     border-radius: 50%;
     opacity: 0.7;
-}
-
-
-/* Отступ для контента под навбаром */
-body {
-    padding-top: 64px; /* Высота навбара */
-    margin: 0;
-    transition: padding-top 0.3s ease;
-}
-
-/* При скролле навбар становится чуть меньше */
-body.navbar-scrolled {
-    padding-top: 56px;
-}
-
-/* Для мобильных устройств */
-@media (max-width: 768px) {
-    body {
-        padding-top: 60px; /* Высота мобильного навбара */
-    }
-}
-
-/* Если навбар скрыт (например, на странице логина) */
-body.no-navbar {
-    padding-top: 0 !important;
-}
-
-/* Контейнер для основного контента */
-.main-content {
-    min-height: calc(100vh - 64px);
-    width: 100%;
-    position: relative;
-    z-index: 1;
-}
-
-@media (max-width: 768px) {
-    .main-content {
-        min-height: calc(100vh - 60px);
-    }
 }

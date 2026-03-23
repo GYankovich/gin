@@ -1,122 +1,497 @@
-/* robots.css */
+/* robots.css - изолированные стили только для страницы роботов */
 
-/* ========== ROBOTS PAGE ========== */
+/* Основной контейнер страницы */
 .robots-page {
-    max-width: 1400px;
-    margin: 0 auto 2rem auto;
-    padding: 0 2rem;
-    animation: fadeIn 0.3s ease-out;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 2rem;
 }
 
-/* ========== EMPTY STATES ========== */
-.empty-state-wrapper {
-    max-width: 600px;
-    margin: 40px auto;
-    padding: 48px 32px;
-    background: var(--bg-card);
+/* Шапка с поиском */
+.robots-page .robots-header {
+    max-width: 500px;
+    margin-bottom: 2rem;
+}
+
+.robots-page .search-wrapper {
+    width: 100%;
+    position: relative;
+}
+
+.robots-page .search-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    font-size: 0.95rem;
+    background: #ffffff;
+    transition: all 0.2s;
+    outline: none;
+}
+
+.robots-page .search-input:focus {
+    border-color: #f97316;
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+}
+
+/* Фильтры */
+.robots-page .robots-filters {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+.robots-page .filter-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 2rem;
+    background: #ffffff;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.robots-page .filter-btn:hover {
+    border-color: #f97316;
+    color: #f97316;
+}
+
+.robots-page .filter-btn.active {
+    background: #f97316;
+    border-color: #f97316;
+    color: white;
+}
+
+.robots-page .filter-btn .filter-count {
+    font-size: 0.75rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: 1rem;
+    background: rgba(0, 0, 0, 0.08);
+}
+
+.robots-page .filter-btn.active .filter-count {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Список роботов */
+.robots-page .robots-list {
+    width: 100%;
+}
+
+.robots-page .robots-list-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 1.5rem;
+}
+
+/* Карточка робота */
+.robots-page-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
     border-radius: 48px;
-    border: 1px solid var(--border-color);
-    box-shadow: var(--shadow-lg);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
-    animation: fadeInUp 0.5s ease-out;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    min-width: 320px;
 }
 
-.empty-state-wrapper::before {
+.robots-page-card::before {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     height: 4px;
-    background: var(--accent-gradient);
+    /*background: linear-gradient(90deg, #f97316, #fbbf24);*/
+    opacity: 0;
+    transition: opacity 0.3s ease;
 }
 
-.empty-state-title {
+.robots-page-card:hover {
+    transform: translateY(-2px);
+    border-color: #f97316;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.robots-page-card:hover::before {
+    opacity: 1;
+}
+
+.robots-page-card.active {
+    border-color: #f97316;
+    box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.2), 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.robots-page-card.active::before {
+    opacity: 1;
+    background: linear-gradient(90deg, #f97316, #f97316);
+}
+
+/* Контент карточки */
+.robots-page-card-content {
+    padding: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* Заголовок: название + чипы */
+.robots-page-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.robots-page-card-title {
+    flex: 1;
+    min-width: 0;
+}
+
+.robots-page-card-name {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 0.5rem 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: -0.2px;
+}
+
+.robots-page-card-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.robots-page-card-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.7rem;
+    padding: 0.25rem 0.75rem;
+    background: #f1f5f9;
+    border-radius: 20px;
+    color: #475569;
+    font-weight: 500;
+    border: 1px solid #e2e8f0;
+}
+
+.token-badge {
+    background: #fef3c7;
+    border-color: #fed7aa;
+    color: #f97316;
+}
+
+.token-icon-small {
+    font-size: 0.7rem;
+    opacity: 0.8;
+}
+
+/* Робот-голова (кликабельная) */
+.robot-head-clickable {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+}
+
+.robot-head-clickable:hover {
+    transform: scale(1.05);
+}
+
+.robot-head-clickable.clicking {
+    animation: robotHeadClick 0.3s ease-in-out;
+}
+
+@keyframes robotHeadClick {
+    0% { transform: scale(1); }
+    50% { transform: scale(0.92); }
+    100% { transform: scale(1); }
+}
+
+.robot-head-clickable .robot-head {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    background: #94a3b8;
+    border-radius: 50% 50% 45% 45%;
+    transition: all 0.3s ease;
+    box-shadow: none;
+}
+
+.robot-head-clickable.active .robot-head {
+    background: linear-gradient(135deg, #f97316, #fbbf24);
+    box-shadow: 0 0 12px rgba(249, 115, 22, 0.5);
+    animation: robotHeadGlow 2s ease-in-out infinite;
+}
+
+
+.robot-head-clickable.inactive .robot-head {
+    background: #94a3b8;
+}
+
+@keyframes robotHeadGlow {
+    0%, 100% { box-shadow: 0 0 8px rgba(249, 115, 22, 0.4); }
+    50% { box-shadow: 0 0 16px rgba(249, 115, 22, 0.7); }
+}
+
+.robot-head-clickable .robot-eye {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: white;
+    border-radius: 50%;
+    top: 16px;
+    transition: all 0.2s ease;
+}
+
+.robot-head-clickable .robot-eye.left {
+    left: 12px;
+}
+
+.robot-head-clickable .robot-eye.right {
+    right: 12px;
+}
+
+.robot-head-clickable.inactive .robot-eye {
+    background: #cbd5e1;
+}
+
+.robot-head-clickable.active .robot-eye {
+    background: white;
+    animation: robotBlink 3s infinite;
+}
+
+@keyframes robotBlink {
+    0%, 90%, 100% { transform: scaleY(1); }
+    95% { transform: scaleY(0.1); }
+}
+
+.robot-head-clickable .robot-antenna {
+    position: absolute;
+    width: 3px;
+    height: 12px;
+    background: #f97316;
+    top: -8px;
+    left: 20px;
+    border-radius: 2px;
+}
+
+.robot-head-clickable .robot-antenna::after {
+    content: '';
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background: #fbbf24;
+    border-radius: 50%;
+    top: -4px;
+    left: -2px;
+}
+
+.robot-head-clickable.inactive .robot-antenna {
+    background: #94a3b8;
+}
+
+.robot-head-clickable.inactive .robot-antenna::after {
+    background: #cbd5e1;
+}
+
+.robot-head-clickable.active .robot-antenna {
+    animation: antennaWave 2s ease-in-out infinite;
+}
+
+@keyframes antennaWave {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(6deg); }
+}
+
+.robot-heart-status {
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+@keyframes heartBeat {
+    0%, 100% { transform: translateX(-50%) scale(1); }
+    50% { transform: translateX(-50%) scale(1.15); }
+}
+
+/* Даты */
+.robots-page-card-dates {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0;
+}
+
+.date-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
+}
+
+.date-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #94a3b8;
+}
+
+.date-value {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #1e293b;
+}
+
+/* Статус текст */
+.robot-status-text {
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.5rem;
+    border-radius: 2rem;
+    background: #f1f5f9;
+    color: #64748b;
+    margin-top: 0.25rem;
+}
+
+.robots-page-card.active .robot-status-text {
+    background: rgba(249, 115, 22, 0.1);
+    color: #f97316;
+}
+
+/* Ошибка */
+.robots-page-card-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: #fef2f2;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    color: #dc2626;
+    border-left: 2px solid #dc2626;
+}
+
+.error-icon {
+    font-size: 0.875rem;
+    flex-shrink: 0;
+}
+
+.error-text {
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+/* Пустые состояния */
+.robots-page .empty-state-wrapper {
+    max-width: 700px;
+    width: 80%;
+    margin: 40px auto;
+    padding: 48px 32px;
+    background: #ffffff;
+    border-radius: 48px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+}
+
+.robots-page .empty-state-wrapper::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #f97316, #fbbf24);
+}
+
+.robots-page .empty-state-title {
     font-size: 2rem;
     font-weight: 700;
-    color: var(--text-primary);
+    color: #1e293b;
     margin-bottom: 16px;
-    background: var(--accent-gradient);
+    background: linear-gradient(90deg, #f97316, #fbbf24);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
-.empty-state-description {
+.robots-page .empty-state-description {
     font-size: 1rem;
     line-height: 1.6;
-    color: var(--text-secondary);
+    color: #64748b;
     max-width: 400px;
-    margin: 0 auto 24px;
+    margin: 0 auto;
 }
 
-/* ========== ЗАГРУЗКА ========== */
-.loading-animation {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 24px;
+.robots-page .empty-state-mini {
+    text-align: center;
+    padding: 3rem;
+    color: #64748b;
+    grid-column: 1 / -1;
+    background: #f8fafc;
+    border-radius: 48px;
+    border: 1px solid #e2e8f0;
 }
 
-.loading-dot {
-    width: 16px;
-    height: 16px;
-    background: var(--accent-gradient);
-    border-radius: 50%;
-    animation: bounce 1.4s infinite ease-in-out both;
-}
-
-.loading-dot:nth-child(1) { animation-delay: -0.32s; opacity: 0.6; }
-.loading-dot:nth-child(2) { animation-delay: -0.16s; opacity: 0.8; }
-.loading-dot:nth-child(3) { animation-delay: 0; opacity: 1; }
-
-@keyframes bounce {
-    0%, 80%, 100% { transform: scale(0); }
-    40% { transform: scale(1.0); }
-}
-
-/* ========== РОБОТ-ИЛЛЮСТРАЦИЯ ========== */
-.robot-illustration {
+/* Робот-иллюстрация для пустых состояний */
+.robots-page .robot-illustration {
     position: relative;
     width: 120px;
     height: 140px;
     margin: 0 auto 24px;
 }
 
-.robot-illustration.happy { animation: float 3s ease-in-out infinite; }
-.robot-illustration.sad { animation: sadFloat 4s ease-in-out infinite; }
+.robots-page .robot-illustration.happy {
+    animation: robots-page-float 3s ease-in-out infinite;
+}
 
-@keyframes float {
+.robots-page .robot-illustration.sad {
+    animation: robots-page-sadFloat 4s ease-in-out infinite;
+}
+
+@keyframes robots-page-float {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-10px); }
 }
 
-@keyframes sadFloat {
+@keyframes robots-page-sadFloat {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-5px); }
 }
 
-.robot-head {
+.robots-page .robot-head {
     position: relative;
     width: 80px;
     height: 80px;
-    background: var(--accent-gradient);
+    background: linear-gradient(90deg, #f97316, #fbbf24);
     border-radius: 40px 40px 20px 20px;
     margin: 0 auto;
-    box-shadow: var(--shadow-md);
-    animation: glow 2s ease-in-out infinite;
+    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
 }
 
-@keyframes glow {
-    0%, 100% { box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2); }
-    50% { box-shadow: 0 8px 24px rgba(249, 115, 22, 0.4); }
-}
-
-.robot-eye {
+.robots-page .robot-eye {
     position: absolute;
     width: 12px;
     height: 12px;
@@ -125,63 +500,35 @@
     top: 30px;
 }
 
-.robot-eye.left { left: 20px; }
-.robot-eye.right { right: 20px; }
+.robots-page .robot-eye.left { left: 20px; }
+.robots-page .robot-eye.right { right: 20px; }
 
-.robot-illustration.sad .robot-eye {
-    animation: cry 2s ease-in-out infinite;
-}
-
-.robot-illustration.sad .robot-eye::after {
-    content: '';
-    position: absolute;
-    width: 2px;
-    height: 8px;
-    background: #4a90e2;
-    bottom: -8px;
-    left: 5px;
-    border-radius: 1px;
-    animation: tear 2s ease-in-out infinite;
-}
-
-@keyframes cry {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(0.9); }
-}
-
-@keyframes tear {
-    0% { opacity: 0; transform: translateY(0); }
-    50% { opacity: 1; transform: translateY(10px); }
-    100% { opacity: 0; transform: translateY(20px); }
-}
-
-.robot-antenna {
+.robots-page .robot-antenna {
     position: absolute;
     width: 4px;
     height: 20px;
-    background: var(--accent-primary);
+    background: #f97316;
     top: -15px;
     left: 38px;
     border-radius: 2px;
-    animation: pulse 1.5s ease-in-out infinite;
 }
 
-.robot-antenna::after {
+.robots-page .robot-antenna::after {
     content: '';
     position: absolute;
     width: 10px;
     height: 10px;
-    background: var(--accent-secondary);
+    background: #fbbf24;
     border-radius: 50%;
     top: -8px;
     left: -3px;
 }
 
-.robot-body {
+.robots-page .robot-body {
     width: 60px;
     height: 40px;
-    background: var(--bg-secondary);
-    border: 2px solid var(--border-color);
+    background: #f1f5f9;
+    border: 2px solid #e2e8f0;
     border-radius: 20px;
     margin: 8px auto 0;
     display: flex;
@@ -189,593 +536,438 @@
     justify-content: center;
 }
 
-.robot-heart {
+.robots-page .robot-heart {
     font-size: 20px;
-    animation: heartbeat 1.5s ease-in-out infinite;
+    animation: robots-page-heartbeat 1.5s ease-in-out infinite;
 }
 
-.robot-illustration.sad .robot-heart {
-    animation: brokenHeart 2s ease-in-out infinite;
+.robots-page .robot-heart.broken {
+    animation: none;
     opacity: 0.7;
 }
 
-@keyframes heartbeat {
+@keyframes robots-page-heartbeat {
     0%, 100% { transform: scale(1); }
     50% { transform: scale(1.2); }
 }
 
-@keyframes brokenHeart {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(0.9); }
-}
-
-.robot-arm {
+.robots-page .robot-arm {
     position: absolute;
     width: 16px;
     height: 40px;
-    background: var(--accent-gradient);
+    background: linear-gradient(90deg, #f97316, #fbbf24);
     border-radius: 8px;
     top: 60px;
 }
 
-.robot-arm.left {
+.robots-page .robot-arm.left {
     left: 10px;
     transform: rotate(-15deg);
-    animation: waveLeft 2s ease-in-out infinite;
+    animation: robots-page-waveLeft 2s ease-in-out infinite;
 }
 
-.robot-arm.right {
+.robots-page .robot-arm.right {
     right: 10px;
     transform: rotate(15deg);
-    animation: waveRight 2s ease-in-out infinite;
+    animation: robots-page-waveRight 2s ease-in-out infinite;
 }
 
-.robot-illustration.sad .robot-arm {
-    animation: sadWave 3s ease-in-out infinite;
-}
-
-.robot-illustration.sad .robot-arm.left { transform: rotate(-10deg); }
-.robot-illustration.sad .robot-arm.right { transform: rotate(10deg); }
-
-@keyframes waveLeft {
+@keyframes robots-page-waveLeft {
     0%, 100% { transform: rotate(-15deg); }
     50% { transform: rotate(-25deg); }
 }
 
-@keyframes waveRight {
+@keyframes robots-page-waveRight {
     0%, 100% { transform: rotate(15deg); }
     50% { transform: rotate(25deg); }
 }
 
-@keyframes sadWave {
-    0%, 100% { transform: rotate(10deg) scale(1); }
-    50% { transform: rotate(5deg) scale(0.95); }
-}
-
-.robot-illustration.happy .robot-eye {
-    animation: blink 3s ease-in-out infinite;
-}
-
-@keyframes blink {
-    0%, 45%, 55%, 100% { transform: scaleY(1); }
-    50% { transform: scaleY(0.1); }
-}
-
-/* ========== КНОПКИ ========== */
-.btn-create-robot {
-    background: var(--accent-gradient);
+/* Кнопки действий */
+.robots-page .btn-create-robot,
+.robots-page .error-retry-btn {
+    margin-top: 24px;
+    padding: 12px 32px;
+    background: linear-gradient(90deg, #f97316, #fbbf24);
     color: white;
     border: none;
-    padding: 14px 32px;
     border-radius: 40px;
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
     gap: 8px;
     transition: all 0.2s;
     box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
 }
 
-.btn-create-robot:hover {
+.robots-page .btn-create-robot:hover,
+.robots-page .error-retry-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 20px rgba(249, 115, 22, 0.3);
 }
 
-.btn-create-robot .btn-icon { font-size: 1.2rem; }
-
-.error-retry-btn {
-    margin-top: 24px;
-    background: transparent;
-    border: 1.5px solid var(--border-color);
-    color: var(--text-secondary);
-    padding: 12px 32px;
-    border-radius: 40px;
-    font-size: 1rem;
-    font-weight: 500;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: all 0.2s;
-}
-
-.error-retry-btn:hover {
-    border-color: var(--accent-primary);
-    color: var(--accent-primary);
-    background: var(--bg-secondary);
-    transform: translateY(-2px);
-}
-
-.error-retry-btn .refresh-icon {
+.robots-page .refresh-icon {
     font-size: 1.2rem;
     transition: transform 0.3s;
 }
 
-.error-retry-btn:hover .refresh-icon {
-    animation: spin 1s linear infinite;
+.robots-page .error-retry-btn:hover .refresh-icon {
+    animation: robots-page-spin 1s linear infinite;
 }
 
-/* ========== ФИЛЬТРЫ ========== */
-.robots-filters {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-    justify-content: center;
-}
-
-.filter-btn {
-    background: transparent;
-    border: 1px solid var(--border-color);
-    color: var(--text-secondary);
-    padding: 8px 16px;
-    border-radius: 30px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: all 0.2s;
-}
-
-.filter-btn:hover {
-    border-color: var(--accent-primary);
-    color: var(--accent-primary);
-    transform: translateY(-1px);
-}
-
-.filter-btn.active {
-    background: var(--accent-gradient);
-    color: white;
-    border-color: transparent;
-    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
-}
-
-.filter-count {
-    background: rgba(0, 0, 0, 0.1);
-    padding: 2px 8px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-}
-
-.filter-btn.active .filter-count {
-    background: rgba(255, 255, 255, 0.2);
-}
-
-/* ========== СПИСОК РОБОТОВ ========== */
-.robots-list {
-    max-width: 600px;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-/* ========== КАРТОЧКА РОБОТА ========== */
-.robot-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 24px;
-    padding: 20px 24px;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    position: relative;
-    overflow: hidden;
-}
-
-.robot-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: var(--accent-gradient);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.robot-card:hover {
-    transform: translateY(-2px);
-    border-color: var(--accent-primary);
-    box-shadow: 0 12px 24px -8px rgba(249, 115, 22, 0.2);
-}
-
-.robot-card:hover::before {
-    opacity: 1;
-}
-
-.robot-card.loading {
-    opacity: 0.7;
-    pointer-events: none;
-    animation: cardPulse 1.5s infinite;
-}
-
-@keyframes cardPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-}
-
-/* Статусный индикатор */
-.robot-card::after {
-    content: '';
-    position: absolute;
-    top: 20px;
-    right: 24px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    box-shadow: 0 0 0 2px var(--bg-card);
-}
-
-.robot-card[data-status="active"]::after {
-    background: #10b981;
-    animation: statusPulse 2s infinite;
-}
-
-.robot-card[data-status="stopped"]::after {
-    background: #f59e0b;
-}
-
-.robot-card[data-status="error"]::after {
-    background: #ef4444;
-    animation: statusPulse 1s infinite;
-}
-
-@keyframes statusPulse {
-    0%, 100% { opacity: 1; box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4px rgba(16, 185, 129, 0.2); }
-    50% { opacity: 0.8; box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 6px rgba(16, 185, 129, 0.1); }
-}
-
-/* Верхняя строка карточки */
-.robot-card-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-}
-
-.robot-card-row.secondary {
-    font-size: 0.95rem;
-    color: var(--text-secondary);
-    padding-top: 4px;
-    border-top: 1px dashed var(--border-color);
-    margin-top: 4px;
-}
-
-/* Название робота */
-.robot-name-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 1;
-    min-width: 0;
-}
-
-.robot-name {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    letter-spacing: -0.01em;
-}
-
-.robot-type-badge {
-    font-size: 0.7rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    background: var(--bg-secondary);
-    padding: 2px 8px;
-    border-radius: 20px;
-    border: 1px solid var(--border-color);
-    white-space: nowrap;
-}
-
-/* Кнопка переключения */
-.robot-toggle {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px 6px 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 30px;
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: 0.85rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    flex-shrink: 0;
-}
-
-.robot-toggle:hover {
-    border-color: var(--accent-primary);
-    color: var(--accent-primary);
-    background: rgba(249, 115, 22, 0.05);
-    transform: scale(1.02);
-}
-
-.robot-toggle.active {
-    background: var(--accent-gradient);
-    border-color: transparent;
-    color: white;
-    box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
-}
-
-.toggle-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: currentColor;
-    transition: all 0.2s;
-}
-
-.robot-toggle.active .toggle-dot {
-    background: white;
-    transform: scale(1.2);
-}
-
-.toggle-text {
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
-/* Подстрока с типом */
-.robot-subrow {
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.robot-subrow-icon {
-    font-size: 1rem;
-    opacity: 0.7;
-}
-
-/* Информационные блоки */
-.robot-info-group {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-}
-
-.robot-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
-    background: var(--bg-secondary);
-    border-radius: 30px;
-    border: 1px solid var(--border-color);
-    transition: all 0.2s;
-}
-
-.robot-info:hover {
-    border-color: var(--accent-primary);
-    background: var(--bg-card);
-}
-
-.robot-info.error {
-    background: rgba(239, 68, 68, 0.1);
-    border-color: rgba(239, 68, 68, 0.3);
-}
-
-.robot-info.error:hover {
-    border-color: #ef4444;
-    background: rgba(239, 68, 68, 0.15);
-}
-
-.info-icon {
-    font-size: 1rem;
-    opacity: 0.7;
-}
-
-.info-label {
-    font-size: 0.8rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-}
-
-.info-value {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.info-value.muted {
-    color: var(--text-muted);
-    font-weight: 400;
-}
-
-.robot-info.error .info-value {
-    color: #ef4444;
-}
-
-/* Детальная информация (появляется при ховере) */
-.robot-details {
-    display: flex;
-    gap: 8px;
-    margin-top: 4px;
-    opacity: 0;
-    transform: translateY(-5px);
-    transition: all 0.2s;
-    pointer-events: none;
-}
-
-.robot-card:hover .robot-details {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-.robot-detail-badge {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    background: var(--bg-secondary);
-    padding: 4px 8px;
-    border-radius: 16px;
-    border: 1px solid var(--border-color);
-}
-
-/* ========== НЕТ РЕЗУЛЬТАТОВ ========== */
-.no-results {
-    text-align: center;
-    padding: 48px 20px;
-    color: var(--text-secondary);
-    background: var(--bg-secondary);
-    border-radius: 24px;
-    border: 2px dashed var(--border-color);
-}
-
-/* ========== ПЛАВАЮЩАЯ КНОПКА ========== */
-.robots-with-create {
-    position: relative;
-    min-height: 500px;
-}
-
-.create-robot-fab {
-    position: fixed;
-    bottom: 32px;
-    right: 32px;
-    width: 60px;
-    height: 60px;
-    background: var(--accent-gradient);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 8px 20px rgba(249, 115, 22, 0.4);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    z-index: 100;
-}
-
-.create-robot-fab:hover {
-    transform: scale(1.15) rotate(90deg);
-    box-shadow: 0 12px 28px rgba(249, 115, 22, 0.5);
-}
-
-.create-robot-fab .plus-icon {
-    color: white;
-    font-size: 32px;
-    font-weight: 300;
-    line-height: 1;
-    transition: transform 0.3s;
-}
-
-.create-robot-fab:hover .plus-icon {
-    transform: rotate(90deg);
-}
-
-/* ========== АНИМАЦИИ ========== */
-@keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes spin {
+@keyframes robots-page-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
 
-/* ========== АДАПТИВНОСТЬ ========== */
+/* Загрузка новых элементов */
+.robots-page .loading-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 2rem;
+    color: #64748b;
+    grid-column: 1 / -1;
+}
+
+.robots-page .loading-spinner-small {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid #e2e8f0;
+    border-top-color: #f97316;
+    border-radius: 50%;
+    animation: robots-page-spin 0.8s linear infinite;
+}
+
+/* Конец списка */
+.robots-page .end-of-list {
+    text-align: center;
+    padding: 2rem;
+    color: #94a3b8;
+    font-size: 0.875rem;
+    grid-column: 1 / -1;
+}
+
+.robots-page .end-of-list span {
+    padding: 0.5rem 1rem;
+    background: #f1f5f9;
+    border-radius: 2rem;
+    border: 1px solid #e2e8f0;
+}
+
+/* Кнопка создания */
+.robots-page .create-robot-fab {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(90deg, #f97316, #fbbf24);
+    color: white;
+    border: none;
+    font-size: 2rem;
+    font-weight: 300;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 8px 20px rgba(249, 115, 22, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.robots-page .create-robot-fab:hover {
+    transform: scale(1.15);
+    box-shadow: 0 12px 28px rgba(249, 115, 22, 0.5);
+}
+
+.robots-page .plus-icon {
+    line-height: 1;
+}
+
+/* Скелетон */
+.robots-page .skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s ease-in-out infinite;
+    border-radius: 0.75rem;
+}
+
+@keyframes skeleton-loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.robots-page .skeleton-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 1.5rem;
+}
+
+.robots-page .skeleton-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 48px;
+    overflow: hidden;
+}
+
+.robots-page .skeleton-title {
+    height: 24px;
+    width: 70%;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s ease-in-out infinite;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.robots-page .skeleton-robot {
+    height: 90px;
+    width: 80px;
+    margin: 0 auto;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s ease-in-out infinite;
+    border-radius: 50%;
+}
+
+.robots-page .skeleton-line {
+    height: 32px;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s ease-in-out infinite;
+    border-radius: 0.5rem;
+    margin: 0.5rem 0;
+}
+
+.robots-page .skeleton-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 0.5rem;
+}
+
+.robots-page .skeleton-stat {
+    height: 48px;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s ease-in-out infinite;
+    border-radius: 0.5rem;
+}
+
+/* Анимация загрузки */
+.robots-page .loading-animation {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-bottom: 24px;
+}
+
+.robots-page .loading-dot {
+    width: 16px;
+    height: 16px;
+    background: linear-gradient(90deg, #f97316, #fbbf24);
+    border-radius: 50%;
+    animation: robots-page-bounce 1.4s infinite ease-in-out both;
+}
+
+.robots-page .loading-dot:nth-child(1) { animation-delay: -0.32s; opacity: 0.6; }
+.robots-page .loading-dot:nth-child(2) { animation-delay: -0.16s; opacity: 0.8; }
+.robots-page .loading-dot:nth-child(3) { animation-delay: 0; opacity: 1; }
+
+@keyframes robots-page-bounce {
+    0%, 80%, 100% { transform: scale(0); }
+    40% { transform: scale(1); }
+}
+
+/* Адаптивность */
+@media (max-width: 1024px) {
+    .robots-page .robots-list-grid,
+    .robots-page .skeleton-grid {
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 1.25rem;
+    }
+}
+
 @media (max-width: 768px) {
-    .robots-page { padding: 0 1rem; }
-
-    .empty-state-wrapper {
-        margin: 20px 0;
-        padding: 32px 20px;
+    .robots-page {
+        padding: 1rem;
     }
 
-    .empty-state-title { font-size: 1.6rem; }
-
-    .robots-filters {
-        justify-content: flex-start;
-        overflow-x: auto;
-        padding-bottom: 8px;
-        margin-bottom: 20px;
+    .robots-page .robots-list-grid,
+    .robots-page .skeleton-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
     }
 
-    .filter-btn { white-space: nowrap; }
+    .robots-page-card-content {
+        padding: 1.25rem;
+    }
 
-    .create-robot-fab {
-        bottom: 20px;
-        right: 20px;
+    .robots-page .create-robot-fab {
+        bottom: 1.5rem;
+        right: 1.5rem;
         width: 52px;
         height: 52px;
+        font-size: 1.75rem;
     }
 
-    .create-robot-fab .plus-icon { font-size: 28px; }
+    .robots-page .empty-state-wrapper {
+        width: 90%;
+        padding: 32px 24px;
+    }
+
+    .robots-page .empty-state-title {
+        font-size: 1.5rem;
+    }
 }
 
-@media (max-width: 640px) {
-    .robots-list {
-        max-width: 100%;
-        padding: 0 12px;
+@media (max-width: 480px) {
+    .robots-page-card-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
     }
 
-    .robot-card {
-        padding: 16px 20px;
+    .robots-page-card-dates {
+        flex-direction: column;
+        gap: 0.5rem;
     }
 
-    .robot-card-row {
+    .robots-page-card-chips {
         flex-wrap: wrap;
     }
 
-    .robot-info-group {
-        gap: 8px;
+    .robots-page .create-robot-fab {
+        bottom: 1rem;
+        right: 1rem;
+        width: 48px;
+        height: 48px;
+        font-size: 1.5rem;
     }
 
-    .robot-info {
-        flex: 1;
-        min-width: calc(50% - 4px);
-        justify-content: center;
-    }
-
-    .robot-details {
-        flex-wrap: wrap;
+    .robots-page .empty-state-wrapper {
+        width: 95%;
+        padding: 24px 16px;
     }
 }
 
-/* ========== ТЕМНАЯ ТЕМА ========== */
-[data-theme="dark"] {
-    --robot-card-bg: var(--bg-card);
+/* Темная тема */
+[data-theme="dark"] .robots-page-card {
+    background: #1e293b;
+    border-color: #334155;
 }
 
-[data-theme="dark"] .robot-card { background: var(--bg-card); }
-[data-theme="dark"] .robot-body { background: var(--bg-card); }
-[data-theme="dark"] .filter-count { background: rgba(255, 255, 255, 0.1); }
-[data-theme="dark"] .robot-info { background: var(--bg-card); }
+[data-theme="dark"] .robots-page-card-name {
+    color: #f1f5f9;
+}
+
+[data-theme="dark"] .robots-page-card-badge {
+    background: #334155;
+    color: #94a3b8;
+    border-color: #475569;
+}
+
+[data-theme="dark"] .token-badge {
+    background: rgba(249, 115, 22, 0.2);
+    border-color: rgba(249, 115, 22, 0.3);
+    color: #fbbf24;
+}
+
+[data-theme="dark"] .date-value {
+    color: #cbd5e1;
+}
+
+[data-theme="dark"] .date-label {
+    color: #64748b;
+}
+
+[data-theme="dark"] .robot-status-text {
+    background: #334155;
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .robots-page-card.active .robot-status-text {
+    background: rgba(249, 115, 22, 0.2);
+}
+
+[data-theme="dark"] .robots-page .search-input {
+    background: #1e293b;
+    border-color: #334155;
+    color: #f1f5f9;
+}
+
+[data-theme="dark"] .robots-page .search-input::placeholder {
+    color: #64748b;
+}
+
+[data-theme="dark"] .robots-page .filter-btn {
+    background: #1e293b;
+    border-color: #334155;
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .robots-page .filter-btn:hover {
+    border-color: #f97316;
+    color: #f97316;
+}
+
+[data-theme="dark"] .robots-page .empty-state-wrapper {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+[data-theme="dark"] .robots-page .empty-state-title {
+    color: #f1f5f9;
+}
+
+[data-theme="dark"] .robots-page .empty-state-description {
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .robots-page .end-of-list span {
+    background: #334155;
+    color: #94a3b8;
+    border-color: #475569;
+}
+
+[data-theme="dark"] .robots-page .empty-state-mini {
+    background: #1e293b;
+    border-color: #334155;
+    color: #94a3b8;
+}
+
+[data-theme="dark"] .robots-page-card-error {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+[data-theme="dark"] .robots-page .skeleton,
+[data-theme="dark"] .robots-page .skeleton-title,
+[data-theme="dark"] .robots-page .skeleton-robot,
+[data-theme="dark"] .robots-page .skeleton-line,
+[data-theme="dark"] .robots-page .skeleton-stat {
+    background: linear-gradient(90deg, #2d3748 25%, #1e293b 50%, #2d3748 75%);
+    background-size: 200% 100%;
+}
+
+[data-theme="dark"] .robots-page .skeleton-card {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+.robots-page .empty-state-wrapper {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 48px 32px;
+    background: #ffffff;
+    border-radius: 48px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+}
