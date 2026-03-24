@@ -4,15 +4,21 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 1.0.5 - robots create\view\change_status">
+    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 1.0.6 - robots create modal\card">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/CreateRobotModal.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/robots/components/CreateRobotModal.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/RobotCard.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/robots/components/RobotCard.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/pages/RobotsPage.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/robots/pages/RobotsPage.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/shared/components/CustomSelect.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/components/CustomSelect.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/shared/styles/modal.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/styles/modal.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/shared/styles/navbar.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/styles/navbar.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/shared/styles/robots.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/styles/robots.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/robot.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/robot.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/scheduler.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/scheduler.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/scheduler.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/scheduler.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/executor.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/robot.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/scheduler.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/settings/queries.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/settings/queries.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/settings/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/settings/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/logs/robots/robot_15_portfolio_updater_token15_2026-03-16_14.log" beforeDir="false" afterPath="$PROJECT_DIR$/logs/robots/robot_15_portfolio_updater_token15_2026-03-16_14.log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/logs/robots_2026-03-16_12-16.log" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/logs/robots_2026-03-16_16-20.log" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/styles.css" beforeDir="false" afterPath="$PROJECT_DIR$/styles.css" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -24,9 +30,9 @@
       <list>
         <option value="JavaScript File" />
         <option value="HTML File" />
-        <option value="Python Script" />
         <option value="CSS File" />
         <option value="TypeScript File" />
+        <option value="Python Script" />
       </list>
     </option>
   </component>
@@ -145,7 +151,9 @@
       <workItem from="1773760035596" duration="46332000" />
       <workItem from="1773918891611" duration="17358000" />
       <workItem from="1774170738768" duration="11640000" />
-      <workItem from="1774216353239" duration="23448000" />
+      <workItem from="1774216353239" duration="24066000" />
+      <workItem from="1774292951517" duration="4027000" />
+      <workItem from="1774304853209" duration="11698000" />
     </task>
     <task id="LOCAL-00001" summary="v 0.8.0 - Логин и настройка токена">
       <option name="closed" value="true" />
@@ -235,7 +243,15 @@
       <option name="project" value="LOCAL" />
       <updated>1774205643375</updated>
     </task>
-    <option name="localTasksCounter" value="12" />
+    <task id="LOCAL-00012" summary="v 1.0.6 - robots create modal\card">
+      <option name="closed" value="true" />
+      <created>1774280372640</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1774280372640</updated>
+    </task>
+    <option name="localTasksCounter" value="13" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -250,7 +266,8 @@
     <MESSAGE value="v 1.0.3 - REBUILD robots tables (for update portfolio and reding)" />
     <MESSAGE value="v 1.0.4 - create robot modal" />
     <MESSAGE value="v 1.0.5 - robots create\view\change_status" />
-    <option name="LAST_COMMIT_MESSAGE" value="v 1.0.5 - robots create\view\change_status" />
+    <MESSAGE value="v 1.0.6 - robots create modal\card" />
+    <option name="LAST_COMMIT_MESSAGE" value="v 1.0.6 - robots create modal\card" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

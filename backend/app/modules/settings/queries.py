@@ -61,7 +61,7 @@ def build_count_user_keys_query(
     base_query = """
                  SELECT COUNT(*)
                  FROM ganaly.api_tokens
-                 WHERE user_id = :user_id \
+                 WHERE user_id = :user_id\
                  """
 
     params = {"user_id": ":user_id"}

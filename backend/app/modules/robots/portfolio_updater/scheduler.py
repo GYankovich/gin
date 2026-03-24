@@ -3,9 +3,11 @@ from typing import List, Dict, Any
 import logging
 
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.modules.robots.portfolio_updater.robot import PortfolioUpdaterRobot
-from app.modules.robots.queries import build_get_tokens_for_update_query
+# Используем модели из текущего модуля
+from app.modules.robots.models import Robot, RobotSchedule, RobotExecutionLog
 
 logger = logging.getLogger(__name__)
 
@@ -18,26 +20,49 @@ class PortfolioUpdaterScheduler:
     def __init__(self):
         self.robot = PortfolioUpdaterRobot("scheduler")
 
-    async def get_tokens_for_update(self, db) -> List[Dict[str, Any]]:
-        """Получает токены, которые нужно обновить"""
-        query = build_get_tokens_for_update_query()
-        results = db.execute(text(query)).fetchall()
+    async def get_robots_for_update(self, db: Session) -> List[Dict[str, Any]]:
+        """
+        Получает роботов типа PORTFOLIO_SNAPSHOT, которые нужно обновить
+        """
+        query = """
+            SELECT 
+                r.id as robot_id,
+                r.user_id,
+                r.token_id,
+                at.token as token_value,
+                r.status,
+                r.last_started
+            FROM {schema}.robots r
+            INNER JOIN {schema}.api_tokens at ON r.token_id = at.id
+            WHERE r.type = :robot_type 
+                AND r.status = :status_active
+                AND at.is_active = 1
+        """.format(schema=self.robot.schema)
 
-        tokens = []
+        results = db.execute(
+            text(query),
+            {
+                "robot_type": 1,  # PORTFOLIO_SNAPSHOT
+                "status_active": 1  # ACTIVE
+            }
+        ).fetchall()
+
+        robots = []
         for row in results:
-            tokens.append({
-                "id": row[0],
+            robots.append({
+                "robot_id": row[0],
                 "user_id": row[1],
-                "token": row[2],
-                "refresh_interval": row[3] or 60,
-                "last_used_at": row[4]
+                "token_id": row[2],
+                "token": row[3],
+                "status": row[4],
+                "last_started": row[5]
             })
 
-        return tokens
+        return robots
 
-    async def run_update_cycle(self, db) -> Dict[str, Any]:
+    async def run_update_cycle(self, db: Session) -> Dict[str, Any]:
         """
-        Запускает цикл обновления для всех токенов
+        Запускает цикл обновления для всех активных роботов
         """
         self.robot.db = db
 
@@ -48,19 +73,20 @@ class PortfolioUpdaterScheduler:
             "errors": []
         }
 
-        # Получаем токены для обновления
-        tokens = await self.get_tokens_for_update(db)
-        results["total"] = len(tokens)
+        # Получаем роботов для обновления
+        robots = await self.get_robots_for_update(db)
+        results["total"] = len(robots)
 
-        self.robot.log.info(f"🔄 Найдено {len(tokens)} токенов для обработки")
+        self.robot.log.info(f"🔄 Найдено {len(robots)} роботов для обработки")
 
-        for token in tokens:
+        for robot_data in robots:
             try:
                 # Запускаем робота для каждого токена
-                result = await self.robot.run(
-                    user_id=token["user_id"],
-                    token_id=token["id"],
-                    token=token["token"]
+                result = await self.robot.execute(
+                    robot_id=robot_data["robot_id"],
+                    user_id=robot_data["user_id"],
+                    token_id=robot_data["token_id"],
+                    token=robot_data["token"]
                 )
 
                 if result.get("status") == "skipped":
@@ -70,12 +96,24 @@ class PortfolioUpdaterScheduler:
 
             except Exception as e:
                 error = {
-                    "token_id": token["id"],
-                    "user_id": token["user_id"],
+                    "robot_id": robot_data["robot_id"],
+                    "user_id": robot_data["user_id"],
+                    "token_id": robot_data["token_id"],
                     "error": str(e)
                 }
                 results["errors"].append(error)
-                self.robot.log.error(f"❌ Ошибка для токена {token['id']}: {e}")
+                self.robot.log.error(f"❌ Ошибка для робота {robot_data['robot_id']}: {e}")
+
+                # Логируем ошибку
+                try:
+                    await self.robot._log_execution(
+                        robot_id=robot_data["robot_id"],
+                        action_type=3,  # error
+                        status=1,  # failed
+                        message=f"Error: {str(e)}"
+                    )
+                except:
+                    pass
 
         self.robot.log.info(f"📊 Итоги: всего={results['total']}, "
                             f"обработано={results['processed']}, "

@@ -242,3 +242,125 @@ class RobotSignal(Base):
     # Связи
     robot = relationship("Robot", back_populates="signals")
     executed_trade = relationship("RobotTrade", back_populates="signals")
+
+
+
+class RobotSchedule(Base):
+    """
+    Расписание работы робота
+    """
+    __tablename__ = "robot_schedules"
+    __table_args__ = (
+        Index("ix_robot_schedules_robot_id", "robot_id"),
+        Index("ix_robot_schedules_active", "is_active"),
+        Index("ix_robot_schedules_type", "schedule_type"),
+        {"schema": SCHEMA}
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+
+    # Тип расписания: 1=interval, 2=time_range, 3=market_hours
+    schedule_type = Column(Integer, nullable=False)
+
+    # Для interval-режима (в секундах)
+    interval_seconds = Column(Integer, nullable=True)
+
+    # Для time_range-режима (работа в определенные часы)
+    start_time = Column(DateTime(timezone=True), nullable=True)
+    end_time = Column(DateTime(timezone=True), nullable=True)
+
+    # Дни недели (битовая маска: 1=пн, 2=вт, 4=ср, 8=чт, 16=пт, 32=сб, 64=вс)
+    weekdays = Column(Integer, nullable=True)
+
+    # Общие поля
+    is_active = Column(Integer, nullable=False, default=1)
+    priority = Column(Integer, nullable=False, default=0)
+    description = Column(String(500), nullable=True)
+
+    # Аудит
+    usercre = Column(BigInteger, nullable=True)
+    date_creation = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    usermod = Column(BigInteger, nullable=True)
+    date_modification = Column(DateTime(timezone=True), nullable=True, onupdate=datetime.utcnow)
+
+    # Связи
+    robot = relationship("Robot", foreign_keys=[robot_id])
+
+
+class RobotStrategy(Base):
+    """
+    Стратегии роботов (версионированные)
+    """
+    __tablename__ = "robot_strategies"
+    __table_args__ = (
+        Index("ix_robot_strategies_robot_id", "robot_id"),
+        Index("ix_robot_strategies_type", "strategy_type"),
+        Index("ix_robot_strategies_active", "is_active"),
+        {"schema": SCHEMA}
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+
+    # Тип стратегии (ссылка на dictionary)
+    strategy_type = Column(Integer, nullable=False)
+
+    # Параметры стратегии в JSON (гибкая структура)
+    parameters = Column(JSON, nullable=False, default={})
+
+    # Валидация параметров (JSON Schema)
+    validation_schema = Column(JSON, nullable=True)
+
+    # Версионирование
+    version = Column(Integer, nullable=False, default=1)
+    is_active = Column(Integer, nullable=False, default=1)
+    is_default = Column(Integer, nullable=False, default=0)
+
+    # Аудит
+    usercre = Column(BigInteger, nullable=True)
+    date_creation = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    usermod = Column(BigInteger, nullable=True)
+    date_modification = Column(DateTime(timezone=True), nullable=True, onupdate=datetime.utcnow)
+
+    # Связи
+    robot = relationship("Robot", foreign_keys=[robot_id])
+
+
+class RobotExecutionLog(Base):
+    """
+    Логи выполнения роботов (детальные)
+    """
+    __tablename__ = "robot_execution_logs"
+    __table_args__ = (
+        Index("ix_robot_exec_logs_robot_id", "robot_id"),
+        Index("ix_robot_exec_logs_created_at", "created_at"),
+        Index("ix_robot_exec_logs_status", "status"),
+        Index("ix_robot_exec_logs_action_type", "action_type"),
+        {"schema": SCHEMA}
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    strategy_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robot_strategies.id", ondelete="SET NULL"), nullable=True)
+
+    # Тип действия: 1=start, 2=stop, 3=error, 4=signal, 5=trade
+    action_type = Column(Integer, nullable=False)
+
+    # Статус: 0=success, 1=failed, 2=pending
+    status = Column(Integer, nullable=False)
+
+    # Сообщение и детали
+    message = Column(Text, nullable=True)
+    details = Column(JSON, nullable=True)
+
+    # Метрики выполнения
+    execution_time_ms = Column(Integer, nullable=True)
+    error_stack = Column(Text, nullable=True)
+
+    # Временные метки
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    # Связи
+    robot = relationship("Robot", foreign_keys=[robot_id])
+    strategy = relationship("RobotStrategy", foreign_keys=[strategy_id])

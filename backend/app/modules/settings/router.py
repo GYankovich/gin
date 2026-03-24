@@ -99,49 +99,6 @@ async def get_api_keys(
     )
 
 
-@router.get("/data/{key_id}", response_model=schemas.ApiKeyDetailResponse)
-async def get_api_key(
-        key_id: int,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
-):
-    """
-    Получение детальной информации о ключе
-    """
-    key = service.api_key_service.get_key_by_id(db, key_id, current_user.id)
-    if not key:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="API key not found"
-        )
-    return key
-
-
-@router.post("/update/{key_id}", response_model=schemas.ApiKeyResponse)
-async def update_api_key(
-        key_id: int,
-        update_data: schemas.ApiKeyUpdate,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
-):
-    """
-    Обновление информации о ключе
-    """
-    key = service.api_key_service.update_key(
-        db=db,
-        key_id=key_id,
-        user_id=current_user.id,
-        name=update_data.name,
-        is_active=update_data.is_active
-    )
-    if not key:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="API key not found"
-        )
-    return key
-
-
 @router.post("/delete/{key_id}", status_code=status.HTTP_200_OK)
 async def delete_api_key(
         key_id: int,
