@@ -1,13 +1,12 @@
 # app/modules/robots/portfolio_updater/scheduler.py
-from typing import List, Dict, Any
+from typing import Dict, Any, List
 import logging
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.modules.robots.portfolio_updater.robot import PortfolioUpdaterRobot
-# Используем модели из текущего модуля
-from app.modules.robots.models import Robot, RobotSchedule, RobotExecutionLog
+from . import queries
 
 logger = logging.getLogger(__name__)
 
@@ -19,25 +18,15 @@ class PortfolioUpdaterScheduler:
 
     def __init__(self):
         self.robot = PortfolioUpdaterRobot("scheduler")
+        self.schema = self.robot.schema
 
     async def get_robots_for_update(self, db: Session) -> List[Dict[str, Any]]:
         """
-        Получает роботов типа PORTFOLIO_SNAPSHOT, которые нужно обновить
+        Получает активных портфельных роботов
         """
-        query = """
-            SELECT 
-                r.id as robot_id,
-                r.user_id,
-                r.token_id,
-                at.token as token_value,
-                r.status,
-                r.last_started
-            FROM {schema}.robots r
-            INNER JOIN {schema}.api_tokens at ON r.token_id = at.id
-            WHERE r.type = :robot_type 
-                AND r.status = :status_active
-                AND at.is_active = 1
-        """.format(schema=self.robot.schema)
+        query = queries.build_get_active_portfolio_robots_query().format(
+            schema=self.schema
+        )
 
         results = db.execute(
             text(query),
@@ -53,9 +42,7 @@ class PortfolioUpdaterScheduler:
                 "robot_id": row[0],
                 "user_id": row[1],
                 "token_id": row[2],
-                "token": row[3],
-                "status": row[4],
-                "last_started": row[5]
+                "token": row[3]
             })
 
         return robots
@@ -73,7 +60,7 @@ class PortfolioUpdaterScheduler:
             "errors": []
         }
 
-        # Получаем роботов для обновления
+        # Получаем роботов
         robots = await self.get_robots_for_update(db)
         results["total"] = len(robots)
 
@@ -81,8 +68,8 @@ class PortfolioUpdaterScheduler:
 
         for robot_data in robots:
             try:
-                # Запускаем робота для каждого токена
-                result = await self.robot.execute(
+                # Запускаем робота
+                result = await self.robot.run(
                     robot_id=robot_data["robot_id"],
                     user_id=robot_data["user_id"],
                     token_id=robot_data["token_id"],
@@ -104,20 +91,11 @@ class PortfolioUpdaterScheduler:
                 results["errors"].append(error)
                 self.robot.log.error(f"❌ Ошибка для робота {robot_data['robot_id']}: {e}")
 
-                # Логируем ошибку
-                try:
-                    await self.robot._log_execution(
-                        robot_id=robot_data["robot_id"],
-                        action_type=3,  # error
-                        status=1,  # failed
-                        message=f"Error: {str(e)}"
-                    )
-                except:
-                    pass
-
-        self.robot.log.info(f"📊 Итоги: всего={results['total']}, "
-                            f"обработано={results['processed']}, "
-                            f"пропущено={results['skipped']}, "
-                            f"ошибок={len(results['errors'])}")
+        self.robot.log.info(
+            f"📊 Итоги: всего={results['total']}, "
+            f"обработано={results['processed']}, "
+            f"пропущено={results['skipped']}, "
+            f"ошибок={len(results['errors'])}"
+        )
 
         return results

@@ -1,51 +1,16 @@
 # app/modules/tinvest/utils.py
+"""
+Специфичные для T-Invest утилиты парсинга
+"""
 from typing import Optional, Dict, Any
-from datetime import datetime
-import logging
+from app.modules.robots.common.utils import safe_int, safe_str, safe_float, safe_bool
 
-logger = logging.getLogger(__name__)
-
-
-def safe_float(value: Any, default: float = 0.0) -> float:
-    """Безопасное преобразование в float"""
-    if value is None:
-        return default
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def safe_int(value: Any, default: int = 0) -> int:
-    """Безопасное преобразование в int"""
-    if value is None:
-        return default
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def safe_str(value: Any, default: str = '') -> str:
-    """Безопасное преобразование в строку"""
-    if value is None:
-        return default
-    return str(value)
-
-
-def safe_bool(value: Any, default: bool = False) -> bool:
-    """Безопасное преобразование в bool"""
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, int):
-        return value == 1
-    return bool(value)
+# Импортируем общие утилиты из robots
+from app.modules.robots.common.utils import safe_int, safe_str, safe_float, safe_bool
 
 
 def parse_money_value(money_value: dict) -> Optional[dict]:
-    """Парсинг MoneyValue в словарь"""
+    """Парсинг MoneyValue из T-Invest API"""
     if not money_value:
         return None
 
@@ -62,7 +27,7 @@ def parse_money_value(money_value: dict) -> Optional[dict]:
 
 
 def parse_quotation(quotation: dict) -> Optional[dict]:
-    """Парсинг Quotation в словарь"""
+    """Парсинг Quotation из T-Invest API"""
     if not quotation:
         return None
 
@@ -79,6 +44,8 @@ def parse_quotation(quotation: dict) -> Optional[dict]:
 
 def parse_portfolio_position(position: dict) -> dict:
     """Парсинг позиции портфеля"""
+    from .utils import parse_money_value, parse_quotation  # локальный импорт
+
     return {
         "figi": position.get("figi"),
         "instrument_type": safe_str(position.get("instrumentType", "")),
@@ -95,14 +62,11 @@ def parse_portfolio_position(position: dict) -> dict:
     }
 
 
-def mask_token(token: str, preview_length: int = 8) -> str:
-    """Маскирует токен для безопасного отображения"""
-    if not token:
-        return "***"
+def parse_account_type(account_type: str) -> str:
+    """Парсит тип счета из ответа T-Invest"""
+    return safe_str(account_type).replace("ACCOUNT_TYPE_", "")
 
-    token_str = safe_str(token)
 
-    if len(token_str) > preview_length * 2:
-        return f"{token_str[:preview_length]}...{token_str[-preview_length:]}"
-
-    return "***"
+def parse_account_status(status: str) -> str:
+    """Парсит статус счета из ответа T-Invest"""
+    return safe_str(status).replace("ACCOUNT_STATUS_", "")

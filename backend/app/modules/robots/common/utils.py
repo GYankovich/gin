@@ -1,11 +1,15 @@
 # app/modules/robots/common/utils.py
 """
-Вспомогательные функции для роботов
+Общие утилиты для роботов
 """
 from datetime import datetime, timezone
 from typing import Any, Optional
 import json
 
+
+# ============================================================
+# Безопасные преобразования
+# ============================================================
 
 def safe_int(value: Any, default: int = 0) -> int:
     """Безопасное преобразование в int"""
@@ -45,10 +49,30 @@ def safe_bool(value: Any, default: bool = False) -> bool:
     return bool(value)
 
 
+# ============================================================
+# Работа с датой и временем
+# ============================================================
+
 def safe_datetime_now() -> datetime:
     """Текущее время в UTC"""
     return datetime.now(timezone.utc)
 
+
+def format_duration(ms: int) -> str:
+    """Форматирует длительность в человеко-читаемый вид"""
+    if ms < 1000:
+        return f"{ms}ms"
+    elif ms < 60000:
+        return f"{ms/1000:.1f}s"
+    else:
+        minutes = ms // 60000
+        seconds = (ms % 60000) / 1000
+        return f"{minutes}m {seconds:.1f}s"
+
+
+# ============================================================
+# Работа с JSON
+# ============================================================
 
 def safe_json_dumps(data: Any, default: str = "{}") -> str:
     """Безопасное преобразование в JSON строку"""
@@ -70,6 +94,10 @@ def safe_json_loads(data: str, default: Any = None) -> Any:
         return default
 
 
+# ============================================================
+# Маскирование чувствительных данных
+# ============================================================
+
 def mask_token(token: str, visible_chars: int = 6) -> str:
     """Маскирует токен для безопасного отображения"""
     if not token:
@@ -82,60 +110,9 @@ def mask_token(token: str, visible_chars: int = 6) -> str:
     return f"{token_str[:visible_chars]}...{token_str[-visible_chars:]}"
 
 
-def format_duration(ms: int) -> str:
-    """Форматирует длительность в человеко-читаемый вид"""
-    if ms < 1000:
-        return f"{ms}ms"
-    elif ms < 60000:
-        return f"{ms/1000:.1f}s"
-    else:
-        minutes = ms // 60000
-        seconds = (ms % 60000) / 1000
-        return f"{minutes}m {seconds:.1f}s"
-
-
-def parse_account_type(account_type: str) -> str:
-    """Парсит тип счета из ответа T-Invest"""
-    return safe_str(account_type).replace("ACCOUNT_TYPE_", "")
-
-
-def parse_account_status(status: str) -> str:
-    """Парсит статус счета из ответа T-Invest"""
-    return safe_str(status).replace("ACCOUNT_STATUS_", "")
-
-
-def parse_money_value(money_value: dict) -> Optional[dict]:
-    """Парсит MoneyValue из T-Invest API"""
-    if not money_value:
-        return None
-
-    units = safe_int(money_value.get("units", 0))
-    nano = money_value.get("nano", 0)
-    decimal_value = units + nano / 1e9
-
-    return {
-        "currency": safe_str(money_value.get("currency", "RUB")).upper(),
-        "units": units,
-        "nano": nano,
-        "decimal": round(decimal_value, 2)
-    }
-
-
-def parse_quotation(quotation: dict) -> Optional[dict]:
-    """Парсит Quotation из T-Invest API"""
-    if not quotation:
-        return None
-
-    units = safe_int(quotation.get("units", 0))
-    nano = quotation.get("nano", 0)
-    decimal_value = units + nano / 1e9
-
-    return {
-        "units": units,
-        "nano": nano,
-        "decimal": round(decimal_value, 4)
-    }
-
+# ============================================================
+# Singleton декоратор
+# ============================================================
 
 class Singleton:
     """

@@ -140,6 +140,7 @@ class TInvestService:
         """
         Сохраняет снимок портфеля в базу данных
         """
+
         self.db = db
 
         try:

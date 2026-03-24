@@ -165,6 +165,7 @@ class RobotTrade(Base):
     signals = relationship("RobotSignal", back_populates="executed_trade")
 
 
+
 class RobotLog(Base):
     """
     Логи работы робота
@@ -175,13 +176,15 @@ class RobotLog(Base):
         Index("ix_robot_logs_robot_name", "robot_name"),
         Index("ix_robot_logs_user_token", "user_id", "token_id"),
         Index("ix_robot_logs_success", "success"),
+        Index("ix_robot_logs_execution_log", "execution_log_id"),  # новый индекс
         {"schema": SCHEMA}
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=True)
 
-    # Поля для логов без привязки к конкретному роботу
+    execution_log_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robot_execution_logs.id", ondelete="SET NULL"), nullable=True)
+
     robot_name = Column(String(255), nullable=False)
     robot_version = Column(String(20), nullable=True)
 
@@ -205,7 +208,7 @@ class RobotLog(Base):
 
     # Связи
     robot = relationship("Robot", back_populates="logs")
-
+    execution_log = relationship("RobotExecutionLog", foreign_keys=[execution_log_id])
 
 class RobotSignal(Base):
     """

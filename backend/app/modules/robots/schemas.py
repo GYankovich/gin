@@ -25,11 +25,6 @@ class RobotUpdate(BaseModel):
 
 
 
-
-
-
-
-
 class ChangeStatusRequest(BaseModel):
     """Запрос на изменение статуса робота"""
     robotId: int = Field(..., description="ID робота")
@@ -37,13 +32,6 @@ class ChangeStatusRequest(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-class DictionaryItem(BaseModel):
-    """Элемент справочника"""
-    id: int
-    name: str
-    value: Optional[int] = None
 
 
 class TokenInfo(BaseModel):

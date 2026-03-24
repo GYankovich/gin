@@ -4,21 +4,23 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 1.0.6 - robots create modal\card">
+    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 1.0.7 - change source table for portfolio_updater.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/base/base_robot.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/base/base_robot.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/common/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/common/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/common/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/common/utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/models.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/robot.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/robot.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/scheduler.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/scheduler.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/scheduler.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/scheduler.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/executor.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/robot.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/scheduler.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/settings/queries.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/settings/queries.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/settings/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/settings/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/queries.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/queries.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/logs/robots/robot_15_portfolio_updater_token15_2026-03-16_14.log" beforeDir="false" afterPath="$PROJECT_DIR$/logs/robots/robot_15_portfolio_updater_token15_2026-03-16_14.log" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/logs/robots_2026-03-16_12-16.log" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/logs/robots_2026-03-16_16-20.log" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/styles.css" beforeDir="false" afterPath="$PROJECT_DIR$/styles.css" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -153,7 +155,7 @@
       <workItem from="1774170738768" duration="11640000" />
       <workItem from="1774216353239" duration="24066000" />
       <workItem from="1774292951517" duration="4027000" />
-      <workItem from="1774304853209" duration="11698000" />
+      <workItem from="1774304853209" duration="25567000" />
     </task>
     <task id="LOCAL-00001" summary="v 0.8.0 - Логин и настройка токена">
       <option name="closed" value="true" />
@@ -251,7 +253,15 @@
       <option name="project" value="LOCAL" />
       <updated>1774280372640</updated>
     </task>
-    <option name="localTasksCounter" value="13" />
+    <task id="LOCAL-00013" summary="v 1.0.7 - change source table for portfolio_updater.">
+      <option name="closed" value="true" />
+      <created>1774357651430</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1774357651430</updated>
+    </task>
+    <option name="localTasksCounter" value="14" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -267,7 +277,8 @@
     <MESSAGE value="v 1.0.4 - create robot modal" />
     <MESSAGE value="v 1.0.5 - robots create\view\change_status" />
     <MESSAGE value="v 1.0.6 - robots create modal\card" />
-    <option name="LAST_COMMIT_MESSAGE" value="v 1.0.6 - robots create modal\card" />
+    <MESSAGE value="v 1.0.7 - change source table for portfolio_updater." />
+    <option name="LAST_COMMIT_MESSAGE" value="v 1.0.7 - change source table for portfolio_updater." />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
