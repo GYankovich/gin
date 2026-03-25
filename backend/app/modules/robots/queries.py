@@ -185,15 +185,6 @@ def build_get_robot_by_id_query() -> str:
            """
 
 
-#
-# def build_check_robot_ownership_query() -> str:
-#     """Проверка принадлежности робота пользователю"""
-#     return """
-#            SELECT id FROM ganaly.robots
-#            WHERE id = :robot_id AND user_id = :user_id \
-#            """
-
-
 def build_check_robot_name_exists_query() -> str:
     """Проверка уникальности имени робота для пользователя"""
     return """

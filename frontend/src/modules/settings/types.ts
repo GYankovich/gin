@@ -1,8 +1,15 @@
 // Типы для API ключей
+
+export interface TokenTypeInfo {
+    type: number;
+    typeName: string;
+    typeDesc: string;
+}
+
 export interface ApiKey {
     id: number;
     name?: string | null;
-    key_type: string;
+    token_type: TokenTypeInfo;
     is_active: boolean;
     created_at: string;
     masked_token: string;
@@ -18,7 +25,7 @@ export interface ApiKeyDetail extends ApiKey {
 
 export interface ApiKeyCreate {
     token: string;
-    key_type: string;
+    token_type: TokenTypeInfo;
     name?: string | null;
     refresh_interval_minutes?: number;
 }

@@ -65,16 +65,13 @@ class TokenService:
     async def get_user_tokens(
             self,
             db: Session,
-            user_id: int,
-            include_inactive: bool = False
+            user_id: int
     ) -> List[dict]:
         """
         Получение всех токенов пользователя
         """
         self.db = db
-        query, params_template = queries.build_get_user_tokens_query(
-            include_inactive=include_inactive
-        )
+        query, params_template = queries.build_get_user_tokens_query()
 
         params = {"user_id": user_id}
         results = self._execute(query, params).fetchall()

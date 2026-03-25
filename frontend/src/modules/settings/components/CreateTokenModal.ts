@@ -1,6 +1,6 @@
-// frontend/src/modules/robots/components/CreateRobotModal.ts
+// frontend/src/modules/settings/components/CreateTokenModal.ts
 
-interface RobotType {
+interface TokenType {
     id: number;
     tableName: string;
     columnName: string;
@@ -10,55 +10,49 @@ interface RobotType {
     stringValue: string | null;
 }
 
-interface TokenTypeInfo {
-    type: number;
-    typeName: string;
-    typeDesc: string;
-}
-
-interface Token {
-    id: number;
-    name: string | null;
-    token_type: TokenTypeInfo;  // изменено: теперь объект с информацией о типе
-    masked_token: string;
-    is_active: boolean;
-    created_at: string;
-    refresh_interval_minutes: number;
-}
-
-export class CreateRobotModal {
-    private static activeModal: CreateRobotModal | null = null;
+export class CreateTokenModal {
+    private static activeModal: CreateTokenModal | null = null;
     private container: HTMLElement;
     private onClose: () => void;
-    private onSuccess: () => void;
+    private onSuccess: (data: { name: string; token: string; tokenType: number }) => void;
 
-    private robotTypes: RobotType[] = [];
-    private tokens: Token[] = [];
+    private tokenTypes: TokenType[] = [];
     private loading: boolean = true;
     private isDataLoaded: boolean = false;
+    private isSaving: boolean = false;
+    private modalError: string | null = null;
 
     private formData = {
         name: '',
-        type: '',  // будет хранить numericValue как строку для совместимости с селектом
-        token_id: ''
+        token: '',
+        tokenType: ''
+    };
+
+    private errors = {
+        name: false,
+        tokenType: false,
+        token: false
     };
 
     private isClosed: boolean = false;
     private openSelect: string | null = null;
     private activeDropdown: HTMLElement | null = null;
-    private modalContent: HTMLElement | null = null;
     private formContainer: HTMLElement | null = null;
 
-    constructor(container: HTMLElement, onClose: () => void, onSuccess: () => void) {
+    constructor(
+        container: HTMLElement,
+        onClose: () => void,
+        onSuccess: (data: { name: string; token: string; tokenType: number }) => void
+    ) {
         this.container = container;
         this.onClose = onClose;
         this.onSuccess = onSuccess;
         this.isClosed = false;
 
-        if (CreateRobotModal.activeModal) {
-            CreateRobotModal.activeModal.close();
+        if (CreateTokenModal.activeModal) {
+            CreateTokenModal.activeModal.close();
         }
-        CreateRobotModal.activeModal = this;
+        CreateTokenModal.activeModal = this;
     }
 
     async loadData(): Promise<void> {
@@ -66,45 +60,24 @@ export class CreateRobotModal {
         this.render();
 
         try {
-            const token = localStorage.getItem('auth_token');
+            const authToken = localStorage.getItem('auth_token');
 
-            // Загружаем типы роботов
-            const typesRobots = await fetch('/api/dictionary/data', {
+            // Загружаем типы токенов
+            const typesResponse = await fetch('/api/dictionary/data', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${token}`,
+                    'Authorization': `Bearer ${authToken}`,
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ tableName: "ROBOT", columnName: "TYPE" })
+                body: JSON.stringify({ tableName: "TOKEN", columnName: "TYPE" })
             });
 
-            if (!typesRobots.ok) {
-                throw new Error('Failed to load robot types');
+            if (!typesResponse.ok) {
+                throw new Error('Failed to load token types');
             }
 
-            const types = await typesRobots.json();
-            this.robotTypes = types;
-
-            console.log('Loaded robot types:', this.robotTypes);
-
-            // Загружаем токены
-            const tokensResponse = await fetch('/api/apikey/data', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ limit: 100 })
-            });
-
-            if (!tokensResponse.ok) {
-                throw new Error('Failed to load tokens');
-            }
-
-            const tokensData = await tokensResponse.json();
-            this.tokens = tokensData.keys || [];
-
-            console.log('Loaded tokens:', this.tokens);
+            this.tokenTypes = await typesResponse.json();
+            console.log('Loaded token types:', this.tokenTypes);
 
             this.isDataLoaded = true;
 
@@ -121,68 +94,87 @@ export class CreateRobotModal {
         }
     }
 
-    private getTokenDisplayName(token: Token): string {
-        // Приоритет: name > masked_token > 'Без имени'
-        return token.name || token.masked_token || 'Без имени';
+    private validateForm(): boolean {
+        let isValid = true;
+
+        // Валидация названия
+        if (!this.formData.name.trim()) {
+            this.errors.name = true;
+            isValid = false;
+        } else {
+            this.errors.name = false;
+        }
+
+        // Валидация типа токена
+        if (!this.formData.tokenType) {
+            this.errors.tokenType = true;
+            isValid = false;
+        } else {
+            this.errors.tokenType = false;
+        }
+
+        // Валидация значения токена
+        if (!this.formData.token.trim()) {
+            this.errors.token = true;
+            isValid = false;
+        } else {
+            this.errors.token = false;
+        }
+
+        return isValid;
     }
 
-    private getTokenDescription(token: Token): string {
-        // Формируем описание токена: тип токена + masked_token (если нет name)
-        const typeInfo = token.token_type;
-        let description = '';
+    private clearFieldError(field: keyof typeof this.errors): void {
+        this.errors[field] = false;
+        this.updateFieldErrorStyle(field);
+    }
 
-        if (typeInfo) {
-            description = typeInfo.typeName;
-            if (typeInfo.typeDesc && typeInfo.typeDesc !== typeInfo.typeName) {
-                description += ` (${typeInfo.typeDesc})`;
-            }
-        }
-
-        // Если нет name, добавляем masked_token в описание
-        if (!token.name && token.masked_token) {
-            if (description) {
-                description += ` · ${token.masked_token}`;
+    private updateFieldErrorStyle(field: keyof typeof this.errors): void {
+        const element = document.getElementById(`field-${field}`);
+        if (element) {
+            if (this.errors[field]) {
+                element.classList.add('error');
             } else {
-                description = token.masked_token;
+                element.classList.remove('error');
             }
         }
+    }
 
-        return description || 'Токен доступа';
+    private updateAllFieldErrors(): void {
+        this.updateFieldErrorStyle('name');
+        this.updateFieldErrorStyle('tokenType');
+        this.updateFieldErrorStyle('token');
     }
 
     private replaceSkeletonWithForm(): void {
         if (this.isClosed || !this.formContainer) return;
 
-        const hasType = !!this.formData.type;
-        const selectedType = this.robotTypes.find(t => t.numericValue.toString() === this.formData.type);
-        const typeLabel = selectedType?.name || 'Выберите тип робота';
-        const typeDescription = selectedType?.description || '';
+        const hasTokenType = !!this.formData.tokenType;
+        const selectedType = this.tokenTypes.find(t => t.numericValue.toString() === this.formData.tokenType);
+        const typeLabel = selectedType?.name || 'Выберите тип токена';
 
-        const hasToken = !!this.formData.token_id;
-        const selectedToken = this.tokens.find(t => t.id.toString() === this.formData.token_id);
-        const tokenLabel = selectedToken ? this.getTokenDisplayName(selectedToken) : 'Выберите токен доступа';
-
-        // Заменяем содержимое контейнера на форму
         this.formContainer.innerHTML = `
-            <form class="modal-form" id="create-robot-form">
-                <div class="modal-form-group">
-                    <label for="robot-name">
-                        <span>Название робота</span>
+            <form class="modal-form" id="create-token-form">
+                <div class="modal-form-group" id="field-name">
+                    <label for="token-name">
+                        <span>Название токена</span>
                         <span class="required">*</span>
                     </label>
-                    <input type="text" id="robot-name" required
-                        placeholder="Торговый робот 1"
-                        value="${this.escapeHtml(this.formData.name)}">
+                    <input type="text" id="token-name" class="form-input" 
+                        placeholder="Например: Основной токен"
+                        autocomplete="off"
+                        value="">
+                    <div class="field-error-message">Пожалуйста, укажите название токена</div>
                 </div>
                 
-                <div class="modal-form-group">
+                <div class="modal-form-group" id="field-tokenType">
                     <label>
-                        <span>Тип робота</span>
+                        <span>Тип токена</span>
                         <span class="required">*</span>
                     </label>
                     <div class="modal-select">
                         <button type="button" class="modal-select-button" id="type-select-btn">
-                            <span class="${hasType ? 'modal-select-value' : 'modal-select-placeholder'}">${this.escapeHtml(typeLabel)}</span>
+                            <span class="${hasTokenType ? 'modal-select-value' : 'modal-select-placeholder'}">${this.escapeHtml(typeLabel)}</span>
                             <span class="modal-select-arrow">▼</span>
                         </button>
                         <div class="modal-select-dropdown" id="type-select-dropdown">
@@ -190,8 +182,8 @@ export class CreateRobotModal {
                                 <input type="text" class="modal-select-search-input" placeholder="Поиск..." autocomplete="off">
                             </div>
                             <div class="modal-select-options">
-                                ${this.robotTypes.map(type => `
-                                    <div class="modal-select-option ${this.formData.type === type.numericValue.toString() ? 'selected' : ''}" 
+                                ${this.tokenTypes.map(type => `
+                                    <div class="modal-select-option ${this.formData.tokenType === type.numericValue.toString() ? 'selected' : ''}" 
                                          data-value="${type.numericValue}" 
                                          data-label="${this.escapeHtml(type.name)}"
                                          data-description="${this.escapeHtml(type.description)}">
@@ -202,46 +194,37 @@ export class CreateRobotModal {
                             </div>
                         </div>
                     </div>
+                    <div class="field-error-message">Пожалуйста, выберите тип токена</div>
                 </div>
                 
-                <div class="modal-form-group">
-                    <label>
+                <div class="modal-form-group" id="field-token">
+                    <label for="token-value">
                         <span>Токен доступа</span>
                         <span class="required">*</span>
                     </label>
-                    <div class="modal-select">
-                        <button type="button" class="modal-select-button" id="token-select-btn">
-                            <span class="${hasToken ? 'modal-select-value' : 'modal-select-placeholder'}">${this.escapeHtml(tokenLabel)}</span>
-                            <span class="modal-select-arrow">▼</span>
-                        </button>
-                        <div class="modal-select-dropdown" id="token-select-dropdown">
-                            <div class="modal-select-search">
-                                <input type="text" class="modal-select-search-input" placeholder="Поиск..." autocomplete="off">
-                            </div>
-                            <div class="modal-select-options">
-                                ${this.tokens.map(token => {
-            const displayName = this.getTokenDisplayName(token);
-            const description = this.getTokenDescription(token);
-            return `
-                                    <div class="modal-select-option ${this.formData.token_id === token.id.toString() ? 'selected' : ''}" 
-                                         data-value="${token.id}" 
-                                         data-label="${this.escapeHtml(displayName)}"
-                                         data-description="${this.escapeHtml(description)}">
-                                        <div class="modal-select-option-label">${this.escapeHtml(displayName)}</div>
-                                        <div class="modal-select-option-description">${this.escapeHtml(description)}</div>
-                                    </div>
-                                `}).join('')}
-                            </div>
-                        </div>
-                    </div>
+                    <input 
+                        type="text" 
+                        id="token-value" 
+                        class="form-input" 
+                        placeholder="t.xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        autocomplete="off"
+                        value="">
+                    <div class="field-error-message">Пожалуйста, введите токен доступа</div>
                 </div>
+
+                ${this.modalError ? `
+                    <div class="modal-error">
+                        <span class="error-icon">⚠️</span>
+                        <span>${this.escapeHtml(this.modalError)}</span>
+                    </div>
+                ` : ''}
                 
                 <div class="modal-actions">
                     <button type="button" class="modal-btn modal-btn-secondary" id="modal-cancel-btn">
                         Отмена
                     </button>
-                    <button type="submit" class="modal-btn modal-btn-primary">
-                        Создать робота
+                    <button type="submit" class="modal-btn modal-btn-primary" ${this.isSaving ? 'disabled' : ''}>
+                        ${this.isSaving ? 'Добавление...' : 'Добавить'}
                     </button>
                 </div>
             </form>
@@ -250,6 +233,7 @@ export class CreateRobotModal {
         // Прикрепляем обработчики после замены
         this.attachFormEvents();
         this.attachSelectEvents();
+        this.updateAllFieldErrors();
     }
 
     private showError(error: unknown): void {
@@ -293,13 +277,13 @@ export class CreateRobotModal {
         }
     }
 
-    private openSelectDropdown(selectType: 'type' | 'token', button: HTMLElement): void {
+    private openSelectDropdown(button: HTMLElement): void {
         if (this.openSelect) {
             this.closeSelect();
         }
 
-        this.openSelect = selectType;
-        const dropdown = document.getElementById(`${selectType}-select-dropdown`);
+        this.openSelect = 'type';
+        const dropdown = document.getElementById('type-select-dropdown');
 
         if (dropdown && button) {
             const rect = button.getBoundingClientRect();
@@ -333,66 +317,50 @@ export class CreateRobotModal {
         });
     }
 
-    private selectOption(selectType: 'type' | 'token', value: string, label: string, button: HTMLElement): void {
+    private selectOption(value: string, label: string, button: HTMLElement): void {
         const span = button.querySelector('span:first-child');
         if (span) {
             span.textContent = label;
             span.className = 'modal-select-value';
         }
 
-        if (selectType === 'type') {
-            this.formData.type = value;
-        } else {
-            this.formData.token_id = value;
-        }
-
+        this.formData.tokenType = value;
+        this.clearFieldError('tokenType');
         this.closeSelect();
     }
 
     private async handleSubmit(e: Event): Promise<void> {
         e.preventDefault();
 
-        if (!this.formData.name || !this.formData.type || !this.formData.token_id) {
-            alert('Пожалуйста, заполните все поля');
+        // Валидация
+        if (!this.validateForm()) {
+            this.updateAllFieldErrors();
             return;
         }
 
-        const submitBtn = this.container.querySelector('.modal-btn-primary') as HTMLButtonElement;
-        if (submitBtn) {
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Создание...';
+        // Дополнительная валидация формата токена для T-Invest
+        const selectedType = this.tokenTypes.find(t => t.numericValue.toString() === this.formData.tokenType);
+        if (selectedType?.stringValue === 'T-Invest' && !this.formData.token.startsWith('t.')) {
+            this.modalError = 'Токен T-Invest должен начинаться с t.';
+            this.render();
+            return;
         }
 
+        this.isSaving = true;
+        this.render();
+
         try {
-            const token = localStorage.getItem('auth_token');
-            const response = await fetch('/api/robots/create', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    name: this.formData.name,
-                    type: parseInt(this.formData.type),
-                    token_id: parseInt(this.formData.token_id),
-                })
+            await this.onSuccess({
+                name: this.formData.name.trim(),
+                token: this.formData.token.trim(),
+                tokenType: parseInt(this.formData.tokenType)
             });
 
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.detail || 'Failed to create robot');
-            }
-
-            this.onSuccess();
             this.close();
-
-        } catch (error) {
-            console.error('Failed to create robot:', error);
-            alert(`Ошибка: ${error instanceof Error ? error.message : 'Не удалось создать робота'}`);
-            if (submitBtn) {
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Создать робота';
-            }
+        } catch (error: any) {
+            this.modalError = error.message || 'Ошибка при добавлении токена';
+            this.isSaving = false;
+            this.render();
         }
     }
 
@@ -401,20 +369,31 @@ export class CreateRobotModal {
         this.isClosed = true;
         document.removeEventListener('keydown', this.handleEscapeKey);
         this.container.innerHTML = '';
-        if (CreateRobotModal.activeModal === this) {
-            CreateRobotModal.activeModal = null;
+        if (CreateTokenModal.activeModal === this) {
+            CreateTokenModal.activeModal = null;
         }
         this.onClose();
     }
 
     private attachFormEvents(): void {
-        const form = document.getElementById('create-robot-form');
-        const nameInput = document.getElementById('robot-name') as HTMLInputElement;
+        const form = document.getElementById('create-token-form');
+        const nameInput = document.getElementById('token-name') as HTMLInputElement;
+        const tokenInput = document.getElementById('token-value') as HTMLInputElement;
         const cancelBtn = document.getElementById('modal-cancel-btn');
 
         if (nameInput) {
             nameInput.addEventListener('input', (e) => {
                 this.formData.name = (e.target as HTMLInputElement).value;
+                this.clearFieldError('name');
+                this.modalError = null;
+            });
+        }
+
+        if (tokenInput) {
+            tokenInput.addEventListener('input', (e) => {
+                this.formData.token = (e.target as HTMLInputElement).value;
+                this.clearFieldError('token');
+                this.modalError = null;
             });
         }
 
@@ -428,13 +407,13 @@ export class CreateRobotModal {
     }
 
     private attachSelectEvents(): void {
-        // Селект типа
         const typeBtn = document.getElementById('type-select-btn');
         const typeDropdown = document.getElementById('type-select-dropdown');
+
         if (typeBtn && typeDropdown) {
             typeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.openSelectDropdown('type', typeBtn);
+                this.openSelectDropdown(typeBtn);
             });
 
             const typeSearch = typeDropdown.querySelector('.modal-select-search-input') as HTMLInputElement;
@@ -449,34 +428,7 @@ export class CreateRobotModal {
                     const value = opt.getAttribute('data-value');
                     const label = opt.getAttribute('data-label');
                     if (value && label && typeBtn) {
-                        this.selectOption('type', value, label, typeBtn);
-                    }
-                });
-            });
-        }
-
-        // Селект токена
-        const tokenBtn = document.getElementById('token-select-btn');
-        const tokenDropdown = document.getElementById('token-select-dropdown');
-        if (tokenBtn && tokenDropdown) {
-            tokenBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.openSelectDropdown('token', tokenBtn);
-            });
-
-            const tokenSearch = tokenDropdown.querySelector('.modal-select-search-input') as HTMLInputElement;
-            if (tokenSearch) {
-                tokenSearch.addEventListener('input', (e) => {
-                    this.filterOptions(tokenDropdown, (e.target as HTMLInputElement).value);
-                });
-            }
-
-            tokenDropdown.querySelectorAll('.modal-select-option').forEach(opt => {
-                opt.addEventListener('click', () => {
-                    const value = opt.getAttribute('data-value');
-                    const label = opt.getAttribute('data-label');
-                    if (value && label && tokenBtn) {
-                        this.selectOption('token', value, label, tokenBtn);
+                        this.selectOption(value, label, typeBtn);
                     }
                 });
             });
@@ -486,7 +438,7 @@ export class CreateRobotModal {
         document.addEventListener('click', (e) => {
             if (this.openSelect && this.activeDropdown) {
                 const target = e.target as HTMLElement;
-                const isSelectBtn = target.closest('#type-select-btn') || target.closest('#token-select-btn');
+                const isSelectBtn = target.closest('#type-select-btn');
                 const isDropdown = target.closest('.modal-select-dropdown');
                 if (!isSelectBtn && !isDropdown) {
                     this.closeSelect();
@@ -526,22 +478,22 @@ export class CreateRobotModal {
                         
                         <div class="modal-header">
                             <div class="modal-header-left">
-                                <div class="modal-icon">✨</div>
+                                <div class="modal-icon">🔑</div>
                             </div>
                             <div class="modal-header-right">
-                                <h3>Создание робота</h3>
-                                <p class="modal-description">Укажите токен и тип робота. Настроить его можно будет позже</p>
+                                <h3>Добавить токен</h3>
+                                <p class="modal-description">Укажите название, тип и значение токена доступа</p>
                             </div>
                         </div>
                         
                         <div class="modal-form-container" id="modal-form-container">
                             <div class="modal-skeleton">
                                 <div class="modal-form-group">
-                                    <label>Название робота</label>
+                                    <label>Название токена</label>
                                     <div class="skeleton-input"></div>
                                 </div>
                                 <div class="modal-form-group">
-                                    <label>Тип робота</label>
+                                    <label>Тип токена</label>
                                     <div class="skeleton-input"></div>
                                 </div>
                                 <div class="modal-form-group">

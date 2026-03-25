@@ -2,9 +2,6 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-# === БАЗОВЫЕ СХЕМЫ ===
-
-
 
 class RobotCreate(BaseModel):
     """Создание робота"""

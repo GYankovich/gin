@@ -4,20 +4,24 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 1.0.7 - change source table for portfolio_updater.">
+    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 1.0.8 - refactor portfolio_updater robot">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/base/base_robot.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/base/base_robot.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/common/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/common/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/common/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/common/utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/robot.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/robot.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/scheduler.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/scheduler.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/queries.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/queries.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/router.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/schemas.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/settings/queries.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/settings/queries.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/settings/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/settings/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/settings/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/settings/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/settings/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/settings/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/queries.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/queries.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/token_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/token_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/CreateRobotModal.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/robots/components/CreateRobotModal.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/settings/services/apiKeyService.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/settings/services/apiKeyService.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/settings/types.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/settings/types.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/settings/views/SettingsView.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/settings/views/SettingsView.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gin" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/logs/robots/robot_15_portfolio_updater_token15_2026-03-16_14.log" beforeDir="false" afterPath="$PROJECT_DIR$/logs/robots/robot_15_portfolio_updater_token15_2026-03-16_14.log" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/logs/robots_2026-03-16_12-16.log" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/logs/robots_2026-03-16_16-20.log" beforeDir="false" />
@@ -32,9 +36,9 @@
       <list>
         <option value="JavaScript File" />
         <option value="HTML File" />
-        <option value="CSS File" />
-        <option value="TypeScript File" />
         <option value="Python Script" />
+        <option value="TypeScript File" />
+        <option value="CSS File" />
       </list>
     </option>
   </component>
@@ -155,7 +159,7 @@
       <workItem from="1774170738768" duration="11640000" />
       <workItem from="1774216353239" duration="24066000" />
       <workItem from="1774292951517" duration="4027000" />
-      <workItem from="1774304853209" duration="25567000" />
+      <workItem from="1774304853209" duration="42265000" />
     </task>
     <task id="LOCAL-00001" summary="v 0.8.0 - Логин и настройка токена">
       <option name="closed" value="true" />
@@ -261,7 +265,15 @@
       <option name="project" value="LOCAL" />
       <updated>1774357651430</updated>
     </task>
-    <option name="localTasksCounter" value="14" />
+    <task id="LOCAL-00014" summary="v 1.0.8 - refactor portfolio_updater robot">
+      <option name="closed" value="true" />
+      <created>1774379837736</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1774379837736</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -278,7 +290,8 @@
     <MESSAGE value="v 1.0.5 - robots create\view\change_status" />
     <MESSAGE value="v 1.0.6 - robots create modal\card" />
     <MESSAGE value="v 1.0.7 - change source table for portfolio_updater." />
-    <option name="LAST_COMMIT_MESSAGE" value="v 1.0.7 - change source table for portfolio_updater." />
+    <MESSAGE value="v 1.0.8 - refactor portfolio_updater robot" />
+    <option name="LAST_COMMIT_MESSAGE" value="v 1.0.8 - refactor portfolio_updater robot" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -287,6 +300,11 @@
           <url>file://$PROJECT_DIR$/backend/app/modules/tinvest/router.py</url>
           <line>116</line>
           <option name="timeStamp" value="1" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/backend/app/modules/settings/service.py</url>
+          <line>1</line>
+          <option name="timeStamp" value="2" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>

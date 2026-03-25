@@ -1,5 +1,5 @@
 # app/modules/apikey/service.py
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Tuple, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -75,30 +75,45 @@ class ApiKeyService:
         if not row:
             return {}
 
+        # Ожидаемая структура row:
+        # 0: id
+        # 1: name (из api_tokens)
+        # 2: token_type
+        # 3: is_active
+        # 4: created_at
+        # 5: token
+        # 6: refresh_interval_minutes
+        # 7: type_name (из словаря)
+        # 8: type_description (из словаря)
+
+        # Формируем объект token_type
+        token_type_info = {
+            "type": self._safe_int(row[2]) if len(row) > 2 else 0,
+            "typeName": self._safe_str(row[7]) if len(row) > 7 and row[7] is not None else "",
+            "typeDesc": self._safe_str(row[8]) if len(row) > 8 and row[8] is not None else ""
+        }
+
         result = {
             "id": self._safe_int(row[0]),
             "name": self._safe_str(row[1], None) if len(row) > 1 else None,
-            "key_type": self._safe_str(row[2]) if len(row) > 2 else "",
+            "token_type": token_type_info,  # теперь это объект
             "is_active": self._safe_bool(row[3]) if len(row) > 3 else True,
             "created_at": self._safe_datetime(row[4]) if len(row) > 4 else None,
         }
 
-        idx = 5
-
-        # Токен для маскирования
+        # Токен для маскирования (индекс 5)
         token_value = None
-        if len(row) > idx:
-            token_value = row[idx]
+        if len(row) > 5:
+            token_value = row[5]
             if include_token:
                 result["token"] = self._safe_str(token_value) if token_value is not None else None
-            idx += 1
 
-        # Маскируем токен (теперь безопасно)
+        # Маскируем токен
         result["masked_token"] = self._mask_token(token_value)
 
-        # Добавляем refresh_interval_minutes если есть
-        if len(row) > idx:
-            result["refresh_interval_minutes"] = self._safe_int(row[idx], 60)
+        # Добавляем refresh_interval_minutes (индекс 6)
+        if len(row) > 6:
+            result["refresh_interval_minutes"] = self._safe_int(row[6], 60)
 
         return result
 
@@ -219,7 +234,6 @@ class ApiKeyService:
             db: Session,
             user_id: int,
             key_type: Optional[str] = None,
-            include_inactive: bool = False,
             limit: int = 50,
             offset: int = 0
     ) -> Tuple[List[dict], int]:
@@ -230,18 +244,28 @@ class ApiKeyService:
 
         # Подсчет общего количества
         count_query, count_params = queries.build_count_user_keys_query(
-            key_type=key_type,
-            include_inactive=include_inactive
+            key_type=key_type
         )
+
+        # Исправляем подстановку параметров
+        count_params_fixed = {}
+        for k, v in count_params.items():
+            if v == ":user_id":
+                count_params_fixed["user_id"] = user_id
+            else:
+                count_params_fixed[k] = v
+
         total = self._execute(
-            count_query.replace(":user_id", str(user_id)),
-            {k.replace(":", ""): v for k, v in count_params.items() if v != ":user_id"}
+            count_query,
+            count_params_fixed
         ).scalar()
+
+        if total == 0:
+            return [], 0
 
         # Получение данных
         data_query, data_params = queries.build_get_user_keys_query(
             key_type=key_type,
-            include_inactive=include_inactive,
             limit=limit,
             offset=offset
         )

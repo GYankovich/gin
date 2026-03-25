@@ -169,7 +169,6 @@ async def get_account_snapshots(
 
 @router.get("/tokens", response_model=schemas.TokenListResponse)
 async def get_tokens(
-        include_inactive: bool = Query(False, description="Включать неактивные токены"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):

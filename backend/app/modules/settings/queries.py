@@ -52,8 +52,7 @@ def build_create_api_key_query() -> str:
            """
 
 def build_count_user_keys_query(
-        key_type: Optional[str] = None,
-        include_inactive: bool = False
+        key_type: Optional[str] = None
 ) -> tuple[str, Dict[str, Any]]:
     """
     Строит запрос для подсчета количества ключей пользователя
@@ -61,7 +60,8 @@ def build_count_user_keys_query(
     base_query = """
                  SELECT COUNT(*)
                  FROM ganaly.api_tokens
-                 WHERE user_id = :user_id\
+                 WHERE user_id = :user_id
+                     and is_active = 1\
                  """
 
     params = {"user_id": ":user_id"}
@@ -71,9 +71,6 @@ def build_count_user_keys_query(
         conditions.append("token_type = :key_type")
         params["key_type"] = key_type
 
-    if not include_inactive:
-        conditions.append("is_active = 1")
-
     if conditions:
         base_query += " AND " + " AND ".join(conditions)
 
@@ -82,7 +79,6 @@ def build_count_user_keys_query(
 
 def build_get_user_keys_query(
         key_type: Optional[str] = None,
-        include_inactive: bool = False,
         limit: int = 50,
         offset: int = 0
 ) -> tuple[str, Dict[str, Any]]:
@@ -90,32 +86,34 @@ def build_get_user_keys_query(
     Строит запрос для получения списка ключей пользователя
     """
     base_query = """
-                 SELECT
-                     id,
-                     name,
-                     token_type,
-                     is_active,
-                     created_at,
-                     token,
-                     refresh_interval_minutes
-                 FROM ganaly.api_tokens
-                 WHERE user_id = :user_id \
+                 SELECT a.id,
+                        a.name,
+                        a.token_type,
+                        a.is_active,
+                        a.created_at,
+                        a.token,
+                        a.refresh_interval_minutes,
+                        d.name as type_name,
+                        d.description as type_description
+                 FROM ganaly.api_tokens a
+                          LEFT JOIN ganaly.dictionary d ON d.num_value = a.token_type
+                     AND d.table_name = 'TOKEN'
+                     AND d.column_name = 'TYPE'
+                 WHERE a.user_id = :user_id
+                   AND a.is_active = 1
                  """
 
     params = {"user_id": ":user_id", "limit": limit, "offset": offset}
     conditions = []
 
     if key_type:
-        conditions.append("token_type = :key_type")
+        conditions.append("a.token_type = :key_type")
         params["key_type"] = key_type
-
-    if not include_inactive:
-        conditions.append("is_active = 1")
 
     if conditions:
         base_query += " AND " + " AND ".join(conditions)
 
-    base_query += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+    base_query += " ORDER BY a.created_at DESC LIMIT :limit OFFSET :offset"
 
     return base_query, params
 

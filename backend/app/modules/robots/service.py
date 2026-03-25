@@ -11,6 +11,7 @@ from fastapi import HTTPException, status
 from app.modules.tinvest.token_service import token_service
 from app.modules.tinvest.service import tinvest_service
 from . import queries, schemas
+from app.modules.dictionary import queries as dict_queries
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +138,7 @@ class RobotService:
         return robot_dict
 
 
+
     async def create_robot(
             self,
             db: Session,
@@ -159,6 +161,7 @@ class RobotService:
                 detail="Робот с таким именем уже существует"
             )
 
+        # Проверяем существование и активность токена
         check_token_query = queries.build_check_token_query()
         token = db.execute(
             text(check_token_query),
@@ -171,50 +174,25 @@ class RobotService:
                 detail="Токен не найден или не активен"
             )
 
-        type_query = queries.build_get_dictionary_id_by_value_query()
-        type_id = db.execute(
-            text(type_query),
-            {
-                "table_name": "ROBOT",
-                "column_name": "TYPE",
-                "num_value": robot_data.type
-            }
-        ).scalar()
+        # Получаем тип робота из справочника
+        robot_types = dict_queries.get_dictionary_data(
+            db=db,
+            table_name="ROBOT",
+            column_name="TYPE",
+            num_value=robot_data.type
+        )
 
-        if not type_id:
+        if not robot_types:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Неверный тип робота: {robot_data.type}"
             )
 
+
         # Логика статуса:
-        # Если тип = 1 (Portfolio), то статус = 1 (Активен) || Если тип = 2 (Trading), то статус = 2 (Остановлен)
-        # status_value = 1 if robot_data.type == 1 else 2
-        status_value = 2
-
-
-        # Получаем ID статуса из справочника
-        status_query = queries.build_get_dictionary_id_by_value_query()
-        status_id = db.execute(
-            text(status_query),
-            {
-                "table_name": "ROBOT",
-                "column_name": "STATUS",
-                "num_value": status_value
-            }
-        ).scalar()
-
-        if not status_id:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Статус робота {status_value} не найден в справочнике"
-            )
+        status_value = 2  # По умолчанию остановлен
 
         now = datetime.now(timezone.utc)
-
-        # Преобразуем словарь в JSON-строку для PostgreSQL
-        import json
-        config_json = json.dumps({})
 
         # Создаем робота
         insert_query = queries.build_create_robot_query()
@@ -224,8 +202,8 @@ class RobotService:
                 "user_id": user_id,
                 "token_id": robot_data.token_id,
                 "name": robot_data.name,
-                "type": type_id,
-                "status": status_id,
+                "type": robot_data.type,
+                "status": status_value,
                 "usercre": user_id,
                 "created_at": now
             }
@@ -241,8 +219,6 @@ class RobotService:
 
         # Получаем созданного робота с полной информацией
         robot = await self.get_robot_by_id(db, result[0], user_id)
-
-        logger.info(f"✅ Created robot {robot['id']} for user {user_id} (type: {robot_data.type}, status: {status_value})")
 
         return robot
 

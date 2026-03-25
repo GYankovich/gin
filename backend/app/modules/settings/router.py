@@ -73,7 +73,6 @@ async def create_api_key(
 @router.post("/data", response_model=schemas.ApiKeyListResponse)
 async def get_api_keys(
         key_type: Optional[str] = Query(None, description="Фильтр по типу ключа"),
-        include_inactive: bool = Query(False, description="Включать неактивные ключи"),
         limit: int = Query(50, ge=1, le=100, description="Количество записей"),
         offset: int = Query(0, ge=0, description="Смещение"),
         db: Session = Depends(get_db),
@@ -86,7 +85,6 @@ async def get_api_keys(
         db=db,
         user_id=current_user.id,
         key_type=key_type,
-        include_inactive=include_inactive,
         limit=limit,
         offset=offset
     )

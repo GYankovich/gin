@@ -17,6 +17,7 @@ from app.modules.analytics.router import router as analytics_router
 from app.modules.robots import start_scheduler, stop_scheduler
 from app.modules.robots.router import router as robots_router
 from app.modules.robots.common.logger import get_logger, close_logger  # ← ИСПРАВЛЕНО
+from app.modules.dictionary.router import router as dictionary_router
 
 
 @asynccontextmanager
@@ -70,6 +71,8 @@ app.include_router(settings_router, prefix="/api")
 app.include_router(tinvest_router, prefix="/api")
 app.include_router(analytics_router, prefix="/api")
 app.include_router(robots_router, prefix="/api")
+app.include_router(dictionary_router, prefix="/api")
+
 
 
 @app.get("/")

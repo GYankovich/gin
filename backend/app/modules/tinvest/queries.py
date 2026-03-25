@@ -14,9 +14,7 @@ def build_get_user_token_query() -> str:
            """
 
 
-def build_get_user_tokens_query(
-        include_inactive: bool = False
-) -> tuple[str, Dict[str, Any]]:
+def build_get_user_tokens_query() -> tuple[str, Dict[str, Any]]:
     """
     Строит запрос для получения всех токенов пользователя
     """
@@ -33,13 +31,10 @@ def build_get_user_tokens_query(
                      last_used_at,
                      expires_at
                  FROM ganaly.api_tokens
-                 WHERE user_id = :user_id AND token_type = 'tinvest' \
+                 WHERE user_id = :user_id AND token_type = 'tinvest' and is_active = 1 \
                  """
 
     params = {"user_id": ":user_id"}
-
-    if not include_inactive:
-        base_query += " AND is_active = 1"
 
     base_query += " ORDER BY created_at DESC"
 

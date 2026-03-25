@@ -2,6 +2,12 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List
 
+class TokenTypeInfo(BaseModel):
+    """Информация о типе токена"""
+    type: int
+    typeName: str
+    typeDesc: str
+
 
 class ApiKeyCreate(BaseModel):
     """Схема для создания API ключа"""
@@ -22,15 +28,14 @@ class ApiKeyResponse(BaseModel):
     """Базовая схема для ответа с данными ключа"""
     id: int
     name: Optional[str] = None
-    key_type: str
+    token_type: TokenTypeInfo
     is_active: bool
     created_at: datetime
     masked_token: str
-    refresh_interval_minutes: int = 60
-    message: Optional[str] = None
 
     class Config:
         from_attributes = True
+
 
 
 class ApiKeyDetailResponse(ApiKeyResponse):
