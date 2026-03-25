@@ -233,7 +233,37 @@ export class CreateTokenModal {
         // Прикрепляем обработчики после замены
         this.attachFormEvents();
         this.attachSelectEvents();
+
+        // Добавляем стили для ошибок, если их нет в основном CSS
+        this.addErrorStyles();
         this.updateAllFieldErrors();
+    }
+
+    private addErrorStyles(): void {
+        // Проверяем, есть ли уже стили для ошибок
+        if (document.getElementById('modal-error-styles')) return;
+
+        const style = document.createElement('style');
+        style.id = 'modal-error-styles';
+        style.textContent = `
+            .modal-form-group.error .form-input,
+            .modal-form-group.error .modal-select-button {
+                border-color: #ef4444 !important;
+                background-color: rgba(239, 68, 68, 0.05) !important;
+            }
+            
+            .modal-form-group.error .field-error-message {
+                display: block !important;
+                color: #ef4444 !important;
+                font-size: 0.7rem !important;
+                margin-top: 0.25rem !important;
+            }
+            
+            .field-error-message {
+                display: none;
+            }
+        `;
+        document.head.appendChild(style);
     }
 
     private showError(error: unknown): void {

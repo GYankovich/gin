@@ -6,7 +6,8 @@ import { store } from '../../../core/store';
 import { themeManager, Theme } from '../../../core/theme';
 import { CreateTokenModal } from '../components/CreateTokenModal';
 import type { ApiKey } from '../types';
-
+// Импортируем общие стили модальных окон
+import '../../../shared/styles/modal.css';
 
 export class SettingsView {
     private container: HTMLElement;
