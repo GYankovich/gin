@@ -22,7 +22,8 @@ class InstrumentsClient:
     async def _request(self, endpoint: str, data: dict = None) -> dict:
         """Базовый POST-запрос к API Т-Банка"""
         url = f"{self.BASE_URL}/{endpoint}"
-        async with httpx.AsyncClient() as client:
+        # async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=False, timeout=30) as client:
             try:
                 response = await client.post(url, json=data, headers=self.headers, timeout=30)
                 if response.status_code != 200:
@@ -62,12 +63,18 @@ class InstrumentsClient:
 
     async def get_candles(self, figi: str, from_date: datetime, to_date: datetime, interval: str = "CANDLE_INTERVAL_DAY") -> List[Dict]:
         """Получить свечи по инструменту"""
+        # Форматируем даты в ISO 8601 с Z (UTC)
+        from_str = from_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+        to_str = to_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+
         data = {
             "figi": figi,
-            "from": from_date.isoformat(),
-            "to": to_date.isoformat(),
+            "from": from_str,
+            "to": to_str,
             "interval": interval
         }
+        logger.debug(f"Requesting candles for {figi} from {from_str} to {to_str}")
+
         result = await self._request(
             "tinkoff.public.invest.api.contract.v1.MarketDataService/GetCandles",
             data
@@ -76,7 +83,6 @@ class InstrumentsClient:
 
     async def post_order(self, figi: str, quantity: int, price: float, direction: str, account_id: str) -> Dict:
         """Выставить лимитную заявку"""
-        # Преобразуем цену в units и nano
         units = int(price)
         nano = int((price - units) * 1_000_000_000)
         data = {
@@ -98,3 +104,23 @@ class InstrumentsClient:
         from app.modules.tinvest.methods import create_tbank_client
         client = create_tbank_client(self.token)
         return await client.get_accounts()
+
+    async def get_order_state(self, account_id: str, order_id: str) -> Dict:
+        """
+        Получает статус заявки
+
+        Args:
+            account_id: ID счета
+            order_id: ID заявки
+
+        Returns:
+            Dict: статус заявки
+        """
+        data = {
+            "accountId": account_id,
+            "orderId": order_id
+        }
+        return await self._request(
+            "tinkoff.public.invest.api.contract.v1.OrdersService/GetOrderState",
+            data
+        )

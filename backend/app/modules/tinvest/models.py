@@ -41,6 +41,7 @@ class ApiToken(Base):
     expires_at = Column(DateTime(timezone=True), nullable=True)
 
     extra_data = Column(JSON, nullable=True)
+    account_id = Column(String(50), nullable=True)
 
     # Связи - используем имена классов
     user = relationship("User", back_populates="api_tokens")

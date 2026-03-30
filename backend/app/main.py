@@ -15,6 +15,7 @@ from app.modules.settings.router import router as settings_router
 from app.modules.tinvest.router import router as tinvest_router
 from app.modules.analytics.router import router as analytics_router
 from app.modules.robots import start_scheduler, stop_scheduler
+from app.modules.robots.trading.scheduler import start_trading_scheduler, stop_trading_scheduler
 from app.modules.robots.router import router as robots_router
 from app.modules.robots.common.logger import get_logger, close_logger  # ← ИСПРАВЛЕНО
 from app.modules.dictionary.router import router as dictionary_router
@@ -33,6 +34,7 @@ async def lifespan(app: FastAPI):
     system_log.info("🚀 Приложение запущено")
 
     await start_scheduler()
+    await start_trading_scheduler()
     yield
 
     # Остановка при завершении
@@ -89,3 +91,4 @@ async def root():
 async def health_check():
     """Проверка здоровья сервиса"""
     return {"status": "healthy"}
+

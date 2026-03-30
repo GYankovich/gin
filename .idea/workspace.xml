@@ -4,13 +4,16 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 1.0.9 - fix for robots and api tokens">
+    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 1.1.0 - fix for api tokens">
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/modules/settings/components/CreateTokenModal.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/settings/components/CreateTokenModal.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/modules/settings/views/SettingsView.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/modules/settings/views/SettingsView.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/logs/robots/robot_15_portfolio_updater_token15_2026-03-16_14.log" beforeDir="false" afterPath="$PROJECT_DIR$/logs/robots/robot_15_portfolio_updater_token15_2026-03-16_14.log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/methods/instruments.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/methods/instruments.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/logs/robots/robot_15_portfolio_updater_token15_2026-03-16_14.log" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/logs/robots_2026-03-16_12-16.log" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/logs/robots_2026-03-16_16-20.log" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/test.py" beforeDir="false" afterPath="$PROJECT_DIR$/test.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -22,9 +25,9 @@
       <list>
         <option value="JavaScript File" />
         <option value="HTML File" />
-        <option value="Python Script" />
         <option value="TypeScript File" />
         <option value="CSS File" />
+        <option value="Python Script" />
       </list>
     </option>
   </component>
@@ -54,6 +57,9 @@
   &quot;associatedIndex&quot;: 5
 }</component>
   <component name="ProjectId" id="3AM4CNYw14VcYY0k155fyxESzRW" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="1" id="Add" />
+  </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
@@ -145,7 +151,8 @@
       <workItem from="1774170738768" duration="11640000" />
       <workItem from="1774216353239" duration="24066000" />
       <workItem from="1774292951517" duration="4027000" />
-      <workItem from="1774304853209" duration="44791000" />
+      <workItem from="1774304853209" duration="58378000" />
+      <workItem from="1774593395582" duration="40990000" />
     </task>
     <task id="LOCAL-00001" summary="v 0.8.0 - Логин и настройка токена">
       <option name="closed" value="true" />
@@ -267,7 +274,15 @@
       <option name="project" value="LOCAL" />
       <updated>1774436586304</updated>
     </task>
-    <option name="localTasksCounter" value="16" />
+    <task id="LOCAL-00016" summary="v 1.1.0 - fix for api tokens">
+      <option name="closed" value="true" />
+      <created>1774452326271</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1774452326271</updated>
+    </task>
+    <option name="localTasksCounter" value="17" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -286,7 +301,8 @@
     <MESSAGE value="v 1.0.7 - change source table for portfolio_updater." />
     <MESSAGE value="v 1.0.8 - refactor portfolio_updater robot" />
     <MESSAGE value="v 1.0.9 - fix for robots and api tokens" />
-    <option name="LAST_COMMIT_MESSAGE" value="v 1.0.9 - fix for robots and api tokens" />
+    <MESSAGE value="v 1.1.0 - fix for api tokens" />
+    <option name="LAST_COMMIT_MESSAGE" value="v 1.1.0 - fix for api tokens" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
