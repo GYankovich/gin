@@ -1,0 +1,121 @@
+/* ===== GIN Design System — CSS Variables ===== */
+
+:root {
+    /* Spacing scale */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+    --space-16: 64px;
+
+    /* Radii */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-full: 9999px;
+
+    /* Typography */
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'Fira Code', ui-monospace, monospace;
+    --text-xs: 0.75rem;
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-lg: 1.125rem;
+    --text-xl: 1.25rem;
+    --text-2xl: 1.5rem;
+    --text-3xl: 1.875rem;
+
+    /* Transitions */
+    --transition-fast: 120ms ease;
+    --transition-base: 200ms ease;
+    --transition-slow: 350ms ease;
+
+    /* Z-index layers */
+    --z-dropdown: 100;
+    --z-modal-backdrop: 200;
+    --z-modal: 201;
+    --z-toast: 300;
+
+    /* Navbar */
+    --navbar-h: 56px;
+}
+
+/* ===== Dark theme (default) ===== */
+[data-theme='dark'] {
+    --bg-page: #0a0a0f;
+    --bg-card: #12121a;
+    --bg-card-hover: #181824;
+    --bg-input: #0e0e16;
+    --bg-input-focus: #14141e;
+    --bg-nav: rgba(10, 10, 15, 0.92);
+    --bg-modal-backdrop: rgba(0, 0, 0, 0.7);
+    --bg-tooltip: #1a1a26;
+
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-medium: rgba(255, 255, 255, 0.12);
+    --border-accent: var(--neon-cyan);
+
+    --neon-cyan: #00ffff;
+    --neon-magenta: #ff00ff;
+    --neon-violet: #aa00ff;
+
+    --color-up: #00ffaa;
+    --color-down: #ff3366;
+    --color-warn: #ffaa00;
+
+    --text-primary: #e0e0e0;
+    --text-secondary: #888888;
+    --text-muted: #555555;
+    --text-inverse: #0a0a0f;
+
+    --glow-cyan: 0 0 8px rgba(0, 255, 255, 0.35), 0 0 24px rgba(0, 255, 255, 0.12);
+    --glow-magenta: 0 0 8px rgba(255, 0, 255, 0.35), 0 0 24px rgba(255, 0, 255, 0.12);
+    --glow-up: 0 0 8px rgba(0, 255, 170, 0.35);
+    --glow-down: 0 0 8px rgba(255, 51, 102, 0.35);
+
+    --scrollbar-thumb: #2a2a3a;
+    --scrollbar-track: #0a0a0f;
+}
+
+/* ===== Light theme ===== */
+[data-theme='light'] {
+    --bg-page: #f5f5f7;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f0f0f3;
+    --bg-input: #eaeaee;
+    --bg-input-focus: #e0e0e6;
+    --bg-nav: rgba(245, 245, 247, 0.92);
+    --bg-modal-backdrop: rgba(0, 0, 0, 0.35);
+    --bg-tooltip: #ffffff;
+
+    --border-subtle: rgba(0, 0, 0, 0.06);
+    --border-medium: rgba(0, 0, 0, 0.12);
+    --border-accent: var(--neon-cyan);
+
+    --neon-cyan: #0066cc;
+    --neon-magenta: #9900cc;
+    --neon-violet: #6600aa;
+
+    --color-up: #00aa66;
+    --color-down: #cc3333;
+    --color-warn: #cc8800;
+
+    --text-primary: #1a1a1a;
+    --text-secondary: #666666;
+    --text-muted: #999999;
+    --text-inverse: #ffffff;
+
+    --glow-cyan: none;
+    --glow-magenta: none;
+    --glow-up: none;
+    --glow-down: none;
+
+    --scrollbar-thumb: #c0c0c8;
+    --scrollbar-track: #f0f0f4;
+}

@@ -213,6 +213,49 @@ def build_account_ownership_check_query() -> str:
            """
 
 
+def build_robot_trades_summary_query(schema: str = "ganaly") -> str:
+    """Агрегированные метрики по сделкам робота."""
+    return f"""
+        SELECT
+            COUNT(*) as total_trades,
+            COUNT(*) FILTER (WHERE status IN ('open', 'partial')) as open_trades,
+            COUNT(*) FILTER (WHERE status = 'closed') as closed_trades,
+            COUNT(*) FILTER (WHERE status = 'closed' AND profit > 0) as winning_trades,
+            COUNT(*) FILTER (WHERE status = 'closed' AND profit <= 0) as losing_trades,
+            COALESCE(SUM(profit) FILTER (WHERE status = 'closed'), 0) as total_pnl,
+            AVG(profit) FILTER (WHERE status = 'closed' AND profit > 0) as avg_profit,
+            AVG(profit) FILTER (WHERE status = 'closed' AND profit <= 0) as avg_loss,
+            MAX(profit) FILTER (WHERE status = 'closed') as best_trade,
+            MIN(profit) FILTER (WHERE status = 'closed') as worst_trade,
+            AVG(EXTRACT(EPOCH FROM (closed_at - created_at)) / 3600)
+                FILTER (WHERE status = 'closed' AND closed_at IS NOT NULL) as avg_duration_hours
+        FROM {schema}.robot_trades
+        WHERE robot_id = :robot_id
+    """
+
+
+def build_robot_closed_pnl_series_query(schema: str = "ganaly") -> str:
+    """Кумулятивный PnL по закрытым сделкам (для расчёта drawdown)."""
+    return f"""
+        SELECT profit
+        FROM {schema}.robot_trades
+        WHERE robot_id = :robot_id AND status = 'closed'
+        ORDER BY closed_at ASC
+    """
+
+
+def build_robot_recent_trades_query(schema: str = "ganaly") -> str:
+    """Последние сделки робота."""
+    return f"""
+        SELECT id, figi, side, quantity, entry_price, exit_price,
+               profit, profit_percent, status, created_at, closed_at
+        FROM {schema}.robot_trades
+        WHERE robot_id = :robot_id
+        ORDER BY created_at DESC
+        LIMIT :limit
+    """
+
+
 def build_last_snapshot_query(
         account_id: int,
         fields: List[str] = None

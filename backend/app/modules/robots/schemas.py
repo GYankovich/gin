@@ -21,6 +21,24 @@ class RobotUpdate(BaseModel):
     config: Optional[Dict[str, Any]] = None
 
 
+class RobotConfigUpdateRequest(BaseModel):
+    """Запрос обновления конфигурации робота."""
+    robotId: int = Field(..., description="ID робота")
+    config: Dict[str, Any] = Field(default_factory=dict, description="Новая конфигурация робота")
+
+
+class StrategyInfoResponse(BaseModel):
+    """Описание торговой стратегии для UI."""
+    name: str
+    title: str
+    description: str
+    params_schema: Dict[str, Any] = Field(default_factory=dict)
+
+
+class StrategyListResponse(BaseModel):
+    """Список доступных стратегий."""
+    items: List[StrategyInfoResponse] = Field(default_factory=list)
+
 
 class ChangeStatusRequest(BaseModel):
     """Запрос на изменение статуса робота"""

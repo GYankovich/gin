@@ -370,5 +370,99 @@ class AnalyticsService:
         return positions
 
 
-# Создаем глобальный экземпляр сервиса
+    # --- Robot trading analytics ---
+
+    def get_robot_metrics(
+            self,
+            db: Session,
+            robot_id: int,
+            recent_limit: int = 20,
+            schema: str = "ganaly",
+    ) -> Optional[Dict[str, Any]]:
+        """
+        KPI торгового робота: win rate, PnL, drawdown, profit factor и т.д.
+        """
+        self.db = db
+        summary_sql = queries.build_robot_trades_summary_query(schema)
+        row = db.execute(text(summary_sql), {"robot_id": robot_id}).first()
+        if not row:
+            return None
+
+        total_trades = self._safe_int(row[0])
+        closed_trades = self._safe_int(row[2])
+        winning = self._safe_int(row[3])
+        losing = self._safe_int(row[4])
+        total_pnl = self._safe_float(row[5], 0.0)
+        avg_profit = self._safe_float(row[6])
+        avg_loss = self._safe_float(row[7])
+        best_trade = self._safe_float(row[8])
+        worst_trade = self._safe_float(row[9])
+        avg_duration = self._safe_float(row[10])
+
+        win_rate = (winning / closed_trades * 100) if closed_trades > 0 else None
+
+        gross_profit = (avg_profit or 0) * winning
+        gross_loss = abs((avg_loss or 0) * losing)
+        profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else None
+
+        pnl_sql = queries.build_robot_closed_pnl_series_query(schema)
+        pnl_rows = db.execute(text(pnl_sql), {"robot_id": robot_id}).fetchall()
+        max_drawdown = self._calc_max_drawdown([self._safe_float(r[0], 0.0) for r in pnl_rows])
+
+        trades_sql = queries.build_robot_recent_trades_query(schema)
+        trade_rows = db.execute(text(trades_sql), {"robot_id": robot_id, "limit": recent_limit}).fetchall()
+        recent_trades = [
+            {
+                "id": self._safe_int(r[0]),
+                "figi": self._safe_str(r[1]),
+                "side": self._safe_str(r[2]),
+                "quantity": self._safe_float(r[3], 0.0),
+                "entry_price": self._safe_float(r[4]),
+                "exit_price": self._safe_float(r[5]),
+                "profit": self._safe_float(r[6]),
+                "profit_percent": self._safe_float(r[7]),
+                "status": self._safe_str(r[8]),
+                "created_at": self._safe_datetime(r[9]),
+                "closed_at": self._safe_datetime(r[10]),
+            }
+            for r in trade_rows
+        ]
+
+        metrics = {
+            "robot_id": robot_id,
+            "total_trades": total_trades,
+            "open_trades": self._safe_int(row[1]),
+            "closed_trades": closed_trades,
+            "winning_trades": winning,
+            "losing_trades": losing,
+            "win_rate": round(win_rate, 2) if win_rate is not None else None,
+            "total_pnl": round(total_pnl, 2),
+            "avg_profit": round(avg_profit, 2) if avg_profit else None,
+            "avg_loss": round(avg_loss, 2) if avg_loss else None,
+            "best_trade": round(best_trade, 2) if best_trade else None,
+            "worst_trade": round(worst_trade, 2) if worst_trade else None,
+            "max_drawdown": round(max_drawdown, 2) if max_drawdown else None,
+            "profit_factor": round(profit_factor, 2) if profit_factor else None,
+            "avg_trade_duration_hours": round(avg_duration, 2) if avg_duration else None,
+        }
+
+        return {"metrics": metrics, "recent_trades": recent_trades}
+
+    @staticmethod
+    def _calc_max_drawdown(profits: List[float]) -> Optional[float]:
+        if not profits:
+            return None
+        cumulative = 0.0
+        peak = 0.0
+        max_dd = 0.0
+        for p in profits:
+            cumulative += p
+            if cumulative > peak:
+                peak = cumulative
+            dd = peak - cumulative
+            if dd > max_dd:
+                max_dd = dd
+        return max_dd if max_dd > 0 else None
+
+
 analytics_service = AnalyticsService()

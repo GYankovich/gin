@@ -1,6 +1,5 @@
 # app/modules/robots/service.py
 from typing import Optional, List, Dict, Any, Tuple
-import logging
 from datetime import datetime, timezone
 import json
 
@@ -10,10 +9,12 @@ from fastapi import HTTPException, status
 
 from app.modules.tinvest.token_service import token_service
 from app.modules.tinvest.service import tinvest_service
+from app.core.config import settings
+from app.core.logging_config import get_logger
 from . import queries, schemas
 from app.modules.dictionary import queries as dict_queries
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class RobotService:
@@ -97,7 +98,7 @@ class RobotService:
         """Получение робота по ID (с проверкой владельца)"""
         self.db = db
 
-        query = queries.build_get_robot_by_id_query()
+        query = queries.build_get_robot_by_id_query(schema=settings.DB_SCHEMA)
         result = db.execute(
             text(query),
             {"robot_id": robot_id, "user_id": user_id}
@@ -149,7 +150,7 @@ class RobotService:
         self.db = db
 
         # Проверяем уникальность имени
-        check_name_query = queries.build_check_robot_name_exists_query()
+        check_name_query = queries.build_check_robot_name_exists_query(schema=settings.DB_SCHEMA)
         existing = db.execute(
             text(check_name_query),
             {"user_id": user_id, "name": robot_data.name}
@@ -162,7 +163,7 @@ class RobotService:
             )
 
         # Проверяем существование и активность токена
-        check_token_query = queries.build_check_token_query()
+        check_token_query = queries.build_check_token_query(schema=settings.DB_SCHEMA)
         token = db.execute(
             text(check_token_query),
             {"token_id": robot_data.token_id, "user_id": user_id}
@@ -195,7 +196,7 @@ class RobotService:
         now = datetime.now(timezone.utc)
 
         # Создаем робота
-        insert_query = queries.build_create_robot_query()
+        insert_query = queries.build_create_robot_query(schema=settings.DB_SCHEMA)
         result = db.execute(
             text(insert_query),
             {
@@ -247,7 +248,7 @@ class RobotService:
         now = datetime.now(timezone.utc)
 
         # Обновляем статус
-        update_query = queries.build_change_robot_status_query()
+        update_query = queries.build_change_robot_status_query(schema=settings.DB_SCHEMA)
         result = db.execute(
             text(update_query),
             {
@@ -271,6 +272,70 @@ class RobotService:
         updated_robot = await self.get_robot_by_id(db, robot_id, user_id)
 
         return updated_robot
+
+    async def get_available_strategies(self) -> List[Dict[str, Any]]:
+        """Возвращает список доступных стратегий и их схем параметров."""
+        from app.modules.robots.trading.strategies import list_strategies
+        return list_strategies()
+
+    async def update_robot_config(
+            self,
+            db: Session,
+            robot_id: int,
+            user_id: int,
+            config: Dict[str, Any]
+    ) -> dict:
+        """
+        Обновляет конфиг робота с базовой валидацией strategy_params.
+        """
+        self.db = db
+        await self.get_robot_by_id(db, robot_id, user_id)
+        self._validate_robot_config(config)
+
+        update_query = queries.build_update_robot_config_query(schema=settings.DB_SCHEMA)
+        result = db.execute(
+            text(update_query),
+            {
+                "robot_id": robot_id,
+                "user_id": user_id,
+                "config": config,
+                "usermod": user_id,
+                "now": datetime.now(timezone.utc)
+            }
+        ).first()
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Не удалось обновить конфигурацию робота"
+            )
+        db.commit()
+        return await self.get_robot_by_id(db, robot_id, user_id)
+
+    def _validate_robot_config(self, config: Dict[str, Any]) -> None:
+        """
+        Валидирует обязательные поля стратегии.
+        """
+        strategy_params = config.get("strategy_params") or {}
+        interval = strategy_params.get("interval")
+        fast_period = strategy_params.get("fast_period")
+        slow_period = strategy_params.get("slow_period")
+        if not interval:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="strategy_params.interval is required"
+            )
+        if fast_period is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="strategy_params.fast_period is required"
+            )
+        if slow_period is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="strategy_params.slow_period is required"
+            )
+        if not strategy_params.get("candle_days"):
+            strategy_params["candle_days"] = 60
 
 
 # Создаем экземпляр сервиса

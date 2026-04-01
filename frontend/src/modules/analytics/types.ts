@@ -55,3 +55,42 @@ export interface AccountDetail {
     history: HistoryItem[];
     distribution: DistributionItem[];
 }
+
+// --- Robot trading analytics ---
+
+export interface RobotTradeItem {
+    id: number;
+    figi: string;
+    side: string;
+    quantity: number;
+    entry_price: number | null;
+    exit_price: number | null;
+    profit: number | null;
+    profit_percent: number | null;
+    status: string;
+    created_at: string | null;
+    closed_at: string | null;
+}
+
+export interface RobotMetrics {
+    robot_id: number;
+    total_trades: number;
+    open_trades: number;
+    closed_trades: number;
+    winning_trades: number;
+    losing_trades: number;
+    win_rate: number | null;
+    total_pnl: number;
+    avg_profit: number | null;
+    avg_loss: number | null;
+    best_trade: number | null;
+    worst_trade: number | null;
+    max_drawdown: number | null;
+    profit_factor: number | null;
+    avg_trade_duration_hours: number | null;
+}
+
+export interface RobotMetricsResponse {
+    metrics: RobotMetrics;
+    recent_trades: RobotTradeItem[];
+}

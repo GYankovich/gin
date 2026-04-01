@@ -20,3 +20,13 @@ def build_get_active_portfolio_robots_query() -> str:
              AND r.status = :status_active
              AND at.is_active = 1 \
            """
+
+
+def build_get_robot_config_query() -> str:
+    """
+    Получение конфигурации робота из БД
+    """
+    return """
+           SELECT config FROM {schema}.robots
+           WHERE id = :robot_id AND status = 1 \
+           """

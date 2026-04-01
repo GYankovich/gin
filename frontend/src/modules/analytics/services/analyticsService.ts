@@ -1,5 +1,5 @@
 import { apiFetch } from '../../../core/api';
-import type { OverallSummary, AccountDetail, AccountSummary } from '../types';
+import type { OverallSummary, AccountDetail, RobotMetricsResponse } from '../types';
 
 class AnalyticsService {
     async getOverallSummary(): Promise<OverallSummary> {
@@ -12,6 +12,12 @@ class AnalyticsService {
 
     async getAccountHistory(accountId: number, days: number = 30): Promise<{ account_id: number; days: number; history: any[] }> {
         return apiFetch(`/analytics/accounts/${accountId}/history?days=${days}`);
+    }
+
+    async getRobotMetrics(robotId: number, recentLimit = 20): Promise<RobotMetricsResponse> {
+        return apiFetch<RobotMetricsResponse>(
+            `/analytics/robots/${robotId}/metrics?recent_limit=${recentLimit}`
+        );
     }
 }
 

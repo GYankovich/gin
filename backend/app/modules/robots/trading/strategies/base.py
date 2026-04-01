@@ -14,9 +14,12 @@ class BaseStrategy(ABC):
         self.figis = params.get('figis', [])
 
     @abstractmethod
-    async def generate_signals(self) -> Dict[str, Optional[str]]:
+    async def generate_signals(self, candles_data: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Optional[str]]:
         """
         Генерирует сигналы для каждого инструмента
+
+        Args:
+            candles_data: Исторические свечи по FIGI в формате {figi: [candles]}
 
         Returns:
             Dict[str, Optional[str]]: {figi: 'BUY'/'SELL'/None}

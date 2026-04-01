@@ -1,0 +1,138 @@
+/* =====================================================
+   Live Panel Styles
+   ===================================================== */
+
+.live-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.live-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.live-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.live-status {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.65rem;
+    border-radius: var(--radius-pill);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.live-status::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+.live-connected {
+    background: var(--color-success-dim);
+    color: var(--color-success);
+}
+
+.live-connected::before {
+    background: var(--color-success);
+    animation: live-pulse 1.5s ease-in-out infinite;
+}
+
+.live-disconnected {
+    background: var(--color-danger-dim);
+    color: var(--color-danger);
+}
+
+.live-disconnected::before {
+    background: var(--color-danger);
+}
+
+@keyframes live-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* Sections */
+.live-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+}
+
+.live-section-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin: 0 0 var(--space-sm);
+}
+
+.live-empty {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-align: center;
+    padding: var(--space-sm) 0;
+    margin: 0;
+}
+
+/* Price table */
+.live-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.live-table td {
+    padding: 0.3rem 0.25rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.live-table tr:last-child td {
+    border-bottom: none;
+}
+
+.live-price-row {
+    transition: background var(--transition-fast);
+}
+
+.live-flash {
+    animation: live-row-flash 0.4s ease;
+}
+
+@keyframes live-row-flash {
+    0%   { background: var(--accent-dim); }
+    100% { background: transparent; }
+}
+
+/* Feed items */
+.live-feed {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.live-feed-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 0.3rem 0.25rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+}
+
+.live-feed-item:last-child {
+    border-bottom: none;
+}

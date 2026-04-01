@@ -67,6 +67,26 @@ def get_account_detail(
     return detail
 
 
+@router.get("/robots/{robot_id}/metrics", response_model=schemas.RobotMetricsResponse)
+def get_robot_metrics(
+        robot_id: int,
+        recent_limit: int = Query(20, ge=1, le=100, description="Последних сделок"),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """KPI торгового робота: win rate, PnL, drawdown, profit factor."""
+    from app.core.config import settings
+    result = analytics_service.get_robot_metrics(
+        db,
+        robot_id=robot_id,
+        recent_limit=recent_limit,
+        schema=settings.DB_SCHEMA,
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Robot not found or no trades")
+    return result
+
+
 @router.get("/accounts/{account_id}/history")
 def get_account_history(
         account_id: int,

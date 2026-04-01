@@ -6,9 +6,9 @@ import websockets
 import ssl
 import json
 from typing import Dict, List, Callable, Optional
-import logging
+from app.core.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PriceStreamManager:
@@ -75,6 +75,9 @@ class PriceStreamManager:
     async def subscribe(self, figis: List[str]) -> Dict[str, str]:
         """Подписывается на цены для указанных FIGI"""
         result = {}
+        if not self.connected or not self.websocket:
+            logger.warning("WebSocket is not connected, reconnecting before subscribe")
+            await self.connect()
 
         new_figis = [f for f in figis if f not in self._subscribed_figis]
         if not new_figis:
@@ -89,7 +92,13 @@ class PriceStreamManager:
         }
 
         logger.info(f"Subscribing to {len(new_figis)} FIGIs: {new_figis}")
-        await self.websocket.send(json.dumps(subscribe_msg))
+        try:
+            await self.websocket.send(json.dumps(subscribe_msg))
+        except Exception as e:
+            logger.warning(f"Subscribe send failed, reconnecting: {e}")
+            self.connected = False
+            await self.connect()
+            await self.websocket.send(json.dumps(subscribe_msg))
 
         try:
             response = await asyncio.wait_for(self.websocket.recv(), timeout=10)

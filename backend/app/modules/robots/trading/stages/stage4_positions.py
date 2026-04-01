@@ -3,7 +3,6 @@ Stage 4: Управление позициями (открытые, стоп-л�
 """
 from typing import Dict, List, Optional
 from datetime import datetime, timezone
-import logging
 from sqlalchemy import text
 
 from app.modules.tinvest.methods.instruments import InstrumentsClient
@@ -12,8 +11,10 @@ from app.modules.robots.trading.costs import (
     calculate_stop_loss_price,
     calculate_take_profit_price
 )
+from app.modules.robots.trading import queries as trading_queries
+from app.core.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Stage4Positions:
@@ -39,11 +40,7 @@ class Stage4Positions:
         """Получает открытые позиции робота из БД"""
         self._write_log("📊 Получение открытых позиций из БД")
 
-        query = """
-            SELECT id, figi, side, quantity, entry_price, status
-            FROM {}.robot_trades
-            WHERE robot_id = :robot_id AND status IN ('open', 'partial')
-        """.format(self.schema)
+        query = trading_queries.build_get_open_positions_query().format(schema=self.schema)
 
         self._write_log(f"   SQL: {query}")
         self._write_log(f"   robot_id: {self.robot_id}")
@@ -152,15 +149,7 @@ class Stage4Positions:
 
     async def _close_trade(self, trade_id: int, exit_price: float, reason: str, profit: float, profit_percent: float):
         """Закрывает сделку в БД"""
-        query = """
-            UPDATE {}.robot_trades
-            SET status = 'closed',
-                exit_price = :exit_price,
-                closed_at = :now,
-                profit = :profit,
-                profit_percent = :profit_percent
-            WHERE id = :trade_id
-        """.format(self.schema)
+        query = trading_queries.build_close_trade_query().format(schema=self.schema)
 
         self.db.execute(
             text(query),

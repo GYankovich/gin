@@ -2,14 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Optional, List
-import logging
 
 from app.core.database import get_db
+from app.core.logging_config import get_logger
+from app.core.config import settings
 from app.core.security import get_current_user
 from app.modules.auth.models import User
 from . import schemas, service, queries
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 router = APIRouter(prefix="/robots", tags=["Trading Robots"])
 
 # app/modules/robots/router.py
@@ -35,7 +36,8 @@ async def get_robots(
         limit=request.limit,
         offset=request.offset,
         sort_by=request.sort_by,
-        sort_order=request.sort_order
+        sort_order=request.sort_order,
+        schema=settings.DB_SCHEMA
     )
     params["user_id"] = current_user.id
 
@@ -47,7 +49,8 @@ async def get_robots(
         robot_status=request.robot_status,
         robot_type=request.robot_type,
         robot_name=request.robot_name,
-        token_type=request.token_type
+        token_type=request.token_type,
+        schema=settings.DB_SCHEMA
     )
     count_params["user_id"] = current_user.id
     total = db.execute(text(count_query), count_params).scalar() or 0
@@ -152,3 +155,56 @@ async def change_robot_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при изменении статуса робота: {str(e)}"
         )
+
+
+@router.get("/strategies", response_model=schemas.StrategyListResponse)
+async def get_strategies(
+        current_user: User = Depends(get_current_user)
+):
+    """Список стратегий и схем параметров для динамической формы на фронтенде."""
+    items = await service.robot_service.get_available_strategies()
+    return schemas.StrategyListResponse(items=items)
+
+
+@router.post("/config", response_model=schemas.RobotInDB)
+async def update_robot_config(
+        request: schemas.RobotConfigUpdateRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """Обновление конфигурации робота."""
+    try:
+        robot = await service.robot_service.update_robot_config(
+            db=db,
+            robot_id=request.robotId,
+            user_id=current_user.id,
+            config=request.config,
+        )
+        return schemas.RobotInDB.model_validate(robot)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при обновлении конфигурации: {str(e)}"
+        )
+
+
+@router.post("/instruments/auto-select")
+async def auto_select_instruments(
+        current_user: User = Depends(get_current_user)
+):
+    """Автоподбор топ-20 инструментов по ликвидности."""
+    from app.modules.robots.trading.instrument_selector import InstrumentSelector
+    from app.modules.tinvest.token_service import token_service
+
+    token_data = await token_service.get_active_token(current_user.id)
+    if not token_data:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет активного токена")
+
+    selector = InstrumentSelector(token_data["token"])
+    try:
+        instruments = await selector.select_instruments()
+        return {"items": instruments, "total": len(instruments)}
+    finally:
+        await selector.close()

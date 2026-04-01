@@ -48,3 +48,43 @@ class OverallSummaryResponse(BaseModel):
     total_expected_yield: Optional[float]
     accounts_count: int
     accounts: List[AccountSummary]
+
+
+# --- Robot trading analytics ---
+
+class RobotTradeItem(BaseModel):
+    id: int
+    figi: str
+    side: str
+    quantity: float
+    entry_price: Optional[float]
+    exit_price: Optional[float]
+    profit: Optional[float]
+    profit_percent: Optional[float]
+    status: str
+    created_at: Optional[datetime]
+    closed_at: Optional[datetime]
+
+
+class RobotMetrics(BaseModel):
+    """Основные KPI торгового робота"""
+    robot_id: int
+    total_trades: int
+    open_trades: int
+    closed_trades: int
+    winning_trades: int
+    losing_trades: int
+    win_rate: Optional[float]
+    total_pnl: float
+    avg_profit: Optional[float]
+    avg_loss: Optional[float]
+    best_trade: Optional[float]
+    worst_trade: Optional[float]
+    max_drawdown: Optional[float]
+    profit_factor: Optional[float]
+    avg_trade_duration_hours: Optional[float]
+
+
+class RobotMetricsResponse(BaseModel):
+    metrics: RobotMetrics
+    recent_trades: List[RobotTradeItem]

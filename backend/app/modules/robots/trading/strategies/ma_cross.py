@@ -1,7 +1,9 @@
 import pandas as pd
-from datetime import datetime, timedelta
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 from .base import BaseStrategy
+from app.core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class MACrossStrategy(BaseStrategy):
@@ -10,30 +12,30 @@ class MACrossStrategy(BaseStrategy):
     """
 
     async def get_required_candles_count(self) -> int:
-        slow = self.params.get('slow_period', 30)
+        slow = self.params.get('slow_period')
+        if slow is None:
+            raise ValueError("strategy_params.fast_period and strategy_params.slow_period are required for ma_cross")
         return slow + 20  # запас для расчета
 
-    async def generate_signals(self) -> Dict[str, Optional[str]]:
+    async def generate_signals(self, candles_data: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Optional[str]]:
         signals = {}
-        fast = self.params.get('fast_period', 10)
-        slow = self.params.get('slow_period', 30)
-        interval = self.params.get('interval', 'CANDLE_INTERVAL_DAY')
-
-        to_date = datetime.utcnow()
-        days_needed = await self.get_required_candles_count()
-        from_date = to_date - timedelta(days=days_needed)
+        fast = self.params.get('fast_period')
+        slow = self.params.get('slow_period')
+        if fast is None or slow is None:
+            raise ValueError("strategy_params.fast_period and strategy_params.slow_period are required for ma_cross")
+        if fast >= slow:
+            raise ValueError("strategy_params.fast_period must be less than strategy_params.slow_period")
 
         for figi in self.figis:
             try:
-                candles = await self.client.get_candles(figi, from_date, to_date, interval)
+                candles = candles_data.get(figi, [])
                 if len(candles) < slow + 1:
                     signals[figi] = None
                     continue
 
-                # Преобразуем в DataFrame
                 df = pd.DataFrame([{
                     'time': c['time'],
-                    'close': c['close']['units'] + c['close']['nano'] / 1e9
+                    'close': int(c['close'].get('units', 0) or 0) + int(c['close'].get('nano', 0) or 0) / 1e9
                 } for c in candles])
 
                 df['fast_ma'] = df['close'].rolling(fast).mean()
@@ -59,7 +61,7 @@ class MACrossStrategy(BaseStrategy):
                     signals[figi] = None
 
             except Exception as e:
-                print(f"Error processing {figi}: {e}")
+                logger.error(f"Error processing {figi}: {e}", exc_info=True)
                 signals[figi] = None
 
         return signals

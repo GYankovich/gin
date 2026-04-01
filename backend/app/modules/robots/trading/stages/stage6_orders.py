@@ -1,21 +1,20 @@
 """
 Stage 6: Выставление заявок
+Использует TInvestFacade и PriceParsingMixin
 """
 from typing import Dict, List, Optional
 from datetime import datetime, timezone
-import logging
-import json
 
-from sqlalchemy import text
-
-from app.modules.tinvest.methods.instruments import InstrumentsClient
+from app.modules.tinvest.facade import TInvestFacade
+from app.modules.robots.common.mixins import PriceParsingMixin
 from app.modules.robots.trading.costs import TradingCosts
+from app.core.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
-class Stage6Orders:
-    """Выставление заявок"""
+class Stage6Orders(PriceParsingMixin):
+    """Выставление заявок через TInvestFacade"""
 
     def __init__(self, db, schema: str, token: str, account_id: str, robot_id: int, token_id: int, user_id: int, log_func=None):
         self.db = db
@@ -26,7 +25,14 @@ class Stage6Orders:
         self.token_id = token_id
         self.user_id = user_id
         self.log_func = log_func
-        self.rest_client = InstrumentsClient(token)
+        self._facade: Optional[TInvestFacade] = None
+
+    @property
+    def facade(self) -> TInvestFacade:
+        """Ленивая инициализация фасада"""
+        if self._facade is None:
+            self._facade = TInvestFacade(self.token)
+        return self._facade
 
     def _write_log(self, message: str):
         """Запись в лог"""
@@ -36,7 +42,7 @@ class Stage6Orders:
             logger.info(f"[STAGE6] {message}")
 
     async def execute_signals(self, signals: List[Dict]) -> List[Dict]:
-        """Выставляет заявки на основе сигналов"""
+        """Выставляет заявки на основе сигналов через фасад"""
         self._write_log("📊 Выставление заявок")
         self._write_log(f"   Всего сигналов: {len(signals)}")
 
@@ -52,7 +58,9 @@ class Stage6Orders:
                 self._write_log(f"      Цена: {signal['price']:.4f}")
 
                 api_start = datetime.now(timezone.utc)
-                order = await self.rest_client.post_order(
+
+                # Используем фасад для выставления заявки
+                order = await self.facade.post_order(
                     figi=signal["figi"],
                     quantity=signal["quantity"],
                     price=signal["price"],
@@ -99,67 +107,24 @@ class Stage6Orders:
         self._write_log(f"\n   Итого заявок: {len(trades)}")
         return trades
 
-    async def save_trades(self, robot_id: int, trades: List[Dict]) -> List[int]:
-        """Сохраняет сделки в БД"""
-        self._write_log("💾 Сохранение сделок в БД")
-
-        if not self.db:
-            return []
-
-        trade_ids = []
-
-        for trade in trades:
-            query = """
-                INSERT INTO {}.robot_trades
-                (robot_id, figi, side, quantity, price, total_amount, 
-                 entry_price, commission, status, order_id, created_at)
-                VALUES
-                (:robot_id, :figi, :side, :quantity, :price, :total_amount,
-                 :entry_price, :commission, :status, :order_id, :now)
-                RETURNING id
-            """.format(self.schema)
-
-            result = self.db.execute(
-                text(query),
-                {
-                    "robot_id": robot_id,
-                    "figi": trade["figi"],
-                    "side": trade["side"],
-                    "quantity": trade["quantity"],
-                    "price": trade["price"],
-                    "total_amount": trade["total_amount"],
-                    "entry_price": trade.get("entry_price"),
-                    "commission": trade.get("commission"),
-                    "status": trade["status"],
-                    "order_id": trade.get("order_id"),
-                    "now": datetime.now(timezone.utc)
-                }
-            ).first()
-
-            if result:
-                trade_ids.append(result[0])
-                self._write_log(f"   Сделка сохранена: ID={result[0]}, {trade['figi']} {trade['side']} {trade['quantity']} @ {trade['price']:.4f}")
-
-        if trade_ids:
-            self.db.commit()
-            self._write_log(f"   Итого сохранено: {len(trade_ids)} сделок")
-
-        return trade_ids
-
     async def update_order_status(self, order_id: str) -> Dict:
         """
-        Обновляет статус заявки и возвращает актуальную информацию
+        Обновляет статус заявки через фасад
         """
         self._write_log(f"🔄 Проверка статуса заявки {order_id}...")
 
         try:
-            order_state = await self.rest_client.get_order_state(self.account_id, order_id)
+            order_state = await self.facade.get_order_state(self.account_id, order_id)
 
             status = order_state.get("executionReportStatus")
             lots_executed = int(order_state.get("lotsExecuted", 0))
             lots_requested = int(order_state.get("lotsRequested", 0))
 
             self._write_log(f"   Статус: {status}, исполнено: {lots_executed}/{lots_requested}")
+
+            # Используем parse_price из миксина
+            executed_price = self.parse_price(order_state.get("executedOrderPrice"))
+            commission = self.parse_price(order_state.get("executedCommission"))
 
             return {
                 "order_id": order_id,
@@ -171,23 +136,10 @@ class Stage6Orders:
                 "is_cancelled": status == "EXECUTION_REPORT_STATUS_CANCELLED",
                 "is_rejected": status == "EXECUTION_REPORT_STATUS_REJECTED",
                 "trades": order_state.get("stages", []),
-                "executed_price": self._parse_price(order_state.get("executedOrderPrice")),
-                "commission": self._parse_price(order_state.get("executedCommission"))
+                "executed_price": executed_price,
+                "commission": commission
             }
 
         except Exception as e:
             self._write_log(f"   ❌ Ошибка получения статуса: {e}")
             return {"order_id": order_id, "status": "ERROR", "error": str(e)}
-
-    def _parse_price(self, price_data: dict) -> Optional[float]:
-        """Парсит цену из units/nano"""
-        if not price_data:
-            return None
-        units = price_data.get("units", 0)
-        nano = price_data.get("nano", 0)
-        try:
-            units = int(units) if units else 0
-            nano = int(nano) if nano else 0
-        except (TypeError, ValueError):
-            return None
-        return units + nano / 1e9

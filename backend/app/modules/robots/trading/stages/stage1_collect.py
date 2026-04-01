@@ -1,13 +1,15 @@
 """
 Stage 1: Сбор роботов, которые должны быть запущены по расписанию
 """
-import logging
 from datetime import datetime, time
 from typing import List, Dict, Any, Optional
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-logger = logging.getLogger(__name__)
+from app.core.logging_config import get_logger
+from app.modules.robots.trading import queries as trading_queries
+
+logger = get_logger(__name__)
 
 
 class Stage1Collect:
@@ -88,26 +90,7 @@ class Stage1Collect:
         self._write_log("📋 STAGE 1: Сбор роботов по расписанию")
         self._write_log("=" * 60)
 
-        # Запрос к БД
-        query = """
-            SELECT 
-                r.id as robot_id,
-                r.user_id,
-                r.token_id,
-                r.config,
-                at.token as token_value,
-                rs.schedule_type,
-                rs.interval_seconds,
-                rs.start_time,
-                rs.end_time,
-                rs.weekdays
-            FROM {}.robots r
-            INNER JOIN {}.api_tokens at ON r.token_id = at.id
-            LEFT JOIN {}.robot_schedules rs ON r.id = rs.robot_id AND rs.is_active = 1
-            WHERE r.type = 2 
-                AND r.status = 1
-                AND at.is_active = 1
-        """.format(self.schema, self.schema, self.schema)
+        query = trading_queries.build_collect_scheduled_trading_robots_query().format(schema=self.schema)
 
         self._write_log(f"📝 SQL запрос:\n{query}")
 

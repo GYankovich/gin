@@ -1,94 +1,111 @@
-"""
-Главный файл FastAPI приложения
-"""
+# app/main.py
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.exceptions import RequestValidationError
-from pydantic import ValidationError
-from contextlib import asynccontextmanager
 
+from app.core.logging_config import setup_logging, get_logger
+setup_logging()
 
-from app.core.config import settings
-from app.core.exceptions import validation_exception_handler
-from app.modules.auth.router import router as auth_router
-from app.modules.settings.router import router as settings_router
-from app.modules.tinvest.router import router as tinvest_router
-from app.modules.analytics.router import router as analytics_router
-from app.modules.robots import start_scheduler, stop_scheduler
-from app.modules.robots.trading.scheduler import start_trading_scheduler, stop_trading_scheduler
-from app.modules.robots.router import router as robots_router
-from app.modules.robots.common.logger import get_logger, close_logger  # ← ИСПРАВЛЕНО
-from app.modules.dictionary.router import router as dictionary_router
+system_log = get_logger("app")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Управление жизненным циклом приложения
-    """
-    # Запуск при старте
-    print("🚀 Starting up...")
+    # Startup
+    system_log.info("=" * 60)
+    system_log.info("🚀 ПРИЛОЖЕНИЕ ЗАПУСКАЕТСЯ")
+    system_log.info("=" * 60)
 
-    # Инициализируем логгер роботов
-    system_log = get_logger("SYSTEM", "MAIN")  # ← ИСПРАВЛЕНО
-    system_log.info("🚀 Приложение запущено")
+    # Запуск портфельного планировщика
+    try:
+        from app.modules.robots.portfolio_updater.scheduler import start_portfolio_scheduler
+        await start_portfolio_scheduler()
+        system_log.info("✅ Портфельный планировщик запущен")
+    except Exception as e:
+        system_log.error(f"❌ Ошибка запуска портфельного планировщика: {e}")
 
-    await start_scheduler()
-    await start_trading_scheduler()
+    # Запуск торгового планировщика
+    try:
+        from app.modules.robots.trading.scheduler import start_trading_scheduler
+        await start_trading_scheduler()
+        system_log.info("✅ Торговый планировщик запущен")
+    except Exception as e:
+        system_log.error(f"❌ Ошибка запуска торгового планировщика: {e}")
+
     yield
 
-    # Остановка при завершении
-    print("🛑 Shutting down...")
-    system_log.info("🛑 Приложение остановлено")
+    # Shutdown
+    system_log.info("=" * 60)
+    system_log.info("🛑 ПРИЛОЖЕНИЕ ОСТАНАВЛИВАЕТСЯ")
+    system_log.info("=" * 60)
 
-    await stop_scheduler()
-    close_logger()  # ← ИСПРАВЛЕНО
+    # Остановка планировщиков
+    try:
+        from app.modules.robots.portfolio_updater.scheduler import stop_portfolio_scheduler
+        await stop_portfolio_scheduler()
+    except Exception as e:
+        system_log.error(f"Ошибка остановки портфельного планировщика: {e}")
 
+    try:
+        from app.modules.robots.trading.scheduler import stop_trading_scheduler
+        await stop_trading_scheduler()
+    except Exception as e:
+        system_log.error(f"Ошибка остановки торгового планировщика: {e}")
 
-app = FastAPI(
-    title="Gin API",
-    description="API джина))))",
-    version="0.9.0",
-    debug=settings.DEBUG,
-    lifespan=lifespan
-)
-
-# Подключаем обработчики ошибок
-app.add_exception_handler(RequestValidationError, validation_exception_handler)
-app.add_exception_handler(ValidationError, validation_exception_handler)
-
-
-# Настройка CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Подключаем роутеры модулей
-app.include_router(auth_router, prefix="/api")
-app.include_router(settings_router, prefix="/api")
-app.include_router(tinvest_router, prefix="/api")
-app.include_router(analytics_router, prefix="/api")
-app.include_router(robots_router, prefix="/api")
-app.include_router(dictionary_router, prefix="/api")
+    system_log.info("✅ Приложение остановлено")
 
 
+def create_app() -> FastAPI:
+    app = FastAPI(
+        title="Ganaly API",
+        description="API для торговых роботов",
+        version="2.0.0",
+        lifespan=lifespan
+    )
 
-@app.get("/")
-async def root():
-    """Корневой эндпоинт для проверки"""
-    return {
-        "message": "Welcome to Gin API",
-        "docs": "/docs",
-        "environment": settings.ENVIRONMENT
-    }
+    # REST logging middleware (до CORS, чтобы логировать все запросы)
+    from app.core.rest_logging_middleware import RestLoggingMiddleware
+    app.add_middleware(RestLoggingMiddleware)
+
+    # CORS
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Регистрация роутеров
+    from app.modules.auth.router import router as auth_router
+    from app.modules.tinvest.router import router as tinvest_router
+    from app.modules.robots.router import router as robots_router
+    from app.modules.analytics.router import router as analytics_router
+
+    app.include_router(auth_router, prefix="/api", tags=["auth"])
+    app.include_router(tinvest_router, prefix="/api/tinvest", tags=["tinvest"])
+    app.include_router(robots_router, prefix="/api", tags=["robots"])
+    app.include_router(analytics_router, prefix="/api", tags=["analytics"])
+
+    @app.get("/health")
+    async def health_check():
+        return {"status": "ok", "version": "2.0.0"}
+
+    @app.get("/api/scheduler/portfolio/run")
+    async def force_portfolio_update():
+        """Принудительный запуск портфельного обновления"""
+        from app.modules.robots.portfolio_updater.scheduler import run_portfolio_update_once
+        result = await run_portfolio_update_once()
+        return result
+
+    @app.get("/api/scheduler/trading/run/{robot_id}")
+    async def force_trading_robot(robot_id: int):
+        """Принудительный запуск торгового робота"""
+        from app.modules.robots.trading.scheduler import force_run_trading_robot
+        result = await force_run_trading_robot(robot_id)
+        return result
+
+    return app
 
 
-@app.get("/health")
-async def health_check():
-    """Проверка здоровья сервиса"""
-    return {"status": "healthy"}
-
+app = create_app()

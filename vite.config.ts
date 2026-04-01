@@ -1,20 +1,28 @@
 import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
 export default defineConfig({
-    // root указываем на корень проекта, а не на frontend
+    plugins: [react()],
     root: resolve(__dirname, './'),
+    resolve: {
+        alias: { '@': resolve(__dirname, 'frontend/src') },
+    },
     server: {
         port: 5173,
         proxy: {
             '/api': {
                 target: 'http://localhost:8000',
-                changeOrigin: true
-            }
-        }
+                changeOrigin: true,
+            },
+            '/ws': {
+                target: 'ws://localhost:8000',
+                ws: true,
+            },
+        },
     },
     build: {
         outDir: resolve(__dirname, 'dist'),
-        emptyOutDir: true
-    }
+        emptyOutDir: true,
+    },
 })

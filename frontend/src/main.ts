@@ -5,10 +5,14 @@ import { Navbar } from './shared/components/Navbar';
 import { router } from './core/router';
 import { store } from './core/store';
 import { themeManager } from './core/theme';
+import './shared/styles/theme.css';
 import './shared/styles/robots.css';
 import './shared/styles/modal.css';
 import './shared/styles/navbar.css';
 import './shared/styles/select.css';
+import './shared/styles/analytics.css';
+import './shared/styles/robot-settings.css';
+import './shared/styles/live.css';
 
 // Импортируем представления для роботов
 import { RobotsPage } from './modules/robots/pages/RobotsPage';

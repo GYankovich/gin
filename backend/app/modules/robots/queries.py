@@ -12,7 +12,8 @@ def build_get_user_robots_query(
         limit: int = 100,
         offset: int = 0,
         sort_by: Optional[str] = None,
-        sort_order: str = "asc"
+        sort_order: str = "asc",
+        schema: str = "ganaly"
 ) -> tuple[str, Dict[str, Any]]:
     """
     Строит запрос для получения всех роботов пользователя
@@ -41,14 +42,14 @@ def build_get_user_robots_query(
                      r.date_creation,
                      r.usermod,
                      r.date_modification
-                 FROM ganaly.robots r
-                          JOIN ganaly.api_tokens t ON r.token_id = t.id
-                          join ganaly.dictionary da ON t.token_type = da.num_value AND da.table_name = 'TOKEN' AND da.column_name = 'TYPE'
-                          JOIN ganaly.dictionary dt ON r.type = dt.num_value AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
-                          JOIN ganaly.dictionary ds ON r.status = ds.num_value AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
+                 FROM {schema}.robots r
+                          JOIN {schema}.api_tokens t ON r.token_id = t.id
+                          join {schema}.dictionary da ON t.token_type = da.num_value AND da.table_name = 'TOKEN' AND da.column_name = 'TYPE'
+                          JOIN {schema}.dictionary dt ON r.type = dt.num_value AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
+                          JOIN {schema}.dictionary ds ON r.status = ds.num_value AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
                  WHERE r.user_id = :user_id
                      AND R.STATUS != 0
-                 """
+                 """.format(schema=schema)
 
     params = {}
     conditions = []
@@ -107,18 +108,19 @@ def build_count_user_robots_query(
         robot_status: Optional[List[int]] = None,
         robot_type: Optional[List[int]] = None,
         robot_name: Optional[str] = None,
-        token_type: Optional[List[int]] = None
+        token_type: Optional[List[int]] = None,
+        schema: str = "ganaly"
 ) -> tuple[str, Dict[str, Any]]:
     """
     Строит запрос для подсчета количества роботов пользователя
     """
     base_query = """
                  SELECT COUNT(*)
-                 FROM ganaly.robots r
-                          JOIN ganaly.api_tokens t ON r.token_id = t.id
+                 FROM {schema}.robots r
+                          JOIN {schema}.api_tokens t ON r.token_id = t.id
                  WHERE r.user_id = :user_id
                      AND R.STATUS != 0
-                 """
+                 """.format(schema=schema)
 
     params = {}
     conditions = []
@@ -151,7 +153,7 @@ def build_count_user_robots_query(
     return base_query, params
 
 
-def build_get_robot_by_id_query() -> str:
+def build_get_robot_by_id_query(schema: str = "ganaly") -> str:
     """Получение робота по ID с проверкой владельца"""
     return """
            SELECT
@@ -176,27 +178,27 @@ def build_get_robot_by_id_query() -> str:
                r.date_creation,
                r.usermod,
                r.date_modification
-           FROM ganaly.robots r
-                    JOIN ganaly.api_tokens t ON r.token_id = t.id 
-                    join ganaly.dictionary da ON t.token_type = da.num_value AND da.table_name = 'TOKEN' AND da.column_name = 'TYPE'
-                    JOIN ganaly.dictionary dt ON r.type = dt.num_value AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
-                    JOIN ganaly.dictionary ds ON r.status = ds.num_value AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
+           FROM {schema}.robots r
+                    JOIN {schema}.api_tokens t ON r.token_id = t.id 
+                    join {schema}.dictionary da ON t.token_type = da.num_value AND da.table_name = 'TOKEN' AND da.column_name = 'TYPE'
+                    JOIN {schema}.dictionary dt ON r.type = dt.num_value AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
+                    JOIN {schema}.dictionary ds ON r.status = ds.num_value AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
            WHERE r.id = :robot_id AND r.user_id = :user_id and status != 0
-           """
+           """.format(schema=schema)
 
 
-def build_check_robot_name_exists_query() -> str:
+def build_check_robot_name_exists_query(schema: str = "ganaly") -> str:
     """Проверка уникальности имени робота для пользователя"""
     return """
-           SELECT id FROM ganaly.robots
+           SELECT id FROM {schema}.robots
            WHERE user_id = :user_id AND name = :name and status != 0\
-           """
+           """.format(schema=schema)
 
 
-def build_create_robot_query() -> str:
+def build_create_robot_query(schema: str = "ganaly") -> str:
     """Создание нового робота"""
     return """
-           INSERT INTO ganaly.robots
+           INSERT INTO {schema}.robots
                (user_id, token_id, name, type, status, usercre, date_creation)
            VALUES
                (:user_id, :token_id, :name, :type, :status, :usercre, :created_at)
@@ -204,7 +206,7 @@ def build_create_robot_query() -> str:
                id, user_id, token_id, name, type, status,
                last_started, last_error, last_error_at,
                usercre, date_creation, usermod, date_modification
-           """
+           """.format(schema=schema)
 
 
 #
@@ -241,13 +243,13 @@ def build_create_robot_query() -> str:
 
 # app/modules/robots/queries.py
 
-def build_change_robot_status_query() -> str:
+def build_change_robot_status_query(schema: str = "ganaly") -> str:
     """
     Изменение статуса робота
     status: 1 - активен, 2 - остановлен
     """
     return """
-           UPDATE ganaly.robots
+           UPDATE {schema}.robots
            SET status = :status,
                last_started = CASE WHEN :status = 1 THEN :now ELSE last_started END,
                last_stopped = CASE WHEN :status = 2 THEN :now ELSE last_stopped END,
@@ -258,7 +260,21 @@ def build_change_robot_status_query() -> str:
                id, user_id, token_id, name, type, status, config,
                last_started, last_error, last_error_at,
                usercre, date_creation, usermod, date_modification
-           """
+           """.format(schema=schema)
+
+
+def build_update_robot_config_query(schema: str = "ganaly") -> str:
+    """
+    Обновление конфигурации робота.
+    """
+    return """
+           UPDATE {schema}.robots
+           SET config = :config,
+               usermod = :usermod,
+               date_modification = :now
+           WHERE id = :robot_id AND user_id = :user_id AND status != 0
+               RETURNING id \
+           """.format(schema=schema)
 
 
 # === ЗАПРОСЫ ДЛЯ СПРАВОЧНИКОВ ===
@@ -295,13 +311,13 @@ def build_get_dictionary_values_query(
 
     return query, params
 
-def build_check_token_query() -> str:
+def build_check_token_query(schema: str = "ganaly") -> str:
     """Проверка существования и активности токена"""
     return """
            SELECT id
-           FROM ganaly.api_tokens
+           FROM {schema}.api_tokens
            WHERE id = :token_id AND user_id = :user_id AND is_active = 1
-           """
+           """.format(schema=schema)
 
 
 
