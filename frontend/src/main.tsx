@@ -11,9 +11,7 @@ const saved = localStorage.getItem('gin-theme') || 'dark'
 document.documentElement.setAttribute('data-theme', saved)
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-    <React.StrictMode>
-        <BrowserRouter>
-            <App />
-        </BrowserRouter>
-    </React.StrictMode>,
+    <BrowserRouter>
+        <App />
+    </BrowserRouter>,
 )

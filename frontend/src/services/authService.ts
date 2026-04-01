@@ -5,12 +5,6 @@ interface LoginPayload {
     password: string
 }
 
-interface TokenResponse {
-    access_token: string
-    token_type: string
-    expires_at: string
-}
-
 interface UserOut {
     id: number
     login: string
@@ -18,10 +12,20 @@ interface UserOut {
     phone?: string | null
 }
 
+interface TokenResponse {
+    access_token: string
+    token_type: string
+    expires_at: string
+    user?: UserOut | null
+}
+
 export const authService = {
     async login(payload: LoginPayload): Promise<{ token: string; user: UserOut }> {
         const { data: tokenData } = await api.post<TokenResponse>('/auth/login', payload)
         localStorage.setItem('gin-token', tokenData.access_token)
+        if (tokenData.user) {
+            return { token: tokenData.access_token, user: tokenData.user }
+        }
         const { data: user } = await api.get<UserOut>('/auth/me')
         return { token: tokenData.access_token, user }
     },

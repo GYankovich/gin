@@ -49,6 +49,11 @@ class ChangeStatusRequest(BaseModel):
         from_attributes = True
 
 
+class RobotIdRequest(BaseModel):
+    """Запрос с только ID робота"""
+    robotId: int = Field(..., description="ID робота")
+
+
 class TokenInfo(BaseModel):
     """Информация о токене"""
     id: Optional[int] = None

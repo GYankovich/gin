@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
+import { Select } from '@/components/ui/Select'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { RobotIllustration } from '@/components/ui/RobotIllustration'
 import { useAuthStore } from '@/stores/authStore'
@@ -176,17 +177,19 @@ export default function SettingsPage() {
                 <Card>
                     <div className="form-group">
                         <label className="form-label">Валюта</label>
-                        <select className="form-select" defaultValue="RUB">
-                            <option value="RUB">RUB (₽)</option>
-                            <option value="USD">USD ($)</option>
-                        </select>
+                        <Select
+                            options={[{ value: 'RUB', label: 'RUB (₽)' }, { value: 'USD', label: 'USD ($)' }]}
+                            value="RUB"
+                            onChange={() => {}}
+                        />
                     </div>
                     <div className="form-group">
                         <label className="form-label">Язык</label>
-                        <select className="form-select" defaultValue="ru">
-                            <option value="ru">Русский</option>
-                            <option value="en">English</option>
-                        </select>
+                        <Select
+                            options={[{ value: 'ru', label: 'Русский' }, { value: 'en', label: 'English' }]}
+                            value="ru"
+                            onChange={() => {}}
+                        />
                     </div>
                 </Card>
             )}

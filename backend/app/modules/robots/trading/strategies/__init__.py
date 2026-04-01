@@ -13,7 +13,24 @@ _strategies = {
             'interval': {
                 'type': 'string',
                 'default': 'CANDLE_INTERVAL_DAY',
-                'enum': ['CANDLE_INTERVAL_DAY', 'CANDLE_INTERVAL_HOUR'],
+                'enum': [
+                    'CANDLE_INTERVAL_5_SEC',
+                    'CANDLE_INTERVAL_10_SEC',
+                    'CANDLE_INTERVAL_30_SEC',
+                    'CANDLE_INTERVAL_1_MIN',
+                    'CANDLE_INTERVAL_2_MIN',
+                    'CANDLE_INTERVAL_3_MIN',
+                    'CANDLE_INTERVAL_5_MIN',
+                    'CANDLE_INTERVAL_10_MIN',
+                    'CANDLE_INTERVAL_15_MIN',
+                    'CANDLE_INTERVAL_30_MIN',
+                    'CANDLE_INTERVAL_HOUR',
+                    'CANDLE_INTERVAL_2_HOUR',
+                    'CANDLE_INTERVAL_4_HOUR',
+                    'CANDLE_INTERVAL_DAY',
+                    'CANDLE_INTERVAL_WEEK',
+                    'CANDLE_INTERVAL_MONTH',
+                ],
                 'label': 'Интервал свечей'
             },
             'figis': {

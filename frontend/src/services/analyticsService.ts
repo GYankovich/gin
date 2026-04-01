@@ -29,4 +29,11 @@ export const analyticsService = {
         const { data } = await api.get<RobotMetricsResponse>(`/analytics/robots/${robotId}/metrics`)
         return data
     },
+
+    async getAccountPositions(accountId: number, snapshotId?: number): Promise<any[]> {
+        const params: Record<string, any> = {}
+        if (snapshotId) params.snapshot_id = snapshotId
+        const { data } = await api.get(`/analytics/accounts/${accountId}/positions`, { params })
+        return data.positions ?? []
+    },
 }

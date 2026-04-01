@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
+import { Select } from '@/components/ui/Select'
 import { robotService } from '@/services/robotService'
 import { portfolioService } from '@/services/portfolioService'
 import type { Robot, StrategyParam } from '@/types/robot'
@@ -14,6 +15,29 @@ interface Props {
 }
 
 const TABS = ['Общие', 'Стратегия', 'Риски', 'Инструменты', 'Расписание'] as const
+
+const CANDLE_LABELS: Record<string, string> = {
+    CANDLE_INTERVAL_5_SEC: '5 секунд',
+    CANDLE_INTERVAL_10_SEC: '10 секунд',
+    CANDLE_INTERVAL_30_SEC: '30 секунд',
+    CANDLE_INTERVAL_1_MIN: '1 минута',
+    CANDLE_INTERVAL_2_MIN: '2 минуты',
+    CANDLE_INTERVAL_3_MIN: '3 минуты',
+    CANDLE_INTERVAL_5_MIN: '5 минут',
+    CANDLE_INTERVAL_10_MIN: '10 минут',
+    CANDLE_INTERVAL_15_MIN: '15 минут',
+    CANDLE_INTERVAL_30_MIN: '30 минут',
+    CANDLE_INTERVAL_HOUR: '1 час',
+    CANDLE_INTERVAL_2_HOUR: '2 часа',
+    CANDLE_INTERVAL_4_HOUR: '4 часа',
+    CANDLE_INTERVAL_DAY: 'День',
+    CANDLE_INTERVAL_WEEK: 'Неделя',
+    CANDLE_INTERVAL_MONTH: 'Месяц',
+}
+
+function candleIntervalLabel(v: string): string {
+    return CANDLE_LABELS[v] ?? v
+}
 
 export function RobotSettingsModal({ open, onClose, robot, onSaved }: Props) {
     const [tab, setTab] = useState(0)
@@ -140,10 +164,12 @@ export function RobotSettingsModal({ open, onClose, robot, onSaved }: Props) {
                     </div>
                     <div className="form-group">
                         <label className="form-label">Счёт (токен)</label>
-                        <select className="form-select" value={tokenId} onChange={e => setTokenId(Number(e.target.value))}>
-                            <option value={0}>Выберите токен</option>
-                            {tokens.map(t => <option key={t.id} value={t.id}>{t.token_name}</option>)}
-                        </select>
+                        <Select
+                            options={[{ value: '0', label: 'Выберите токен' }, ...tokens.map(t => ({ value: String(t.id), label: t.token_name || `Токен #${t.id}` }))]}
+                            value={String(tokenId)}
+                            onChange={v => setTokenId(Number(v))}
+                            placeholder="Выберите токен"
+                        />
                     </div>
                 </div>
             )}
@@ -152,23 +178,41 @@ export function RobotSettingsModal({ open, onClose, robot, onSaved }: Props) {
                 <div>
                     <div className="form-group">
                         <label className="form-label">Стратегия</label>
-                        <select className="form-select" value={strategy} onChange={e => setStrategy(e.target.value)}>
-                            <option value="">Выберите стратегию</option>
-                            {strategies.map(s => <option key={s.name} value={s.name}>{s.title}</option>)}
-                        </select>
+                        <Select
+                            options={[{ value: '', label: 'Выберите стратегию' }, ...strategies.map(s => ({ value: s.name, label: s.title }))]}
+                            value={strategy}
+                            onChange={v => setStrategy(v)}
+                            placeholder="Выберите стратегию"
+                        />
                     </div>
                     {selectedStrat?.description && <p className="form-hint">{selectedStrat.description}</p>}
-                    {selectedStrat?.params_schema && Object.entries(selectedStrat.params_schema).map(([key, schema]: [string, any]) => (
-                        <div className="form-group" key={key}>
-                            <label className="form-label">{schema.title || key}</label>
-                            <input
-                                className="form-input"
-                                type={schema.type === 'integer' || schema.type === 'number' ? 'number' : 'text'}
-                                value={stratParams[key] ?? schema.default ?? ''}
-                                onChange={e => setStratParams({ ...stratParams, [key]: schema.type === 'integer' ? parseInt(e.target.value) : e.target.value })}
-                            />
-                        </div>
-                    ))}
+                    {selectedStrat?.params_schema && Object.entries(selectedStrat.params_schema).map(([key, schema]: [string, any]) => {
+                        if (schema.type === 'array') return null
+                        if (schema.enum) {
+                            return (
+                                <div className="form-group" key={key}>
+                                    <label className="form-label">{schema.label || schema.title || key}</label>
+                                    <Select
+                                        options={schema.enum.map((v: string) => ({ value: v, label: candleIntervalLabel(v) }))}
+                                        value={stratParams[key] ?? schema.default ?? ''}
+                                        onChange={v => setStratParams({ ...stratParams, [key]: v })}
+                                        placeholder="Выберите..."
+                                    />
+                                </div>
+                            )
+                        }
+                        return (
+                            <div className="form-group" key={key}>
+                                <label className="form-label">{schema.label || schema.title || key}</label>
+                                <input
+                                    className="form-input"
+                                    type={schema.type === 'integer' || schema.type === 'number' ? 'number' : 'text'}
+                                    value={stratParams[key] ?? schema.default ?? ''}
+                                    onChange={e => setStratParams({ ...stratParams, [key]: schema.type === 'integer' ? parseInt(e.target.value) : e.target.value })}
+                                />
+                            </div>
+                        )
+                    })}
                 </div>
             )}
 

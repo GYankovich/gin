@@ -13,7 +13,12 @@ export const robotService = {
     },
 
     async changeStatus(robotId: number, status: number): Promise<Robot> {
-        const { data } = await api.post<Robot>('/robots/change_status', { robot_id: robotId, status })
+        const { data } = await api.post<Robot>('/robots/change_status', { robotId, status })
+        return data
+    },
+
+    async deleteRobot(robotId: number): Promise<{ id: number; deleted: boolean }> {
+        const { data } = await api.post<{ id: number; deleted: boolean }>('/robots/delete', { robotId })
         return data
     },
 

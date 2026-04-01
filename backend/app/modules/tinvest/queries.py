@@ -7,7 +7,11 @@ def build_get_user_token_query() -> str:
     return """
            SELECT token, id FROM ganaly.api_tokens
            WHERE user_id = :user_id
-             AND token_type = 'tinvest'
+             AND token_type = (
+                 SELECT num_value FROM ganaly.dictionary
+                 WHERE table_name = 'TOKEN' AND column_name = 'TYPE' AND string_value = 'tinvest'
+                 LIMIT 1
+             )
              AND is_active = 1
            ORDER BY created_at DESC
                LIMIT 1 \
@@ -31,7 +35,13 @@ def build_get_user_tokens_query() -> tuple[str, Dict[str, Any]]:
                      last_used_at,
                      expires_at
                  FROM ganaly.api_tokens
-                 WHERE user_id = :user_id AND token_type = 'tinvest' and is_active = 1 \
+                 WHERE user_id = :user_id
+                  AND token_type = (
+                      SELECT num_value FROM ganaly.dictionary
+                      WHERE table_name = 'TOKEN' AND column_name = 'TYPE' AND string_value = 'tinvest'
+                      LIMIT 1
+                  )
+                  AND is_active = 1 \
                  """
 
     params = {"user_id": ":user_id"}

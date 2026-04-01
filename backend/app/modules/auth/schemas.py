@@ -12,6 +12,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_at: datetime
+    user: Optional["UserOut"] = None
 
 class UserOut(BaseModel):
     """Схема для публичных данных пользователя"""

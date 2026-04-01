@@ -273,6 +273,31 @@ class RobotService:
 
         return updated_robot
 
+    async def delete_robot(
+            self,
+            db: Session,
+            robot_id: int,
+            user_id: int,
+    ) -> dict:
+        """Мягкое удаление робота (status=0)"""
+        self.db = db
+        await self.get_robot_by_id(db, robot_id, user_id)
+
+        now = datetime.now(timezone.utc)
+        delete_query = queries.build_soft_delete_robot_query(schema=settings.DB_SCHEMA)
+        result = db.execute(
+            text(delete_query),
+            {"robot_id": robot_id, "user_id": user_id, "usermod": user_id, "now": now}
+        ).first()
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Не удалось удалить робота"
+            )
+        db.commit()
+        return {"id": result[0], "deleted": True}
+
     async def get_available_strategies(self) -> List[Dict[str, Any]]:
         """Возвращает список доступных стратегий и их схем параметров."""
         from app.modules.robots.trading.strategies import list_strategies

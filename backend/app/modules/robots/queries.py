@@ -233,13 +233,16 @@ def build_create_robot_query(schema: str = "ganaly") -> str:
 #            """
 #
 #
-# def build_delete_robot_query() -> str:
-#     """Удаление робота"""
-#     return """
-#            DELETE FROM ganaly.robots
-#            WHERE id = :robot_id AND user_id = :user_id
-#                RETURNING id \
-#            """
+def build_soft_delete_robot_query(schema: str = "ganaly") -> str:
+    """Мягкое удаление робота (status=0)"""
+    return """
+           UPDATE {schema}.robots
+           SET status = 0,
+               usermod = :usermod,
+               date_modification = :now
+           WHERE id = :robot_id AND user_id = :user_id AND status != 0
+               RETURNING id
+           """.format(schema=schema)
 
 # app/modules/robots/queries.py
 

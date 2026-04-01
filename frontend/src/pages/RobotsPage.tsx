@@ -34,9 +34,17 @@ export default function RobotsPage() {
     }
 
     const toggleStatus = async (robot: Robot) => {
-        const newStatus = robot.status === 1 ? 0 : 1
+        const newStatus = robot.status === 1 ? 2 : 1
         try {
             await robotService.changeStatus(robot.id, newStatus)
+            loadRobots()
+        } catch { /* */ }
+    }
+
+    const handleDelete = async (robot: Robot) => {
+        if (!window.confirm(`Удалить робота «${robot.name}»?`)) return
+        try {
+            await robotService.deleteRobot(robot.id)
             loadRobots()
         } catch { /* */ }
     }
@@ -107,6 +115,7 @@ export default function RobotsPage() {
                                     {robot.status === 1 ? 'Остановить' : 'Запустить'}
                                 </Button>
                                 <Button variant="secondary" size="sm" onClick={() => openStats(robot)}>📊 Статистика</Button>
+                                <Button variant="danger" size="sm" onClick={() => handleDelete(robot)}>Удалить</Button>
                             </div>
                         </Card>
                     ))}

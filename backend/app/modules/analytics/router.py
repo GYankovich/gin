@@ -87,6 +87,20 @@ def get_robot_metrics(
     return result
 
 
+@router.get("/accounts/{account_id}/positions")
+def get_account_positions(
+        account_id: int,
+        snapshot_id: Optional[int] = Query(None, description="ID снимка (по умолчанию — последний)"),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """Получить позиции портфеля из конкретного снимка."""
+    positions = analytics_service.get_account_positions(
+        db, account_id, current_user.id, snapshot_id=snapshot_id
+    )
+    return {"positions": positions}
+
+
 @router.get("/accounts/{account_id}/history")
 def get_account_history(
         account_id: int,

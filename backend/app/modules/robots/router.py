@@ -157,6 +157,25 @@ async def change_robot_status(
         )
 
 
+@router.post("/delete")
+async def delete_robot(
+        request: schemas.RobotIdRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """Мягкое удаление робота (status=0)"""
+    try:
+        result = await service.robot_service.delete_robot(db, request.robotId, current_user.id)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при удалении робота: {str(e)}"
+        )
+
+
 @router.get("/strategies", response_model=schemas.StrategyListResponse)
 async def get_strategies(
         current_user: User = Depends(get_current_user)
@@ -192,13 +211,14 @@ async def update_robot_config(
 
 @router.post("/instruments/auto-select")
 async def auto_select_instruments(
+        db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
     """Автоподбор топ-20 инструментов по ликвидности."""
     from app.modules.robots.trading.instrument_selector import InstrumentSelector
     from app.modules.tinvest.token_service import token_service
 
-    token_data = await token_service.get_active_token(current_user.id)
+    token_data = await token_service.get_active_token(db, current_user.id)
     if not token_data:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нет активного токена")
 

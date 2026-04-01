@@ -90,11 +90,24 @@ class AuthService:
             "created_at": result[3]
         }
 
-        # Проверяем пароль
         if not verify_password(password, user_data["password_hash"]):
             return None
 
+        user_full = self.get_user_by_id_full(db, user_data["id"])
+        if user_full:
+            user_data["email"] = user_full.get("email")
+            user_data["phone"] = user_full.get("phone")
+
         return user_data
+
+    def get_user_by_id_full(self, db: Session, user_id: int) -> Optional[dict]:
+        """Получает пользователя с email/phone по ID"""
+        self.db = db
+        user_query = queries.build_get_user_by_id_query(include_email=True, include_phone=True)
+        row = self._execute(user_query, {"user_id": user_id}, fetch_one=True)
+        if not row:
+            return None
+        return self._row_to_user_dict(row, has_email=True, has_phone=True)
 
     def create_user(self, db: Session, user_data: schemas.UserCreate) -> dict:
         """
@@ -205,9 +218,17 @@ class AuthService:
         )
         db.commit()
 
+        user_out = schemas.UserOut(
+            id=user_data["id"],
+            login=user_data["login"],
+            email=user_data.get("email"),
+            phone=user_data.get("phone"),
+        )
+
         return schemas.TokenResponse(
             access_token=token,
-            expires_at=expires_at
+            expires_at=expires_at,
+            user=user_out,
         )
 
     def get_user_from_token(self, db: Session, token: str) -> Optional[dict]:

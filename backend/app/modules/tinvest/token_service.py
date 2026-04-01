@@ -55,10 +55,23 @@ class TokenService:
             token = utils.safe_str(result[0])
             token_id = utils.safe_int(result[1])
 
-            # Обновляем время последнего использования
             await self.update_last_used(db, token_id)
 
             return token
+
+        return None
+
+    async def get_active_token(self, db: Session, user_id: int) -> Optional[dict]:
+        """Получение активного токена пользователя как dict с id и token."""
+        self.db = db
+        query = queries.build_get_user_token_query()
+        result = self._execute(query, {"user_id": user_id}, fetch_one=True)
+
+        if result:
+            token = utils.safe_str(result[0])
+            token_id = utils.safe_int(result[1])
+            await self.update_last_used(db, token_id)
+            return {"id": token_id, "token": token}
 
         return None
 

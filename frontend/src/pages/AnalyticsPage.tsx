@@ -4,6 +4,7 @@ import { KpiTile } from '@/components/ui/KpiTile'
 import { Button } from '@/components/ui/Button'
 import { DataTable, type Column } from '@/components/ui/DataTable'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { Select } from '@/components/ui/Select'
 import { Chart, type IChartApi, type Time } from '@/components/ui/Chart'
 import { AreaSeries, HistogramSeries, LineSeries } from 'lightweight-charts'
 import { analyticsService } from '@/services/analyticsService'
@@ -36,10 +37,11 @@ export default function AnalyticsPage() {
     const init = async () => {
         setLoading(true)
         try {
-            const [accs, robotRes] = await Promise.all([
-                analyticsService.getAccounts(),
+            const [summary, robotRes] = await Promise.all([
+                analyticsService.getSummary(),
                 robotService.list(),
             ])
+            const accs = summary.accounts ?? []
             setAccounts(accs)
             setRobots(robotRes.items)
             if (accs.length > 0) {
@@ -176,17 +178,25 @@ export default function AnalyticsPage() {
             <h1 className="page__title">Аналитика</h1>
 
             <div className="portfolio-toolbar">
-                <select className="form-select" value={period} onChange={e => setPeriod(Number(e.target.value))}>
-                    {PERIOD_OPTIONS.map(p => <option key={p.days} value={p.days}>{p.label}</option>)}
-                </select>
-                <select className="form-select" value={selectedRobot ?? ''} onChange={e => setSelectedRobot(e.target.value ? Number(e.target.value) : null)}>
-                    <option value="">Все роботы</option>
-                    {robots.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </select>
+                <Select
+                    options={PERIOD_OPTIONS.map(p => ({ value: String(p.days), label: p.label }))}
+                    value={String(period)}
+                    onChange={v => setPeriod(Number(v))}
+                    placeholder="Период"
+                />
+                <Select
+                    options={[{ value: '', label: 'Все роботы' }, ...robots.map(r => ({ value: String(r.id), label: r.name }))]}
+                    value={selectedRobot != null ? String(selectedRobot) : ''}
+                    onChange={v => setSelectedRobot(v ? Number(v) : null)}
+                    placeholder="Все роботы"
+                />
                 {accounts.length > 1 && (
-                    <select className="form-select" value={selectedAccount ?? ''} onChange={e => setSelectedAccount(Number(e.target.value))}>
-                        {accounts.map(a => <option key={a.id} value={a.id}>{a.name || a.account_id}</option>)}
-                    </select>
+                    <Select
+                        options={accounts.map(a => ({ value: String(a.id), label: a.name || a.account_id }))}
+                        value={selectedAccount != null ? String(selectedAccount) : ''}
+                        onChange={v => setSelectedAccount(Number(v))}
+                        placeholder="Счёт"
+                    />
                 )}
             </div>
 
