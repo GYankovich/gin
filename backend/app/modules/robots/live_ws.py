@@ -4,6 +4,7 @@ Proxies T-Invest price stream to the frontend for a given robot.
 """
 import asyncio
 import json
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
@@ -13,11 +14,28 @@ from app.core.database import SessionLocal
 from app.core.config import settings
 from app.core.security import decode_token
 from app.core.logging_config import get_logger
-from app.modules.tinvest.websocket.price_manager import PriceStreamManager
+from app.modules.robots.live_hub import live_event_hub
+from app.modules.robots.trading.brokers.factory import create_broker_facade
 
 logger = get_logger("live_ws")
 
 router = APIRouter()
+
+
+def _put_nowait_drop_oldest(queue: asyncio.Queue, item) -> None:
+    try:
+        queue.put_nowait(item)
+        return
+    except asyncio.QueueFull:
+        pass
+    try:
+        queue.get_nowait()
+    except Exception:
+        pass
+    try:
+        queue.put_nowait(item)
+    except asyncio.QueueFull:
+        pass
 
 
 def _get_robot_data(user_id: int, robot_id: int) -> Optional[dict]:
@@ -96,55 +114,98 @@ async def live_websocket(
         await ws.close(code=4005)
         return
 
-    await ws.send_json({"type": "init", "figis": figis, "robot_id": robot_id})
-
-    price_mgr = PriceStreamManager(robot["token"])
+    broker_type = config.get("broker_type", "tinvest")
+    await ws.send_json({"type": "init", "figis": figis, "robot_id": robot_id, "broker_type": broker_type})
+    broker = create_broker_facade(broker_type, robot["token"])
+    queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
+    event_queue = await live_event_hub.subscribe(robot_id)
+    outbound_queue: asyncio.Queue = asyncio.Queue(maxsize=2000)
     try:
-        await price_mgr.connect()
-        await price_mgr.subscribe(figis)
+        connected = await broker.connect_websocket(user_id)
+        if not connected:
+            raise RuntimeError("WebSocket connection failed")
+        await broker.subscribe_prices(user_id, figis, queue)
     except Exception as e:
-        logger.error("T-Invest WS connect failed: %s", e)
-        await ws.send_json({"type": "error", "message": f"T-Invest WS error: {e}"})
+        logger.error("Broker WS connect failed: %s", e)
+        await ws.send_json({"type": "error", "message": f"Broker WS error: {e}"})
         await ws.close(code=4010)
         return
 
     async def relay_prices():
         while True:
-            data = await price_mgr.receive_once(timeout=1.0)
-            if data is None:
+            try:
+                data = await asyncio.wait_for(queue.get(), timeout=1.0)
+            except asyncio.TimeoutError:
                 await asyncio.sleep(0.05)
                 continue
-            if "lastPrice" in data:
-                lp = data["lastPrice"]
-                figi = lp.get("figi")
-                price_raw = lp.get("price", {})
-                units = int(price_raw.get("units", 0) or 0)
-                nano = int(price_raw.get("nano", 0) or 0)
-                price = units + nano / 1e9
-                ts = lp.get("time", "")
-                await ws.send_json({
+            if data and data.get("type") == "price":
+                _put_nowait_drop_oldest(outbound_queue, {
                     "type": "price",
-                    "figi": figi,
-                    "price": round(price, 6),
-                    "time": ts,
+                    "figi": data.get("figi"),
+                    "price": round(float(data.get("price", 0.0)), 6),
+                    "time": datetime.now(timezone.utc).isoformat(),
                 })
-            elif "ping" in data:
-                pong_msg = {"pong": data["ping"]}
-                if price_mgr.websocket:
-                    await price_mgr.websocket.send(json.dumps(pong_msg))
 
+    async def relay_events():
+        while True:
+            try:
+                event = await asyncio.wait_for(event_queue.get(), timeout=1.0)
+            except asyncio.TimeoutError:
+                await asyncio.sleep(0.05)
+                continue
+            _put_nowait_drop_oldest(outbound_queue, event)
+
+    async def writer():
+        while True:
+            payload = await outbound_queue.get()
+            await ws.send_json(payload)
+
+    relay_task = None
+    event_task = None
+    writer_task = None
     try:
         relay_task = asyncio.create_task(relay_prices())
+        event_task = asyncio.create_task(relay_events())
+        writer_task = asyncio.create_task(writer())
         while True:
             try:
                 msg = await asyncio.wait_for(ws.receive_text(), timeout=30)
             except asyncio.TimeoutError:
-                await ws.send_json({"type": "ping"})
+                _put_nowait_drop_oldest(outbound_queue, {"type": "ping"})
                 continue
+            try:
+                payload = json.loads(msg) if msg else {}
+            except Exception:
+                payload = {}
+            action = payload.get("action")
+            figi = payload.get("figi")
+            if action == "subscribe" and figi:
+                await broker.subscribe_prices(user_id, [figi], queue)
+                _put_nowait_drop_oldest(outbound_queue, {
+                    "type": "log",
+                    "level": "INFO",
+                    "message": f"Subscribed to {figi}",
+                    "time": datetime.now(timezone.utc).isoformat(),
+                })
+            elif action == "unsubscribe" and figi:
+                await broker.unsubscribe_prices(user_id, [figi], queue)
+                _put_nowait_drop_oldest(outbound_queue, {
+                    "type": "log",
+                    "level": "INFO",
+                    "message": f"Unsubscribed from {figi}",
+                    "time": datetime.now(timezone.utc).isoformat(),
+                })
     except WebSocketDisconnect:
         logger.info("Client disconnected from live WS, robot_id=%s", robot_id)
     except Exception as e:
         logger.error("Live WS error: %s", e)
     finally:
-        relay_task.cancel()
-        await price_mgr.close()
+        if relay_task:
+            relay_task.cancel()
+        if event_task:
+            event_task.cancel()
+        if writer_task:
+            writer_task.cancel()
+        await live_event_hub.unsubscribe(robot_id, event_queue)
+        await broker.close_websocket(user_id, queue=queue)
+        await broker.close()

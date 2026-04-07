@@ -1,8 +1,28 @@
 """
-Расчет комиссий, налогов и точки безубыточности
+Расчет комиссий, налогов и точки безубыточности.
+Ставки по умолчанию — из settings.robots; робот может переопределить в config.costs.
 """
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 from decimal import Decimal, ROUND_HALF_UP
+
+
+def resolve_robot_cost_rates(robot_config: Optional[Dict[str, Any]]) -> tuple[float, float]:
+    """
+    Комиссия и НДФЛ: сначала config.costs робота, иначе settings.robots.
+    Возвращает (broker_commission_rate, ndfl_rate) как доли (0.0005 = 0.05%).
+    """
+    from app.core.config import settings
+
+    base_br = float(settings.robots.broker_commission_rate)
+    base_tx = float(settings.robots.ndfl_rate)
+    cfg = (robot_config or {}).get("costs") or {}
+    if not isinstance(cfg, dict):
+        return base_br, base_tx
+    br = cfg.get("broker_commission_rate")
+    tx = cfg.get("ndfl_rate")
+    out_br = float(br) if br is not None else base_br
+    out_tx = float(tx) if tx is not None else base_tx
+    return out_br, out_tx
 
 
 class TradingCosts:
@@ -10,25 +30,41 @@ class TradingCosts:
     Калькулятор торговых издержек
     """
 
-    # Комиссия брокера (в долях)
-    BROKER_COMMISSION = 0.0005  # 0.05%
-
-    # НДФЛ на прибыль (в долях)
-    TAX_RATE = 0.15  # 15%
-
-    # Ежемесячное обслуживание (руб)
     MONTHLY_FEE = 390.0
 
-    def __init__(self, price: float, quantity: int, is_buy: bool = True):
+    # Обратная совместимость (значения по умолчанию совпадают с RobotsSettings)
+    BROKER_COMMISSION = 0.0005
+    TAX_RATE = 0.15
+
+    def __init__(
+            self,
+            price: float,
+            quantity: int,
+            is_buy: bool = True,
+            *,
+            broker_commission_rate: Optional[float] = None,
+            ndfl_rate: Optional[float] = None,
+    ):
         """
         Args:
             price: Цена инструмента
             quantity: Количество лотов
             is_buy: True - покупка, False - продажа
+            broker_commission_rate: доля от оборота; None — из settings.robots
+            ndfl_rate: доля налога с прибыли; None — из settings.robots
         """
+        from app.core.config import settings
+
         self.price = Decimal(str(price))
         self.quantity = Decimal(str(quantity))
         self.is_buy = is_buy
+        self.broker_commission_rate = Decimal(str(
+            broker_commission_rate if broker_commission_rate is not None
+            else settings.robots.broker_commission_rate
+        ))
+        self.ndfl_rate = Decimal(str(
+            ndfl_rate if ndfl_rate is not None else settings.robots.ndfl_rate
+        ))
 
     def calculate_commission(self) -> float:
         """
@@ -36,7 +72,7 @@ class TradingCosts:
         Комиссия взимается как при покупке, так и при продаже
         """
         amount = self.price * self.quantity
-        commission = amount * Decimal(str(self.BROKER_COMMISSION))
+        commission = amount * self.broker_commission_rate
         return float(commission.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
 
     def calculate_tax(self, profit: float) -> float:
@@ -49,32 +85,17 @@ class TradingCosts:
         if profit <= 0:
             return 0.0
 
-        tax = Decimal(str(profit)) * Decimal(str(self.TAX_RATE))
+        tax = Decimal(str(profit)) * self.ndfl_rate
         return float(tax.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
 
     def calculate_break_even_price(self) -> float:
         """
         Рассчитывает цену безубыточности для сделки
-        Учитывает:
-        - Комиссию при покупке
-        - Комиссию при продаже
-        - Налог на прибыль (15% от чистой прибыли после комиссий)
-
-        Формула:
-        P_break = P_entry * (1 + 2*C) / (1 - T)
-        где:
-        P_entry - цена входа
-        C - комиссия (0.05%)
-        T - налог (15%)
         """
         entry_price = self.price
-
-        # Комиссия при покупке и продаже
-        commission_rate = Decimal(str(self.BROKER_COMMISSION))
-
-        # Формула: entry * (1 + 2C) / (1 - T)
+        commission_rate = self.broker_commission_rate
         numerator = entry_price * (Decimal('1') + Decimal('2') * commission_rate)
-        denominator = Decimal('1') - Decimal(str(self.TAX_RATE))
+        denominator = Decimal('1') - self.ndfl_rate
 
         break_even = numerator / denominator
 
@@ -88,13 +109,9 @@ class TradingCosts:
             target_profit_percent: Целевая прибыль в процентах (например, 3 = 3%)
         """
         entry_price = self.price
-        commission_rate = Decimal(str(self.BROKER_COMMISSION))
-        tax_rate = Decimal(str(self.TAX_RATE))
+        commission_rate = self.broker_commission_rate
+        tax_rate = self.ndfl_rate
         target = Decimal(str(target_profit_percent)) / Decimal('100')
-
-        # Целевая цена с учетом комиссий и налога
-        # (P_target - P_entry - 2*C*P_entry) * (1 - T) = target * P_entry
-        # P_target = P_entry * (1 + target/(1-T) + 2C)
 
         target_price = entry_price * (
                 Decimal('1') +
@@ -107,44 +124,26 @@ class TradingCosts:
     def calculate_actual_profit(self, exit_price: float) -> Dict[str, float]:
         """
         Рассчитывает фактическую прибыль с учетом всех издержек
-
-        Args:
-            exit_price: Цена продажи
-
-        Returns:
-            Dict с ключами:
-            - gross_profit: Валовая прибыль
-            - commission_buy: Комиссия при покупке
-            - commission_sell: Комиссия при продаже
-            - tax: Налог
-            - net_profit: Чистая прибыль
-            - net_profit_percent: Чистая прибыль в процентах от вложений
         """
         entry_price = self.price
         quantity = self.quantity
         exit_price_dec = Decimal(str(exit_price))
 
-        # Суммы
         buy_amount = entry_price * quantity
         sell_amount = exit_price_dec * quantity
 
-        # Комиссии
-        commission_buy = buy_amount * Decimal(str(self.BROKER_COMMISSION))
-        commission_sell = sell_amount * Decimal(str(self.BROKER_COMMISSION))
+        commission_buy = buy_amount * self.broker_commission_rate
+        commission_sell = sell_amount * self.broker_commission_rate
         total_commission = commission_buy + commission_sell
 
-        # Валовая прибыль
         gross_profit = sell_amount - buy_amount - total_commission
 
-        # Налог (только на прибыль)
         tax = Decimal('0')
         if gross_profit > 0:
-            tax = gross_profit * Decimal(str(self.TAX_RATE))
+            tax = gross_profit * self.ndfl_rate
 
-        # Чистая прибыль
         net_profit = gross_profit - tax
 
-        # Процент от вложений (с учетом комиссии при покупке)
         invested = buy_amount + commission_buy
         net_profit_percent = (net_profit / invested) * Decimal('100')
 
@@ -167,16 +166,6 @@ def calculate_position_size(
 ) -> int:
     """
     Рассчитывает размер позиции в лотах
-
-    Args:
-        portfolio_value: Стоимость всего портфеля
-        current_price: Текущая цена инструмента
-        max_position_percent: Максимальный процент портфеля для одной позиции
-        max_position_rub: Максимальная сумма в рублях для одной позиции
-        free_funds: Доступные свободные средства
-
-    Returns:
-        Количество лотов для покупки
     """
     if free_funds is None:
         free_funds = portfolio_value
@@ -193,17 +182,7 @@ def calculate_stop_loss_price(
         stop_loss_percent: float,
         is_long: bool = True
 ) -> float:
-    """
-    Рассчитывает цену стоп-лосса
-
-    Args:
-        entry_price: Цена входа
-        stop_loss_percent: Процент стоп-лосса (например, 2 = 2%)
-        is_long: True - длинная позиция, False - короткая
-
-    Returns:
-        Цена стоп-лосса
-    """
+    """Рассчитывает цену стоп-лосса"""
     if is_long:
         return entry_price * (1 - stop_loss_percent / 100)
     else:
@@ -213,23 +192,21 @@ def calculate_stop_loss_price(
 def calculate_take_profit_price(
         entry_price: float,
         take_profit_percent: float,
-        is_long: bool = True
+        is_long: bool = True,
+        *,
+        broker_commission_rate: Optional[float] = None,
+        ndfl_rate: Optional[float] = None,
 ) -> float:
     """
     Рассчитывает цену тейк-профита с учетом комиссий и налогов
-
-    Args:
-        entry_price: Цена входа
-        take_profit_percent: Целевая прибыль в процентах (например, 3 = 3%)
-        is_long: True - длинная позиция, False - короткая
-
-    Returns:
-        Цена тейк-профита
     """
-    costs = TradingCosts(entry_price, 1, is_buy=is_long)
+    costs = TradingCosts(
+        entry_price, 1, is_buy=is_long,
+        broker_commission_rate=broker_commission_rate,
+        ndfl_rate=ndfl_rate,
+    )
 
     if is_long:
         return costs.calculate_min_profit_price(take_profit_percent)
     else:
-        # Для короткой позиции формула аналогичная, но зеркальная
         return entry_price * (1 - take_profit_percent / 100)

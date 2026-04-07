@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -38,6 +38,96 @@ class StrategyInfoResponse(BaseModel):
 class StrategyListResponse(BaseModel):
     """Список доступных стратегий."""
     items: List[StrategyInfoResponse] = Field(default_factory=list)
+
+
+class RobotTradingDefaultsResponse(BaseModel):
+    """Глобальные значения издержек (settings.robots) для подсказок в UI."""
+    broker_commission_rate: float
+    ndfl_rate: float
+
+
+class RobotHistoryBacktestRequest(BaseModel):
+    """Запуск исторического бэктеста по конфигу робота."""
+    robot_id: int = Field(..., description="ID робота")
+    from_date: datetime = Field(..., description="Начало периода (UTC)")
+    to_date: datetime = Field(..., description="Конец периода (UTC)")
+    initial_capital: float = Field(default=1_000_000.0, ge=1000, description="Начальный капитал, ₽")
+
+    @model_validator(mode="after")
+    def check_range(self):
+        if self.to_date <= self.from_date:
+            raise ValueError("to_date must be after from_date")
+        return self
+
+
+class RobotHistoryBacktestTrade(BaseModel):
+    id: int = 0
+    figi: str
+    side: str
+    bar_time: Optional[str] = None
+    price: float
+    quantity: int
+    commission: float = 0.0
+    pnl_net: Optional[float] = None
+
+
+class RobotHistoryBacktestResponse(BaseModel):
+    initial_capital: float
+    final_equity: float
+    total_return_percent: float
+    max_drawdown_percent: Optional[float] = None
+    trades: List[RobotHistoryBacktestTrade] = Field(default_factory=list)
+    equity_curve: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class BacktestRequest(BaseModel):
+    returns: List[float] = Field(default_factory=list, description="Серия доходностей по шагам в долях (например 0.01)")
+    initial_capital: float = Field(100000.0, gt=0)
+    fee_bps: float = Field(5.0, ge=0)
+
+
+class BacktestResultResponse(BaseModel):
+    initial_capital: float
+    final_equity: float
+    total_return_percent: float
+    max_drawdown_percent: float
+    sharpe_ratio: Optional[float]
+    trades_count: int
+    equity_curve: List[float] = Field(default_factory=list)
+
+
+class WalkForwardRequest(BaseModel):
+    returns: List[float] = Field(default_factory=list)
+    folds: int = Field(3, ge=2, le=20)
+    train_ratio: float = Field(0.7, gt=0.3, lt=0.95)
+    initial_capital: float = Field(100000.0, gt=0)
+    fee_bps: float = Field(5.0, ge=0)
+
+
+class WalkForwardFoldResult(BaseModel):
+    fold: int
+    train_points: int
+    test_points: int
+    final_equity: float
+    total_return_percent: float
+    max_drawdown_percent: float
+    sharpe_ratio: Optional[float]
+
+
+class WalkForwardResponse(BaseModel):
+    folds: List[WalkForwardFoldResult] = Field(default_factory=list)
+    avg_total_return_percent: float
+    avg_sharpe_ratio: Optional[float]
+
+
+class PaperModeRequest(BaseModel):
+    robotId: int
+    enabled: bool = True
+
+
+class PaperModeResponse(BaseModel):
+    robot_id: int
+    paper_mode: bool
 
 
 class ChangeStatusRequest(BaseModel):

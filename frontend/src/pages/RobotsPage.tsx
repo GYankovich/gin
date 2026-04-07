@@ -15,6 +15,7 @@ import type { Robot, RobotMetricsResponse } from '@/types/robot'
 export default function RobotsPage() {
     const [robots, setRobots] = useState<Robot[]>([])
     const [loading, setLoading] = useState(true)
+    const [softLoading, setSoftLoading] = useState(false)
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [editingRobot, setEditingRobot] = useState<Robot | null>(null)
     const [statsOpen, setStatsOpen] = useState(false)
@@ -24,20 +25,22 @@ export default function RobotsPage() {
 
     useEffect(() => { loadRobots() }, [])
 
-    const loadRobots = async () => {
-        setLoading(true)
+    const loadRobots = async (soft = true) => {
+        if (robots.length === 0 || !soft) setLoading(true)
+        else setSoftLoading(true)
         try {
             const res = await robotService.list()
             setRobots(res.items)
         } catch { /* */ }
         setLoading(false)
+        setSoftLoading(false)
     }
 
     const toggleStatus = async (robot: Robot) => {
         const newStatus = robot.status === 1 ? 2 : 1
         try {
             await robotService.changeStatus(robot.id, newStatus)
-            loadRobots()
+            loadRobots(true)
         } catch { /* */ }
     }
 
@@ -45,7 +48,7 @@ export default function RobotsPage() {
         if (!window.confirm(`Удалить робота «${robot.name}»?`)) return
         try {
             await robotService.deleteRobot(robot.id)
-            loadRobots()
+            loadRobots(true)
         } catch { /* */ }
     }
 
@@ -86,6 +89,7 @@ export default function RobotsPage() {
                 <h1 className="page__title">Роботы</h1>
                 <Button variant="primary" glow onClick={() => { setEditingRobot(null); setSettingsOpen(true) }}>+ Создать робота</Button>
             </div>
+            {softLoading && <div className="soft-loading-bar" />}
 
             {robots.length === 0 ? (
                 <div className="empty-state">

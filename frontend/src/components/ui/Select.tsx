@@ -16,6 +16,7 @@ interface SelectProps {
     size?: 'sm' | 'md'
     className?: string
     style?: React.CSSProperties
+    searchable?: boolean
 }
 
 export function Select({
@@ -27,6 +28,7 @@ export function Select({
     size = 'md',
     className = '',
     style,
+    searchable = true,
 }: SelectProps) {
     const [open, setOpen] = useState(false)
     const [search, setSearch] = useState('')
@@ -103,7 +105,7 @@ export function Select({
 
             {open && (
                 <div className="gin-select__dropdown">
-                    {options.length > 6 && (
+                    {searchable && options.length > 6 && (
                         <div className="gin-select__search-wrap">
                             <input
                                 ref={inputRef}

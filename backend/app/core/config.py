@@ -5,8 +5,15 @@
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from urllib.parse import quote_plus
+
+
+class RobotsSettings(BaseModel):
+    """Параметры издержек для торговых роботов (доля, не проценты: 0.0005 = 0.05%)."""
+    broker_commission_rate: float = Field(default=0.0005, description="Комиссия брокера, доля от оборота")
+    ndfl_rate: float = Field(default=0.15, description="НДФЛ с прибыли, доля")
 
 
 class Settings(BaseSettings):
@@ -41,8 +48,12 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ENVIRONMENT: str = "development"
 
-    # В классе Settings добавьте:
+    # ---- Роботы (переопределение через ROBOTS__BROKER_COMMISSION_RATE, ROBOTS__NDFL_RATE) ----
+    robots: RobotsSettings = Field(default_factory=RobotsSettings)
+
     TINVEST_API_URL: str = "https://invest-public-api.tinkoff.ru/rest"
+    # Опционально: токен только для загрузки рыночных данных в общую БД (бэктест). Иначе используется токен пользователя.
+    TINVEST_MARKET_DATA_TOKEN: Optional[str] = None
 
     @property
     def DATABASE_URL(self) -> str:
@@ -55,7 +66,8 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
-        extra="ignore"
+        extra="ignore",
+        env_nested_delimiter="__",
     )
 
 

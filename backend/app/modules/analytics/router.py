@@ -49,7 +49,7 @@ def get_summary(
 @router.get("/accounts/{account_id}", response_model=schemas.AccountDetailResponse)
 def get_account_detail(
         account_id: int,
-        days: int = Query(30, ge=1, le=365, description="Дней истории"),
+        days: int = Query(30, ge=1, le=3650, description="Дней истории"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
@@ -67,6 +67,18 @@ def get_account_detail(
     return detail
 
 
+@router.get("/robots/trading-overview", response_model=schemas.UserRobotsTradingOverview)
+def get_user_robots_trading_overview(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    """Агрегированные метрики по сделкам всех роботов пользователя."""
+    from app.core.config import settings
+    return analytics_service.get_user_robots_trading_overview(
+        db, user_id=current_user.id, schema=settings.DB_SCHEMA,
+    )
+
+
 @router.get("/robots/{robot_id}/metrics", response_model=schemas.RobotMetricsResponse)
 def get_robot_metrics(
         robot_id: int,
@@ -81,9 +93,10 @@ def get_robot_metrics(
         robot_id=robot_id,
         recent_limit=recent_limit,
         schema=settings.DB_SCHEMA,
+        user_id=current_user.id,
     )
     if not result:
-        raise HTTPException(status_code=404, detail="Robot not found or no trades")
+        raise HTTPException(status_code=404, detail="Robot not found")
     return result
 
 
@@ -104,7 +117,7 @@ def get_account_positions(
 @router.get("/accounts/{account_id}/history")
 def get_account_history(
         account_id: int,
-        days: int = Query(30, ge=1, le=365),
+        days: int = Query(30, ge=1, le=3650),
         interval: Optional[str] = Query(None, regex="^(day|week|month)$"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)

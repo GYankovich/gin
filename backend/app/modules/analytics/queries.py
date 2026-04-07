@@ -213,6 +213,15 @@ def build_account_ownership_check_query() -> str:
            """
 
 
+def build_robot_ownership_query(schema: str = "ganaly") -> str:
+    """Проверка: робот принадлежит пользователю."""
+    return f"""
+        SELECT 1 FROM {schema}.robots
+        WHERE id = :robot_id AND user_id = :user_id
+        LIMIT 1
+    """
+
+
 def build_robot_trades_summary_query(schema: str = "ganaly") -> str:
     """Агрегированные метрики по сделкам робота."""
     return f"""
@@ -228,7 +237,8 @@ def build_robot_trades_summary_query(schema: str = "ganaly") -> str:
             MAX(profit) FILTER (WHERE status = 'closed') as best_trade,
             MIN(profit) FILTER (WHERE status = 'closed') as worst_trade,
             AVG(EXTRACT(EPOCH FROM (closed_at - created_at)) / 3600)
-                FILTER (WHERE status = 'closed' AND closed_at IS NOT NULL) as avg_duration_hours
+                FILTER (WHERE status = 'closed' AND closed_at IS NOT NULL) as avg_duration_hours,
+            COALESCE(SUM(commission) FILTER (WHERE status = 'closed'), 0) as total_commission
         FROM {schema}.robot_trades
         WHERE robot_id = :robot_id
     """
@@ -241,6 +251,36 @@ def build_robot_closed_pnl_series_query(schema: str = "ganaly") -> str:
         FROM {schema}.robot_trades
         WHERE robot_id = :robot_id AND status = 'closed'
         ORDER BY closed_at ASC
+    """
+
+
+def build_user_robots_trades_aggregate_query(schema: str = "ganaly") -> str:
+    """Сводка по сделкам всех роботов пользователя (для дашборда)."""
+    return f"""
+        SELECT
+            COUNT(*)::int as total_trades,
+            COUNT(*) FILTER (WHERE t.status IN ('open', 'partial'))::int as open_trades,
+            COUNT(*) FILTER (WHERE t.status = 'closed')::int as closed_trades,
+            COUNT(*) FILTER (WHERE t.status = 'closed' AND t.profit > 0)::int as winning_trades,
+            COUNT(*) FILTER (WHERE t.status = 'closed' AND t.profit <= 0)::int as losing_trades,
+            COALESCE(SUM(t.profit) FILTER (WHERE t.status = 'closed'), 0) as total_pnl,
+            COALESCE(SUM(t.commission) FILTER (WHERE t.status = 'closed'), 0) as total_commission,
+            COUNT(DISTINCT t.robot_id) FILTER (WHERE t.status = 'closed')::int as robots_with_closed_trades,
+            COALESCE(SUM(t.profit) FILTER (WHERE t.status = 'closed' AND t.profit > 0), 0) as sum_winning_profit,
+            COALESCE(SUM(ABS(t.profit)) FILTER (WHERE t.status = 'closed' AND t.profit < 0), 0) as sum_losing_loss
+        FROM {schema}.robot_trades t
+        INNER JOIN {schema}.robots r ON r.id = t.robot_id AND r.user_id = :user_id
+    """
+
+
+def build_user_robots_closed_pnl_series_query(schema: str = "ganaly") -> str:
+    """Закрытые сделки всех роботов пользователя по времени (drawdown / risk)."""
+    return f"""
+        SELECT t.profit
+        FROM {schema}.robot_trades t
+        INNER JOIN {schema}.robots r ON r.id = t.robot_id AND r.user_id = :user_id
+        WHERE t.status = 'closed'
+        ORDER BY t.closed_at ASC NULLS LAST, t.id ASC
     """
 
 

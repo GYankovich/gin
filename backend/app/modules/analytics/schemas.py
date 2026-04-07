@@ -83,8 +83,34 @@ class RobotMetrics(BaseModel):
     max_drawdown: Optional[float]
     profit_factor: Optional[float]
     avg_trade_duration_hours: Optional[float]
+    sharpe_ratio: Optional[float] = None
+    sortino_ratio: Optional[float] = None
+    calmar_ratio: Optional[float] = None
+    fill_rate: Optional[float] = None
+    reject_rate: Optional[float] = None
+    partial_fills: int = 0
+    rejected_orders: int = 0
+    total_commission: float = 0.0
 
 
 class RobotMetricsResponse(BaseModel):
     metrics: RobotMetrics
     recent_trades: List[RobotTradeItem]
+
+
+class UserRobotsTradingOverview(BaseModel):
+    """Сводка по алготорговле всех роботов пользователя (чистый PnL и издержки)."""
+    robots_with_closed_trades: int = 0
+    total_trades: int = 0
+    open_trades: int = 0
+    closed_trades: int = 0
+    winning_trades: int = 0
+    losing_trades: int = 0
+    win_rate: Optional[float] = None
+    total_pnl: float = 0.0
+    total_commission: float = 0.0
+    profit_factor: Optional[float] = None
+    max_drawdown: Optional[float] = None
+    sharpe_ratio: Optional[float] = None
+    sortino_ratio: Optional[float] = None
+    calmar_ratio: Optional[float] = None

@@ -169,6 +169,7 @@ async def get_account_snapshots(
 
 @router.get("/tokens", response_model=schemas.TokenListResponse)
 async def get_tokens(
+        include_inactive: bool = Query(False, description="Включать неактивные токены"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
@@ -176,7 +177,7 @@ async def get_tokens(
     Получение списка токенов пользователя
     """
     try:
-        tokens = await token_service.get_user_tokens(db, current_user.id, include_inactive)
+        tokens = await token_service.get_user_tokens(db, current_user.id, include_inactive=include_inactive)
 
         # Преобразуем в response с маскированными токенами
         items = []

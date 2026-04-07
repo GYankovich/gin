@@ -1,6 +1,6 @@
 import { api } from './api'
 import type { OverallSummary, AccountDetail, HistoryResponse, AccountSummary } from '@/types/api'
-import type { RobotMetricsResponse } from '@/types/robot'
+import type { RobotMetricsResponse, UserRobotsTradingOverview } from '@/types/robot'
 
 export const analyticsService = {
     async getSummary(): Promise<OverallSummary> {
@@ -13,8 +13,10 @@ export const analyticsService = {
         return data
     },
 
-    async getAccountDetail(accountId: number): Promise<AccountDetail> {
-        const { data } = await api.get<AccountDetail>(`/analytics/accounts/${accountId}`)
+    async getAccountDetail(accountId: number, days = 365): Promise<AccountDetail> {
+        const { data } = await api.get<AccountDetail>(`/analytics/accounts/${accountId}`, {
+            params: { days },
+        })
         return data
     },
 
@@ -27,6 +29,11 @@ export const analyticsService = {
 
     async getRobotMetrics(robotId: number): Promise<RobotMetricsResponse> {
         const { data } = await api.get<RobotMetricsResponse>(`/analytics/robots/${robotId}/metrics`)
+        return data
+    },
+
+    async getRobotsTradingOverview(): Promise<UserRobotsTradingOverview> {
+        const { data } = await api.get<UserRobotsTradingOverview>('/analytics/robots/trading-overview')
         return data
     },
 

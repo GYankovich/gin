@@ -18,11 +18,12 @@ def build_get_user_token_query() -> str:
            """
 
 
-def build_get_user_tokens_query() -> tuple[str, Dict[str, Any]]:
+def build_get_user_tokens_query(active_only: bool = True) -> str:
     """
-    Строит запрос для получения всех токенов пользователя
+    Запрос списка токенов пользователя (тип tinvest из справочника).
     """
-    base_query = """
+    active_clause = " AND is_active = 1" if active_only else ""
+    return f"""
                  SELECT
                      id,
                      user_id,
@@ -41,14 +42,9 @@ def build_get_user_tokens_query() -> tuple[str, Dict[str, Any]]:
                       WHERE table_name = 'TOKEN' AND column_name = 'TYPE' AND string_value = 'tinvest'
                       LIMIT 1
                   )
-                  AND is_active = 1 \
+                  {active_clause}
+                 ORDER BY created_at DESC
                  """
-
-    params = {"user_id": ":user_id"}
-
-    base_query += " ORDER BY created_at DESC"
-
-    return base_query, params
 
 
 def build_get_token_by_id_query() -> str:

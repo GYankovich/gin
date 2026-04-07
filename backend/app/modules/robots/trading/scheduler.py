@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.logging_config import get_logger
 from app.modules.robots.trading.session import TradingSession
 from app.modules.robots.trading import queries as trading_queries
+from app.modules.robots.trading.brokers.global_websocket import global_websocket_manager
 
 system_log = get_logger("robots.trading.scheduler")
 
@@ -170,6 +171,8 @@ class TradingScheduler:
                 await self.task
             except asyncio.CancelledError:
                 pass
+
+        await global_websocket_manager.shutdown_all()
 
         system_log.info("🛑 Торговый планировщик остановлен")
 

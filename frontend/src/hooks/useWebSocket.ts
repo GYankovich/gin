@@ -11,31 +11,64 @@ export function useWebSocket({ url, onMessage, enabled = true, reconnectInterval
     const wsRef = useRef<WebSocket | null>(null)
     const [connected, setConnected] = useState(false)
     const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-
-    const connect = useCallback(() => {
-        if (!enabled) return
-        try {
-            const ws = new WebSocket(url)
-            wsRef.current = ws
-            ws.onopen = () => setConnected(true)
-            ws.onmessage = (ev) => {
-                try { onMessage?.(JSON.parse(ev.data)) } catch { onMessage?.(ev.data) }
-            }
-            ws.onclose = () => {
-                setConnected(false)
-                reconnectTimer.current = setTimeout(connect, reconnectInterval)
-            }
-            ws.onerror = () => ws.close()
-        } catch {
-            reconnectTimer.current = setTimeout(connect, reconnectInterval)
-        }
-    }, [url, enabled, onMessage, reconnectInterval])
+    const onMessageRef = useRef<UseWebSocketOptions['onMessage']>(onMessage)
+    const shouldReconnectRef = useRef<boolean>(enabled)
+    const connVersionRef = useRef(0)
 
     useEffect(() => {
+        onMessageRef.current = onMessage
+    }, [onMessage])
+
+    const connect = useCallback(() => {
+        if (!enabled || !url) return
+        shouldReconnectRef.current = true
+        clearTimeout(reconnectTimer.current)
+        const version = ++connVersionRef.current
+        try {
+            if (wsRef.current) {
+                try { wsRef.current.close() } catch { /* noop */ }
+                wsRef.current = null
+            }
+            const ws = new WebSocket(url)
+            wsRef.current = ws
+            ws.onopen = () => {
+                if (connVersionRef.current !== version || wsRef.current !== ws) return
+                setConnected(true)
+            }
+            ws.onmessage = (ev) => {
+                if (connVersionRef.current !== version || wsRef.current !== ws) return
+                const cb = onMessageRef.current
+                if (!cb) return
+                try { cb(JSON.parse(ev.data)) } catch { cb(ev.data) }
+            }
+            ws.onclose = () => {
+                if (connVersionRef.current !== version) return
+                setConnected(false)
+                if (shouldReconnectRef.current) {
+                    reconnectTimer.current = setTimeout(connect, reconnectInterval)
+                }
+            }
+            ws.onerror = () => {
+                if (connVersionRef.current !== version) return
+                ws.close()
+            }
+        } catch {
+            if (shouldReconnectRef.current) {
+                reconnectTimer.current = setTimeout(connect, reconnectInterval)
+            }
+        }
+    }, [url, enabled, reconnectInterval])
+
+    useEffect(() => {
+        shouldReconnectRef.current = enabled
         connect()
         return () => {
+            shouldReconnectRef.current = false
             clearTimeout(reconnectTimer.current)
+            connVersionRef.current += 1
             wsRef.current?.close()
+            wsRef.current = null
+            setConnected(false)
         }
     }, [connect])
 

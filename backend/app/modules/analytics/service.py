@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+import math
 
 from . import queries
 
@@ -372,17 +373,29 @@ class AnalyticsService:
 
     # --- Robot trading analytics ---
 
+    def robot_belongs_to_user(
+            self, db: Session, robot_id: int, user_id: int, schema: str = "ganaly"
+    ) -> bool:
+        q = queries.build_robot_ownership_query(schema)
+        return db.execute(
+            text(q), {"robot_id": robot_id, "user_id": user_id}
+        ).first() is not None
+
     def get_robot_metrics(
             self,
             db: Session,
             robot_id: int,
             recent_limit: int = 20,
             schema: str = "ganaly",
+            user_id: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         KPI торгового робота: win rate, PnL, drawdown, profit factor и т.д.
         """
         self.db = db
+        if user_id is not None and not self.robot_belongs_to_user(db, robot_id, user_id, schema):
+            return None
+
         summary_sql = queries.build_robot_trades_summary_query(schema)
         row = db.execute(text(summary_sql), {"robot_id": robot_id}).first()
         if not row:
@@ -398,6 +411,7 @@ class AnalyticsService:
         best_trade = self._safe_float(row[8])
         worst_trade = self._safe_float(row[9])
         avg_duration = self._safe_float(row[10])
+        total_commission = self._safe_float(row[11], 0.0) if len(row) > 11 else 0.0
 
         win_rate = (winning / closed_trades * 100) if closed_trades > 0 else None
 
@@ -407,7 +421,25 @@ class AnalyticsService:
 
         pnl_sql = queries.build_robot_closed_pnl_series_query(schema)
         pnl_rows = db.execute(text(pnl_sql), {"robot_id": robot_id}).fetchall()
-        max_drawdown = self._calc_max_drawdown([self._safe_float(r[0], 0.0) for r in pnl_rows])
+        pnl_series = [self._safe_float(r[0], 0.0) for r in pnl_rows]
+        max_drawdown = self._calc_max_drawdown(pnl_series)
+        sharpe, sortino, calmar = self._calc_risk_adjusted_metrics(pnl_series)
+
+        status_sql = f"""
+            SELECT status, COUNT(*)::int
+            FROM {schema}.robot_trades
+            WHERE robot_id = :robot_id
+            GROUP BY status
+        """
+        status_rows = db.execute(text(status_sql), {"robot_id": robot_id}).fetchall()
+        status_counts = {self._safe_str(r[0], "").lower(): self._safe_int(r[1], 0) for r in status_rows}
+        filled_count = status_counts.get("closed", 0)
+        partial_count = status_counts.get("partial", 0)
+        rejected_count = status_counts.get("rejected", 0)
+        cancelled_count = status_counts.get("cancelled", 0)
+        terminal_count = filled_count + partial_count + rejected_count + cancelled_count
+        fill_rate = (filled_count / terminal_count * 100.0) if terminal_count > 0 else None
+        reject_rate = (rejected_count / terminal_count * 100.0) if terminal_count > 0 else None
 
         trades_sql = queries.build_robot_recent_trades_query(schema)
         trade_rows = db.execute(text(trades_sql), {"robot_id": robot_id, "limit": recent_limit}).fetchall()
@@ -444,9 +476,88 @@ class AnalyticsService:
             "max_drawdown": round(max_drawdown, 2) if max_drawdown else None,
             "profit_factor": round(profit_factor, 2) if profit_factor else None,
             "avg_trade_duration_hours": round(avg_duration, 2) if avg_duration else None,
+            "sharpe_ratio": round(sharpe, 4) if sharpe is not None else None,
+            "sortino_ratio": round(sortino, 4) if sortino is not None else None,
+            "calmar_ratio": round(calmar, 4) if calmar is not None else None,
+            "fill_rate": round(fill_rate, 2) if fill_rate is not None else None,
+            "reject_rate": round(reject_rate, 2) if reject_rate is not None else None,
+            "partial_fills": partial_count,
+            "rejected_orders": rejected_count,
+            "total_commission": round(total_commission, 2) if total_commission else 0.0,
         }
 
         return {"metrics": metrics, "recent_trades": recent_trades}
+
+    def get_user_robots_trading_overview(
+            self,
+            db: Session,
+            user_id: int,
+            schema: str = "ganaly",
+    ) -> Dict[str, Any]:
+        """
+        Агрегированные торговые метрики по всем роботам пользователя.
+        """
+        self.db = db
+        agg_sql = queries.build_user_robots_trades_aggregate_query(schema)
+        row = db.execute(text(agg_sql), {"user_id": user_id}).first()
+        if not row:
+            return self._empty_trading_overview()
+
+        total_trades = self._safe_int(row[0])
+        open_trades = self._safe_int(row[1])
+        closed_trades = self._safe_int(row[2])
+        winning = self._safe_int(row[3])
+        losing = self._safe_int(row[4])
+        total_pnl = self._safe_float(row[5], 0.0)
+        total_commission = self._safe_float(row[6], 0.0)
+        robots_with_closed = self._safe_int(row[7], 0)
+        sum_wins = self._safe_float(row[8], 0.0)
+        sum_losses = self._safe_float(row[9], 0.0)
+
+        win_rate = (winning / closed_trades * 100) if closed_trades > 0 else None
+        profit_factor = (sum_wins / sum_losses) if sum_losses > 0 else None
+
+        pnl_sql = queries.build_user_robots_closed_pnl_series_query(schema)
+        pnl_rows = db.execute(text(pnl_sql), {"user_id": user_id}).fetchall()
+        pnl_series = [self._safe_float(r[0], 0.0) for r in pnl_rows]
+        max_drawdown = self._calc_max_drawdown(pnl_series)
+        sharpe, sortino, calmar = self._calc_risk_adjusted_metrics(pnl_series)
+
+        return {
+            "robots_with_closed_trades": robots_with_closed,
+            "total_trades": total_trades,
+            "open_trades": open_trades,
+            "closed_trades": closed_trades,
+            "winning_trades": winning,
+            "losing_trades": losing,
+            "win_rate": round(win_rate, 2) if win_rate is not None else None,
+            "total_pnl": round(total_pnl, 2),
+            "total_commission": round(total_commission, 2),
+            "profit_factor": round(profit_factor, 2) if profit_factor else None,
+            "max_drawdown": round(max_drawdown, 2) if max_drawdown else None,
+            "sharpe_ratio": round(sharpe, 4) if sharpe is not None else None,
+            "sortino_ratio": round(sortino, 4) if sortino is not None else None,
+            "calmar_ratio": round(calmar, 4) if calmar is not None else None,
+        }
+
+    @staticmethod
+    def _empty_trading_overview() -> Dict[str, Any]:
+        return {
+            "robots_with_closed_trades": 0,
+            "total_trades": 0,
+            "open_trades": 0,
+            "closed_trades": 0,
+            "winning_trades": 0,
+            "losing_trades": 0,
+            "win_rate": None,
+            "total_pnl": 0.0,
+            "total_commission": 0.0,
+            "profit_factor": None,
+            "max_drawdown": None,
+            "sharpe_ratio": None,
+            "sortino_ratio": None,
+            "calmar_ratio": None,
+        }
 
     @staticmethod
     def _calc_max_drawdown(profits: List[float]) -> Optional[float]:
@@ -463,6 +574,34 @@ class AnalyticsService:
             if dd > max_dd:
                 max_dd = dd
         return max_dd if max_dd > 0 else None
+
+    @staticmethod
+    def _calc_risk_adjusted_metrics(profits: List[float]) -> tuple[Optional[float], Optional[float], Optional[float]]:
+        if not profits:
+            return None, None, None
+        n = len(profits)
+        mean = sum(profits) / n
+        if n > 1:
+            var = sum((p - mean) ** 2 for p in profits) / (n - 1)
+            std = math.sqrt(var)
+        else:
+            std = 0.0
+        downside = [p for p in profits if p < 0]
+        if len(downside) > 1:
+            d_mean = sum(downside) / len(downside)
+            d_var = sum((p - d_mean) ** 2 for p in downside) / (len(downside) - 1)
+            downside_std = math.sqrt(d_var)
+        elif len(downside) == 1:
+            downside_std = abs(downside[0])
+        else:
+            downside_std = 0.0
+        sharpe = (mean / std * math.sqrt(max(1, n))) if std > 0 else None
+        sortino = (mean / downside_std * math.sqrt(max(1, n))) if downside_std > 0 else None
+
+        max_dd = AnalyticsService._calc_max_drawdown(profits) or 0.0
+        total_return = sum(profits)
+        calmar = (total_return / max_dd) if max_dd > 0 else None
+        return sharpe, sortino, calmar
 
 
 analytics_service = AnalyticsService()

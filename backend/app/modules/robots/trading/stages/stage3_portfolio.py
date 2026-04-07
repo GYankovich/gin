@@ -3,7 +3,7 @@ Stage 3: Получение портфеля и доступного балан�
 """
 from typing import Dict, Optional
 
-from app.modules.tinvest.facade import TInvestFacade
+from app.modules.robots.trading.brokers.base import BrokerFacade
 from app.core.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -12,24 +12,16 @@ logger = get_logger(__name__)
 class Stage3Portfolio:
     """Получение портфеля и баланса через TInvestFacade"""
 
-    def __init__(self, token: str, account_id: str, log_func=None):
+    def __init__(self, account_id: str, broker: BrokerFacade, log_func=None):
         """
         Args:
-            token: Токен T-Invest API
             account_id: ID счета для получения портфеля
+            broker: Брокерский фасад
             log_func: Функция для логирования
         """
-        self.token = token
         self.account_id = account_id
+        self.broker = broker
         self.log_func = log_func
-        self._facade: Optional[TInvestFacade] = None
-
-    @property
-    def facade(self) -> TInvestFacade:
-        """Ленивая инициализация фасада"""
-        if self._facade is None:
-            self._facade = TInvestFacade(self.token)
-        return self._facade
 
     def _write_log(self, message: str):
         """Запись в лог"""
@@ -53,14 +45,14 @@ class Stage3Portfolio:
 
         try:
             # Получаем портфель через фасад
-            portfolio_data = await self.facade.get_portfolio(self.account_id)
+            portfolio_data = await self.broker.get_portfolio(self.account_id)
 
             # Извлекаем общую стоимость
             total_amount = portfolio_data.get("total_amount_portfolio", {})
             total_value = total_amount.get("decimal", 0.0) if total_amount else 0.0
 
             # Получаем свободные средства
-            free_funds = await self.facade.get_free_funds(self.account_id)
+            free_funds = await self.broker.get_free_funds(self.account_id)
 
             self._write_log(f"💰 Портфель: {total_value:.2f} руб.")
             self._write_log(f"💰 Свободно: {free_funds:.2f} руб.")
@@ -85,7 +77,7 @@ class Stage3Portfolio:
         self._write_log("📊 Получение сырых данных портфеля")
 
         try:
-            portfolio_data = await self.facade.get_portfolio(self.account_id)
+            portfolio_data = await self.broker.get_portfolio(self.account_id)
             return portfolio_data
         except Exception as e:
             self._write_log(f"   ❌ Ошибка: {e}")

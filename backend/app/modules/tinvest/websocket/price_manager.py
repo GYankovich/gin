@@ -140,6 +140,8 @@ class PriceStreamManager:
             dict: полученное сообщение или None при таймауте/ошибке
         """
         if not self.connected or not self.websocket:
+            # Avoid tight loops in callers (e.g. global fanout) starving the event loop.
+            await asyncio.sleep(0.2)
             return None
 
         try:

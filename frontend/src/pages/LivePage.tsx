@@ -7,7 +7,7 @@ import { DataTable, type Column } from '@/components/ui/DataTable'
 import { EventFeed, type FeedEvent } from '@/components/ui/EventFeed'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Chart, type IChartApi, type Time } from '@/components/ui/Chart'
-import { LineSeries } from 'lightweight-charts'
+import { CandlestickSeries, LineSeries } from 'lightweight-charts'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { useAuthStore } from '@/stores/authStore'
 import { robotService } from '@/services/robotService'
@@ -17,12 +17,9 @@ const SERIES_COLORS = [
     '#00ffff', '#ff00ff', '#00ffaa', '#ffaa00', '#aa00ff',
     '#ff3366', '#66ffcc', '#ff9900', '#33ccff', '#ff66cc',
 ]
-
-interface PricePoint {
-    figi: string
-    price: number
-    time: string
-}
+const MAX_PRICE_POINTS = 3000
+const MAX_TARGET_POINTS = 1000
+const MAX_CANDLE_POINTS = 1000
 
 interface LogLine {
     id: number
@@ -34,12 +31,19 @@ interface LogLine {
 export default function LivePage() {
     const [robots, setRobots] = useState<Robot[]>([])
     const [selectedRobot, setSelectedRobot] = useState<number | null>(null)
+    const [selectedBroker, setSelectedBroker] = useState<string>('tinvest')
     const [loading, setLoading] = useState(true)
+    const [softLoading, setSoftLoading] = useState(false)
     const [signals, setSignals] = useState<FeedEvent[]>([])
     const [orders, setOrders] = useState<FeedEvent[]>([])
     const [prices, setPrices] = useState<Record<string, { price: number; change: number; time: string }>>({})
+    const [signalMeta, setSignalMeta] = useState<Record<string, { targetPrice?: number; indicators?: Record<string, number>; signalType?: string }>>({})
+    const [lastPriceEventAt, setLastPriceEventAt] = useState<number | null>(null)
+    const [lastHeartbeatAt, setLastHeartbeatAt] = useState<number | null>(null)
+    const [nowTs, setNowTs] = useState<number>(() => Date.now())
     const [logs, setLogs] = useState<LogLine[]>([])
     const [logFilter, setLogFilter] = useState('ALL')
+    const [chartMode, setChartMode] = useState<'candles' | 'lines' | 'both'>('both')
     const logIdRef = useRef(0)
     const signalIdRef = useRef(0)
 
@@ -47,8 +51,14 @@ export default function LivePage() {
     const [selectedFigis, setSelectedFigis] = useState<string[]>([])
     const chartRef = useRef<IChartApi | null>(null)
     const seriesMapRef = useRef<Map<string, any>>(new Map())
+    const candleSeriesMapRef = useRef<Map<string, any>>(new Map())
+    const targetSeriesMapRef = useRef<Map<string, any>>(new Map())
     const priceHistoryRef = useRef<Map<string, { time: Time; value: number }[]>>(new Map())
+    const candleHistoryRef = useRef<Map<string, { time: Time; open: number; high: number; low: number; close: number }[]>>(new Map())
+    const candleCurrentRef = useRef<Map<string, { time: Time; open: number; high: number; low: number; close: number }>>(new Map())
+    const targetHistoryRef = useRef<Map<string, { time: Time; value: number }[]>>(new Map())
     const initialPricesRef = useRef<Map<string, number>>(new Map())
+    const lastPriceTsByFigiRef = useRef<Map<string, number>>(new Map())
 
     const token = useAuthStore(s => s.token)
 
@@ -60,16 +70,31 @@ export default function LivePage() {
         }).catch(() => setLoading(false))
     }, [])
 
+    useEffect(() => {
+        const timer = window.setInterval(() => setNowTs(Date.now()), 1000)
+        return () => window.clearInterval(timer)
+    }, [])
+
     const resetChartState = useCallback(() => {
         setSignals([])
         setOrders([])
         setPrices({})
+        setSignalMeta({})
+        setLastPriceEventAt(null)
+        setLastHeartbeatAt(null)
         setLogs([])
+        setSelectedBroker('tinvest')
         setAvailableFigis([])
         setSelectedFigis([])
         priceHistoryRef.current.clear()
+        candleHistoryRef.current.clear()
+        candleCurrentRef.current.clear()
         initialPricesRef.current.clear()
         seriesMapRef.current.clear()
+        candleSeriesMapRef.current.clear()
+        targetSeriesMapRef.current.clear()
+        targetHistoryRef.current.clear()
+        lastPriceTsByFigiRef.current.clear()
         chartRef.current = null
     }, [])
 
@@ -79,37 +104,163 @@ export default function LivePage() {
         return `${proto}://${window.location.host}/ws/live?robot_id=${selectedRobot}&token=${encodeURIComponent(token)}`
     }, [selectedRobot, token])
 
-    const appendPriceToChart = useCallback((figi: string, price: number, timeStr: string) => {
-        if (!chartRef.current) return
-        if (!selectedFigis.includes(figi) && selectedFigis.length > 0) return
+    const normalizeLineHistory = useCallback((points: { time: Time; value: number }[]) => {
+        const byTime = new Map<number, number>()
+        for (const p of points) {
+            const t = Number(p.time)
+            if (!Number.isFinite(t)) continue
+            byTime.set(t, p.value)
+        }
+        return Array.from(byTime.entries())
+            .sort((a, b) => a[0] - b[0])
+            .map(([time, value]) => ({ time: time as Time, value }))
+    }, [])
 
+    const normalizeCandleHistory = useCallback((candles: { time: Time; open: number; high: number; low: number; close: number }[]) => {
+        const byTime = new Map<number, { time: Time; open: number; high: number; low: number; close: number }>()
+        for (const c of candles) {
+            const t = Number(c.time)
+            if (!Number.isFinite(t)) continue
+            const existing = byTime.get(t)
+            if (!existing) {
+                byTime.set(t, { ...c, time: t as Time })
+            } else {
+                existing.high = Math.max(existing.high, c.high)
+                existing.low = Math.min(existing.low, c.low)
+                existing.close = c.close
+            }
+        }
+        return Array.from(byTime.values()).sort((a, b) => Number(a.time) - Number(b.time))
+    }, [])
+
+    const ensurePriceSeries = useCallback((figi: string) => {
+        if (!chartRef.current) return null
+        if (seriesMapRef.current.has(figi)) return seriesMapRef.current.get(figi)!
+        const idx = availableFigis.indexOf(figi)
+        const color = SERIES_COLORS[idx >= 0 ? idx % SERIES_COLORS.length : seriesMapRef.current.size % SERIES_COLORS.length]
+        const series = chartRef.current.addSeries(LineSeries, {
+            color,
+            lineWidth: 2,
+            title: figi.slice(-4),
+            priceScaleId: 'right',
+        })
+        const hist = normalizeLineHistory(priceHistoryRef.current.get(figi) ?? [])
+        if (hist.length > 0) {
+            series.setData(hist)
+        }
+        series.applyOptions({ visible: chartMode === 'lines' || chartMode === 'both' })
+        seriesMapRef.current.set(figi, series)
+        return series
+    }, [availableFigis, chartMode, normalizeLineHistory])
+
+    const ensureTargetSeries = useCallback((figi: string) => {
+        if (!chartRef.current) return null
+        if (targetSeriesMapRef.current.has(figi)) return targetSeriesMapRef.current.get(figi)!
+        const idx = availableFigis.indexOf(figi)
+        const base = SERIES_COLORS[idx >= 0 ? idx % SERIES_COLORS.length : targetSeriesMapRef.current.size % SERIES_COLORS.length]
+        const targetSeries = chartRef.current.addSeries(LineSeries, {
+            color: base,
+            lineWidth: 1,
+            lineStyle: 2,
+            title: `${figi.slice(-4)} target`,
+            priceScaleId: 'right',
+        })
+        const hist = normalizeLineHistory(targetHistoryRef.current.get(figi) ?? [])
+        if (hist.length > 0) {
+            targetSeries.setData(hist)
+        }
+        targetSeries.applyOptions({ visible: chartMode === 'lines' || chartMode === 'both' })
+        targetSeriesMapRef.current.set(figi, targetSeries)
+        return targetSeries
+    }, [availableFigis, chartMode, normalizeLineHistory])
+
+    const ensureCandleSeries = useCallback((figi: string) => {
+        if (!chartRef.current) return null
+        if (candleSeriesMapRef.current.has(figi)) return candleSeriesMapRef.current.get(figi)!
+        const candleSeries = chartRef.current.addSeries(CandlestickSeries, {
+            upColor: '#22c55e',
+            downColor: '#ef4444',
+            borderVisible: false,
+            wickUpColor: '#22c55e',
+            wickDownColor: '#ef4444',
+            priceScaleId: 'right',
+        })
+        const hist = normalizeCandleHistory(candleHistoryRef.current.get(figi) ?? [])
+        if (hist.length > 0) {
+            candleSeries.setData(hist)
+        }
+        candleSeries.applyOptions({ visible: chartMode === 'candles' || chartMode === 'both' })
+        candleSeriesMapRef.current.set(figi, candleSeries)
+        return candleSeries
+    }, [chartMode, normalizeCandleHistory])
+
+    const appendPriceToChart = useCallback((figi: string, price: number, eventTime?: string) => {
         const now = Math.floor(Date.now() / 1000) as Time
+        const parsed = eventTime ? Math.floor(new Date(eventTime).getTime() / 1000) : Number(now)
+        const candidateTs = Number.isFinite(parsed) ? parsed : Number(now)
+        const prevTs = lastPriceTsByFigiRef.current.get(figi) ?? 0
+        const normalizedTs = candidateTs <= prevTs ? prevTs + 1 : candidateTs
+        lastPriceTsByFigiRef.current.set(figi, normalizedTs)
+        const pointTime = normalizedTs as Time
+        const point = { time: pointTime, value: price }
 
         if (!priceHistoryRef.current.has(figi)) {
             priceHistoryRef.current.set(figi, [])
         }
         const hist = priceHistoryRef.current.get(figi)!
-        hist.push({ time: now, value: price })
+        hist.push(point)
+        if (hist.length > MAX_PRICE_POINTS) {
+            hist.splice(0, hist.length - MAX_PRICE_POINTS)
+        }
+
+        const candleTime = (Math.floor(Number(pointTime) / 60) * 60) as Time
+        const current = candleCurrentRef.current.get(figi)
+        if (!current || Number(current.time) !== Number(candleTime)) {
+            const nextCandle = { time: candleTime, open: price, high: price, low: price, close: price }
+            candleCurrentRef.current.set(figi, nextCandle)
+            if (!candleHistoryRef.current.has(figi)) {
+                candleHistoryRef.current.set(figi, [])
+            }
+            const candleHist = candleHistoryRef.current.get(figi)!
+            candleHist.push(nextCandle)
+            if (candleHist.length > MAX_CANDLE_POINTS) {
+                candleHist.splice(0, candleHist.length - MAX_CANDLE_POINTS)
+            }
+        } else {
+            current.high = Math.max(current.high, price)
+            current.low = Math.min(current.low, price)
+            current.close = price
+        }
 
         if (!initialPricesRef.current.has(figi)) {
             initialPricesRef.current.set(figi, price)
         }
 
-        if (!seriesMapRef.current.has(figi)) {
-            const idx = availableFigis.indexOf(figi)
-            const color = SERIES_COLORS[idx >= 0 ? idx % SERIES_COLORS.length : seriesMapRef.current.size % SERIES_COLORS.length]
-            const series = chartRef.current.addSeries(LineSeries, {
-                color,
-                lineWidth: 2,
-                title: figi.slice(-4),
-                priceScaleId: 'right',
-            })
-            seriesMapRef.current.set(figi, series)
-        }
+        if (!chartRef.current) return
+        if (!selectedFigis.includes(figi) && selectedFigis.length > 0) return
 
-        const series = seriesMapRef.current.get(figi)!
-        series.update({ time: now, value: price })
-    }, [availableFigis, selectedFigis])
+        const series = ensurePriceSeries(figi)
+        series?.update(point)
+        const candleSeries = ensureCandleSeries(figi)
+        candleSeries?.update(candleCurrentRef.current.get(figi)!)
+    }, [ensurePriceSeries, ensureCandleSeries, selectedFigis])
+
+    const appendTargetToChart = useCallback((figi: string, targetPrice: number) => {
+        const now = Math.floor(Date.now() / 1000) as Time
+        const point = { time: now, value: targetPrice }
+        if (!targetHistoryRef.current.has(figi)) {
+            targetHistoryRef.current.set(figi, [])
+        }
+        const hist = targetHistoryRef.current.get(figi)!
+        hist.push(point)
+        if (hist.length > MAX_TARGET_POINTS) {
+            hist.splice(0, hist.length - MAX_TARGET_POINTS)
+        }
+        if (!chartRef.current) return
+        if (!selectedFigis.includes(figi) && selectedFigis.length > 0) return
+        const series = ensureTargetSeries(figi)
+        series?.update(point)
+    }, [ensureTargetSeries, selectedFigis])
 
     const onWsMessage = useCallback((data: any) => {
         if (!data || !data.type) return
@@ -117,13 +268,27 @@ export default function LivePage() {
         if (data.type === 'init') {
             const figis: string[] = data.figis ?? []
             setAvailableFigis(figis)
-            setSelectedFigis(figis)
+            setSelectedFigis(prev => {
+                if (prev.length === 0) return figis
+                const available = new Set(figis)
+                const filtered = prev.filter(f => available.has(f))
+                return filtered.length > 0 ? filtered : figis
+            })
+            setSelectedBroker(data.broker_type || 'tinvest')
+            setSoftLoading(false)
+            return
+        }
+
+        if (data.type === 'ping') {
+            setLastHeartbeatAt(Date.now())
             return
         }
 
         if (data.type === 'price') {
             const figi = data.figi as string
-            const price = data.price as number
+            const rawPrice = typeof data.price === 'number' ? data.price : Number(data.price)
+            if (!Number.isFinite(rawPrice)) return
+            const price = rawPrice
             const ts = data.time
                 ? new Date(data.time).toLocaleTimeString('ru-RU')
                 : new Date().toLocaleTimeString('ru-RU')
@@ -133,15 +298,30 @@ export default function LivePage() {
                 const change = prevPrice > 0 ? ((price - prevPrice) / prevPrice) * 100 : 0
                 return { ...prev, [figi]: { price, change, time: ts } }
             })
+            setLastPriceEventAt(Date.now())
 
-            appendPriceToChart(figi, price, ts)
+            appendPriceToChart(figi, price, data.time)
         }
 
         if (data.type === 'signal') {
+            const side = (data.signal_type || data.side || '').toLowerCase()
+            if (data.figi) {
+                setSignalMeta(prev => ({
+                    ...prev,
+                    [data.figi]: {
+                        targetPrice: typeof data.target_price === 'number' ? data.target_price : prev[data.figi]?.targetPrice,
+                        indicators: data.indicators || prev[data.figi]?.indicators || {},
+                        signalType: side || prev[data.figi]?.signalType,
+                    },
+                }))
+                if (typeof data.target_price === 'number') {
+                    appendTargetToChart(data.figi, data.target_price)
+                }
+            }
             setSignals(prev => [{
                 id: ++signalIdRef.current,
-                type: (data.side === 'buy' ? 'buy' : 'sell') as FeedEvent['type'],
-                text: `${data.figi} @ ${data.price}`,
+                type: (side === 'buy' ? 'buy' : side === 'sell' ? 'sell' : 'info') as FeedEvent['type'],
+                text: `${data.figi} @ ${data.price}${data.target_price ? ` → target ${data.target_price}` : ''}`,
                 time: data.time ?? new Date().toLocaleTimeString('ru-RU'),
             }, ...prev].slice(0, 100))
         }
@@ -151,6 +331,15 @@ export default function LivePage() {
                 id: ++signalIdRef.current,
                 type: (data.status === 'filled' ? 'buy' : 'info') as FeedEvent['type'],
                 text: `${data.side?.toUpperCase()} ${data.figi} x${data.quantity} — ${data.status}`,
+                time: data.time ?? new Date().toLocaleTimeString('ru-RU'),
+            }, ...prev].slice(0, 100))
+        }
+
+        if (data.type === 'skipped') {
+            setOrders(prev => [{
+                id: ++signalIdRef.current,
+                type: 'info' as FeedEvent['type'],
+                text: `SKIPPED ${data.figi} — ${data.reason || data.status}`,
                 time: data.time ?? new Date().toLocaleTimeString('ru-RU'),
             }, ...prev].slice(0, 100))
         }
@@ -165,6 +354,7 @@ export default function LivePage() {
         }
 
         if (data.type === 'error') {
+            setSoftLoading(false)
             setLogs(prev => [...prev, {
                 id: ++logIdRef.current,
                 level: 'ERROR',
@@ -172,13 +362,14 @@ export default function LivePage() {
                 time: new Date().toLocaleTimeString('ru-RU'),
             }].slice(-500))
         }
-    }, [appendPriceToChart])
+    }, [appendPriceToChart, appendTargetToChart])
 
-    const { connected } = useWebSocket({ url: wsUrl, onMessage: onWsMessage, enabled: !!selectedRobot })
+    const { connected, send } = useWebSocket({ url: wsUrl, onMessage: onWsMessage, enabled: !!selectedRobot })
 
     const handleRobotChange = (val: string) => {
         const num = val ? Number(val) : null
         resetChartState()
+        setSoftLoading(!!num)
         setSelectedRobot(num)
     }
 
@@ -194,14 +385,27 @@ export default function LivePage() {
 
     const toggleFigi = (figi: string) => {
         setSelectedFigis(prev => {
+            if (prev.includes(figi) && prev.length === 1) {
+                return prev
+            }
             const next = prev.includes(figi)
                 ? prev.filter(f => f !== figi)
                 : [...prev, figi]
+            const wasSelected = prev.includes(figi)
+            if (connected) {
+                send({ action: wasSelected ? 'unsubscribe' : 'subscribe', figi })
+            }
 
             const chart = chartRef.current
             if (chart) {
                 for (const [f, series] of seriesMapRef.current.entries()) {
-                    series.applyOptions({ visible: next.includes(f) })
+                    series.applyOptions({ visible: next.includes(f) && (chartMode === 'lines' || chartMode === 'both') })
+                }
+                for (const [f, series] of candleSeriesMapRef.current.entries()) {
+                    series.applyOptions({ visible: next.includes(f) && (chartMode === 'candles' || chartMode === 'both') })
+                }
+                for (const [f, series] of targetSeriesMapRef.current.entries()) {
+                    series.applyOptions({ visible: next.includes(f) && (chartMode === 'lines' || chartMode === 'both') })
                 }
             }
             return next
@@ -215,9 +419,46 @@ export default function LivePage() {
             secondsVisible: true,
             rightOffset: 5,
         })
-    }, [])
+        const figisToRender = selectedFigis.length > 0 ? selectedFigis : availableFigis
+        for (const figi of figisToRender) {
+            ensurePriceSeries(figi)
+            ensureCandleSeries(figi)
+            ensureTargetSeries(figi)
+        }
+    }, [availableFigis, ensurePriceSeries, ensureCandleSeries, ensureTargetSeries, selectedFigis])
 
-    const priceRows = Object.entries(prices).map(([figi, d]) => ({ figi, ...d }))
+    useEffect(() => {
+        if (!chartRef.current) return
+        const figisToRender = selectedFigis.length > 0 ? selectedFigis : availableFigis
+        for (const figi of figisToRender) {
+            ensurePriceSeries(figi)
+            ensureCandleSeries(figi)
+            ensureTargetSeries(figi)
+        }
+    }, [availableFigis, selectedFigis, ensurePriceSeries, ensureCandleSeries, ensureTargetSeries])
+
+    useEffect(() => {
+        const selected = new Set(selectedFigis)
+        for (const [figi, series] of seriesMapRef.current.entries()) {
+            series.applyOptions({ visible: selected.has(figi) && (chartMode === 'lines' || chartMode === 'both') })
+        }
+        for (const [figi, series] of candleSeriesMapRef.current.entries()) {
+            series.applyOptions({ visible: selected.has(figi) && (chartMode === 'candles' || chartMode === 'both') })
+        }
+        for (const [figi, series] of targetSeriesMapRef.current.entries()) {
+            series.applyOptions({ visible: selected.has(figi) && (chartMode === 'lines' || chartMode === 'both') })
+        }
+    }, [chartMode, selectedFigis])
+
+    const priceRows = (availableFigis.length > 0 ? availableFigis : Object.keys(prices)).map((figi) => {
+        const d = prices[figi]
+        return {
+            figi,
+            price: d?.price ?? null,
+            change: d?.change ?? 0,
+            time: d?.time ?? '—',
+        }
+    })
     const priceColumns: Column<any>[] = [
         {
             key: 'figi', header: 'FIGI',
@@ -227,15 +468,55 @@ export default function LivePage() {
                 return <span style={{ borderLeft: `3px solid ${color}`, paddingLeft: 6 }}>{r.figi}</span>
             },
         },
-        { key: 'price', header: 'Цена', align: 'right' as const, render: r => <span className="mono">{r.price?.toLocaleString('ru-RU', { maximumFractionDigits: 4 })}</span> },
+        { key: 'price', header: 'Цена', align: 'right' as const, render: r => <span className="mono">{r.price == null ? '—' : r.price.toLocaleString('ru-RU', { maximumFractionDigits: 4 })}</span> },
         {
             key: 'change', header: 'Изм. %', align: 'right' as const,
-            render: r => <span className={r.change >= 0 ? 'color-up' : 'color-down'}>{r.change >= 0 ? '+' : ''}{r.change?.toFixed(4)}%</span>,
+            render: r => <span className={r.price == null ? '' : (r.change >= 0 ? 'color-up' : 'color-down')}>{r.price == null ? '—' : `${r.change >= 0 ? '+' : ''}${r.change?.toFixed(4)}%`}</span>,
         },
         { key: 'time', header: 'Время', render: r => <span className="mono">{r.time}</span> },
     ]
 
+    const indicatorRows = (availableFigis.length > 0 ? availableFigis : Object.keys(signalMeta)).map((figi) => {
+        const m = signalMeta[figi] || {}
+        return {
+            figi,
+            signal: (m.signalType || '—').toUpperCase(),
+            target: m.targetPrice ?? null,
+            indicators: m.indicators || {},
+        }
+    })
+    const indicatorColumns: Column<any>[] = [
+        { key: 'figi', header: 'FIGI' },
+        { key: 'signal', header: 'Сигнал' },
+        { key: 'target', header: 'Target', align: 'right' as const, render: r => r.target == null ? '—' : r.target.toLocaleString('ru-RU', { maximumFractionDigits: 4 }) },
+        {
+            key: 'indicators',
+            header: 'Индикаторы',
+            render: r => {
+                const items = Object.entries(r.indicators || {}) as [string, any][]
+                if (items.length === 0) return '—'
+                return items.slice(0, 4).map(([k, v]) => `${k}=${Number(v).toFixed(4)}`).join(' | ')
+            },
+        },
+    ]
+
     const filteredLogs = logFilter === 'ALL' ? logs : logs.filter(l => l.level === logFilter)
+    const secondsSinceLastPrice = lastPriceEventAt ? Math.floor((nowTs - lastPriceEventAt) / 1000) : null
+    const streamState: 'offline' | 'fresh' | 'stale' = !connected
+        ? 'offline'
+        : (secondsSinceLastPrice == null || secondsSinceLastPrice <= 5 ? 'fresh' : 'stale')
+    const streamLabel = streamState === 'offline'
+        ? 'Поток: оффлайн'
+        : streamState === 'fresh'
+            ? `Поток: свежий (${secondsSinceLastPrice ?? 0}с)`
+            : `Поток: задержка (${secondsSinceLastPrice ?? 0}с)`
+    const streamVariant = streamState === 'offline' ? 'neutral' : (streamState === 'fresh' ? 'up' : 'down')
+    const lastPriceText = lastPriceEventAt
+        ? new Date(lastPriceEventAt).toLocaleTimeString('ru-RU')
+        : '—'
+    const lastHeartbeatText = lastHeartbeatAt
+        ? new Date(lastHeartbeatAt).toLocaleTimeString('ru-RU')
+        : '—'
 
     const downloadLog = () => {
         const text = logs.map(l => `[${l.time}] [${l.level}] ${l.text}`).join('\n')
@@ -250,6 +531,7 @@ export default function LivePage() {
     return (
         <div className="page">
             <h1 className="page__title">Live-режим</h1>
+            {softLoading && <div className="soft-loading-bar" />}
 
             <div className="portfolio-toolbar">
                 <Select
@@ -262,6 +544,21 @@ export default function LivePage() {
                     <span className={`status-dot status-dot--${connected ? 'active' : 'inactive'}`} />
                     {connected ? 'Онлайн' : 'Оффлайн'}
                 </Badge>
+                <Badge variant={streamVariant}>
+                    {streamLabel}
+                </Badge>
+                <Badge variant="neutral">
+                    Last price: {lastPriceText}
+                </Badge>
+                <Badge variant="neutral">
+                    Last ping: {lastHeartbeatText}
+                </Badge>
+                <Badge variant="neutral">Брокер: {selectedBroker}</Badge>
+                <div style={{ display: 'inline-flex', gap: '6px', marginLeft: '6px' }}>
+                    <Button variant={chartMode === 'candles' ? 'primary' : 'ghost'} size="sm" onClick={() => setChartMode('candles')}>Свечи</Button>
+                    <Button variant={chartMode === 'lines' ? 'primary' : 'ghost'} size="sm" onClick={() => setChartMode('lines')}>Линии</Button>
+                    <Button variant={chartMode === 'both' ? 'primary' : 'ghost'} size="sm" onClick={() => setChartMode('both')}>Оба</Button>
+                </div>
                 <Button variant="primary" size="sm" onClick={handleStart} disabled={!selectedRobot}>Старт</Button>
                 <Button variant="danger" size="sm" onClick={handleStop} disabled={!selectedRobot}>Стоп</Button>
             </div>
@@ -313,6 +610,11 @@ export default function LivePage() {
                     <Card>
                         <h3 className="card__section-title">Сигналы</h3>
                         <EventFeed events={signals} maxHeight="200px" />
+                    </Card>
+
+                    <Card>
+                        <h3 className="card__section-title">Target и индикаторы</h3>
+                        <DataTable columns={indicatorColumns} data={indicatorRows} keyField="figi" emptyText="Нет индикаторных данных" />
                     </Card>
 
                     <Card>

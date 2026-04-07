@@ -2,6 +2,7 @@
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, timezone
 import json
+import math
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -303,6 +304,17 @@ class RobotService:
         from app.modules.robots.trading.strategies import list_strategies
         return list_strategies()
 
+    async def get_strategy_info(self, name: str) -> Dict[str, Any]:
+        """Returns one strategy metadata by name."""
+        from app.modules.robots.trading.strategies import get_strategy_info
+        info = get_strategy_info(name)
+        if not info:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Стратегия '{name}' не найдена",
+            )
+        return info
+
     async def update_robot_config(
             self,
             db: Session,
@@ -336,29 +348,221 @@ class RobotService:
         db.commit()
         return await self.get_robot_by_id(db, robot_id, user_id)
 
+    async def run_robot_history_backtest(
+            self,
+            db: Session,
+            user_id: int,
+            request: schemas.RobotHistoryBacktestRequest,
+    ) -> Dict[str, Any]:
+        """Исторический бэктест по конфигу робота: свечи из общей БД, дозагрузка через токен робота."""
+        from app.modules.robots.trading.backtest.engine import run_backtest_simulation
+        from app.modules.market_data import service as market_service
+
+        robot = await self.get_robot_by_id(db, request.robot_id, user_id)
+        token_id = robot["token"]["id"]
+        token_row = await token_service.get_token_by_id(db, token_id, user_id)
+        if not token_row or not token_row.get("token"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Токен робота недоступен",
+            )
+        token = token_row["token"]
+        config = robot.get("config") or {}
+        figis: List[str] = list(config.get("allowed_figis") or (config.get("strategy_params") or {}).get("figis") or [])
+        if not figis:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="В конфиге робота нет FIGI")
+
+        strategy_name = config.get("strategy") or "ma_cross"
+        strategy_params = dict(config.get("strategy_params") or {})
+        strategy_params["figis"] = figis
+        interval = strategy_params.get("interval", "CANDLE_INTERVAL_DAY")
+        risk = dict(config.get("risk") or {})
+
+        try:
+            candles_by_figi: Dict[str, Any] = {}
+            for figi in figis:
+                await market_service.ensure_candles_cover_window(
+                    db, figi, interval, request.from_date, request.to_date, token,
+                )
+                cl = market_service.load_candles_for_backtest(
+                    db, figi, interval, request.from_date, request.to_date,
+                )
+                candles_by_figi[figi] = cl
+
+            res = await run_backtest_simulation(
+                candles_by_figi=candles_by_figi,
+                strategy_name=strategy_name,
+                strategy_params=strategy_params,
+                risk_params=risk,
+                initial_capital=request.initial_capital,
+                robot_config_for_cost_defaults=config,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception("robot history backtest failed")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Ошибка загрузки данных или расчёта: {e}",
+            )
+
+        return {
+            "initial_capital": res.initial_capital,
+            "final_equity": res.final_equity,
+            "total_return_percent": res.total_return_percent,
+            "max_drawdown_percent": res.max_drawdown_percent,
+            "trades": res.trades,
+            "equity_curve": res.equity_curve,
+        }
+
+    async def run_backtest(self, request: schemas.BacktestRequest) -> Dict[str, Any]:
+        returns = request.returns or []
+        equity = float(request.initial_capital)
+        equity_curve = [equity]
+        fee_mult = float(request.fee_bps) / 10000.0
+
+        for r in returns:
+            pnl = equity * float(r)
+            fees = abs(equity * float(r)) * fee_mult
+            equity = max(0.0, equity + pnl - fees)
+            equity_curve.append(equity)
+
+        total_return_pct = ((equity / request.initial_capital) - 1.0) * 100.0 if request.initial_capital > 0 else 0.0
+        max_dd = self._calc_drawdown_percent(equity_curve)
+        sharpe = self._calc_sharpe_from_returns(returns)
+        return {
+            "initial_capital": round(request.initial_capital, 4),
+            "final_equity": round(equity, 4),
+            "total_return_percent": round(total_return_pct, 4),
+            "max_drawdown_percent": round(max_dd, 4),
+            "sharpe_ratio": round(sharpe, 4) if sharpe is not None else None,
+            "trades_count": len(returns),
+            "equity_curve": [round(v, 4) for v in equity_curve],
+        }
+
+    async def run_walk_forward(self, request: schemas.WalkForwardRequest) -> Dict[str, Any]:
+        returns = request.returns or []
+        if len(returns) < request.folds * 4:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Недостаточно точек returns для walk-forward"
+            )
+        chunk = max(2, len(returns) // request.folds)
+        folds = []
+        for idx in range(request.folds):
+            start = idx * chunk
+            end = min(len(returns), start + chunk)
+            segment = returns[start:end]
+            if len(segment) < 2:
+                continue
+            train_len = max(1, int(len(segment) * request.train_ratio))
+            test = segment[train_len:]
+            if not test:
+                continue
+            bt = await self.run_backtest(
+                schemas.BacktestRequest(
+                    returns=test,
+                    initial_capital=request.initial_capital,
+                    fee_bps=request.fee_bps,
+                )
+            )
+            folds.append({
+                "fold": idx + 1,
+                "train_points": train_len,
+                "test_points": len(test),
+                "final_equity": bt["final_equity"],
+                "total_return_percent": bt["total_return_percent"],
+                "max_drawdown_percent": bt["max_drawdown_percent"],
+                "sharpe_ratio": bt["sharpe_ratio"],
+            })
+        if not folds:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Walk-forward не удалось построить")
+        avg_return = sum(f["total_return_percent"] for f in folds) / len(folds)
+        sharpes = [f["sharpe_ratio"] for f in folds if f.get("sharpe_ratio") is not None]
+        avg_sharpe = (sum(sharpes) / len(sharpes)) if sharpes else None
+        return {
+            "folds": folds,
+            "avg_total_return_percent": round(avg_return, 4),
+            "avg_sharpe_ratio": round(avg_sharpe, 4) if avg_sharpe is not None else None,
+        }
+
+    async def set_paper_mode(self, db: Session, user_id: int, robot_id: int, enabled: bool) -> Dict[str, Any]:
+        robot = await self.get_robot_by_id(db, robot_id, user_id)
+        config = dict(robot.get("config") or {})
+        config["paper_mode"] = bool(enabled)
+        await self.update_robot_config(db, robot_id, user_id, config)
+        return {"robot_id": robot_id, "paper_mode": bool(enabled)}
+
+    @staticmethod
+    def _calc_drawdown_percent(curve: List[float]) -> float:
+        if not curve:
+            return 0.0
+        peak = curve[0]
+        max_dd = 0.0
+        for v in curve:
+            peak = max(peak, v)
+            if peak > 0:
+                dd = ((peak - v) / peak) * 100.0
+                max_dd = max(max_dd, dd)
+        return max_dd
+
+    @staticmethod
+    def _calc_sharpe_from_returns(returns: List[float]) -> Optional[float]:
+        if not returns:
+            return None
+        n = len(returns)
+        mean = sum(float(r) for r in returns) / n
+        if n < 2:
+            return None
+        var = sum((float(r) - mean) ** 2 for r in returns) / (n - 1)
+        std = math.sqrt(var)
+        if std <= 0:
+            return None
+        return (mean / std) * math.sqrt(n)
+
     def _validate_robot_config(self, config: Dict[str, Any]) -> None:
         """
         Валидирует обязательные поля стратегии.
         """
+        if "broker_type" not in config:
+            config["broker_type"] = "tinvest"
+        elif config.get("broker_type") not in {"tinvest", "vtb", "alfa"}:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="broker_type must be one of: tinvest, vtb, alfa"
+            )
+
+        allowed_figis = config.get("allowed_figis")
+        if allowed_figis is not None and not isinstance(allowed_figis, list):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="allowed_figis must be an array"
+            )
+
         strategy_params = config.get("strategy_params") or {}
+        config["strategy_params"] = strategy_params
+        strategy_name = config.get("strategy", "ma_cross")
         interval = strategy_params.get("interval")
-        fast_period = strategy_params.get("fast_period")
-        slow_period = strategy_params.get("slow_period")
         if not interval:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="strategy_params.interval is required"
-            )
-        if fast_period is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="strategy_params.fast_period is required"
-            )
-        if slow_period is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="strategy_params.slow_period is required"
-            )
+            strategy_params["interval"] = "CANDLE_INTERVAL_DAY"
+
+        if strategy_name == "ma_cross":
+            fast_period = strategy_params.get("fast_period")
+            slow_period = strategy_params.get("slow_period")
+            if fast_period is None:
+                strategy_params["fast_period"] = 10
+                fast_period = 10
+            if slow_period is None:
+                strategy_params["slow_period"] = 30
+                slow_period = 30
+            if int(fast_period) >= int(slow_period):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="strategy_params.fast_period must be less than strategy_params.slow_period"
+                )
+
         if not strategy_params.get("candle_days"):
             strategy_params["candle_days"] = 60
 

@@ -10,7 +10,10 @@ import { AreaSeries, HistogramSeries, LineSeries } from 'lightweight-charts'
 import { analyticsService } from '@/services/analyticsService'
 import { robotService } from '@/services/robotService'
 import type { AccountSummary, AccountDetail, PortfolioSnapshotSummary } from '@/types/api'
-import type { Robot, RobotMetrics, RobotTradeItem } from '@/types/robot'
+import type { Robot, RobotMetrics, RobotTradeItem, UserRobotsTradingOverview } from '@/types/robot'
+
+/** Максимум дней истории портфеля на бэкенде (совпадает с le=3650). */
+const HISTORY_DAYS_CAP = 3650
 
 const PERIOD_OPTIONS = [
     { label: 'Неделя', days: 7 },
@@ -30,7 +33,10 @@ export default function AnalyticsPage() {
     const [detail, setDetail] = useState<AccountDetail | null>(null)
     const [metrics, setMetrics] = useState<RobotMetrics | null>(null)
     const [trades, setTrades] = useState<RobotTradeItem[]>([])
+    const [overview, setOverview] = useState<UserRobotsTradingOverview | null>(null)
     const [loading, setLoading] = useState(true)
+
+    const historyDays = period >= 9999 ? HISTORY_DAYS_CAP : Math.min(period, HISTORY_DAYS_CAP)
 
     useEffect(() => { init() }, [])
 
@@ -46,8 +52,6 @@ export default function AnalyticsPage() {
             setRobots(robotRes.items)
             if (accs.length > 0) {
                 setSelectedAccount(accs[0].id)
-                const d = await analyticsService.getAccountDetail(accs[0].id)
-                setDetail(d)
             }
         } catch { /* */ }
         setLoading(false)
@@ -66,10 +70,20 @@ export default function AnalyticsPage() {
     }, [selectedRobot])
 
     useEffect(() => {
-        if (selectedAccount) {
-            analyticsService.getAccountDetail(selectedAccount).then(setDetail).catch(() => {})
+        if (!selectedAccount) return
+        let cancelled = false
+        analyticsService.getAccountDetail(selectedAccount, historyDays).then(d => {
+            if (!cancelled) setDetail(d)
+        }).catch(() => { if (!cancelled) setDetail(null) })
+        return () => { cancelled = true }
+    }, [selectedAccount, historyDays])
+
+    useEffect(() => {
+        if (selectedRobot != null) {
+            return
         }
-    }, [selectedAccount])
+        analyticsService.getRobotsTradingOverview().then(setOverview).catch(() => setOverview(null))
+    }, [selectedRobot])
 
     const history = detail?.history ?? []
     const filteredHistory = history.filter(h => {
@@ -77,12 +91,28 @@ export default function AnalyticsPage() {
         return new Date(h.date).getTime() >= cutoff
     })
 
-    const totalYield = metrics?.total_pnl ?? (detail?.last_snapshot ? (detail.last_snapshot as any).expected_yield ?? 0 : 0)
-    const winRate = metrics?.win_rate ?? 0
-    const profitFactor = metrics?.profit_factor ?? 0
-    const maxDrawdown = metrics?.max_drawdown ?? 0
-    const totalTrades = metrics?.total_trades ?? 0
-    const sharpe = profitFactor > 0 ? (profitFactor * 0.8) : 0
+    const totalPnlTrading = selectedRobot != null
+        ? (metrics?.total_pnl ?? 0)
+        : (overview?.total_pnl ?? 0)
+    const winRate = selectedRobot != null ? (metrics?.win_rate ?? null) : (overview?.win_rate ?? null)
+    const profitFactor = selectedRobot != null ? (metrics?.profit_factor ?? null) : (overview?.profit_factor ?? null)
+    const maxDrawdownRub = selectedRobot != null ? (metrics?.max_drawdown ?? null) : (overview?.max_drawdown ?? null)
+    const totalTrades = selectedRobot != null ? (metrics?.total_trades ?? 0) : (overview?.total_trades ?? 0)
+    const sharpe = selectedRobot != null ? (metrics?.sharpe_ratio ?? null) : (overview?.sharpe_ratio ?? null)
+    const sortino = selectedRobot != null ? (metrics?.sortino_ratio ?? null) : (overview?.sortino_ratio ?? null)
+    const fillRate = selectedRobot != null ? (metrics?.fill_rate ?? null) : null
+    const rejectRate = selectedRobot != null ? (metrics?.reject_rate ?? null) : null
+    const totalCommission = selectedRobot != null
+        ? (metrics?.total_commission ?? 0)
+        : (overview?.total_commission ?? 0)
+
+    const portfolioExpectedYield = detail?.last_snapshot
+        ? Number((detail.last_snapshot as { expected_yield?: number }).expected_yield ?? 0)
+        : 0
+
+    const pnlLabel = selectedRobot != null ? 'Чистый PnL (робот)' : 'Чистый PnL (все роботы)'
+    const formatOpt = (v: number | null, digits: number, fallback = '—') =>
+        v == null || Number.isNaN(v) ? fallback : v.toFixed(digits)
 
     const portfolioChartData = useCallback(() => {
         const byDay = new Map<string, number>()
@@ -201,12 +231,80 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="grid-kpi">
-                <KpiTile label="Доходность" value={totalYield} format={v => v.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} suffix=" ₽" change={totalYield > 0 ? 1 : totalYield < 0 ? -1 : 0} icon={<span>📈</span>} />
-                <KpiTile label="Sharpe Ratio" value={sharpe} format={v => v.toFixed(2)} icon={<span>📐</span>} />
-                <KpiTile label="Max Drawdown" value={maxDrawdown} format={v => v.toFixed(1)} suffix="%" icon={<span>📉</span>} />
-                <KpiTile label="Win Rate" value={winRate} format={v => v.toFixed(1)} suffix="%" icon={<span>🎯</span>} />
-                <KpiTile label="Profit Factor" value={profitFactor} format={v => v.toFixed(2)} icon={<span>💹</span>} />
+                <KpiTile
+                    label={pnlLabel}
+                    value={totalPnlTrading}
+                    format={v => v.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}
+                    suffix=" ₽"
+                    change={totalPnlTrading > 0 ? 1 : totalPnlTrading < 0 ? -1 : 0}
+                    icon={<span>📈</span>}
+                />
+                <KpiTile
+                    label="Накопл. доход (портфель)"
+                    value={portfolioExpectedYield}
+                    format={v => v.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}
+                    suffix=" ₽"
+                    change={portfolioExpectedYield > 0 ? 1 : portfolioExpectedYield < 0 ? -1 : 0}
+                    icon={<span>💼</span>}
+                />
+                <KpiTile
+                    label="Sharpe"
+                    value={sharpe ?? 0}
+                    format={() => formatOpt(sharpe, 4)}
+                    icon={<span>📐</span>}
+                />
+                <KpiTile
+                    label="Просадка (кумулят. PnL)"
+                    value={maxDrawdownRub ?? 0}
+                    format={() => (maxDrawdownRub == null ? '—' : maxDrawdownRub.toLocaleString('ru-RU', { maximumFractionDigits: 0 }))}
+                    suffix={maxDrawdownRub == null ? '' : ' ₽'}
+                    icon={<span>📉</span>}
+                />
+                <KpiTile
+                    label="Win Rate"
+                    value={winRate ?? 0}
+                    format={() => formatOpt(winRate, 1)}
+                    suffix={winRate == null ? '' : '%'}
+                    icon={<span>🎯</span>}
+                />
+                <KpiTile
+                    label="Profit Factor"
+                    value={profitFactor ?? 0}
+                    format={() => formatOpt(profitFactor, 2)}
+                    icon={<span>💹</span>}
+                />
                 <KpiTile label="Сделок" value={totalTrades} icon={<span>📊</span>} />
+                <KpiTile
+                    label="Sortino"
+                    value={sortino ?? 0}
+                    format={() => formatOpt(sortino, 4)}
+                    icon={<span>🧮</span>}
+                />
+                <KpiTile
+                    label="Комиссии (факт)"
+                    value={totalCommission}
+                    format={v => v.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}
+                    suffix=" ₽"
+                    icon={<span>🏦</span>}
+                />
+                {selectedRobot != null && (
+                    <>
+                        <KpiTile
+                            label="Fill Rate"
+                            value={fillRate ?? 0}
+                            format={() => formatOpt(fillRate, 1)}
+                            suffix={fillRate == null ? '' : '%'}
+                            icon={<span>✅</span>}
+                        />
+                        <KpiTile
+                            label="Reject Rate"
+                            value={rejectRate ?? 0}
+                            format={() => formatOpt(rejectRate, 1)}
+                            suffix={rejectRate == null ? '' : '%'}
+                            icon={<span>⛔</span>}
+                        />
+                    </>
+                )}
             </div>
 
             <div className="grid-2col mb-6">

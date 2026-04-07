@@ -11,6 +11,7 @@ const RobotsPage = lazy(() => import('@/pages/RobotsPage'))
 const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
 const LivePage = lazy(() => import('@/pages/LivePage'))
+const TestingPage = lazy(() => import('@/pages/TestingPage'))
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const token = useAuthStore(s => s.token)
@@ -39,6 +40,7 @@ export function App() {
                         <Route path="robots" element={<RobotsPage />} />
                         <Route path="analytics" element={<AnalyticsPage />} />
                         <Route path="settings" element={<SettingsPage />} />
+                        <Route path="testing" element={<TestingPage />} />
                         <Route path="live" element={<LivePage />} />
                     </Route>
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />

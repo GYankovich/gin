@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 from datetime import datetime, timezone
 from sqlalchemy import text
 
-from app.modules.tinvest.methods.instruments import InstrumentsClient
+from app.modules.robots.trading.brokers.base import BrokerFacade
 from app.modules.robots.trading.costs import (
     TradingCosts,
     calculate_stop_loss_price,
@@ -20,14 +20,31 @@ logger = get_logger(__name__)
 class Stage4Positions:
     """Управление позициями"""
 
-    def __init__(self, db, schema: str, token: str, account_id: str, robot_id: int, log_func=None):
+    def __init__(
+            self,
+            db,
+            schema: str,
+            broker: BrokerFacade,
+            account_id: str,
+            robot_id: int,
+            log_func=None,
+            cost_params: Optional[Dict[str, float]] = None,
+    ):
         self.db = db
         self.schema = schema
-        self.token = token
+        self.broker = broker
         self.account_id = account_id
         self.robot_id = robot_id
         self.log_func = log_func
-        self.rest_client = InstrumentsClient(token)
+        self.cost_params: Optional[Dict[str, float]] = cost_params
+
+    def _cost_kw(self) -> Dict[str, float]:
+        if not self.cost_params:
+            return {}
+        return {
+            "broker_commission_rate": float(self.cost_params["broker_commission_rate"]),
+            "ndfl_rate": float(self.cost_params["ndfl_rate"]),
+        }
 
     def _write_log(self, message: str):
         """Запись в лог"""
@@ -86,60 +103,70 @@ class Stage4Positions:
             entry_price = position["entry_price"]
             current_price = prices.get(figi)
             quantity = position["quantity"]
+            is_long = str(position.get("side", "")).lower() in {"buy", "long"}
 
             if not current_price:
                 self._write_log(f"   {figi}: нет текущей цены")
                 continue
 
-            stop_loss = calculate_stop_loss_price(entry_price, stop_loss_percent, is_long=True)
-            take_profit = calculate_take_profit_price(entry_price, take_profit_percent, is_long=True)
+            stop_loss = calculate_stop_loss_price(entry_price, stop_loss_percent, is_long=is_long)
+            take_profit = calculate_take_profit_price(
+                entry_price, take_profit_percent, is_long=is_long, **self._cost_kw()
+            )
 
             self._write_log(f"   {figi}: цена={current_price:.4f}, SL={stop_loss:.4f}, TP={take_profit:.4f}")
 
             should_close = False
             reason = None
 
-            if current_price <= stop_loss:
-                should_close = True
-                reason = "stop_loss"
-                self._write_log(f"      ⚠️ Сработал STOP-LOSS!")
-            elif current_price >= take_profit:
-                should_close = True
-                reason = "take_profit"
-                self._write_log(f"      🎯 Сработал TAKE-PROFIT!")
+            if is_long:
+                if current_price <= stop_loss:
+                    should_close = True
+                    reason = "stop_loss"
+                    self._write_log(f"      ⚠️ Сработал STOP-LOSS!")
+                elif current_price >= take_profit:
+                    should_close = True
+                    reason = "take_profit"
+                    self._write_log(f"      🎯 Сработал TAKE-PROFIT!")
+            else:
+                if current_price >= stop_loss:
+                    should_close = True
+                    reason = "stop_loss"
+                    self._write_log(f"      ⚠️ Сработал STOP-LOSS (short)!")
+                elif current_price <= take_profit:
+                    should_close = True
+                    reason = "take_profit"
+                    self._write_log(f"      🎯 Сработал TAKE-PROFIT (short)!")
 
             if should_close:
                 try:
                     self._write_log(f"      🔄 Выставление заявки на закрытие...")
 
-                    order = await self.rest_client.post_order(
+                    direction = "ORDER_DIRECTION_BUY" if str(position.get("side", "")).lower() == "sell" else "ORDER_DIRECTION_SELL"
+                    order = await self.broker.post_order(
                         figi=figi,
                         quantity=quantity,
                         price=current_price,
-                        direction="ORDER_DIRECTION_SELL",
+                        direction=direction,
                         account_id=self.account_id
                     )
+                    order_id = order.get("orderId")
 
-                    costs = TradingCosts(entry_price, quantity, is_buy=True)
+                    costs = TradingCosts(entry_price, int(quantity), is_buy=is_long, **self._cost_kw())
                     profit_calc = costs.calculate_actual_profit(current_price)
-
-                    await self._close_trade(
-                        position["id"],
-                        current_price,
-                        reason,
-                        profit_calc["net_profit"],
-                        profit_calc["net_profit_percent"]
-                    )
 
                     closed_trades.append({
                         "trade_id": position["id"],
+                        "order_id": order_id,
                         "figi": figi,
                         "exit_price": current_price,
                         "reason": reason,
                         "profit": profit_calc["net_profit"]
                     })
-
-                    self._write_log(f"      ✅ Позиция закрыта. Прибыль: {profit_calc['net_profit']:.2f} руб.")
+                    self._write_log(
+                        f"      ✅ Заявка на закрытие отправлена (order_id={order_id})."
+                        f" Фактическое закрытие будет после fill."
+                    )
 
                 except Exception as e:
                     self._write_log(f"      ❌ Ошибка закрытия: {e}")

@@ -18,7 +18,10 @@ from app.modules.robots.trading.stages.stage4_positions import Stage4Positions
 from app.modules.robots.trading.stages.stage5_signals import Stage5Signals
 from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
 from app.modules.robots.trading import queries as trading_queries
-from app.modules.tinvest.facade import TInvestFacade
+from app.modules.robots.trading.brokers import BrokerFacade, create_broker_facade
+from app.modules.robots.trading.indicators.service import indicator_service
+from app.modules.robots.trading.costs import resolve_robot_cost_rates
+from app.modules.robots.live_hub import live_event_hub
 
 # Получаем системный логгер
 system_log = get_logger("robots.trading.session")
@@ -63,7 +66,8 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         self.websocket = None
         self.portfolio = None
         self.positions = None
-        self._facade: Optional[TInvestFacade] = None
+        self.broker_type = "tinvest"
+        self._broker: Optional[BrokerFacade] = None
 
         # Очереди для потоков
         self.price_queue = asyncio.Queue(maxsize=1000)
@@ -77,6 +81,9 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         # Кэши
         self.cached_prices: Dict[str, float] = {}
         self.cached_positions: List[Dict] = []
+        self._daily_trade_counter: Dict[str, int] = {}
+        self._last_trade_by_figi: Dict[str, datetime] = {}
+        self._pending_position_closures: Dict[str, Dict[str, Any]] = {}
 
         # Статистика
         self.stats = {
@@ -94,20 +101,34 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         self.strategy_params = {}
         self.risk_params = {}
         self.update_interval = 10
+        self.cost_params: Dict[str, float] = {
+            "broker_commission_rate": 0.0005,
+            "ndfl_rate": 0.15,
+        }
 
         # Обновляем конфиг
         self._update_config(config)
 
     @property
-    def facade(self) -> TInvestFacade:
-        """Ленивая инициализация фасада"""
-        if self._facade is None:
-            self._facade = TInvestFacade(self.token)
-        return self._facade
+    def broker(self) -> BrokerFacade:
+        """Ленивая инициализация фасада брокера"""
+        if self._broker is None:
+            self._broker = create_broker_facade(self.broker_type, self.token)
+        return self._broker
 
     def _write_log(self, message: str):
         """Запись в лог (и в файл, и в system_log)"""
         self._session_logger.info(message)
+        try:
+            asyncio.create_task(self._publish_live_event({
+                "type": "log",
+                "level": "INFO",
+                "message": message,
+                "robot_id": self.robot_id,
+                "time": datetime.now(timezone.utc).isoformat(),
+            }))
+        except Exception:
+            pass
         if self._log_func:
             try:
                 self._log_func(f"[SESSION {self.robot_id}] {message}")
@@ -115,6 +136,12 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                 pass
         else:
             system_log.debug(f"[ROBOT_{self.robot_id}] {message}")
+
+    async def _publish_live_event(self, payload: Dict[str, Any]) -> None:
+        try:
+            await live_event_hub.publish(self.robot_id, payload)
+        except Exception:
+            pass
 
     async def _create_execution_log(self) -> Optional[int]:
         """Создает запись о запуске сессии в БД"""
@@ -207,13 +234,23 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         self.allowed_figis = self.config.get("allowed_figis", [])
         self.strategy_name = self.config.get("strategy", "ma_cross")
         self.strategy_params = self.config.get("strategy_params", {})
-        self.risk_params = self.config.get("risk", {})
+        br, tx = resolve_robot_cost_rates(self.config)
+        self.cost_params = {"broker_commission_rate": br, "ndfl_rate": tx}
+        rp = dict(self.config.get("risk") or {})
+        rp["broker_commission"] = br
+        rp["ndfl"] = tx
+        self.risk_params = rp
+        self.broker_type = self.config.get("broker_type", "tinvest")
         self.update_interval = self.config.get("update_interval_seconds", 10)
 
         self._write_log(f"📋 Конфигурация обновлена:")
         self._write_log(f"   Account ID: {self.account_id}")
         self._write_log(f"   FIGIs: {self.allowed_figis}")
         self._write_log(f"   Strategy: {self.strategy_name}")
+        self._write_log(f"   Broker: {self.broker_type}")
+        self._write_log(
+            f"   Издержки: комиссия {br:.6f}, НДФЛ {tx:.4f}"
+        )
         self._write_log(f"   Update interval: {self.update_interval} сек")
 
     async def refresh_config(self):
@@ -230,12 +267,16 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                 new_config = result[0]
                 old_figis = set(self.allowed_figis)
                 new_figis = set(new_config.get("allowed_figis", []))
+                old_strategy_params = dict(self.strategy_params)
 
                 self._update_config(new_config)
 
                 if old_figis != new_figis and self.websocket:
                     self._write_log(f"   FIGI изменились: {old_figis} -> {new_figis}")
                     asyncio.create_task(self.websocket.subscribe(list(new_figis)))
+                if old_figis != new_figis or old_strategy_params != self.strategy_params:
+                    await indicator_service.unregister_robot(self.robot_id)
+                    await indicator_service.register_robot(self.robot_id, self.broker, self.allowed_figis, self.strategy_params)
 
             self.db.commit()
 
@@ -254,7 +295,13 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
 
         while self.running:
             try:
-                self.websocket = Stage2WebSocket(self.token, self.robot_id, self._write_log)
+                self.websocket = Stage2WebSocket(
+                    broker=self.broker,
+                    user_id=self.user_id,
+                    robot_id=self.robot_id,
+                    broker_type=self.broker_type,
+                    log_func=self._write_log,
+                )
 
                 self._write_log("🔌 [WS] Подключение...")
                 if not await self.websocket.connect():
@@ -317,13 +364,16 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
     async def _put_to_queue_with_limit(self, queue: asyncio.Queue, item: Dict):
         """Кладёт элемент в очередь с обработкой переполнения"""
         try:
-            await queue.put(item)
+            queue.put_nowait(item)
         except asyncio.QueueFull:
             try:
                 queue.get_nowait()
             except asyncio.QueueEmpty:
                 pass
-            await queue.put(item)
+            try:
+                queue.put_nowait(item)
+            except asyncio.QueueFull:
+                pass
 
     # ============================================================
     # Торговый поток
@@ -358,16 +408,64 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                     await self._update_positions()
 
                     closed = await self._check_stop_loss(prices)
+                    for item in closed:
+                        if item.get("order_id"):
+                            self._pending_position_closures[item["order_id"]] = item
+                            await self._put_to_queue_with_limit(
+                                self.order_queue,
+                                {
+                                    "type": "order_status",
+                                    "order_id": item["order_id"],
+                                    "status": "pending_close",
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                }
+                            )
 
                     signals = await self._generate_signals(prices)
+                    if await self._is_daily_loss_limit_breached():
+                        self._write_log("🛑 [TRADE] Достигнут лимит max_daily_loss, новые сигналы пропущены")
+                        signals = []
+                    signal_ids = []
                     if signals:
                         signal_ids = await self.save_signals(self.db, self.schema, self.robot_id, signals)
                         self._write_log(f"   💾 Сохранено сигналов: {len(signal_ids)}")
+                        for s in signals:
+                            await self._publish_live_event({
+                                "type": "signal",
+                                "robot_id": self.robot_id,
+                                "figi": s.get("figi"),
+                                "signal_type": str(s.get("signal", "")).lower(),
+                                "price": s.get("price"),
+                                "target_price": s.get("target_price"),
+                                "indicators": s.get("indicators", {}),
+                                "time": datetime.now(timezone.utc).isoformat(),
+                            })
 
                     trades = await self._execute_orders(signals)
                     if trades:
                         trade_ids = await self.save_trades(self.db, self.schema, self.robot_id, trades)
                         self._write_log(f"   💾 Сохранено сделок: {len(trade_ids)}")
+                        for t in trades:
+                            event_type = "order" if t.get("status") not in {"skipped"} else "skipped"
+                            await self._publish_live_event({
+                                "type": event_type,
+                                "robot_id": self.robot_id,
+                                "figi": t.get("figi"),
+                                "side": t.get("side"),
+                                "quantity": t.get("quantity"),
+                                "price": t.get("price"),
+                                "status": t.get("status"),
+                                "reason": t.get("error"),
+                                "time": datetime.now(timezone.utc).isoformat(),
+                            })
+                        executed_signal_ids = [
+                            int(t["signal_id"])
+                            for t in trades
+                            if t.get("signal_id") and t.get("status") not in {"failed", "skipped"}
+                        ]
+                        marked = await self.mark_signals_executed(self.db, self.schema, executed_signal_ids)
+                        if marked:
+                            self._write_log(f"   ✅ Отмечено исполненных сигналов: {marked}")
 
                     self.stats["signals_generated"] += len(signals)
                     self.stats["orders_placed"] += len(trades)
@@ -421,22 +519,90 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
     async def _process_order_statuses(self):
         """Обрабатывает статусы заявок из очереди"""
         statuses = []
+        order_ids: List[str] = []
 
         while not self.order_queue.empty():
             try:
                 item = self.order_queue.get_nowait()
                 statuses.append(item)
+                if item.get("order_id"):
+                    order_ids.append(item.get("order_id"))
             except asyncio.QueueEmpty:
                 break
 
-        for status in statuses:
-            self._write_log(f"📋 [TRADE] Статус заявки: {status.get('order_id')} -> {status.get('status')}")
+        order_ids.extend(await self._get_open_order_ids())
+        dedup_order_ids = list(dict.fromkeys([oid for oid in order_ids if oid]))
+        if not dedup_order_ids:
+            return
+
+        stage6 = Stage6Orders(
+            self.db, self.schema, self.broker, self.account_id,
+            self.robot_id, self.token_id, self.user_id, self._write_log,
+            daily_trade_counter=self._daily_trade_counter,
+            last_trade_by_figi=self._last_trade_by_figi,
+            cost_params=self.cost_params,
+        )
+
+        for order_id in dedup_order_ids:
+            state = await stage6.update_order_status(order_id)
+            execution_status = state.get("status", "UNKNOWN")
+            self._write_log(f"📋 [TRADE] Статус заявки: {order_id} -> {execution_status}")
             if self.db:
                 await self.update_trade_status(
                     self.db, self.schema,
-                    status.get("order_id"),
-                    status.get("status")
+                    order_id,
+                    execution_status,
+                    executed_price=state.get("executed_price"),
+                    filled_quantity=state.get("lots_executed"),
+                    commission=state.get("commission"),
                 )
+            await self._publish_live_event({
+                "type": "order",
+                "robot_id": self.robot_id,
+                "order_id": order_id,
+                "status": Stage6Orders.map_execution_status_to_trade_status(str(execution_status)),
+                "execution_status": execution_status,
+                "filled_quantity": state.get("lots_executed"),
+                "time": datetime.now(timezone.utc).isoformat(),
+            })
+
+            if execution_status == "EXECUTION_REPORT_STATUS_FILL":
+                pending_close = self._pending_position_closures.pop(order_id, None)
+                if pending_close:
+                    await self._finalize_position_close(pending_close)
+
+    async def _get_open_order_ids(self) -> List[str]:
+        if not self.db:
+            return []
+        query = f"""
+            SELECT order_id
+            FROM {self.schema}.robot_trades
+            WHERE robot_id = :robot_id
+              AND order_id IS NOT NULL
+              AND status IN ('open', 'pending', 'partial')
+            ORDER BY created_at DESC
+            LIMIT 200
+        """
+        try:
+            rows = self.db.execute(text(query), {"robot_id": self.robot_id}).fetchall()
+            return [r[0] for r in rows if r and r[0]]
+        except Exception:
+            return []
+
+    async def _finalize_position_close(self, pending: Dict[str, Any]) -> None:
+        if not self.db:
+            return
+        stage4 = Stage4Positions(
+            self.db, self.schema, self.broker, self.account_id,
+            self.robot_id, self._write_log, cost_params=self.cost_params,
+        )
+        await stage4._close_trade(
+            pending["trade_id"],
+            pending["exit_price"],
+            pending.get("reason", "filled"),
+            pending.get("profit", 0.0),
+            0.0,
+        )
 
     # ============================================================
     # Основной метод run
@@ -451,6 +617,11 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         self._write_log(f"   Account ID: {self.account_id}")
         self._write_log(f"   FIGIs: {self.allowed_figis}")
         self._write_log(f"   Strategy: {self.strategy_name}")
+        self._write_log(f"   Broker: {self.broker_type}")
+        self._write_log(
+            f"   Издержки: комиссия {self.cost_params['broker_commission_rate']:.6f}, "
+            f"НДФЛ {self.cost_params['ndfl_rate']:.4f}"
+        )
         self._write_log(f"   Update interval: {self.update_interval} сек")
         self._write_log("=" * 60)
 
@@ -459,6 +630,8 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                 raise Exception("account_id не указан в конфигурации")
             if not self.allowed_figis:
                 raise Exception("allowed_figis не указан в конфигурации")
+
+            await indicator_service.register_robot(self.robot_id, self.broker, self.allowed_figis, self.strategy_params)
 
             websocket_task = asyncio.create_task(self._websocket_worker())
             trading_task = asyncio.create_task(self._trading_worker())
@@ -473,7 +646,8 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
             self._write_log(traceback.format_exc())
         finally:
             self.running = False
-            await self.facade.close()
+            await indicator_service.unregister_robot(self.robot_id)
+            await self.broker.close()
             self._api_logger = None
             if self._own_db and self.db:
                 self.db.close()
@@ -505,7 +679,7 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         """Обновляет информацию о портфеле"""
         self._write_log("💰 [TRADE] Обновление портфеля...")
         try:
-            stage3 = Stage3Portfolio(self.token, self.account_id, self._write_log)
+            stage3 = Stage3Portfolio(self.account_id, self.broker, self._write_log)
             self.portfolio = await stage3.get_portfolio()
             if self.portfolio:
                 self._write_log(f"   Портфель: {self.portfolio.get('total_value', 0):.2f} руб.")
@@ -523,8 +697,8 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         self._write_log("📊 [TRADE] Получение открытых позиций...")
         try:
             stage4 = Stage4Positions(
-                self.db, self.schema, self.token, self.account_id,
-                self.robot_id, self._write_log
+                self.db, self.schema, self.broker, self.account_id,
+                self.robot_id, self._write_log, cost_params=self.cost_params,
             )
             self.positions = await stage4.get_open_positions()
             self.cached_positions = self.positions
@@ -542,8 +716,8 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         self._write_log("🔴 [TRADE] Проверка стоп-лоссов...")
         try:
             stage4 = Stage4Positions(
-                self.db, self.schema, self.token, self.account_id,
-                self.robot_id, self._write_log
+                self.db, self.schema, self.broker, self.account_id,
+                self.robot_id, self._write_log, cost_params=self.cost_params,
             )
             closed = await stage4.check_stop_loss_take_profit(
                 self.positions or [], prices, self.risk_params
@@ -555,11 +729,36 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
             self._write_log(f"   ❌ Ошибка проверки стоп-лоссов: {e}")
             return []
 
+    async def _is_daily_loss_limit_breached(self) -> bool:
+        if not self.db:
+            return False
+        max_daily_loss = float(self.risk_params.get("max_daily_loss", 0) or 0)
+        if max_daily_loss <= 0:
+            return False
+        total_value = float((self.portfolio or {}).get("total_value", 0) or 0)
+        if total_value <= 0:
+            return False
+        day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        query = f"""
+            SELECT COALESCE(SUM(COALESCE(profit, 0)), 0)
+            FROM {self.schema}.robot_trades
+            WHERE robot_id = :robot_id
+              AND created_at >= :day_start
+              AND status IN ('closed', 'cancelled', 'rejected')
+        """
+        try:
+            result = self.db.execute(text(query), {"robot_id": self.robot_id, "day_start": day_start}).first()
+            daily_pnl = float(result[0] if result and result[0] is not None else 0.0)
+        except Exception:
+            return False
+        daily_loss_pct = (-daily_pnl / total_value) * 100.0 if daily_pnl < 0 else 0.0
+        return daily_loss_pct >= max_daily_loss
+
     async def _generate_signals(self, prices: Dict[str, float]) -> List[Dict]:
         """Генерирует сигналы через Stage5Signals"""
         self._write_log("🎯 [TRADE] Генерация сигналов...")
 
-        stage5 = Stage5Signals(self.token, self._write_log)
+        stage5 = Stage5Signals(self.broker, self._write_log)
 
         # Функция для логирования API вызовов
         async def log_api_call_wrapper(**kwargs):
@@ -592,10 +791,20 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
 
         self._write_log("📊 [TRADE] Выставление заявок...")
         stage6 = Stage6Orders(
-            self.db, self.schema, self.token, self.account_id,
-            self.robot_id, self.token_id, self.user_id, self._write_log
+            self.db, self.schema, self.broker, self.account_id,
+            self.robot_id, self.token_id, self.user_id, self._write_log,
+            daily_trade_counter=self._daily_trade_counter,
+            last_trade_by_figi=self._last_trade_by_figi,
+            cost_params=self.cost_params,
         )
-        trades = await stage6.execute_signals(signals)
+        trades = await stage6.execute_signals(signals, risk_params=self.risk_params)
+        skipped = [t for t in trades if t.get("status") == "skipped"]
+        if skipped:
+            reasons: Dict[str, int] = {}
+            for trade in skipped:
+                reason = trade.get("error", "UNKNOWN")
+                reasons[reason] = reasons.get(reason, 0) + 1
+            self._write_log(f"⚠️ [TRADE] Пропущено сделок: {len(skipped)}; причины: {reasons}")
 
         for trade in trades:
             if trade.get("order_id"):
@@ -604,7 +813,7 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                     {
                         "type": "order_status",
                         "order_id": trade["order_id"],
-                        "status": trade["status"],
+                        "status": trade.get("execution_status", trade["status"]),
                         "timestamp": datetime.now(timezone.utc).isoformat()
                     }
                 )

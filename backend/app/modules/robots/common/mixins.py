@@ -64,7 +64,9 @@ class TradePersistenceMixin:
                 ).first()
 
                 if result:
-                    signal_ids.append(result[0])
+                    signal_id = result[0]
+                    signal_ids.append(signal_id)
+                    signal["_signal_id"] = signal_id
 
             except Exception as e:
                 db.rollback()
@@ -74,6 +76,29 @@ class TradePersistenceMixin:
             db.commit()
 
         return signal_ids
+
+    async def mark_signals_executed(
+            self,
+            db,
+            schema: str,
+            signal_ids: List[int]
+    ) -> int:
+        """Marks signals as executed by ids."""
+        if not db or not signal_ids:
+            return 0
+        try:
+            query = f"""
+                UPDATE {schema}.robot_signals
+                SET was_executed = 1
+                WHERE id = :signal_id
+            """
+            for signal_id in signal_ids:
+                db.execute(text(query), {"signal_id": signal_id})
+            db.commit()
+            return len(signal_ids)
+        except Exception:
+            db.rollback()
+            return 0
 
     async def save_trades(
             self,

@@ -185,6 +185,15 @@ async def get_strategies(
     return schemas.StrategyListResponse(items=items)
 
 
+@router.get("/strategies/{name}", response_model=schemas.StrategyInfoResponse)
+async def get_strategy_info(
+        name: str,
+        current_user: User = Depends(get_current_user)
+):
+    """Детальная информация по конкретной стратегии."""
+    return await service.robot_service.get_strategy_info(name)
+
+
 @router.post("/config", response_model=schemas.RobotInDB)
 async def update_robot_config(
         request: schemas.RobotConfigUpdateRequest,
@@ -209,6 +218,26 @@ async def update_robot_config(
         )
 
 
+@router.get("/trading-defaults", response_model=schemas.RobotTradingDefaultsResponse)
+async def get_robot_trading_defaults():
+    """Доли комиссии и НДФЛ из settings.robots (и .env ROBOTS__*)."""
+    from app.core.config import settings
+    return schemas.RobotTradingDefaultsResponse(
+        broker_commission_rate=float(settings.robots.broker_commission_rate),
+        ndfl_rate=float(settings.robots.ndfl_rate),
+    )
+
+
+@router.post("/history-backtest", response_model=schemas.RobotHistoryBacktestResponse)
+async def run_robot_history_backtest(
+        request: schemas.RobotHistoryBacktestRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    """Исторический бэктест стратегии робота на свечах T-Invest."""
+    return await service.robot_service.run_robot_history_backtest(db, current_user.id, request)
+
+
 @router.post("/instruments/auto-select")
 async def auto_select_instruments(
         db: Session = Depends(get_db),
@@ -228,3 +257,28 @@ async def auto_select_instruments(
         return {"items": instruments, "total": len(instruments)}
     finally:
         await selector.close()
+
+
+@router.post("/research/backtest", response_model=schemas.BacktestResultResponse)
+async def run_backtest(
+        request: schemas.BacktestRequest,
+        current_user: User = Depends(get_current_user)
+):
+    return await service.robot_service.run_backtest(request)
+
+
+@router.post("/research/walk-forward", response_model=schemas.WalkForwardResponse)
+async def run_walk_forward(
+        request: schemas.WalkForwardRequest,
+        current_user: User = Depends(get_current_user)
+):
+    return await service.robot_service.run_walk_forward(request)
+
+
+@router.post("/paper-mode", response_model=schemas.PaperModeResponse)
+async def set_paper_mode(
+        request: schemas.PaperModeRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    return await service.robot_service.set_paper_mode(db, current_user.id, request.robotId, request.enabled)

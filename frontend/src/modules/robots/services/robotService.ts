@@ -197,19 +197,21 @@ export class RobotService {
     // === Стратегии ===
 
     /**
-     * Получение списка доступных стратегий - POST /api/robots/trading/strategies
+     * Получение списка доступных стратегий
      */
     async getStrategies(): Promise<StrategyInfo[]> {
-        const url = `${this.baseUrl}/trading/strategies`;
-        console.log(`🔍 API Request: POST ${url}`);
+        const url = `${this.baseUrl}/strategies`;
+        console.log(`🔍 API Request: GET ${url}`);
 
         try {
-            const response = await apiFetch<StrategyInfo[]>(url, {
-                method: 'POST',
-                body: JSON.stringify({}) // Пустое тело
+            const response = await apiFetch<{ items: StrategyInfo[] } | StrategyInfo[]>(url, {
+                method: 'GET',
             });
             console.log('📦 Strategies:', response);
-            return response;
+            if (Array.isArray(response)) {
+                return response;
+            }
+            return response?.items || [];
         } catch (error) {
             console.error('❌ API Error in getStrategies:', error);
             return [];
@@ -221,7 +223,7 @@ export class RobotService {
      * @param name - название стратегии
      */
     async getStrategyInfo(name: string): Promise<StrategyInfo> {
-        const url = `${this.baseUrl}/trading/strategies/${encodeURIComponent(name)}`;
+        const url = `${this.baseUrl}/strategies/${encodeURIComponent(name)}`;
         console.log(`🔍 API Request: GET ${url}`);
 
         try {

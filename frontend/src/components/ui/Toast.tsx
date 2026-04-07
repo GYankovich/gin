@@ -9,7 +9,7 @@ interface ToastItem {
 }
 
 interface ToastCtx {
-    show: (message: string, type?: ToastType) => void
+    show: (message: string, type?: ToastType, durationMs?: number) => void
 }
 
 const Ctx = createContext<ToastCtx>({ show: () => {} })
@@ -21,10 +21,10 @@ let nextId = 0
 export function ToastProvider({ children }: { children: React.ReactNode }) {
     const [toasts, setToasts] = useState<ToastItem[]>([])
 
-    const show = useCallback((message: string, type: ToastType = 'info') => {
+    const show = useCallback((message: string, type: ToastType = 'info', durationMs = 4000) => {
         const id = ++nextId
         setToasts(prev => [...prev, { id, message, type }])
-        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000)
+        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), durationMs)
     }, [])
 
     return (

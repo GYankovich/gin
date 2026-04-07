@@ -3,10 +3,7 @@
 Специфичные для T-Invest утилиты парсинга
 """
 from typing import Optional, Dict, Any
-from app.modules.robots.common.utils import safe_int, safe_str, safe_float, safe_bool
-
-# Импортируем общие утилиты из robots
-from app.modules.robots.common.utils import safe_int, safe_str, safe_float, safe_bool
+from app.modules.robots.common.utils import safe_int, safe_str, safe_float, safe_bool, mask_token
 
 
 def parse_money_value(money_value: dict) -> Optional[dict]:
@@ -44,8 +41,6 @@ def parse_quotation(quotation: dict) -> Optional[dict]:
 
 def parse_portfolio_position(position: dict) -> dict:
     """Парсинг позиции портфеля"""
-    from .utils import parse_money_value, parse_quotation  # локальный импорт
-
     return {
         "figi": position.get("figi"),
         "instrument_type": safe_str(position.get("instrumentType", "")),

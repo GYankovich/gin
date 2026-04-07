@@ -25,6 +25,7 @@ export function Navbar() {
                     <NavLink to="/portfolio" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Портфель</NavLink>
                     <NavLink to="/robots" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Роботы</NavLink>
                     <NavLink to="/analytics" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Аналитика</NavLink>
+                    <NavLink to="/testing" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Тестирование</NavLink>
                     <NavLink to="/live" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Live</NavLink>
                 </nav>
             </div>

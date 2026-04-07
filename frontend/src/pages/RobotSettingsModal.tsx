@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import { robotService } from '@/services/robotService'
 import { portfolioService } from '@/services/portfolioService'
-import type { Robot, StrategyParam } from '@/types/robot'
+import type { Robot, StrategyParam, RobotTradingDefaults } from '@/types/robot'
 import type { TokenResponse } from '@/types/portfolio'
 
 interface Props {
@@ -51,22 +51,30 @@ export function RobotSettingsModal({ open, onClose, robot, onSaved }: Props) {
     const [tokenId, setTokenId] = useState(robot?.token?.id ?? 0)
     const [strategy, setStrategy] = useState(cfg.strategy ?? '')
     const [stratParams, setStratParams] = useState<Record<string, any>>(cfg.strategy_params ?? {})
-    const [stopLoss, setStopLoss] = useState(cfg.stop_loss_pct ?? 2)
-    const [takeProfit, setTakeProfit] = useState(cfg.take_profit_pct ?? 3)
-    const [maxPosition, setMaxPosition] = useState(cfg.max_position_pct ?? 10)
-    const [maxAmount, setMaxAmount] = useState(cfg.max_amount ?? 50000)
-    const [dailyLimit, setDailyLimit] = useState(cfg.daily_loss_limit ?? 10000)
-    const [figis, setFigis] = useState<string[]>(cfg.figis ?? [])
+    const [brokerType, setBrokerType] = useState(cfg.broker_type ?? 'tinvest')
+    const [stopLoss, setStopLoss] = useState(cfg.risk?.stop_loss_percent ?? 2)
+    const [takeProfit, setTakeProfit] = useState(cfg.risk?.take_profit_percent ?? 3)
+    const [maxPosition, setMaxPosition] = useState(cfg.risk?.max_position_percent ?? 10)
+    const [maxAmount, setMaxAmount] = useState(cfg.risk?.max_position_rub ?? 50000)
+    const [dailyLimit, setDailyLimit] = useState(cfg.risk?.max_daily_loss ?? 10000)
+    const [figis, setFigis] = useState<string[]>(cfg.allowed_figis ?? cfg.figis ?? [])
     const [figiInput, setFigiInput] = useState('')
-    const [interval, setInterval_] = useState(cfg.interval_sec ?? 10)
-    const [hoursFrom, setHoursFrom] = useState(cfg.hours_from ?? '09:00')
-    const [hoursTo, setHoursTo] = useState(cfg.hours_to ?? '18:45')
+    const [interval, setInterval_] = useState(cfg.update_interval_seconds ?? cfg.interval_sec ?? 10)
+    const [hoursFrom, setHoursFrom] = useState(cfg.risk?.trading_hours_start ?? '10:00 MSK')
+    const [hoursTo, setHoursTo] = useState(cfg.risk?.trading_hours_end ?? '18:45 MSK')
+    const [allowedWeekdays, setAllowedWeekdays] = useState(cfg.risk?.allowed_weekdays ?? 31)
+    const [dayIndicatorSchedule, setDayIndicatorSchedule] = useState(cfg.indicator_update_schedule?.CANDLE_INTERVAL_DAY ?? '10:00 MSK')
+    const [hourIndicatorSchedule, setHourIndicatorSchedule] = useState(cfg.indicator_update_schedule?.CANDLE_INTERVAL_HOUR ?? 'every hour at :05')
     const [autoLoading, setAutoLoading] = useState(false)
+    const [tradingDefaults, setTradingDefaults] = useState<RobotTradingDefaults | null>(null)
+    const [commissionPercent, setCommissionPercent] = useState(0.05)
+    const [ndflPercent, setNdflPercent] = useState(15)
 
     useEffect(() => {
         if (open) {
             portfolioService.getTokens().then(setTokens).catch(() => {})
             robotService.getStrategies().then(r => setStrategies(r.items)).catch(() => {})
+            robotService.getTradingDefaults().then(setTradingDefaults).catch(() => {})
         }
     }, [open])
 
@@ -78,43 +86,78 @@ export function RobotSettingsModal({ open, onClose, robot, onSaved }: Props) {
             setTokenId(robot.token?.id ?? 0)
             setStrategy(c.strategy ?? '')
             setStratParams(c.strategy_params ?? {})
-            setStopLoss(c.stop_loss_pct ?? 2)
-            setTakeProfit(c.take_profit_pct ?? 3)
-            setMaxPosition(c.max_position_pct ?? 10)
-            setMaxAmount(c.max_amount ?? 50000)
-            setDailyLimit(c.daily_loss_limit ?? 10000)
-            setFigis(c.figis ?? [])
-            setInterval_(c.interval_sec ?? 10)
-            setHoursFrom(c.hours_from ?? '09:00')
-            setHoursTo(c.hours_to ?? '18:45')
+            setBrokerType(c.broker_type ?? 'tinvest')
+            setStopLoss(c.risk?.stop_loss_percent ?? 2)
+            setTakeProfit(c.risk?.take_profit_percent ?? 3)
+            setMaxPosition(c.risk?.max_position_percent ?? 10)
+            setMaxAmount(c.risk?.max_position_rub ?? 50000)
+            setDailyLimit(c.risk?.max_daily_loss ?? 10000)
+            setFigis(c.allowed_figis ?? c.figis ?? [])
+            setInterval_(c.update_interval_seconds ?? c.interval_sec ?? 10)
+            setHoursFrom(c.risk?.trading_hours_start ?? '10:00 MSK')
+            setHoursTo(c.risk?.trading_hours_end ?? '18:45 MSK')
+            setAllowedWeekdays(c.risk?.allowed_weekdays ?? 31)
+            setDayIndicatorSchedule(c.indicator_update_schedule?.CANDLE_INTERVAL_DAY ?? '10:00 MSK')
+            setHourIndicatorSchedule(c.indicator_update_schedule?.CANDLE_INTERVAL_HOUR ?? 'every hour at :05')
         }
     }, [robot])
+
+    useEffect(() => {
+        if (!open || !tradingDefaults) return
+        if (!robot) {
+            setCommissionPercent(Number((tradingDefaults.broker_commission_rate * 100).toFixed(6)))
+            setNdflPercent(Number((tradingDefaults.ndfl_rate * 100).toFixed(4)))
+            return
+        }
+        const c = robot.config ?? {}
+        const br = c.costs?.broker_commission_rate ?? tradingDefaults.broker_commission_rate
+        const tx = c.costs?.ndfl_rate ?? tradingDefaults.ndfl_rate
+        setCommissionPercent(Number((br * 100).toFixed(6)))
+        setNdflPercent(Number((tx * 100).toFixed(4)))
+    }, [open, robot, tradingDefaults])
 
     const handleSave = async () => {
         setSaving(true)
         try {
-            const payload: any = {
-                name,
-                type: robotType,
-                token_id: tokenId,
-                config: {
-                    strategy,
-                    strategy_params: stratParams,
-                    stop_loss_pct: stopLoss,
-                    take_profit_pct: takeProfit,
-                    max_position_pct: maxPosition,
-                    max_amount: maxAmount,
-                    daily_loss_limit: dailyLimit,
+            const normalizedStart = hoursFrom.includes('MSK') ? hoursFrom : `${hoursFrom} MSK`
+            const normalizedEnd = hoursTo.includes('MSK') ? hoursTo : `${hoursTo} MSK`
+            const config: Record<string, any> = {
+                broker_type: brokerType,
+                strategy,
+                strategy_params: {
+                    ...(stratParams || {}),
                     figis,
-                    interval_sec: interval,
-                    hours_from: hoursFrom,
-                    hours_to: hoursTo,
+                },
+                allowed_figis: figis,
+                update_interval_seconds: interval,
+                indicator_update_schedule: {
+                    CANDLE_INTERVAL_DAY: dayIndicatorSchedule,
+                    CANDLE_INTERVAL_HOUR: hourIndicatorSchedule,
+                },
+                risk: {
+                    stop_loss_percent: stopLoss,
+                    take_profit_percent: takeProfit,
+                    max_position_percent: maxPosition,
+                    max_position_rub: maxAmount,
+                    max_daily_loss: dailyLimit,
+                    trading_hours_start: normalizedStart,
+                    trading_hours_end: normalizedEnd,
+                    allowed_weekdays: allowedWeekdays,
+                },
+                costs: {
+                    broker_commission_rate: commissionPercent / 100,
+                    ndfl_rate: ndflPercent / 100,
                 },
             }
             if (robot) {
-                await robotService.updateConfig(robot.id, payload)
+                await robotService.updateConfig(robot.id, config)
             } else {
-                await robotService.create(payload)
+                const created = await robotService.create({
+                    name,
+                    type: robotType,
+                    token_id: tokenId,
+                })
+                await robotService.updateConfig(created.id, config)
             }
             onSaved()
             onClose()
@@ -169,6 +212,19 @@ export function RobotSettingsModal({ open, onClose, robot, onSaved }: Props) {
                             value={String(tokenId)}
                             onChange={v => setTokenId(Number(v))}
                             placeholder="Выберите токен"
+                        />
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label">Брокер</label>
+                        <Select
+                            options={[
+                                { value: 'tinvest', label: 'Т-Инвестиции' },
+                                { value: 'vtb', label: 'ВТБ (stub)' },
+                                { value: 'alfa', label: 'Альфа (stub)' },
+                            ]}
+                            value={brokerType}
+                            onChange={v => setBrokerType(v)}
+                            placeholder="Выберите брокера"
                         />
                     </div>
                 </div>
@@ -238,6 +294,33 @@ export function RobotSettingsModal({ open, onClose, robot, onSaved }: Props) {
                         <label className="form-label">Дневной лимит убытков (₽)</label>
                         <input className="form-input" type="number" min={0} value={dailyLimit} onChange={e => setDailyLimit(Number(e.target.value))} />
                     </div>
+                    <p className="form-hint" style={{ marginTop: 'var(--space-4)' }}>
+                        Сохраняется в конфиге робота; если убрать значения — используются глобальные настройки сервера (см. ROBOTS__BROKER_COMMISSION_RATE и ROBOTS__NDFL_RATE в .env).
+                    </p>
+                    <div className="form-group">
+                        <label className="form-label">Комиссия брокера (% от оборота)</label>
+                        <input
+                            className="form-input"
+                            type="number"
+                            min={0}
+                            step={0.001}
+                            value={commissionPercent}
+                            onChange={e => setCommissionPercent(Number(e.target.value))}
+                        />
+                        <span className="form-hint">Например 0.05 означает 0.05% (доля 0.0005)</span>
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label">НДФЛ с прибыли (%)</label>
+                        <input
+                            className="form-input"
+                            type="number"
+                            min={0}
+                            max={50}
+                            step={0.1}
+                            value={ndflPercent}
+                            onChange={e => setNdflPercent(Number(e.target.value))}
+                        />
+                    </div>
                 </div>
             )}
 
@@ -269,13 +352,25 @@ export function RobotSettingsModal({ open, onClose, robot, onSaved }: Props) {
                     <div className="form-row">
                         <div className="form-group">
                             <label className="form-label">Часы работы (от)</label>
-                            <input className="form-input" type="time" value={hoursFrom} onChange={e => setHoursFrom(e.target.value)} />
+                        <input className="form-input" type="text" value={hoursFrom} onChange={e => setHoursFrom(e.target.value)} placeholder="10:00 MSK" />
                         </div>
                         <div className="form-group">
                             <label className="form-label">Часы работы (до)</label>
-                            <input className="form-input" type="time" value={hoursTo} onChange={e => setHoursTo(e.target.value)} />
+                        <input className="form-input" type="text" value={hoursTo} onChange={e => setHoursTo(e.target.value)} placeholder="18:45 MSK" />
                         </div>
                     </div>
+                <div className="form-group">
+                    <label className="form-label">Разрешённые дни (битовая маска)</label>
+                    <input className="form-input" type="number" min={0} max={127} value={allowedWeekdays} onChange={e => setAllowedWeekdays(Number(e.target.value || 0))} />
+                </div>
+                <div className="form-group">
+                    <label className="form-label">Обновление дневных индикаторов</label>
+                    <input className="form-input" type="text" value={dayIndicatorSchedule} onChange={e => setDayIndicatorSchedule(e.target.value)} placeholder="10:00 MSK" />
+                </div>
+                <div className="form-group">
+                    <label className="form-label">Обновление часовых индикаторов</label>
+                    <input className="form-input" type="text" value={hourIndicatorSchedule} onChange={e => setHourIndicatorSchedule(e.target.value)} placeholder="every hour at :05" />
+                </div>
                 </div>
             )}
 

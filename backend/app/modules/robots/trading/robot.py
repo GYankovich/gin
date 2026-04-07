@@ -13,6 +13,7 @@ from app.modules.robots.trading.stages.stage3_portfolio import Stage3Portfolio
 from app.modules.robots.trading.stages.stage4_positions import Stage4Positions
 from app.modules.robots.trading.stages.stage5_signals import Stage5Signals
 from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
+from app.modules.robots.trading.brokers.factory import create_broker_facade
 
 
 class TradingRobot(BaseRobot, TradePersistenceMixin):
@@ -80,6 +81,8 @@ class TradingRobot(BaseRobot, TradePersistenceMixin):
             strategy_name = robot_config.get("strategy", "ma_cross")
             strategy_params = robot_config.get("strategy_params", {})
             risk_params = robot_config.get("risk", {})
+            broker_type = robot_config.get("broker_type", "tinvest")
+            broker = create_broker_facade(broker_type, token)
 
             self.log.info(f"🤖 Выбран робот {robot['robot_id']}")
             self.log.info(f"   Account ID: {account_id}")
@@ -87,7 +90,13 @@ class TradingRobot(BaseRobot, TradePersistenceMixin):
             self.log.info(f"   Strategy: {strategy_name}")
 
             # ========== STAGE 2: WebSocket и цены ==========
-            stage2 = Stage2WebSocket(token, robot_id, self._write_log_wrapper)
+            stage2 = Stage2WebSocket(
+                broker=broker,
+                user_id=user_id,
+                robot_id=robot_id,
+                broker_type=broker_type,
+                log_func=self._write_log_wrapper
+            )
             if not await stage2.connect():
                 raise Exception("WebSocket connection failed")
 
@@ -95,12 +104,12 @@ class TradingRobot(BaseRobot, TradePersistenceMixin):
             prices = await stage2.receive_prices(duration_seconds=30)
 
             # ========== STAGE 3: Портфель и баланс ==========
-            stage3 = Stage3Portfolio(token, account_id, self._write_log_wrapper)
+            stage3 = Stage3Portfolio(account_id, broker, self._write_log_wrapper)
             portfolio = await stage3.get_portfolio()
 
             # ========== STAGE 4: Управление позициями ==========
             stage4 = Stage4Positions(
-                self.db, self.schema, token, account_id, robot_id, self._write_log_wrapper
+                self.db, self.schema, broker, account_id, robot_id, self._write_log_wrapper
             )
             open_positions = await stage4.get_open_positions()
 
@@ -108,7 +117,7 @@ class TradingRobot(BaseRobot, TradePersistenceMixin):
             closed_trades = await stage4.check_stop_loss_take_profit(open_positions, prices, risk_params)
 
             # ========== STAGE 5: Генерация сигналов ==========
-            stage5 = Stage5Signals(token, self._write_log_wrapper)
+            stage5 = Stage5Signals(broker, self._write_log_wrapper)
             signals = await stage5.generate_signals(
                 figis=allowed_figis,
                 strategy_name=strategy_name,
@@ -124,6 +133,7 @@ class TradingRobot(BaseRobot, TradePersistenceMixin):
             )
 
             # Сохраняем сигналы в БД
+            signal_ids = []
             if signals:
                 signal_ids = await self.save_signals(self.db, self.schema, robot_id, signals)
                 self.log.info(f"   💾 Сохранено сигналов: {len(signal_ids)}")
@@ -131,14 +141,23 @@ class TradingRobot(BaseRobot, TradePersistenceMixin):
             # ========== STAGE 6: Выставление заявок ==========
             if signals:
                 stage6 = Stage6Orders(
-                    self.db, self.schema, token, account_id, robot_id, token_id, user_id, self._write_log_wrapper
+                    self.db, self.schema, broker, account_id, robot_id, token_id, user_id, self._write_log_wrapper
                 )
-                trades = await stage6.execute_signals(signals)
+                trades = await stage6.execute_signals(signals, risk_params=risk_params)
                 trade_ids = await self.save_trades(self.db, self.schema, robot_id, trades)
                 self.log.info(f"   💾 Сохранено сделок: {len(trade_ids)}")
+                executed_signal_ids = [
+                    int(t["signal_id"])
+                    for t in trades
+                    if t.get("signal_id") and t.get("status") not in {"failed", "skipped"}
+                ]
+                marked = await self.mark_signals_executed(self.db, self.schema, executed_signal_ids)
+                if marked:
+                    self.log.info(f"   ✅ Отмечено исполненных сигналов: {marked}")
 
             # Закрываем WebSocket
             await stage2.close()
+            await broker.close()
 
             execution_time_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
 
