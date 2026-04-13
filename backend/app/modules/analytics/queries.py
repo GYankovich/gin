@@ -23,6 +23,7 @@ def build_accounts_summary_query(
                      ps.total_amount_portfolio as total_value,
                      COALESCE(ps.currency, 'RUB') as currency,  -- Значение по умолчанию
                      (SELECT COUNT(*) FROM ganaly.portfolio_positions WHERE snapshot_id = ps.id) as positions_count,
+                     pa.last_token_id,
                      ps.daily_yield,
                      ps.expected_yield
                  FROM ganaly.portfolio_accounts pa

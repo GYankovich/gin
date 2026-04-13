@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 
@@ -14,6 +14,7 @@ class AccountSummary(BaseModel):
     total_value: float
     currency: str
     positions_count: int
+    last_token_id: Optional[int] = None
 
 
 class PortfolioSnapshotSummary(BaseModel):
@@ -114,3 +115,66 @@ class UserRobotsTradingOverview(BaseModel):
     sharpe_ratio: Optional[float] = None
     sortino_ratio: Optional[float] = None
     calmar_ratio: Optional[float] = None
+
+
+class AnalyticsRangeRequest(BaseModel):
+    account_id: int
+    from_date: datetime
+    to_date: datetime
+
+
+class AnalyticsOperationsRequest(AnalyticsRangeRequest):
+    operation_type: Optional[str] = None
+
+
+class AnalyticsSyncOperationsRequest(BaseModel):
+    account_id: str = Field(..., description="external account_id from portfolio_accounts")
+    from_date: datetime
+    to_date: datetime
+    tokenId: int
+    state: str = "OPERATION_STATE_UNSPECIFIED"
+
+
+class AnalyticsOperationsItem(BaseModel):
+    operation_id: str
+    operation_date: datetime
+    operation_type: str
+    figi: Optional[str] = None
+    instrument_type: Optional[str] = None
+    quantity: float
+    price: float
+    payment: float
+    currency: Optional[str] = None
+    status: str
+    type_text: Optional[str] = None
+
+
+class AnalyticsOperationsResponse(BaseModel):
+    account_id: int
+    from_date: datetime
+    to_date: datetime
+    total: int
+    items: List[AnalyticsOperationsItem]
+
+
+class AccountStatisticsBlock(BaseModel):
+    own_funds: float
+    current_total_value: float
+    roi_percent: Optional[float] = None
+    avg_monthly_roi_percent: Optional[float] = None
+
+
+class AccountPeriodStatisticsBlock(BaseModel):
+    from_date: datetime
+    to_date: datetime
+    period_inflow: float
+    max_drawdown_percent: Optional[float] = None
+    max_growth_percent: Optional[float] = None
+    end_value: Optional[float] = None
+    period_roi_percent: Optional[float] = None
+
+
+class AccountStatisticsResponse(BaseModel):
+    account_id: int
+    overall: AccountStatisticsBlock
+    period: AccountPeriodStatisticsBlock

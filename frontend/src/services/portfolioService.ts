@@ -27,6 +27,24 @@ export const portfolioService = {
         return data
     },
 
+    async syncOperations(payload: {
+        account_id: string
+        from_date: string
+        to_date: string
+        state?: string
+    }): Promise<any> {
+        const { data } = await api.post('/tinvest/portfolio/operations/sync', payload)
+        return data
+    },
+
+    async getOperations(
+        accountId: number,
+        params?: { from_date?: string; to_date?: string; limit?: number },
+    ): Promise<{ account_id: number; from_date: string; to_date: string; total: number; items: any[] }> {
+        const { data } = await api.get(`/tinvest/portfolio/operations/${accountId}`, { params })
+        return data
+    },
+
     async getTokens(): Promise<TokenResponse[]> {
         const { data } = await api.get('/tinvest/portfolio/tokens')
         return Array.isArray(data) ? data : data.items ?? []

@@ -129,4 +129,5 @@ export interface RobotHistoryBacktestResult {
     max_drawdown_percent: number | null
     trades: RobotHistoryBacktestTrade[]
     equity_curve: { time: string; equity: number }[]
+    stages?: string[]
 }

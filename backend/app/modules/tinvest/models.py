@@ -71,6 +71,7 @@ class PortfolioAccount(Base):
 
     is_active = Column(Integer, nullable=False, default=1)
     last_sync_at = Column(DateTime(timezone=True), nullable=True)
+    last_token_id = Column(BigInteger, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), nullable=True, onupdate=datetime.utcnow)
 
@@ -222,8 +223,8 @@ class PortfolioOperation(Base):
     commission = Column(Numeric(20, 4), nullable=True)
     commission_currency = Column(String(10), nullable=True)
 
-    # Статус
-    status = Column(String(20), nullable=False)
+    # Статус (T-Invest: OPERATION_STATE_*)
+    status = Column(String(128), nullable=False)
 
     # Связи с другими операциями (для сделок)
     trades = Column(JSON, nullable=True)  # Массив связанных сделок
@@ -283,6 +284,42 @@ class PortfolioOrder(Base):
 
     # Связи
     account = relationship("PortfolioAccount", back_populates="orders")
+
+
+class ExternalApiLog(Base):
+    """
+    Логи вызовов внешних брокерских API (ручные и фоновые), по смыслу близко к robot_logs.
+    """
+    __tablename__ = "external_api_logs"
+    __table_args__ = (
+        Index("ix_external_api_logs_user_created", "user_id", "created_at"),
+        Index("ix_external_api_logs_endpoint", "endpoint"),
+        Index("ix_external_api_logs_success", "success"),
+        Index("ix_external_api_logs_broker", "broker"),
+        {"schema": SCHEMA},
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.user.id", ondelete="SET NULL"), nullable=True)
+    token_id = Column(BigInteger, nullable=True)
+
+    broker = Column(String(32), nullable=False, default="tinvest")
+    context_type = Column(String(64), nullable=True)
+    context_ref = Column(String(128), nullable=True)
+
+    endpoint = Column(String(500), nullable=False)
+    request_data = Column(JSON, nullable=True)
+    response_status = Column(Integer, nullable=True)
+    response_data = Column(JSON, nullable=True)
+
+    started_at = Column(DateTime(timezone=True), nullable=False)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    duration_ms = Column(Integer, nullable=True)
+
+    success = Column(Integer, nullable=False, default=1)
+    error_message = Column(Text, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
 
 class InstrumentCache(Base):

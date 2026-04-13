@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 import logging
+from datetime import datetime, timezone, timedelta
 
 from app.core.database import get_db
 from app.core.security import get_current_user
@@ -138,6 +139,64 @@ async def refresh_all_portfolios(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при обновлении: {str(e)}"
         )
+
+
+@router.post("/operations/sync")
+async def sync_account_operations(
+        body: schemas.OperationsSyncRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    try:
+        result = await tinvest_service.sync_account_operations(
+            db=db,
+            user_id=current_user.id,
+            external_account_id=body.account_id,
+            from_dt=body.from_date,
+            to_dt=body.to_date,
+            state=body.state,
+        )
+        return {"success": True, "data": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error syncing account operations: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Ошибка синхронизации операций")
+
+
+@router.get("/operations/{account_id}", response_model=schemas.AccountOperationsResponse)
+async def list_account_operations(
+        account_id: int,
+        from_date: Optional[datetime] = Query(None),
+        to_date: Optional[datetime] = Query(None),
+        limit: int = Query(500, ge=1, le=5000),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    try:
+        now = datetime.now(timezone.utc)
+        from_dt = from_date or (now - timedelta(days=90))
+        to_dt = to_date or now
+        items = await tinvest_service.list_account_operations(
+            db=db,
+            user_id=current_user.id,
+            account_db_id=account_id,
+            from_dt=from_dt,
+            to_dt=to_dt,
+            limit=limit,
+        )
+        return schemas.AccountOperationsResponse(
+            account_id=account_id,
+            from_date=from_dt,
+            to_date=to_dt,
+            total=len(items),
+            items=[schemas.AccountOperationItem(**x) for x in items],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing account operations: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Ошибка получения операций")
 
 
 @router.get("/snapshots/{account_id}")

@@ -131,3 +131,32 @@ class TokenTestResponse(BaseModel):
     accounts_count: Optional[int] = None
     first_account: Optional[str] = None
     expires_at: Optional[datetime] = None
+
+
+class OperationsSyncRequest(BaseModel):
+    account_id: str = Field(..., description="Внешний account_id счета (portfolio_accounts.account_id)")
+    from_date: datetime
+    to_date: datetime
+    state: str = Field(default="OPERATION_STATE_UNSPECIFIED")
+
+
+class AccountOperationItem(BaseModel):
+    operation_id: str
+    operation_date: datetime
+    operation_type: str
+    figi: Optional[str] = None
+    instrument_type: Optional[str] = None
+    quantity: float
+    price: float
+    payment: float
+    currency: Optional[str] = None
+    status: str
+    type_text: Optional[str] = None
+
+
+class AccountOperationsResponse(BaseModel):
+    account_id: int
+    from_date: datetime
+    to_date: datetime
+    total: int
+    items: List[AccountOperationItem]

@@ -21,6 +21,7 @@ from app.modules.tinvest.models import (
     PortfolioPosition,
     PortfolioOperation,
     PortfolioOrder,
+    ExternalApiLog,
     InstrumentCache
 )
 
@@ -45,6 +46,7 @@ __all__ = [
     'PortfolioPosition',
     'PortfolioOperation',
     'PortfolioOrder',
+    'ExternalApiLog',
     'InstrumentCache',
     'Robot',
     'RobotTrade',

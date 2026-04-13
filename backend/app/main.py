@@ -83,6 +83,8 @@ def create_app() -> FastAPI:
     from app.modules.analytics.router import router as analytics_router
     from app.modules.robots.live_ws import router as live_ws_router
     from app.modules.market_data.router import router as market_router
+    from app.modules.settings.router import router as apikey_router
+    from app.modules.dictionary.router import router as dictionary_router
 
     app.include_router(auth_router, prefix="/api", tags=["auth"])
     app.include_router(tinvest_router, prefix="/api/tinvest", tags=["tinvest"])
@@ -90,6 +92,8 @@ def create_app() -> FastAPI:
     app.include_router(analytics_router, prefix="/api", tags=["analytics"])
     app.include_router(live_ws_router, tags=["live"])
     app.include_router(market_router, prefix="/api", tags=["market"])
+    app.include_router(apikey_router, prefix="/api", tags=["apikey"])
+    app.include_router(dictionary_router, prefix="/api", tags=["dictionary"])
 
     @app.get("/health")
     async def health_check():

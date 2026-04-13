@@ -15,6 +15,7 @@ interface DataTableProps<T> {
     keyField: string
     onRowClick?: (row: T) => void
     emptyText?: string
+    maxHeight?: number | string
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -23,6 +24,7 @@ export function DataTable<T extends Record<string, any>>({
     keyField,
     onRowClick,
     emptyText = 'Нет данных',
+    maxHeight,
 }: DataTableProps<T>) {
     const [sortKey, setSortKey] = useState<string | null>(null)
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
@@ -47,7 +49,10 @@ export function DataTable<T extends Record<string, any>>({
     }
 
     return (
-        <div className="data-table-wrap">
+        <div
+            className="data-table-wrap"
+            style={maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}
+        >
             <table className="data-table">
                 <thead>
                     <tr>

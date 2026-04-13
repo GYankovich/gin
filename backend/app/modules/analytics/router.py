@@ -6,6 +6,7 @@ from typing import List, Optional
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.modules.auth.models import User
+from app.modules.tinvest.service import tinvest_service
 from . import schemas
 from .service import analytics_service
 
@@ -143,3 +144,85 @@ def get_account_history(
         "interval": interval,
         "history": history
     }
+
+
+@router.post("/snapshots")
+def get_snapshots_by_period(
+        body: schemas.AnalyticsRangeRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    account = analytics_service.check_account_ownership(db, body.account_id, current_user.id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    history = analytics_service.get_account_history(
+        db,
+        body.account_id,
+        from_date=body.from_date,
+        to_date=body.to_date,
+    )
+    return {
+        "account_id": body.account_id,
+        "from_date": body.from_date,
+        "to_date": body.to_date,
+        "history": history,
+    }
+
+
+@router.post("/operations", response_model=schemas.AnalyticsOperationsResponse)
+def get_operations_by_period(
+        body: schemas.AnalyticsOperationsRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    items = analytics_service.get_account_operations(
+        db=db,
+        account_id=body.account_id,
+        user_id=current_user.id,
+        from_date=body.from_date,
+        to_date=body.to_date,
+        operation_type=body.operation_type,
+    )
+    return schemas.AnalyticsOperationsResponse(
+        account_id=body.account_id,
+        from_date=body.from_date,
+        to_date=body.to_date,
+        total=len(items),
+        items=[schemas.AnalyticsOperationsItem(**x) for x in items],
+    )
+
+
+@router.post("/statistics", response_model=schemas.AccountStatisticsResponse)
+def get_account_statistics(
+        body: schemas.AnalyticsRangeRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    stats = analytics_service.get_account_statistics(
+        db=db,
+        account_id=body.account_id,
+        user_id=current_user.id,
+        from_date=body.from_date,
+        to_date=body.to_date,
+    )
+    if not stats:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return schemas.AccountStatisticsResponse(**stats)
+
+
+@router.post("/sync_operations")
+async def sync_operations(
+        body: schemas.AnalyticsSyncOperationsRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    result = await tinvest_service.sync_account_operations(
+        db=db,
+        user_id=current_user.id,
+        external_account_id=body.account_id,
+        from_dt=body.from_date,
+        to_dt=body.to_date,
+        state=body.state,
+        token_id=body.tokenId,
+    )
+    return {"success": True, "data": result}

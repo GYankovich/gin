@@ -233,6 +233,7 @@ def build_get_accounts_list_query() -> str:
                account_status,
                opened_date,
                last_sync_at,
+               last_token_id,
                created_at
            FROM ganaly.portfolio_accounts
            WHERE user_id = :user_id AND is_active = 1
@@ -244,7 +245,8 @@ def build_update_account_sync_time_query() -> str:
     """Обновление времени синхронизации счета"""
     return """
            UPDATE ganaly.portfolio_accounts
-           SET last_sync_at = :now
+           SET last_sync_at = :now,
+               last_token_id = COALESCE(:token_id, last_token_id)
            WHERE id = :account_id \
            """
 
@@ -262,4 +264,166 @@ def build_get_token_stats_query() -> str:
            )
            WHERE t.id = :token_id
            GROUP BY t.id \
+           """
+
+
+def build_get_account_row_query() -> str:
+    """Получить запись portfolio_accounts по внутреннему id и user_id."""
+    return """
+           SELECT id, account_id
+           FROM ganaly.portfolio_accounts
+           WHERE id = :account_db_id AND user_id = :user_id
+           LIMIT 1 \
+           """
+
+
+def build_get_account_row_by_external_id_query() -> str:
+    """Получить запись portfolio_accounts по внешнему account_id и user_id."""
+    return """
+           SELECT id, account_id
+           FROM ganaly.portfolio_accounts
+           WHERE account_id = :external_account_id AND user_id = :user_id
+           LIMIT 1 \
+           """
+
+
+def build_get_latest_operation_date_query() -> str:
+    """Последняя дата операции по счету."""
+    return """
+           SELECT MAX(operation_date)
+           FROM ganaly.portfolio_operations
+           WHERE account_id = :account_db_id \
+           """
+
+
+def build_upsert_operation_query() -> str:
+    """Upsert операции в portfolio_operations по operation_id."""
+    return """
+           INSERT INTO ganaly.portfolio_operations
+           (
+               account_id,
+               operation_id,
+               parent_operation_id,
+               figi,
+               instrument_type,
+               instrument_uid,
+               position_uid,
+               operation_type,
+               operation_date,
+               quantity,
+               quantity_rest,
+               price,
+               price_currency,
+               payment,
+               payment_currency,
+               commission,
+               commission_currency,
+               status,
+               trades,
+               extra_data
+           )
+           VALUES
+           (
+               :account_id,
+               :operation_id,
+               :parent_operation_id,
+               :figi,
+               :instrument_type,
+               :instrument_uid,
+               :position_uid,
+               :operation_type,
+               :operation_date,
+               :quantity,
+               :quantity_rest,
+               :price,
+               :price_currency,
+               :payment,
+               :payment_currency,
+               :commission,
+               :commission_currency,
+               :status,
+               CAST(:trades AS jsonb),
+               CAST(:extra_data AS jsonb)
+           )
+           ON CONFLICT (operation_id) DO UPDATE SET
+               parent_operation_id = EXCLUDED.parent_operation_id,
+               figi = EXCLUDED.figi,
+               instrument_type = EXCLUDED.instrument_type,
+               instrument_uid = EXCLUDED.instrument_uid,
+               position_uid = EXCLUDED.position_uid,
+               operation_type = EXCLUDED.operation_type,
+               operation_date = EXCLUDED.operation_date,
+               quantity = EXCLUDED.quantity,
+               quantity_rest = EXCLUDED.quantity_rest,
+               price = EXCLUDED.price,
+               price_currency = EXCLUDED.price_currency,
+               payment = EXCLUDED.payment,
+               payment_currency = EXCLUDED.payment_currency,
+               commission = EXCLUDED.commission,
+               commission_currency = EXCLUDED.commission_currency,
+               status = EXCLUDED.status,
+               trades = EXCLUDED.trades,
+               extra_data = EXCLUDED.extra_data \
+           """
+
+
+def build_get_operations_for_account_query() -> str:
+    """Список операций счета за период."""
+    return """
+           SELECT
+               operation_id,
+               operation_date,
+               operation_type,
+               figi,
+               instrument_type,
+               quantity,
+               price,
+               payment,
+               payment_currency,
+               status,
+               extra_data
+           FROM ganaly.portfolio_operations
+           WHERE account_id = :account_db_id
+             AND operation_date >= :from_dt
+             AND operation_date <= :to_dt
+           ORDER BY operation_date DESC
+           LIMIT :limit \
+           """
+
+
+def build_insert_external_api_log_query() -> str:
+    """Лог ручных/внешних вызовов брокерского API (аналог robot_logs)."""
+    return """
+           INSERT INTO ganaly.external_api_logs (
+               user_id,
+               token_id,
+               broker,
+               context_type,
+               context_ref,
+               endpoint,
+               request_data,
+               response_status,
+               response_data,
+               started_at,
+               finished_at,
+               duration_ms,
+               success,
+               error_message
+           )
+           VALUES (
+               :user_id,
+               :token_id,
+               :broker,
+               :context_type,
+               :context_ref,
+               :endpoint,
+               CAST(:request_data AS jsonb),
+               :response_status,
+               CAST(:response_data AS jsonb),
+               :started_at,
+               :finished_at,
+               :duration_ms,
+               :success,
+               :error_message
+           )
            """

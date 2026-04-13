@@ -1,5 +1,11 @@
 import { api } from './api'
-import type { OverallSummary, AccountDetail, HistoryResponse, AccountSummary } from '@/types/api'
+import type {
+    OverallSummary,
+    AccountDetail,
+    HistoryResponse,
+    AccountSummary,
+    AccountStatisticsResponse,
+} from '@/types/api'
 import type { RobotMetricsResponse, UserRobotsTradingOverview } from '@/types/robot'
 
 export const analyticsService = {
@@ -42,5 +48,25 @@ export const analyticsService = {
         if (snapshotId) params.snapshot_id = snapshotId
         const { data } = await api.get(`/analytics/accounts/${accountId}/positions`, { params })
         return data.positions ?? []
+    },
+
+    async getSnapshotsByPeriod(payload: { account_id: number; from_date: string; to_date: string }): Promise<{ history: any[] }> {
+        const { data } = await api.post('/analytics/snapshots', payload)
+        return data
+    },
+
+    async getOperationsByPeriod(payload: { account_id: number; from_date: string; to_date: string; operation_type?: string }): Promise<{ items: any[]; total: number }> {
+        const { data } = await api.post('/analytics/operations', payload)
+        return data
+    },
+
+    async getAccountStatistics(payload: { account_id: number; from_date: string; to_date: string }): Promise<AccountStatisticsResponse> {
+        const { data } = await api.post<AccountStatisticsResponse>('/analytics/statistics', payload)
+        return data
+    },
+
+    async syncOperations(payload: { account_id: string; from_date: string; to_date: string; tokenId: number; state?: string }): Promise<any> {
+        const { data } = await api.post('/analytics/sync_operations', payload)
+        return data
     },
 }

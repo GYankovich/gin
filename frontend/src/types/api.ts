@@ -10,6 +10,7 @@ export interface AccountSummary {
     total_value: number
     currency: string
     positions_count: number
+    last_token_id?: number | null
 }
 
 export interface OverallSummary {
@@ -47,4 +48,27 @@ export interface HistoryResponse {
     days: number
     interval?: string
     history: PortfolioSnapshotSummary[]
+}
+
+export interface AccountStatisticsOverall {
+    own_funds: number
+    current_total_value: number
+    roi_percent: number | null
+    avg_monthly_roi_percent: number | null
+}
+
+export interface AccountStatisticsPeriod {
+    from_date: string
+    to_date: string
+    period_inflow: number
+    max_drawdown_percent: number | null
+    max_growth_percent: number | null
+    end_value: number | null
+    period_roi_percent: number | null
+}
+
+export interface AccountStatisticsResponse {
+    account_id: number
+    overall: AccountStatisticsOverall
+    period: AccountStatisticsPeriod
 }

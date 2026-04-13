@@ -74,8 +74,9 @@ class AnalyticsService:
             "total_value": self._safe_float(row[6], 0.0),
             "currency": self._safe_str(row[7], 'RUB'),
             "positions_count": self._safe_int(row[8], 0),
-            "daily_yield": self._safe_float(row[9], None) if len(row) > 9 else None,
-            "expected_yield": self._safe_float(row[10], None) if len(row) > 10 else None,
+            "last_token_id": self._safe_int(row[9], 0) if len(row) > 9 and row[9] is not None else None,
+            "daily_yield": self._safe_float(row[10], None) if len(row) > 10 else None,
+            "expected_yield": self._safe_float(row[11], None) if len(row) > 11 else None,
         }
 
     def _row_to_history_item(self, row, has_snapshot_id: bool = True) -> dict:
@@ -370,6 +371,66 @@ class AnalyticsService:
 
         return positions
 
+    def get_account_operations(
+            self,
+            db: Session,
+            account_id: int,
+            user_id: int,
+            from_date: datetime,
+            to_date: datetime,
+            operation_type: Optional[str] = None,
+            limit: int = 5000,
+    ) -> List[dict]:
+        self.db = db
+        if not self.check_account_ownership(db, account_id, user_id):
+            return []
+        sql = """
+              SELECT
+                  operation_id,
+                  operation_date,
+                  operation_type,
+                  figi,
+                  instrument_type,
+                  quantity,
+                  price,
+                  payment,
+                  payment_currency,
+                  status,
+                  extra_data
+              FROM ganaly.portfolio_operations
+              WHERE account_id = :account_id
+                AND operation_date >= :from_date
+                AND operation_date <= :to_date
+              """
+        params: Dict[str, Any] = {
+            "account_id": account_id,
+            "from_date": from_date,
+            "to_date": to_date,
+        }
+        if operation_type:
+            sql += " AND operation_type = :operation_type"
+            params["operation_type"] = operation_type
+        sql += " ORDER BY operation_date DESC LIMIT :limit"
+        params["limit"] = limit
+        rows = db.execute(text(sql), params).fetchall()
+        out: List[dict] = []
+        for r in rows:
+            extra = r[10] or {}
+            out.append({
+                "operation_id": self._safe_str(r[0]),
+                "operation_date": self._safe_datetime(r[1]),
+                "operation_type": self._safe_str(r[2]),
+                "figi": self._safe_str(r[3], None) if r[3] else None,
+                "instrument_type": self._safe_str(r[4], None) if r[4] else None,
+                "quantity": self._safe_float(r[5], 0.0) or 0.0,
+                "price": self._safe_float(r[6], 0.0) or 0.0,
+                "payment": self._safe_float(r[7], 0.0) or 0.0,
+                "currency": self._safe_str(r[8], None) if r[8] else None,
+                "status": self._safe_str(r[9]),
+                "type_text": self._safe_str(extra.get("type_text"), None) if extra else None,
+            })
+        return out
+
 
     # --- Robot trading analytics ---
 
@@ -602,6 +663,138 @@ class AnalyticsService:
         total_return = sum(profits)
         calmar = (total_return / max_dd) if max_dd > 0 else None
         return sharpe, sortino, calmar
+
+    def get_account_statistics(
+            self,
+            db: Session,
+            account_id: int,
+            user_id: int,
+            from_date: datetime,
+            to_date: datetime,
+    ) -> Optional[Dict[str, Any]]:
+        self.db = db
+        if not self.check_account_ownership(db, account_id, user_id):
+            return None
+
+        own_funds_sql = """
+            SELECT
+                COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_INPUT' THEN payment ELSE 0 END), 0)
+                -
+                COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_OUTPUT' THEN payment ELSE 0 END), 0)
+            FROM ganaly.portfolio_operations
+            WHERE account_id = :account_id
+        """
+        own_funds_row = db.execute(text(own_funds_sql), {"account_id": account_id}).first()
+        own_funds = self._safe_float(own_funds_row[0] if own_funds_row else 0.0, 0.0) or 0.0
+
+        latest_snapshot_row = db.execute(
+            text(
+                """
+                SELECT total_amount_portfolio, snapshot_date
+                FROM ganaly.portfolio_snapshots
+                WHERE account_id = :account_id
+                ORDER BY snapshot_date DESC
+                LIMIT 1
+                """
+            ),
+            {"account_id": account_id},
+        ).first()
+        current_total_value = self._safe_float(
+            latest_snapshot_row[0] if latest_snapshot_row else 0.0,
+            0.0,
+        ) or 0.0
+        latest_snapshot_date = self._safe_datetime(latest_snapshot_row[1], None) if latest_snapshot_row else None
+
+        overall_roi_percent: Optional[float] = None
+        if abs(own_funds) > 1e-9:
+            overall_roi_percent = ((current_total_value - own_funds) / own_funds) * 100.0
+
+        first_input_row = db.execute(
+            text(
+                """
+                SELECT MIN(operation_date)
+                FROM ganaly.portfolio_operations
+                WHERE account_id = :account_id
+                  AND operation_type = 'OPERATION_TYPE_INPUT'
+                """
+            ),
+            {"account_id": account_id},
+        ).first()
+        first_input_date = self._safe_datetime(first_input_row[0], None) if first_input_row else None
+
+        avg_monthly_roi_percent: Optional[float] = None
+        if overall_roi_percent is not None and first_input_date and latest_snapshot_date:
+            months = max((latest_snapshot_date - first_input_date).total_seconds() / (86400.0 * 30.4375), 0.0)
+            if months > 1e-9:
+                avg_monthly_roi_percent = overall_roi_percent / months
+
+        period_inflow_sql = """
+            SELECT
+                COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_INPUT' THEN payment ELSE 0 END), 0)
+                -
+                COALESCE(abs(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_OUTPUT' THEN payment ELSE 0 END)), 0)
+            FROM ganaly.portfolio_operations
+            WHERE account_id = :account_id
+              AND operation_date < :from_date
+        """
+        period_inflow_row = db.execute(
+            text(period_inflow_sql),
+            {"account_id": account_id, "from_date": from_date},
+        ).first()
+        period_inflow = self._safe_float(period_inflow_row[0] if period_inflow_row else 0.0, 0.0) or 0.0
+
+        period_history = self.get_account_history(
+            db=db,
+            account_id=account_id,
+            from_date=from_date,
+            to_date=to_date,
+            days=0,
+        )
+
+        end_value: Optional[float] = None
+        max_drawdown_percent: Optional[float] = None
+        max_growth_percent: Optional[float] = None
+        period_roi_percent: Optional[float] = None
+
+        values = [self._safe_float(item.get("total_value"), 0.0) or 0.0 for item in period_history]
+        if values:
+            start_value = values[0]
+            end_value = values[-1]
+            max_value = max(values)
+
+            if abs(start_value) > 1e-9:
+                max_growth_percent = ((max_value - start_value) / start_value) * 100.0
+                period_roi_percent = ((end_value - start_value) / start_value) * 100.0
+
+            peak = values[0]
+            max_drawdown = 0.0
+            for value in values:
+                if value > peak:
+                    peak = value
+                if peak > 1e-9:
+                    drawdown = ((peak - value) / peak) * 100.0
+                    if drawdown > max_drawdown:
+                        max_drawdown = drawdown
+            max_drawdown_percent = max_drawdown
+
+        return {
+            "account_id": account_id,
+            "overall": {
+                "own_funds": own_funds,
+                "current_total_value": current_total_value,
+                "roi_percent": round(overall_roi_percent, 4) if overall_roi_percent is not None else None,
+                "avg_monthly_roi_percent": round(avg_monthly_roi_percent, 4) if avg_monthly_roi_percent is not None else None,
+            },
+            "period": {
+                "from_date": from_date,
+                "to_date": to_date,
+                "period_inflow": period_inflow,
+                "max_drawdown_percent": round(max_drawdown_percent, 4) if max_drawdown_percent is not None else None,
+                "max_growth_percent": round(max_growth_percent, 4) if max_growth_percent is not None else None,
+                "end_value": round(end_value, 4) if end_value is not None else None,
+                "period_roi_percent": round(period_roi_percent, 4) if period_roi_percent is not None else None,
+            },
+        }
 
 
 analytics_service = AnalyticsService()

@@ -3,6 +3,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
@@ -19,6 +20,39 @@ from app.modules.tinvest.methods.instruments import InstrumentsClient
 from app.modules.tinvest.token_service import token_service
 
 CHUNK_DAYS = 365
+MOEX_HTTP_RETRIES = 3
+MOEX_HTTP_TIMEOUT_SEC = 20
+
+
+async def _moex_get_json_with_retry(
+        url: str,
+        *,
+        params: Optional[Dict[str, object]] = None,
+        timeout: int = MOEX_HTTP_TIMEOUT_SEC,
+        retries: int = MOEX_HTTP_RETRIES,
+        context: str = "MOEX request",
+) -> Dict[str, object]:
+    last_exc: Optional[Exception] = None
+    for attempt in range(1, retries + 1):
+        try:
+            async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
+                resp = await client.get(url, params=params)
+            if resp.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"{context}: MOEX API error {resp.status_code} (попытка {attempt}/{retries})",
+                )
+            return resp.json()
+        except HTTPException:
+            raise
+        except httpx.RequestError as e:
+            last_exc = e
+            if attempt < retries:
+                await asyncio.sleep(0.35 * attempt)
+    raise HTTPException(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        detail=f"{context}: не удалось подключиться к MOEX ISS (попытка {retries}/{retries})",
+    ) from last_exc
 
 
 def _utc(dt: datetime) -> datetime:
@@ -149,11 +183,16 @@ async def _fetch_moex_range_chunks(
 
     async def resolve_board_and_market(security_id: str) -> Tuple[str, str]:
         meta_url = f"https://iss.moex.com/iss/securities/{security_id}.json"
-        async with httpx.AsyncClient(timeout=30, verify=False) as client:
-            resp = await client.get(meta_url)
-            if resp.status_code != 200:
-                return "TQBR", "shares"
-            payload = resp.json()
+        try:
+            payload = await _moex_get_json_with_retry(
+                meta_url,
+                timeout=15,
+                retries=2,
+                context=f"MOEX metadata {security_id}",
+            )
+        except (httpx.RequestError, HTTPException):
+            # Не блокируем бэктест из-за мета-запроса: используем дефолтную доску.
+            return "TQBR", "shares"
         boards = payload.get("boards", {})
         cols = boards.get("columns", []) or []
         data = boards.get("data", []) or []
@@ -196,11 +235,16 @@ async def _fetch_moex_range_chunks(
                 "interval": moex_interval,
                 "start": start_offset,
             }
-            async with httpx.AsyncClient(timeout=30, verify=False) as client:
-                resp = await client.get(url, params=params)
-                if resp.status_code != 200:
-                    raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"MOEX API error {resp.status_code}")
-                payload = resp.json()
+            payload = await _moex_get_json_with_retry(
+                url,
+                params=params,
+                timeout=MOEX_HTTP_TIMEOUT_SEC,
+                retries=MOEX_HTTP_RETRIES,
+                context=(
+                    "Загрузка свечей MOEX "
+                    f"{secid} {cur.date().isoformat()}..{chunk_end.date().isoformat()}"
+                ),
+            )
             candles = payload.get("candles", {})
             cols = candles.get("columns", []) or []
             data = candles.get("data", []) or []
@@ -261,11 +305,14 @@ async def ensure_candles_cover_window(
         token: str,
         data_source: str = "tinvest",
         ticker: Optional[str] = None,
-) -> None:
+) -> List[str]:
     """Дозагружает недостающие хвосты относительно уже имеющихся данных в БД."""
     schema = settings.DB_SCHEMA
     from_u = _utc(from_dt)
     to_u = _utc(to_dt)
+    stages: List[str] = [
+        "Проверяем свечи в базе...",
+    ]
     bounds = await run_in_threadpool(repo.fetch_coverage_bounds, db, schema, figi, interval)
     source = (data_source or "tinvest").strip().lower()
     client = InstrumentsClient(token) if source != "moex" else None
@@ -273,6 +320,7 @@ async def ensure_candles_cover_window(
         ticker = await run_in_threadpool(repo.get_instrument_ticker, db, schema, figi)
     total_rows = 0
     if bounds is None:
+        stages.append("Свечи не найдены - запрашиваем...")
         rows = await (
             _fetch_moex_range_chunks(figi, ticker, from_u, to_u, interval)
             if source == "moex"
@@ -286,6 +334,7 @@ async def ensure_candles_cover_window(
         mn = _utc(mn)
         mx = _utc(mx)
         if from_u < mn:
+            stages.append("Недостаточно данных в начале диапазона - дозагружаем...")
             rows = await (
                 _fetch_moex_range_chunks(figi, ticker, from_u, mn, interval)
                 if source == "moex"
@@ -294,6 +343,7 @@ async def ensure_candles_cover_window(
             await run_in_threadpool(repo.upsert_candles_batch, db, schema, rows)
             total_rows += len(rows)
         if to_u > mx:
+            stages.append("Недостаточно данных в конце диапазона - дозагружаем...")
             rows = await (
                 _fetch_moex_range_chunks(figi, ticker, mx, to_u, interval)
                 if source == "moex"
@@ -302,6 +352,11 @@ async def ensure_candles_cover_window(
             await run_in_threadpool(repo.upsert_candles_batch, db, schema, rows)
             total_rows += len(rows)
     await run_in_threadpool(db.commit)
+    if total_rows > 0:
+        stages.append(f"Свечи загружены: {total_rows}")
+    else:
+        stages.append("Свечи уже есть в базе.")
+    return stages
 
 
 async def sync_history_years(

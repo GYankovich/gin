@@ -6,6 +6,7 @@
 """
 import logging
 import sys
+import io
 from datetime import datetime
 from pathlib import Path
 from logging.handlers import BaseRotatingHandler
@@ -120,7 +121,12 @@ def setup_logging() -> None:
 
     _clear_existing_handlers()
 
-    console_handler = logging.StreamHandler(sys.stdout)
+    stream = sys.stdout
+    # Windows cp1251 consoles can crash on emoji/unicode log messages.
+    # Re-wrap stdout with UTF-8 + replacement fallback for safe logging.
+    if hasattr(sys.stdout, "buffer"):
+        stream = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True)
+    console_handler = logging.StreamHandler(stream)
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(app_fmt)
 

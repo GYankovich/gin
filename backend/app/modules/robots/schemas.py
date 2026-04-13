@@ -78,6 +78,7 @@ class RobotHistoryBacktestResponse(BaseModel):
     max_drawdown_percent: Optional[float] = None
     trades: List[RobotHistoryBacktestTrade] = Field(default_factory=list)
     equity_curve: List[Dict[str, Any]] = Field(default_factory=list)
+    stages: List[str] = Field(default_factory=list)
 
 
 class BacktestRequest(BaseModel):

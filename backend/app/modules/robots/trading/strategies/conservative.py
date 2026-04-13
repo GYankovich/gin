@@ -28,6 +28,7 @@ class ConservativeStrategy(BaseStrategy):
                 continue
             series = pd.Series(closes)
             vol = float(series.pct_change().dropna().std() * (252 ** 0.5))
-            # High volatility -> reduce risk (SELL), otherwise schedule rebalance.
-            signals[figi] = "SELL" if vol > max_volatility else "REBALANCE"
+            # Backtest engine supports BUY/SELL only.
+            # In low volatility we keep/enter exposure with BUY.
+            signals[figi] = "SELL" if vol > max_volatility else "BUY"
         return signals

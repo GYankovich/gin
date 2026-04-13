@@ -1,18 +1,27 @@
 # app/modules/tinvest/service.py
 from typing import Optional, List, Dict, Any
+import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from fastapi import HTTPException, status
 
 # Импортируем из methods
-from app.modules.tinvest.methods import create_tbank_client
+from app.modules.tinvest.methods import (
+    create_tbank_client,
+    TBANK_GET_OPERATIONS_BY_CURSOR_ENDPOINT,
+)
 from .token_service import token_service
 from . import queries, utils
 
 logger = logging.getLogger(__name__)
+
+
+def _json_for_pg(value: Any) -> str:
+    """Сериализация для JSON/JSONB в raw SQL (psycopg2 не адаптирует dict)."""
+    return json.dumps(value, ensure_ascii=False, default=str)
 
 
 class TInvestService:
@@ -20,6 +29,45 @@ class TInvestService:
 
     def __init__(self):
         self.db: Optional[Session] = None
+
+    def _write_external_api_log(
+            self,
+            *,
+            user_id: int,
+            token_id: Optional[int],
+            broker: str,
+            context_type: Optional[str],
+            context_ref: Optional[str],
+            endpoint: str,
+            request_data: Dict[str, Any],
+            response_status: Optional[int],
+            response_data: Optional[Dict[str, Any]],
+            started_at: datetime,
+            finished_at: datetime,
+            success: bool,
+            error_message: Optional[str],
+    ) -> None:
+        duration_ms = int(max(0, (finished_at - started_at).total_seconds() * 1000))
+        rd = _json_for_pg(response_data if response_data is not None else {})
+        self._execute(
+            queries.build_insert_external_api_log_query(),
+            {
+                "user_id": user_id,
+                "token_id": token_id,
+                "broker": broker,
+                "context_type": context_type,
+                "context_ref": context_ref,
+                "endpoint": endpoint,
+                "request_data": _json_for_pg(request_data),
+                "response_status": response_status,
+                "response_data": rd,
+                "started_at": started_at,
+                "finished_at": finished_at,
+                "duration_ms": duration_ms,
+                "success": 1 if success else 0,
+                "error_message": (error_message[:8000] if error_message else None),
+            },
+        )
 
     def _execute(self, query: str, params: dict, fetch_one: bool = False):
         """Утилита для выполнения запросов"""
@@ -246,12 +294,14 @@ class TInvestService:
         """
         self.db = db
 
-        token = await self.get_user_token(db, user_id)
-        if not token:
+        active_token = await token_service.get_active_token(db, user_id)
+        if not active_token:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Токен T-Invest не найден. Добавьте токен в настройках."
             )
+        token = active_token.get("token")
+        active_token_id = active_token.get("id")
 
         # Получаем все счета
         accounts = await self.get_accounts(token)
@@ -290,8 +340,30 @@ class TInvestService:
                     if account_in_db:
                         self._execute(
                             queries.build_update_account_sync_time_query(),
-                            {"account_id": account_in_db[0], "now": datetime.now(timezone.utc)}
+                            {
+                                "account_id": account_in_db[0],
+                                "now": datetime.now(timezone.utc),
+                                "token_id": active_token_id,
+                            }
                         )
+                        # Автосинхронизация истории операций для консистентности.
+                        latest_op = self._execute(
+                            queries.build_get_latest_operation_date_query(),
+                            {"account_db_id": account_in_db[0]},
+                            fetch_one=True,
+                        )
+                        from_dt = (latest_op[0] - timedelta(days=2)) if latest_op and latest_op[0] else (datetime.now(timezone.utc) - timedelta(days=30))
+                        to_dt = datetime.now(timezone.utc)
+                        try:
+                            await self.sync_account_operations(
+                                db=db,
+                                user_id=user_id,
+                                external_account_id=account["id"],
+                                from_dt=from_dt,
+                                to_dt=to_dt,
+                            )
+                        except Exception as e:
+                            logger.warning(f"Operations auto-sync failed for account {account['id']}: {e}")
 
                 portfolios.append({
                     "account": account,
@@ -338,7 +410,8 @@ class TInvestService:
                 "status": utils.safe_str(row[4]),
                 "opened_date": row[5],
                 "last_sync_at": row[6],
-                "created_at": row[7]
+                "last_token_id": utils.safe_int(row[7]) if row[7] is not None else None,
+                "created_at": row[8]
             })
 
         return accounts
@@ -367,6 +440,226 @@ class TInvestService:
             })
 
         return snapshots
+
+    @staticmethod
+    def _parse_money_decimal(value: Optional[Dict[str, Any]]) -> float:
+        if not value:
+            return 0.0
+        units = float(value.get("units", 0) or 0)
+        nano = float(value.get("nano", 0) or 0) / 1e9
+        return round(units + nano, 6)
+
+    async def sync_account_operations(
+            self,
+            db: Session,
+            user_id: int,
+            external_account_id: str,
+            from_dt: datetime,
+            to_dt: datetime,
+            state: str = "OPERATION_STATE_UNSPECIFIED",
+            token_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        self.db = db
+        token = None
+        effective_token_id = token_id
+        if token_id is not None:
+            token_row = await token_service.get_token_by_id(db, token_id, user_id)
+            if not token_row:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Токен не найден")
+            token = token_row.get("token")
+        else:
+            active_token = await token_service.get_active_token(db, user_id)
+            if active_token:
+                token = active_token.get("token")
+                effective_token_id = active_token.get("id")
+        if not token:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Токен T-Invest не найден")
+
+        account_row = self._execute(
+            queries.build_get_account_row_by_external_id_query(),
+            {"external_account_id": external_account_id, "user_id": user_id},
+            fetch_one=True,
+        )
+        if not account_row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Счет не найден")
+        account_db_id = account_row[0]
+        external_account_id = account_row[1]
+
+        client = create_tbank_client(token)
+        api_started = datetime.now(timezone.utc)
+        request_for_log = {
+            "accountId": external_account_id,
+            "from": from_dt.isoformat().replace("+00:00", "Z"),
+            "to": to_dt.isoformat().replace("+00:00", "Z"),
+            "state": state,
+            "api": "GetOperationsByCursor",
+            "pageLimit": 1000,
+        }
+        payload: Dict[str, Any] = {}
+        try:
+            payload = await client.get_operations_all_pages(
+                external_account_id, from_dt, to_dt, state=state
+            )
+            api_finished = datetime.now(timezone.utc)
+            page_bodies = payload.pop("pages", [])
+            response_for_log: Dict[str, Any] = {
+                "pageCount": payload.get("pageCount"),
+                "rawItemCount": payload.get("rawItemCount"),
+                "pages": page_bodies,
+            }
+            self._write_external_api_log(
+                user_id=user_id,
+                token_id=effective_token_id,
+                broker="tinvest",
+                context_type="operations_sync",
+                context_ref=external_account_id,
+                endpoint=TBANK_GET_OPERATIONS_BY_CURSOR_ENDPOINT,
+                request_data=request_for_log,
+                response_status=200,
+                response_data=response_for_log,
+                started_at=api_started,
+                finished_at=api_finished,
+                success=True,
+                error_message=None,
+            )
+            self.db.commit()
+        except Exception as e:
+            api_finished = datetime.now(timezone.utc)
+            self._write_external_api_log(
+                user_id=user_id,
+                token_id=effective_token_id,
+                broker="tinvest",
+                context_type="operations_sync",
+                context_ref=external_account_id,
+                endpoint=TBANK_GET_OPERATIONS_BY_CURSOR_ENDPOINT,
+                request_data=request_for_log,
+                response_status=None,
+                response_data={},
+                started_at=api_started,
+                finished_at=api_finished,
+                success=False,
+                error_message=str(e),
+            )
+            self.db.commit()
+            raise
+
+        operations = payload.get("operations", []) or []
+
+        upsert_query = queries.build_upsert_operation_query()
+        saved = 0
+        seen_operation_ids: set[str] = set()
+        duplicate_operation_ids_skipped = 0
+        for op in operations:
+            op_id = str(op.get("id") or "").strip()
+            if not op_id:
+                continue
+            if op_id in seen_operation_ids:
+                duplicate_operation_ids_skipped += 1
+                continue
+            seen_operation_ids.add(op_id)
+
+            payment = op.get("payment") or {}
+            price = op.get("price") or {}
+            extra_data = {
+                "type_text": op.get("type"),
+                "currency": op.get("currency"),
+                "asset_uid": op.get("assetUid"),
+                "child_operations": op.get("childOperations") or [],
+            }
+            self._execute(
+                upsert_query,
+                {
+                    "account_id": account_db_id,
+                    "operation_id": op_id,
+                    "parent_operation_id": op.get("parentOperationId") or None,
+                    "figi": op.get("figi") or None,
+                    "instrument_type": op.get("instrumentType") or None,
+                    "instrument_uid": op.get("instrumentUid") or None,
+                    "position_uid": op.get("positionUid") or None,
+                    "operation_type": op.get("operationType") or "OPERATION_TYPE_UNSPECIFIED",
+                    "operation_date": datetime.fromisoformat(str(op.get("date")).replace("Z", "+00:00")) if op.get("date") else from_dt,
+                    "quantity": float(op.get("quantity") or 0),
+                    "quantity_rest": float(op.get("quantityRest") or 0),
+                    "price": self._parse_money_decimal(price),
+                    "price_currency": (price.get("currency") or op.get("currency") or "RUB").upper(),
+                    "payment": self._parse_money_decimal(payment),
+                    "payment_currency": (payment.get("currency") or op.get("currency") or "RUB").upper(),
+                    "commission": None,
+                    "commission_currency": None,
+                    "status": op.get("state") or "OPERATION_STATE_UNSPECIFIED",
+                    "trades": _json_for_pg(op.get("trades") or []),
+                    "extra_data": _json_for_pg(extra_data),
+                },
+            )
+            saved += 1
+
+        self._execute(
+            queries.build_update_account_sync_time_query(),
+            {
+                "account_id": account_db_id,
+                "now": datetime.now(timezone.utc),
+                "token_id": effective_token_id,
+            },
+        )
+        db.commit()
+        return {
+            "account_id": account_db_id,
+            "external_account_id": external_account_id,
+            "token_id": effective_token_id,
+            "from": from_dt.isoformat(),
+            "to": to_dt.isoformat(),
+            "saved_operations": saved,
+            "total_received": len(operations),
+            "pages_fetched": payload.get("pageCount", 0),
+            "raw_items_from_api": payload.get("rawItemCount", len(operations)),
+            "duplicate_operation_ids_skipped": duplicate_operation_ids_skipped,
+        }
+
+    async def list_account_operations(
+            self,
+            db: Session,
+            user_id: int,
+            account_db_id: int,
+            from_dt: datetime,
+            to_dt: datetime,
+            limit: int = 500,
+    ) -> List[Dict[str, Any]]:
+        self.db = db
+        account_row = self._execute(
+            queries.build_get_account_row_query(),
+            {"account_db_id": account_db_id, "user_id": user_id},
+            fetch_one=True,
+        )
+        if not account_row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Счет не найден")
+        rows = self._execute(
+            queries.build_get_operations_for_account_query(),
+            {
+                "account_db_id": account_db_id,
+                "from_dt": from_dt,
+                "to_dt": to_dt,
+                "limit": limit,
+            },
+        ).fetchall()
+        out: List[Dict[str, Any]] = []
+        for row in rows:
+            extra = row[10] or {}
+            out.append(
+                {
+                    "operation_id": row[0],
+                    "operation_date": row[1],
+                    "operation_type": row[2],
+                    "figi": row[3],
+                    "instrument_type": row[4],
+                    "quantity": float(row[5] or 0),
+                    "price": float(row[6] or 0),
+                    "payment": float(row[7] or 0),
+                    "currency": row[8],
+                    "status": row[9],
+                    "type_text": extra.get("type_text"),
+                }
+            )
+        return out
 
 
 # Создаем экземпляр сервиса

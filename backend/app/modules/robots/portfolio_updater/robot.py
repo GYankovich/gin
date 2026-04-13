@@ -9,6 +9,7 @@ from app.modules.robots.base.base_robot import BaseRobot
 from app.modules.robots.common.utils import safe_str
 from app.modules.tinvest.facade import TInvestFacade
 from app.modules.tinvest.service import TInvestService
+from app.modules.tinvest import queries as tinvest_queries
 
 
 class PortfolioUpdaterRobot(BaseRobot):
@@ -113,6 +114,21 @@ class PortfolioUpdaterRobot(BaseRobot):
 
                 if snapshot_id:
                     self.log.info(f"    ✓ Снимок сохранен (ID: {snapshot_id})")
+                    account_in_db = tinvest_svc._execute(
+                        tinvest_queries.build_get_account_by_id_query(),
+                        {"user_id": user_id, "account_id": account["id"]},
+                        fetch_one=True,
+                    )
+                    if account_in_db:
+                        tinvest_svc._execute(
+                            tinvest_queries.build_update_account_sync_time_query(),
+                            {
+                                "account_id": account_in_db[0],
+                                "now": datetime.now(timezone.utc),
+                                "token_id": token_id,
+                            },
+                        )
+                        self.db.commit()
                     snapshots_saved += 1
                 else:
                     self.log.warning(f"    ⚠️ Снимок не сохранен")

@@ -4,15 +4,13 @@ import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { DataTable, type Column } from '@/components/ui/DataTable'
-import { Chart, type IChartApi, type Time } from '@/components/ui/Chart'
+import { Chart, type IChartApi, type ISeriesApi, type Time } from '@/components/ui/Chart'
 import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { useToast } from '@/components/ui/Toast'
 import { LineSeries } from 'lightweight-charts'
 import { robotService } from '@/services/robotService'
 import { marketService, type MarketInstrumentRow } from '@/services/marketService'
-import { portfolioService } from '@/services/portfolioService'
 import type { Robot, RobotHistoryBacktestResult, RobotHistoryBacktestTrade, StrategyParam } from '@/types/robot'
-import type { TokenResponse } from '@/types/portfolio'
 
 const MOEX_INTERVAL_OPTIONS = [
     { value: 'CANDLE_INTERVAL_MONTH', label: 'Месяц' },
@@ -23,10 +21,13 @@ const MOEX_INTERVAL_OPTIONS = [
     { value: 'CANDLE_INTERVAL_1_MIN', label: '1 минута' },
 ]
 
-function toIsoUtc(d: string): string {
+function toApiDate(d: string): string {
     const dt = new Date(d)
-    if (Number.isNaN(dt.getTime())) return new Date().toISOString()
-    return dt.toISOString()
+    if (Number.isNaN(dt.getTime())) return new Date().toISOString().slice(0, 10)
+    const y = dt.getFullYear()
+    const m = String(dt.getMonth() + 1).padStart(2, '0')
+    const day = String(dt.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
 }
 
 function parsePercentMasked(raw: string): number {
@@ -59,7 +60,6 @@ export default function TestingPage() {
     const [robotId, setRobotId] = useState<number | null>(null)
     const [marketRows, setMarketRows] = useState<MarketInstrumentRow[]>([])
     const [strategies, setStrategies] = useState<StrategyParam[]>([])
-    const [tokens, setTokens] = useState<TokenResponse[]>([])
 
     const [figi, setFigi] = useState('')
     const [customTicker, setCustomTicker] = useState('')
@@ -78,7 +78,6 @@ export default function TestingPage() {
     const [ndflPct, setNdflPct] = useState(15)
     const [capital, setCapital] = useState(1_000_000)
     const [sessionInterval, setSessionInterval] = useState('10:00-18:45')
-    const [syncTokenId, setSyncTokenId] = useState<number | null>(null)
     const [fromDate, setFromDate] = useState('')
     const [toDate, setToDate] = useState('')
 
@@ -97,13 +96,11 @@ export default function TestingPage() {
             robotService.list(100, 0),
             marketService.listInstruments().catch(() => []),
             robotService.getStrategies().catch(() => ({ items: [] })),
-            portfolioService.getTokens().catch(() => []),
-        ]).then(([r, m, s, t]) => {
+        ]).then(([r, m, s]) => {
             setRobots(r.items)
             if (r.items.length > 0) setRobotId(r.items[0].id)
             setMarketRows(m)
             setStrategies(s.items ?? [])
-            setTokens(Array.isArray(t) ? t : [])
         }).finally(() => setLoading(false))
     }, [])
 
@@ -167,32 +164,15 @@ export default function TestingPage() {
         [tickerOptions, instrumentInput],
     )
 
-    const ensureInstrument = async (tickerOrFigi: string): Promise<string> => {
-        const res = await marketService.ensureCandles({
-            figi: tickerOrFigi.toUpperCase(),
-            ticker: tickerOrFigi.toUpperCase(),
-            candle_interval: candleInterval,
-            from_date: toIsoUtc(fromDate),
-            to_date: toIsoUtc(toDate),
-            data_source: 'moex',
-            token_id: syncTokenId ?? undefined,
-        })
-        setStatusWindow(res.stages ?? [])
-        const prices = (res.candles ?? []).map((c: any) => {
-            const t = toChartTime(c.time)
-            const q = c.close ?? { units: 0, nano: 0 }
-            const close = Number(q.units ?? 0) + Number(q.nano ?? 0) / 1_000_000_000
-            return { time: t, value: close }
-        }).filter((x: any) => Number(x.time) > 0 && Number.isFinite(x.value))
-        setPriceCurve(normalizeSeriesByTime(prices))
-        return res.figi
-    }
-
     const runBacktest = async () => {
         setRunning(true)
         setError(null)
         setResult(null)
-        setStatusWindow(['Подготавливаемся к тесту...'])
+        setPriceCurve([])
+        setStatusWindow([
+            'Подготовка данных: при необходимости свечи дозагружаются на сервере',
+            'Расчёт бэктеста…',
+        ])
         try {
             const nextInvalid: Record<string, boolean> = {}
             const typedTicker = (customTicker || instrumentInput).trim()
@@ -206,20 +186,17 @@ export default function TestingPage() {
                 return
             }
             setInvalid({})
-            let effectiveFigi = figi
+            const tickerUpper = typedTicker ? typedTicker.toUpperCase() : ''
+            const effectiveFigi = (figi || tickerUpper).trim()
             if (!effectiveFigi) {
-                const t = typedTicker
-                if (!t) throw new Error('Укажите тикер')
-                effectiveFigi = await ensureInstrument(t)
-                setFigi(effectiveFigi)
-                setCustomTicker(t.toUpperCase())
-            } else {
-                effectiveFigi = await ensureInstrument(effectiveFigi)
+                toast.show('Укажите инструмент', 'error', 4000)
+                setStatusWindow([])
+                setRunning(false)
+                return
             }
-            setStatusWindow(['Тестируем...'])
             const payload: Record<string, unknown> = {
                 figi: effectiveFigi,
-                ticker: (customTicker || instrumentInput).trim().toUpperCase() || undefined,
+                ticker: tickerUpper || undefined,
                 candle_interval: candleInterval,
                 strategy,
                 strategy_params: { ...strategyParams, figis: [effectiveFigi], interval: candleInterval, market_data: { mode: quoteMode } },
@@ -233,23 +210,21 @@ export default function TestingPage() {
                     broker_commission_rate: commPct / 100,
                     ndfl_rate: ndflPct / 100,
                 },
-                from_date: toIsoUtc(fromDate),
-                to_date: toIsoUtc(toDate),
+                from_date: toApiDate(fromDate),
+                to_date: toApiDate(toDate),
                 initial_capital: capital,
-                token_id: syncTokenId ?? undefined,
                 data_source: 'moex',
-                fetch_if_missing: false,
                 session_interval: sessionInterval,
             }
             const bt = await marketService.runBacktest(payload)
-            setStatusWindow([])
+            setStatusWindow(bt.stages ?? [])
             setResult(bt)
             setChartLegend({ time: '' })
         } catch (e: any) {
             const msg = fmtErr(e)
             setError(msg)
             toast.show(msg, 'error', 4000)
-            setStatusWindow([])
+            setStatusWindow([msg])
         }
         setRunning(false)
     }
@@ -284,8 +259,16 @@ export default function TestingPage() {
         const eqSeries = chart.addSeries(LineSeries, { color: '#0066cc', lineWidth: 2 })
         eqSeries.setData(eqData)
 
-        const priceSeries = chart.addSeries(LineSeries, { color: '#9b7cff', lineWidth: 1, priceScaleId: 'left' as any })
-        priceSeries.setData(normalizeSeriesByTime(priceCurve))
+        const tradePricePoints = normalizeSeriesByTime(
+            (result.trades || []).filter(t => !!t.bar_time).map(t => ({ time: toChartTime(t.bar_time), value: t.price })),
+        )
+        const priceLineData = priceCurve.length > 0 ? normalizeSeriesByTime(priceCurve) : tradePricePoints
+
+        let priceSeries: ISeriesApi<any> | null = null
+        if (priceLineData.length > 0) {
+            priceSeries = chart.addSeries(LineSeries, { color: '#9b7cff', lineWidth: 1, priceScaleId: 'left' as any })
+            priceSeries.setData(priceLineData)
+        }
 
         // Dot series to guarantee visible trade points on price chart.
         const buyPointsSeries = chart.addSeries(LineSeries, {
@@ -320,7 +303,8 @@ export default function TestingPage() {
                 shape: t.side === 'buy' ? 'arrowUp' : 'arrowDown',
                 text: `${t.side.toUpperCase()} ${t.quantity} @ ${t.price.toFixed(2)}`,
             }))
-        ;(priceSeries as any).setMarkers?.(markers)
+        const markerSeries = priceSeries ?? eqSeries
+        ;(markerSeries as any).setMarkers?.(markers)
 
         const tooltip = document.createElement('div')
         tooltip.className = 'chart-trade-tooltip'
@@ -361,7 +345,7 @@ export default function TestingPage() {
                 : (typeof param.time === 'number' ? toDayKeyFromSec(param.time) : '')
             const seriesData = param.seriesData
             const eqPoint = seriesData?.get?.(eqSeries)
-            const pxPoint = seriesData?.get?.(priceSeries)
+            const pxPoint = priceSeries ? seriesData?.get?.(priceSeries) : undefined
             const equity = eqPoint?.value != null ? Number(eqPoint.value) : undefined
             const price = pxPoint?.value != null ? Number(pxPoint.value) : undefined
             setChartLegend({ time: formatLegendTime(param.time), equity, price })
@@ -375,7 +359,7 @@ export default function TestingPage() {
                 return
             }
             tooltip.style.display = 'block'
-            const yOnPrice = (priceSeries as any).priceToCoordinate?.(trade.price)
+            const yOnPrice = (markerSeries as any).priceToCoordinate?.(trade.price)
             const tx = param.point.x + 12
             const ty = Number.isFinite(yOnPrice) ? Number(yOnPrice) - 18 : param.point.y + 12
             tooltip.style.left = `${tx}px`
@@ -393,7 +377,7 @@ export default function TestingPage() {
     const tradeColumns: Column<RobotHistoryBacktestTrade>[] = [
         { key: 'bar_time', header: 'Бар', render: r => r.bar_time ?? '—' },
         { key: 'figi', header: 'FIGI' },
-        { key: 'side', header: 'Сторона', render: r => r.side.toUpperCase() },
+        { key: 'side', header: 'Сторона', render: r => <span className={r.side === 'buy' ? 'color-up' : 'color-down'}>{r.side.toUpperCase()}</span> },
         { key: 'price', header: 'Цена', align: 'right', render: r => r.price.toLocaleString('ru-RU', { maximumFractionDigits: 4 }) },
         { key: 'quantity', header: 'Лоты', align: 'right' },
         { key: 'commission', header: 'Комиссия', align: 'right', render: r => r.commission.toFixed(2) },

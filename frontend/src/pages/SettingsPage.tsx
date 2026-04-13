@@ -9,8 +9,7 @@ import { RobotIllustration } from '@/components/ui/RobotIllustration'
 import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
 import { useToast } from '@/components/ui/Toast'
-import { portfolioService } from '@/services/portfolioService'
-import type { TokenResponse } from '@/types/portfolio'
+import { api } from '@/services/api'
 
 const TABS = ['Профиль', 'API токены', 'Оформление', 'Общие'] as const
 
@@ -20,11 +19,21 @@ export default function SettingsPage() {
     const { theme, toggle: toggleTheme } = useThemeStore()
     const toast = useToast()
 
-    const [tokens, setTokens] = useState<TokenResponse[]>([])
+    type ApiKeyItem = {
+        id: number
+        name: string | null
+        token_type: { type: number; typeName: string; typeDesc: string }
+        is_active: boolean
+        created_at: string
+        masked_token: string
+    }
+    const [tokens, setTokens] = useState<ApiKeyItem[]>([])
+    const [tokenTypes, setTokenTypes] = useState<Array<{ value: string; label: string }>>([])
     const [tokensLoading, setTokensLoading] = useState(false)
     const [addOpen, setAddOpen] = useState(false)
     const [newName, setNewName] = useState('')
     const [newToken, setNewToken] = useState('')
+    const [newTokenType, setNewTokenType] = useState('')
     const [saving, setSaving] = useState(false)
     const [testing, setTesting] = useState(false)
     const [testResult, setTestResult] = useState<string | null>(null)
@@ -35,18 +44,44 @@ export default function SettingsPage() {
 
     const loadTokens = async () => {
         setTokensLoading(true)
-        try { setTokens(await portfolioService.getTokens()) } catch { /* */ }
+        try {
+            const { data } = await api.post('/apikey/data', {})
+            setTokens(data?.keys ?? [])
+        } catch { /* */ }
         setTokensLoading(false)
     }
+
+    const loadTokenTypes = async () => {
+        try {
+            const { data } = await api.post('/dictionary/data', { tableName: 'TOKEN', columnName: 'TYPE' })
+            const opts = (Array.isArray(data) ? data : []).map((x: any) => ({
+                value: String(x.stringValue ?? x.name ?? ''),
+                label: String(x.name ?? x.stringValue ?? ''),
+            })).filter((x: any) => !!x.value)
+            setTokenTypes(opts)
+            if (!newTokenType && opts.length > 0) setNewTokenType(opts[0].value)
+        } catch {
+            setTokenTypes([])
+        }
+    }
+
+    useEffect(() => {
+        if (addOpen) loadTokenTypes()
+    }, [addOpen])
 
     const handleAddToken = async () => {
         setSaving(true)
         try {
-            await portfolioService.createToken({ token_name: newName, token_value: newToken })
+            await api.post('/apikey/create', {
+                token: newToken,
+                key_type: newTokenType,
+                name: newName || null,
+            })
             toast.show('Токен добавлен', 'success')
             setAddOpen(false)
             setNewName('')
             setNewToken('')
+            setNewTokenType('')
             loadTokens()
         } catch (e: any) {
             toast.show(e.response?.data?.detail || 'Ошибка', 'error')
@@ -56,7 +91,7 @@ export default function SettingsPage() {
 
     const handleDeleteToken = async (id: number) => {
         try {
-            await portfolioService.deleteToken(id)
+            await api.post(`/apikey/delete/${id}`)
             toast.show('Токен удалён', 'success')
             loadTokens()
         } catch { toast.show('Ошибка удаления', 'error') }
@@ -66,8 +101,7 @@ export default function SettingsPage() {
         setTesting(true)
         setTestResult(null)
         try {
-            const res = await portfolioService.testToken({ token_value: newToken })
-            setTestResult(res.is_valid ? `Валиден. Счетов: ${res.message}` : `Невалиден: ${res.message}`)
+            setTestResult('Проверка для /apikey не реализована')
         } catch (e: any) {
             setTestResult('Ошибка проверки')
         }
@@ -112,9 +146,15 @@ export default function SettingsPage() {
             )}
 
             {tab === 1 && (
-                <div>
-                    <div style={{ marginBottom: 'var(--space-4)' }}>
-                        <Button variant="primary" glow onClick={() => setAddOpen(true)}>+ Добавить токен</Button>
+                <div className="settings-tokens">
+                    <div className="settings-tokens__toolbar">
+                        <div className="settings-tokens__intro">
+                            <h3 className="settings-tokens__title">API токены</h3>
+                            <p className="settings-tokens__subtitle">Управление ключами доступа к внешним сервисам</p>
+                        </div>
+                        <Button className="settings-tokens__add-btn" variant="primary" glow onClick={() => setAddOpen(true)}>
+                            + Добавить токен
+                        </Button>
                     </div>
 
                     {tokensLoading ? <Skeleton height="80px" count={3} /> : (
@@ -123,15 +163,20 @@ export default function SettingsPage() {
                             {tokens.map(t => (
                                 <Card key={t.id} className="token-card">
                                     <div className="token-card__header">
-                                        <span>🔑 {t.token_name}</span>
+                                        <span className="token-card__name">
+                                            <span className="token-card__icon">🔑</span>
+                                            {t.name || 'API key'}
+                                        </span>
                                         <Badge variant={t.is_active ? 'up' : 'neutral'}>{t.is_active ? 'Активен' : 'Неактивен'}</Badge>
                                     </div>
-                                    <div className="token-card__meta mono">{t.token_preview}</div>
-                                    <div className="token-card__meta">
-                                        Создан: {new Date(t.created_at).toLocaleDateString('ru-RU')}
-                                        {t.last_used_at && ` | Использован: ${new Date(t.last_used_at).toLocaleDateString('ru-RU')}`}
+                                    <div className="token-card__meta mono">{t.masked_token}</div>
+                                    <div className="token-card__chips">
+                                        {t.token_type?.typeName && (
+                                            <span className="token-chip token-chip--type">Тип: {t.token_type.typeName}</span>
+                                        )}
+                                        <span className="token-chip">Создан: {new Date(t.created_at).toLocaleDateString('ru-RU')}</span>
                                     </div>
-                                    <div className="robot-card__actions" style={{ marginTop: 'var(--space-3)' }}>
+                                    <div className="token-card__actions">
                                         <Button variant="danger" size="sm" onClick={() => handleDeleteToken(t.id)}>Удалить</Button>
                                     </div>
                                 </Card>
@@ -148,10 +193,19 @@ export default function SettingsPage() {
                             <label className="form-label">Токен</label>
                             <input className="form-input" value={newToken} onChange={e => setNewToken(e.target.value)} placeholder="t.xxx..." />
                         </div>
+                        <div className="form-group">
+                            <label className="form-label">Тип токена</label>
+                            <Select
+                                options={tokenTypes}
+                                value={newTokenType}
+                                onChange={setNewTokenType}
+                                placeholder="Выберите тип токена"
+                            />
+                        </div>
                         {testResult && <div className="form-hint" style={{ color: testResult.startsWith('Валиден') ? 'var(--color-up)' : 'var(--color-down)' }}>{testResult}</div>}
                         <div className="form-actions">
                             <Button variant="ghost" size="sm" loading={testing} onClick={handleTestToken} disabled={!newToken}>Проверить</Button>
-                            <Button variant="primary" loading={saving} onClick={handleAddToken} disabled={!newName || !newToken}>Сохранить</Button>
+                            <Button variant="primary" loading={saving} onClick={handleAddToken} disabled={!newName || !newToken || !newTokenType}>Сохранить</Button>
                         </div>
                     </Modal>
                 </div>

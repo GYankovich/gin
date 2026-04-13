@@ -1,3 +1,6 @@
+from datetime import datetime, timezone
+
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -10,6 +13,14 @@ from app.modules.robots.schemas import RobotHistoryBacktestResponse, RobotHistor
 from app.modules.robots.trading.backtest.engine import run_backtest_simulation
 
 router = APIRouter(prefix="/market", tags=["Market data"])
+
+
+def _normalize_window_dates(from_dt: datetime, to_dt: datetime) -> tuple[datetime, datetime]:
+    # Нормализуем до даты (dd-mm-yyyy semantics):
+    # from -> начало дня UTC, to -> конец дня UTC.
+    from_day = datetime(from_dt.year, from_dt.month, from_dt.day, 0, 0, 0, tzinfo=timezone.utc)
+    to_day = datetime(to_dt.year, to_dt.month, to_dt.day, 23, 59, 59, 999999, tzinfo=timezone.utc)
+    return from_day, to_day
 
 
 @router.get("/instruments", response_model=schemas.MarketInstrumentListResponse)
@@ -89,15 +100,29 @@ async def run_market_backtest(
         data_source=source,
         token=token or "",
     )
-    await market_service.ensure_candles_cover_window(
-        db, figi_resolved, body.candle_interval, body.from_date, body.to_date, token,
-        data_source=source,
-        ticker=ticker_resolved,
-    )
+    from_dt, to_dt = _normalize_window_dates(body.from_date, body.to_date)
 
-    candles = market_service.load_candles_for_backtest(
-        db, figi_resolved, body.candle_interval, body.from_date, body.to_date,
-    )
+    try:
+        stages = await market_service.ensure_candles_cover_window(
+            db, figi_resolved, body.candle_interval, from_dt, to_dt, token,
+            data_source=source,
+            ticker=ticker_resolved,
+        )
+        candles = market_service.load_candles_for_backtest(
+            db, figi_resolved, body.candle_interval, from_dt, to_dt,
+        )
+    except HTTPException:
+        raise
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="MOEX недоступен: ошибка подключения при загрузке свечей.",
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Ошибка подготовки свечей для бэктеста: {e}",
+        ) from e
     if len(candles) < 3:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -126,6 +151,7 @@ async def run_market_backtest(
         max_drawdown_percent=result.max_drawdown_percent,
         trades=[RobotHistoryBacktestTrade.model_validate(t) for t in result.trades],
         equity_curve=result.equity_curve,
+        stages=stages + ["Тестируем...", "Бэктест завершен"],
     )
 
 
