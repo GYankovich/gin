@@ -210,6 +210,43 @@ def get_account_statistics(
     return schemas.AccountStatisticsResponse(**stats)
 
 
+@router.post("/statistics_extended", response_model=schemas.PortfolioStatisticsExtendedResponse)
+async def get_account_statistics_extended(
+        body: schemas.AnalyticsRangeRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    stats = await analytics_service.get_account_statistics_extended(
+        db=db,
+        account_id=body.account_id,
+        user_id=current_user.id,
+        from_date=body.from_date,
+        to_date=body.to_date,
+    )
+    if not stats:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return schemas.PortfolioStatisticsExtendedResponse(**stats)
+
+
+@router.post("/chart_series", response_model=schemas.AnalyticsChartSeriesResponse)
+def get_account_chart_series(
+        body: schemas.AnalyticsChartSeriesRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    result = analytics_service.get_account_chart_series(
+        db=db,
+        account_id=body.account_id,
+        user_id=current_user.id,
+        from_date=body.from_date,
+        to_date=body.to_date,
+        figis=body.figis or [],
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return schemas.AnalyticsChartSeriesResponse(**result)
+
+
 @router.post("/sync_operations")
 async def sync_operations(
         body: schemas.AnalyticsSyncOperationsRequest,

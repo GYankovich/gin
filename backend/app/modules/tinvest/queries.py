@@ -296,6 +296,16 @@ def build_get_latest_operation_date_query() -> str:
            """
 
 
+def build_delete_operations_by_period_query() -> str:
+    """Удалить операции по счету в заданном диапазоне дат."""
+    return """
+           DELETE FROM ganaly.portfolio_operations
+           WHERE account_id = :account_db_id
+             AND operation_date >= :from_dt
+             AND operation_date <= :to_dt \
+           """
+
+
 def build_upsert_operation_query() -> str:
     """Upsert операции в portfolio_operations по operation_id."""
     return """

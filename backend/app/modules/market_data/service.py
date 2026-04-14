@@ -460,6 +460,32 @@ def list_backtests(db: Session, user_id: int, limit: int = 50) -> List[Dict[str,
     return out
 
 
+async def get_imoex_return_percent(from_dt: datetime, to_dt: datetime) -> Optional[float]:
+    """
+    Доходность IMOEX за период в процентах.
+    Использует MOEX ISS свечи (дневной интервал) по индексу IMOEX.
+    """
+    start = _utc(from_dt)
+    end = _utc(to_dt)
+    if start >= end:
+        return None
+    rows = await _fetch_moex_range_chunks(
+        figi="IMOEX",
+        ticker="IMOEX",
+        start=start,
+        end=end,
+        interval="CANDLE_INTERVAL_DAY",
+    )
+    if not rows:
+        return None
+    rows_sorted = sorted(rows, key=lambda x: x[2])
+    first_close = float(rows_sorted[0][6] or 0.0)
+    last_close = float(rows_sorted[-1][6] or 0.0)
+    if abs(first_close) < 1e-9:
+        return None
+    return ((last_close - first_close) / first_close) * 100.0
+
+
 async def ensure_and_load_candles(
         db: Session,
         user_id: int,

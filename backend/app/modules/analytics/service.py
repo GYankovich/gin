@@ -4,6 +4,8 @@ from sqlalchemy import text
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import math
+from collections import defaultdict, deque
+from app.modules.market_data import service as market_data_service
 
 from . import queries
 
@@ -431,6 +433,103 @@ class AnalyticsService:
             })
         return out
 
+    def get_account_chart_series(
+            self,
+            db: Session,
+            account_id: int,
+            user_id: int,
+            from_date: datetime,
+            to_date: datetime,
+            figis: Optional[List[str]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        self.db = db
+        if not self.check_account_ownership(db, account_id, user_id):
+            return None
+
+        history = self.get_account_history(
+            db=db,
+            account_id=account_id,
+            from_date=from_date,
+            to_date=to_date,
+            days=0,
+        )
+        portfolio_series = [
+            {"date": h.get("date"), "value": float(h.get("total_value") or 0.0)}
+            for h in history
+        ]
+        drawdown_series = self._compute_drawdown_series(history)
+
+        available_rows = db.execute(
+            text(
+                """
+                SELECT DISTINCT pp.figi, pp.ticker
+                FROM ganaly.portfolio_positions pp
+                WHERE pp.snapshot_id = (
+                    SELECT ps.id
+                    FROM ganaly.portfolio_snapshots ps
+                    WHERE ps.account_id = :account_id
+                    ORDER BY ps.snapshot_date DESC
+                    LIMIT 1
+                )
+                ORDER BY pp.figi
+                """
+            ),
+            {"account_id": account_id},
+        ).fetchall()
+        available_instruments = [
+            {"figi": self._safe_str(r[0]), "ticker": self._safe_str(r[1], None) if r[1] else None}
+            for r in available_rows if r[0]
+        ]
+
+        figis_set = {str(f).strip() for f in (figis or []) if str(f).strip()}
+        rows = db.execute(
+            text(
+                """
+                SELECT
+                    ps.snapshot_date,
+                    pp.figi,
+                    MAX(pp.ticker) AS ticker,
+                    SUM(pp.quantity * pp.current_price) AS value
+                FROM ganaly.portfolio_snapshots ps
+                JOIN ganaly.portfolio_positions pp ON pp.snapshot_id = ps.id
+                WHERE ps.account_id = :account_id
+                  AND ps.snapshot_date >= :from_date
+                  AND ps.snapshot_date <= :to_date
+                  AND (:no_filter = 1 OR pp.figi = ANY(:figis))
+                GROUP BY ps.snapshot_date, pp.figi
+                HAVING SUM(pp.quantity) > 0
+                ORDER BY ps.snapshot_date ASC, pp.figi ASC
+                """
+            ),
+            {
+                "account_id": account_id,
+                "from_date": from_date,
+                "to_date": to_date,
+                "figis": list(figis_set),
+                "no_filter": 1 if not figis_set else 0,
+            },
+        ).fetchall()
+        grouped: Dict[str, Dict[str, Any]] = {}
+        for r in rows:
+            dt = r[0]
+            figi = self._safe_str(r[1])
+            ticker = self._safe_str(r[2], None) if r[2] else None
+            value = float(r[3] or 0.0)
+            if figi not in grouped:
+                grouped[figi] = {"figi": figi, "ticker": ticker, "points": []}
+            grouped[figi]["points"].append({"date": dt, "value": value})
+        instruments_series: List[Dict[str, Any]] = list(grouped.values())
+
+        return {
+            "account_id": account_id,
+            "from_date": from_date,
+            "to_date": to_date,
+            "portfolio_series": portfolio_series,
+            "drawdown_series": drawdown_series,
+            "instruments_series": instruments_series,
+            "available_instruments": available_instruments,
+        }
+
 
     # --- Robot trading analytics ---
 
@@ -794,6 +893,297 @@ class AnalyticsService:
                 "end_value": round(end_value, 4) if end_value is not None else None,
                 "period_roi_percent": round(period_roi_percent, 4) if period_roi_percent is not None else None,
             },
+        }
+
+    @staticmethod
+    def _compute_drawdown_series(points: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        out: List[Dict[str, Any]] = []
+        peak = None
+        for item in points:
+            value = float(item.get("total_value") or 0.0)
+            dt = item.get("date")
+            if peak is None or value > peak:
+                peak = value
+            dd = ((value - peak) / peak * 100.0) if peak and peak > 1e-9 else 0.0
+            out.append({"date": dt, "drawdown_percent": dd})
+        return out
+
+    @staticmethod
+    def _avg_hold_label(hours: Optional[float]) -> Optional[str]:
+        if hours is None:
+            return None
+        if hours < 24:
+            return "скальпинг"
+        if hours < 24 * 3:
+            return "дейтрейд"
+        return "позиционка"
+
+    def _build_fifo_trade_metrics(
+            self,
+            db: Session,
+            account_id: int,
+            from_date: datetime,
+            to_date: datetime,
+    ) -> Dict[str, Any]:
+        # Важно: учитываем только полноценные торговые циклы BUY/SELL.
+        # Комиссии/вознаграждения/налоги в серии убытков не участвуют.
+        sql = """
+              SELECT operation_date, operation_type, figi, quantity, price, payment
+              FROM ganaly.portfolio_operations
+              WHERE account_id = :account_id
+                AND operation_date <= :to_date
+                AND figi IS NOT NULL
+                AND operation_type IN (
+                    'OPERATION_TYPE_BUY', 'OPERATION_TYPE_BUY_CARD', 'OPERATION_TYPE_BUY_MARGIN',
+                    'OPERATION_TYPE_SELL', 'OPERATION_TYPE_SELL_CARD', 'OPERATION_TYPE_SELL_MARGIN'
+                )
+              ORDER BY operation_date ASC, id ASC
+              """
+        rows = db.execute(text(sql), {"account_id": account_id, "to_date": to_date}).fetchall()
+        fifo: Dict[str, deque] = defaultdict(deque)
+        closed: List[Dict[str, Any]] = []
+
+        buy_types = {"OPERATION_TYPE_BUY", "OPERATION_TYPE_BUY_CARD", "OPERATION_TYPE_BUY_MARGIN"}
+        sell_types = {"OPERATION_TYPE_SELL", "OPERATION_TYPE_SELL_CARD", "OPERATION_TYPE_SELL_MARGIN"}
+        for r in rows:
+            op_date = r[0]
+            op_type = self._safe_str(r[1], "")
+            figi = self._safe_str(r[2], "")
+            qty = float(r[3] or 0.0)
+            price = float(r[4] or 0.0)
+            if qty <= 0 or not figi:
+                continue
+            if op_type in buy_types:
+                fifo[figi].append({"qty": qty, "price": price, "date": op_date})
+            elif op_type in sell_types:
+                remaining = qty
+                while remaining > 1e-9 and fifo[figi]:
+                    lot = fifo[figi][0]
+                    matched = min(remaining, lot["qty"])
+                    pnl = (price - lot["price"]) * matched
+                    if from_date <= op_date <= to_date:
+                        hold_hours = (op_date - lot["date"]).total_seconds() / 3600.0 if lot["date"] else None
+                        closed.append({"pnl": pnl, "close_date": op_date, "hold_hours": hold_hours})
+                    lot["qty"] -= matched
+                    remaining -= matched
+                    if lot["qty"] <= 1e-9:
+                        fifo[figi].popleft()
+
+        closed_count = len(closed)
+        wins = [t for t in closed if t["pnl"] > 0]
+        losses = [t for t in closed if t["pnl"] < 0]
+        winning_count = len(wins)
+        losing_count = len(losses)
+        total_profit = sum(t["pnl"] for t in wins)
+        total_loss_abs = abs(sum(t["pnl"] for t in losses))
+        avg_win = (total_profit / winning_count) if winning_count else None
+        avg_loss = (sum(t["pnl"] for t in losses) / losing_count) if losing_count else None
+        win_rate = (winning_count / closed_count * 100.0) if closed_count else None
+        profit_factor = (total_profit / total_loss_abs) if total_loss_abs > 1e-9 else None
+        ratio = (abs(avg_win) / abs(avg_loss)) if avg_win is not None and avg_loss not in (None, 0) else None
+
+        max_streak = 0
+        max_streak_sum = 0.0
+        cur_streak = 0
+        cur_sum = 0.0
+        for t in sorted(closed, key=lambda x: x["close_date"]):
+            if t["pnl"] < 0:
+                cur_streak += 1
+                cur_sum += t["pnl"]
+                if cur_streak > max_streak:
+                    max_streak = cur_streak
+                    max_streak_sum = cur_sum
+            else:
+                cur_streak = 0
+                cur_sum = 0.0
+
+        holds = [t["hold_hours"] for t in closed if t["hold_hours"] is not None]
+        avg_hold = (sum(holds) / len(holds)) if holds else None
+
+        return {
+            "realized_pnl": sum(t["pnl"] for t in closed) if closed else None,
+            "closed_trades_count": closed_count,
+            "winning_trades_count": winning_count,
+            "losing_trades_count": losing_count,
+            "win_rate_percent": win_rate,
+            "profit_factor": profit_factor,
+            "max_consecutive_losses": max_streak,
+            "max_consecutive_losses_sum": max_streak_sum if max_streak > 0 else None,
+            "avg_winning_trade": avg_win,
+            "avg_losing_trade": avg_loss,
+            "avg_win_loss_ratio": ratio,
+            "avg_hold_hours": avg_hold,
+        }
+
+    @staticmethod
+    def _calc_average_recovery_days(values: List[float], dates: List[datetime]) -> Optional[float]:
+        if len(values) < 3:
+            return None
+        peak = values[0]
+        peak_idx = 0
+        recovery_days: List[float] = []
+        in_drawdown = False
+        trough_idx = 0
+        for i in range(1, len(values)):
+            v = values[i]
+            if v >= peak:
+                if in_drawdown and trough_idx < i:
+                    recovery_days.append((dates[i] - dates[trough_idx]).total_seconds() / 86400.0)
+                peak = v
+                peak_idx = i
+                in_drawdown = False
+                trough_idx = i
+            else:
+                in_drawdown = True
+                if values[trough_idx] > v:
+                    trough_idx = i
+                if peak_idx >= trough_idx:
+                    trough_idx = i
+        if not recovery_days:
+            return None
+        return sum(recovery_days) / len(recovery_days)
+
+    async def get_account_statistics_extended(
+            self,
+            db: Session,
+            account_id: int,
+            user_id: int,
+            from_date: datetime,
+            to_date: datetime,
+    ) -> Optional[Dict[str, Any]]:
+        base_stats = self.get_account_statistics(db, account_id, user_id, from_date, to_date)
+        if not base_stats:
+            return None
+
+        period_ops_sql = """
+            SELECT operation_type, payment
+            FROM ganaly.portfolio_operations
+            WHERE account_id = :account_id
+              AND operation_date >= :from_date
+              AND operation_date <= :to_date
+        """
+        op_rows = db.execute(text(period_ops_sql), {
+            "account_id": account_id,
+            "from_date": from_date,
+            "to_date": to_date,
+        }).fetchall()
+        sum_input = sum(float(r[1] or 0.0) for r in op_rows if r[0] == "OPERATION_TYPE_INPUT")
+        sum_output = sum(float(r[1] or 0.0) for r in op_rows if r[0] == "OPERATION_TYPE_OUTPUT")
+        net_flow = sum_input - sum_output
+        dividends = sum(float(r[1] or 0.0) for r in op_rows if r[0] == "OPERATION_TYPE_DIVIDEND")
+        # Терминология по вашему бизнес-слою:
+        # TRACK_MFEE = комиссия брокера, TRACK_PFEE = вознаграждение.
+        broker_fees = sum(float(r[1] or 0.0) for r in op_rows if r[0] == "OPERATION_TYPE_TRACK_MFEE")
+        track_fees = sum(float(r[1] or 0.0) for r in op_rows if r[0] == "OPERATION_TYPE_TRACK_PFEE")
+        taxes_paid = sum(
+            float(r[1] or 0.0)
+            for r in op_rows
+            if r[0] in {"OPERATION_TYPE_TAX", "OPERATION_TYPE_DIVIDEND_TAX"}
+        )
+
+        fifo_metrics = self._build_fifo_trade_metrics(db, account_id, from_date, to_date)
+
+        period_history = self.get_account_history(
+            db=db,
+            account_id=account_id,
+            from_date=from_date,
+            to_date=to_date,
+            days=0,
+        )
+        values = [float(x.get("total_value") or 0.0) for x in period_history]
+        dates = [x.get("date") for x in period_history]
+        drawdown_period = self._compute_drawdown_series(period_history)
+        max_dd = min((p["drawdown_percent"] for p in drawdown_period), default=0.0)
+        current_dd = drawdown_period[-1]["drawdown_percent"] if drawdown_period else None
+        avg_recovery_days = self._calc_average_recovery_days(values, dates) if values and all(dates) else None
+        avg_portfolio = (sum(values) / len(values)) if values else None
+
+        all_history = self.get_account_history(db=db, account_id=account_id, days=3650)
+        drawdown_full = self._compute_drawdown_series(all_history)
+
+        portfolio_return = base_stats["period"]["period_roi_percent"]
+        imoex_return = None
+        benchmark_unavailable = False
+        try:
+            imoex_return = await market_data_service.get_imoex_return_percent(from_date, to_date)
+        except Exception:
+            benchmark_unavailable = True
+        relative_return = (portfolio_return - imoex_return) if portfolio_return is not None and imoex_return is not None else None
+
+        current_total = float(base_stats["overall"]["current_total_value"] or 0.0)
+        dividends_share = (dividends / current_total * 100.0) if current_total > 1e-9 else None
+        unrealized_row = db.execute(
+            text(
+                """
+                SELECT COALESCE(SUM(pp.quantity * (pp.current_price - pp.average_position_price)), 0)
+                FROM ganaly.portfolio_positions pp
+                WHERE pp.snapshot_id = (
+                    SELECT ps.id
+                    FROM ganaly.portfolio_snapshots ps
+                    WHERE ps.account_id = :account_id
+                    ORDER BY ps.snapshot_date DESC
+                    LIMIT 1
+                )
+                """
+            ),
+            {"account_id": account_id},
+        ).first()
+        unrealized = float(unrealized_row[0] or 0.0) if unrealized_row else 0.0
+
+        return {
+            "account_id": account_id,
+            "from_date": from_date,
+            "to_date": to_date,
+            "overall": base_stats["overall"],
+            "capital_flow": {
+                "net_capital_inflow": round(net_flow, 4),
+                "dividends_received": round(abs(dividends), 4),
+                "dividends_share_of_portfolio_percent": round(dividends_share, 4) if dividends_share is not None else None,
+                "realized_pnl": round(fifo_metrics["realized_pnl"], 4) if fifo_metrics["realized_pnl"] is not None else None,
+                "unrealized_pnl": round(unrealized, 4),
+            },
+            "trading_performance": {
+                "closed_trades_count": fifo_metrics["closed_trades_count"],
+                "winning_trades_count": fifo_metrics["winning_trades_count"],
+                "losing_trades_count": fifo_metrics["losing_trades_count"],
+                "win_rate_percent": round(fifo_metrics["win_rate_percent"], 4) if fifo_metrics["win_rate_percent"] is not None else None,
+                "win_rate_ratio_text": (
+                    f"{fifo_metrics['winning_trades_count']} из {fifo_metrics['closed_trades_count']}"
+                    if fifo_metrics["closed_trades_count"] > 0 else None
+                ),
+                "profit_factor": round(fifo_metrics["profit_factor"], 4) if fifo_metrics["profit_factor"] is not None else None,
+                "max_consecutive_losses": fifo_metrics["max_consecutive_losses"],
+                "max_consecutive_losses_sum": round(fifo_metrics["max_consecutive_losses_sum"], 4) if fifo_metrics["max_consecutive_losses_sum"] is not None else None,
+                "avg_winning_trade": round(fifo_metrics["avg_winning_trade"], 4) if fifo_metrics["avg_winning_trade"] is not None else None,
+                "avg_losing_trade": round(fifo_metrics["avg_losing_trade"], 4) if fifo_metrics["avg_losing_trade"] is not None else None,
+                "avg_win_loss_ratio": round(fifo_metrics["avg_win_loss_ratio"], 4) if fifo_metrics["avg_win_loss_ratio"] is not None else None,
+            },
+            "operational_metrics": {
+                "average_hold_time_hours": round(fifo_metrics["avg_hold_hours"], 4) if fifo_metrics["avg_hold_hours"] is not None else None,
+                "average_hold_time_label": self._avg_hold_label(fifo_metrics["avg_hold_hours"]),
+                "total_broker_fees": round(abs(broker_fees), 4),
+                "total_track_fees": round(abs(track_fees), 4),
+                "total_taxes": round(abs(taxes_paid), 4),
+                "track_fees_share_of_avg_portfolio_percent": (
+                    round(abs(track_fees) / avg_portfolio * 100.0, 4)
+                    if avg_portfolio and avg_portfolio > 1e-9 else None
+                ),
+            },
+            "benchmark_metrics": {
+                "portfolio_return_percent": portfolio_return,
+                "imoex_return_percent": round(imoex_return, 4) if imoex_return is not None else None,
+                "relative_return_percent": round(relative_return, 4) if relative_return is not None else None,
+                "benchmark_unavailable": benchmark_unavailable,
+            },
+            "risk_recovery": {
+                "max_drawdown_percent": round(abs(max_dd), 4) if drawdown_period else None,
+                "average_recovery_days": round(avg_recovery_days, 4) if avg_recovery_days is not None else None,
+                "current_drawdown_percent": round(current_dd, 4) if current_dd is not None else None,
+            },
+            "drawdown_series": [
+                {"date": p["date"], "drawdown_percent": round(p["drawdown_percent"], 4)}
+                for p in drawdown_full
+            ],
         }
 
 

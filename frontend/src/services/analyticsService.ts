@@ -5,6 +5,8 @@ import type {
     HistoryResponse,
     AccountSummary,
     AccountStatisticsResponse,
+    PortfolioStatisticsExtendedResponse,
+    AnalyticsChartSeriesResponse,
 } from '@/types/api'
 import type { RobotMetricsResponse, UserRobotsTradingOverview } from '@/types/robot'
 
@@ -62,6 +64,16 @@ export const analyticsService = {
 
     async getAccountStatistics(payload: { account_id: number; from_date: string; to_date: string }): Promise<AccountStatisticsResponse> {
         const { data } = await api.post<AccountStatisticsResponse>('/analytics/statistics', payload)
+        return data
+    },
+
+    async getAccountStatisticsExtended(payload: { account_id: number; from_date: string; to_date: string }): Promise<PortfolioStatisticsExtendedResponse> {
+        const { data } = await api.post<PortfolioStatisticsExtendedResponse>('/analytics/statistics_extended', payload)
+        return data
+    },
+
+    async getAccountChartSeries(payload: { account_id: number; from_date: string; to_date: string; figis?: string[] }): Promise<AnalyticsChartSeriesResponse> {
+        const { data } = await api.post<AnalyticsChartSeriesResponse>('/analytics/chart_series', payload)
         return data
     },
 

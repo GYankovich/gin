@@ -72,3 +72,91 @@ export interface AccountStatisticsResponse {
     overall: AccountStatisticsOverall
     period: AccountStatisticsPeriod
 }
+
+export interface CapitalFlowMetrics {
+    net_capital_inflow: number
+    dividends_received: number
+    dividends_share_of_portfolio_percent: number | null
+    realized_pnl: number | null
+    unrealized_pnl: number | null
+}
+
+export interface TradingPerformanceMetrics {
+    closed_trades_count: number
+    winning_trades_count: number
+    losing_trades_count: number
+    win_rate_percent: number | null
+    win_rate_ratio_text: string | null
+    profit_factor: number | null
+    max_consecutive_losses: number
+    max_consecutive_losses_sum: number | null
+    avg_winning_trade: number | null
+    avg_losing_trade: number | null
+    avg_win_loss_ratio: number | null
+}
+
+export interface OperationalMetrics {
+    average_hold_time_hours: number | null
+    average_hold_time_label: string | null
+    total_broker_fees: number
+    total_track_fees: number
+    total_taxes: number
+    track_fees_share_of_avg_portfolio_percent: number | null
+}
+
+export interface BenchmarkMetrics {
+    portfolio_return_percent: number | null
+    imoex_return_percent: number | null
+    relative_return_percent: number | null
+    benchmark_unavailable: boolean
+}
+
+export interface RiskRecoveryMetrics {
+    max_drawdown_percent: number | null
+    average_recovery_days: number | null
+    current_drawdown_percent: number | null
+}
+
+export interface DrawdownPoint {
+    date: string
+    drawdown_percent: number
+}
+
+export interface PortfolioStatisticsExtendedResponse {
+    account_id: number
+    from_date: string
+    to_date: string
+    overall: AccountStatisticsOverall
+    capital_flow: CapitalFlowMetrics
+    trading_performance: TradingPerformanceMetrics
+    operational_metrics: OperationalMetrics
+    benchmark_metrics: BenchmarkMetrics
+    risk_recovery: RiskRecoveryMetrics
+    drawdown_series: DrawdownPoint[]
+}
+
+export interface ChartPoint {
+    date: string
+    value: number
+}
+
+export interface ChartInstrumentSeries {
+    figi: string
+    ticker: string | null
+    points: ChartPoint[]
+}
+
+export interface ChartAvailableInstrument {
+    figi: string
+    ticker: string | null
+}
+
+export interface AnalyticsChartSeriesResponse {
+    account_id: number
+    from_date: string
+    to_date: string
+    portfolio_series: ChartPoint[]
+    drawdown_series: DrawdownPoint[]
+    instruments_series: ChartInstrumentSeries[]
+    available_instruments: ChartAvailableInstrument[]
+}

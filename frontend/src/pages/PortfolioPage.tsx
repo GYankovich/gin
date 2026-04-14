@@ -2,13 +2,12 @@ import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { DataTable, type Column } from '@/components/ui/DataTable'
-import { Skeleton } from '@/components/ui/Skeleton'
 import { Chart, type IChartApi, type ISeriesApi, type Time } from '@/components/ui/Chart'
-import { AreaSeries } from 'lightweight-charts'
+import { AreaSeries, LineSeries } from 'lightweight-charts'
 import { Select } from '@/components/ui/Select'
 import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { analyticsService } from '@/services/analyticsService'
-import type { AccountSummary, PortfolioSnapshotSummary, AccountStatisticsResponse } from '@/types/api'
+import type { AccountSummary, PortfolioSnapshotSummary, PortfolioStatisticsExtendedResponse, AnalyticsChartSeriesResponse } from '@/types/api'
 import { useToast } from '@/components/ui/Toast'
 
 const PERIODS = [
@@ -34,11 +33,19 @@ export default function PortfolioPage() {
     const [operations, setOperations] = useState<any[]>([])
     const [opsLoading, setOpsLoading] = useState(false)
     const [opsSyncing, setOpsSyncing] = useState(false)
-    const [stats, setStats] = useState<AccountStatisticsResponse | null>(null)
+    const [stats, setStats] = useState<PortfolioStatisticsExtendedResponse | null>(null)
     const [statsLoading, setStatsLoading] = useState(false)
+    const [chartData, setChartData] = useState<AnalyticsChartSeriesResponse | null>(null)
+    const [chartLoading, setChartLoading] = useState(false)
+    const [chartMode, setChartMode] = useState<'portfolio' | 'instruments'>('portfolio')
+    const [selectedFigis, setSelectedFigis] = useState<string[]>([])
     const [crosshairValue, setCrosshairValue] = useState<{ time: string; value: number; delta: number | null; deltaPct: number | null } | null>(null)
     const chartApiRef = useRef<IChartApi | null>(null)
+    const drawdownChartRef = useRef<IChartApi | null>(null)
     const seriesRef = useRef<ISeriesApi<any> | null>(null)
+    const instrumentSeriesRef = useRef<Array<{ figi: string; label: string; series: ISeriesApi<any> }>>([])
+    const instrumentPriceLinesRef = useRef<Record<string, any>>({})
+    const syncingRangeRef = useRef(false)
 
     useEffect(() => { loadAccounts() }, [])
     useEffect(() => {
@@ -46,7 +53,23 @@ export default function PortfolioPage() {
         loadSnapshots(selectedAccountId)
         loadOperations(selectedAccountId)
         loadStatistics(selectedAccountId)
+        loadChartSeries(selectedAccountId)
     }, [selectedAccountId, fromDate, toDate])
+
+    useEffect(() => {
+        const seriesFigis = (chartData?.instruments_series || [])
+            .filter(s => Array.isArray(s.points) && s.points.length > 0)
+            .map(s => s.figi)
+        if (!seriesFigis.length) {
+            setSelectedFigis([])
+            return
+        }
+        // По умолчанию отображаем все серии, у которых есть точки в выбранном периоде.
+        setSelectedFigis(prev => {
+            const kept = prev.filter(f => seriesFigis.includes(f))
+            return kept.length ? kept : seriesFigis
+        })
+    }, [chartData?.instruments_series])
 
     const loadAccounts = async () => {
         setLoading(true)
@@ -102,7 +125,7 @@ export default function PortfolioPage() {
     const loadStatistics = async (accId: number) => {
         setStatsLoading(true)
         try {
-            const data = await analyticsService.getAccountStatistics({
+            const data = await analyticsService.getAccountStatisticsExtended({
                 account_id: accId,
                 from_date: `${fromDate}T00:00:00Z`,
                 to_date: `${toDate}T23:59:59Z`,
@@ -114,8 +137,26 @@ export default function PortfolioPage() {
         setStatsLoading(false)
     }
 
+    const loadChartSeries = async (accId: number) => {
+        setChartLoading(true)
+        try {
+            const data = await analyticsService.getAccountChartSeries({
+                account_id: accId,
+                from_date: `${fromDate}T00:00:00Z`,
+                to_date: `${toDate}T23:59:59Z`,
+            })
+            setChartData(data)
+        } catch {
+            setChartData(null)
+        }
+        setChartLoading(false)
+    }
+
     const handleAccountChange = async (val: string) => {
         const id = Number(val)
+        setChartData(null)
+        setSelectedFigis([])
+        setCrosshairValue(null)
         setSelectedAccountId(id)
         setLoading(true)
         loadPositions(id)
@@ -146,34 +187,93 @@ export default function PortfolioPage() {
     }
 
     const chartHistory = useCallback(() => {
-        if (!snapshots.length) return []
-        const fromTs = new Date(`${fromDate}T00:00:00Z`).getTime()
-        const toTs = new Date(`${toDate}T23:59:59Z`).getTime()
+        const src = chartData?.portfolio_series ?? []
         const points: Array<{ time: Time; value: number; timestamp: number }> = []
-        for (const h of snapshots) {
+        for (const h of src) {
             const ts = new Date(h.date).getTime()
-            if (ts < fromTs || ts > toTs) continue
             const t = toChartTime(h.date)
-            if (t == null) continue
-            points.push({ time: t, value: h.total_value, timestamp: ts })
+            if (t == null || Number.isNaN(ts)) continue
+            points.push({ time: t, value: Number(h.value ?? 0), timestamp: ts })
         }
         return normalizeSeriesByTime(points)
-    }, [snapshots, fromDate, toDate])
+    }, [chartData?.portfolio_series])
+
+    const drawdownHistory = useCallback(() => {
+        const src = chartData?.drawdown_series ?? []
+        const points: Array<{ time: Time; value: number; timestamp: number }> = []
+        for (const h of src) {
+            const ts = new Date(h.date).getTime()
+            const t = toChartTime(h.date)
+            if (t == null || Number.isNaN(ts)) continue
+            points.push({ time: t, value: Number(h.drawdown_percent ?? 0), timestamp: ts })
+        }
+        return normalizeSeriesByTime(points)
+    }, [chartData?.drawdown_series])
 
     const onChartReady = useCallback((chart: IChartApi) => {
         chartApiRef.current = chart
+        instrumentSeriesRef.current = []
+        instrumentPriceLinesRef.current = {}
         const data = chartHistory()
-        if (!data.length) return
+        if (!data.length && chartMode === 'portfolio') return
+        const indexByTime = new Map<number, number>()
+        data.forEach((d, idx) => indexByTime.set(Number(d.time), idx))
         const intraday = isIntradaySeries(data)
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
-        const series = chart.addSeries(AreaSeries, {
-            lineColor: isDark ? '#00ffff' : '#0066cc',
-            topColor: isDark ? 'rgba(0,255,255,0.18)' : 'rgba(0,102,204,0.18)',
-            bottomColor: 'transparent',
-            lineWidth: 2,
-        })
-        seriesRef.current = series
-        series.setData(data.map(d => ({ time: d.time as Time, value: d.value })))
+        let series: ISeriesApi<any> | null = null
+        if (chartMode === 'portfolio') {
+            series = chart.addSeries(AreaSeries, {
+                lineColor: isDark ? '#22d3ee' : '#2563eb',
+                topColor: isDark ? 'rgba(34,211,238,0.22)' : 'rgba(37,99,235,0.22)',
+                bottomColor: 'transparent',
+                lineWidth: 2.25,
+                priceLineVisible: false,
+                lastValueVisible: true,
+            })
+            seriesRef.current = series
+            if (data.length) {
+                series.setData(data.map(d => ({ time: d.time as Time, value: d.value })))
+            }
+        }
+
+        if (chartMode === 'instruments' && chartData?.instruments_series?.length) {
+            chartData.instruments_series
+                .filter(s => selectedFigis.includes(s.figi))
+                .forEach((s) => {
+                const color = getInstrumentColor(s.figi)
+                const ls = chart.addSeries(LineSeries, {
+                    color,
+                    lineWidth: 2.25,
+                    priceLineVisible: false,
+                    lastValueVisible: false,
+                })
+                instrumentSeriesRef.current.push({
+                    figi: s.figi,
+                    label: s.ticker ? `${s.ticker} (${s.figi})` : s.figi,
+                    series: ls,
+                })
+                instrumentPriceLinesRef.current[s.figi] = ls.createPriceLine({
+                    price: 0,
+                    color,
+                    lineWidth: 1,
+                    lineStyle: 2,
+                    lineVisible: false,
+                    axisLabelVisible: false,
+                    title: s.ticker || s.figi,
+                })
+                const prepared = normalizeSeriesByTime(
+                    (s.points || [])
+                        .map(p => {
+                            const t = toChartTime(p.date)
+                            const ts = new Date(p.date).getTime()
+                            if (t == null || Number.isNaN(ts)) return null
+                            return { time: t, value: Number(p.value || 0), timestamp: ts }
+                        })
+                        .filter(Boolean) as Array<{ time: Time; value: number; timestamp: number }>
+                )
+                ls.setData(prepared.map(p => ({ time: p.time as Time, value: p.value })))
+            })
+        }
 
         chart.applyOptions({
             crosshair: {
@@ -194,28 +294,60 @@ export default function PortfolioPage() {
         chart.subscribeCrosshairMove((param: any) => {
             if (!param || !param.time || !param.seriesData?.size) {
                 setCrosshairValue(null)
+                Object.values(instrumentPriceLinesRef.current).forEach((pl: any) => {
+                    pl.applyOptions({ axisLabelVisible: false, lineVisible: false })
+                })
                 return
             }
-            const val = param.seriesData.get(series)
-            if (val && val.value != null) {
-                const currTime = Number(param.time)
-                const idx = data.findIndex(d => Number(d.time) === currTime)
-                const prev = idx > 0 ? data[idx - 1]?.value : null
-                const delta = prev != null ? val.value - prev : null
-                const deltaPct = prev != null && prev !== 0 ? (delta! / prev) * 100 : null
-                setCrosshairValue({
-                    time: formatCrosshairTime(param.time),
-                    value: val.value,
-                    delta: delta != null ? Number(delta.toFixed(2)) : null,
-                    deltaPct: deltaPct != null ? Number(deltaPct.toFixed(2)) : null,
-                })
-            } else {
+            if (chartMode === 'portfolio' && series) {
+                const val = param.seriesData.get(series)
+                if (val && val.value != null) {
+                    const currTime = Number(param.time)
+                    const idx = indexByTime.get(currTime) ?? -1
+                    const prev = idx > 0 ? data[idx - 1]?.value : null
+                    const delta = prev != null ? val.value - prev : null
+                    const deltaPct = prev != null && prev !== 0 ? (delta! / prev) * 100 : null
+                    setCrosshairValue({
+                        time: formatCrosshairTime(param.time),
+                        value: val.value,
+                        delta: delta != null ? Number(delta.toFixed(2)) : null,
+                        deltaPct: deltaPct != null ? Number(deltaPct.toFixed(2)) : null,
+                    })
+                } else {
+                    setCrosshairValue(null)
+                }
+                setInstrumentCrosshairValues([])
+            } else if (chartMode === 'instruments') {
                 setCrosshairValue(null)
+                instrumentSeriesRef.current.forEach(x => {
+                    const point = param.seriesData.get(x.series)
+                    const value = point && point.value != null ? Number(point.value) : null
+                    const pl = instrumentPriceLinesRef.current[x.figi]
+                    if (!pl) return
+                    if (value == null) {
+                        pl.applyOptions({ axisLabelVisible: false, lineVisible: false })
+                    } else {
+                        pl.applyOptions({
+                            price: value,
+                            axisLabelVisible: true,
+                            lineVisible: false,
+                            title: x.label,
+                        })
+                    }
+                })
             }
         })
 
         chart.timeScale().subscribeVisibleLogicalRangeChange((range: any) => {
             if (!range) return
+            if (!syncingRangeRef.current && drawdownChartRef.current) {
+                try {
+                    syncingRangeRef.current = true
+                    drawdownChartRef.current.timeScale().setVisibleLogicalRange(range)
+                } finally {
+                    syncingRangeRef.current = false
+                }
+            }
             if (range.from < 0 && period < 3650) {
                 setPeriod(prev => {
                     const nextIdx = PERIODS.findIndex(p => p.days === prev)
@@ -224,7 +356,33 @@ export default function PortfolioPage() {
                 })
             }
         })
-    }, [chartHistory, period])
+    }, [chartHistory, period, chartMode, chartData?.instruments_series, selectedFigis])
+
+    const onDrawdownChartReady = useCallback((chart: IChartApi) => {
+        drawdownChartRef.current = chart
+        const data = drawdownHistory()
+        if (!data.length) return
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+        const series = chart.addSeries(LineSeries, {
+            color: isDark ? '#f87171' : '#dc2626',
+            lineWidth: 2.1,
+            priceLineVisible: false,
+            lastValueVisible: false,
+        })
+        series.setData(data.map(d => ({ time: d.time as Time, value: d.value })))
+        chart.timeScale().fitContent()
+        chart.timeScale().subscribeVisibleLogicalRangeChange((range: any) => {
+            if (!range || !chartApiRef.current) return
+            if (!syncingRangeRef.current) {
+                try {
+                    syncingRangeRef.current = true
+                    chartApiRef.current.timeScale().setVisibleLogicalRange(range)
+                } finally {
+                    syncingRangeRef.current = false
+                }
+            }
+        })
+    }, [drawdownHistory])
 
     const handleSnapshotClick = (snapshot: PortfolioSnapshotSummary) => {
         if (selectedAccountId && snapshot.snapshot_id) {
@@ -284,7 +442,15 @@ export default function PortfolioPage() {
     ]
 
     if (loading) {
-        return <div className="page"><h1 className="page__title">Портфель</h1><Skeleton height="400px" /><Skeleton height="300px" /></div>
+        return (
+            <div className="page">
+                <h1 className="page__title">Портфель</h1>
+                <div className="ops-loader">
+                    <div className="soft-loading-bar" />
+                    <div className="ops-loader__text">Загрузка портфеля...</div>
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -334,7 +500,10 @@ export default function PortfolioPage() {
             <Card className="mb-6">
                 <h3 className="card__section-title">Статистика портфеля</h3>
                 {statsLoading ? (
-                    <Skeleton height="110px" />
+                    <div className="ops-loader">
+                        <div className="soft-loading-bar" />
+                        <div className="ops-loader__text">Расчет статистики...</div>
+                    </div>
                 ) : (
                     <div className="portfolio-stats-rows">
                         <div className="portfolio-stats-row-title">Общее</div>
@@ -364,29 +533,91 @@ export default function PortfolioPage() {
                         <div className="portfolio-stats-row-title">Выбранный период</div>
                         <div className="portfolio-stats-grid">
                             <div className="portfolio-stat-tile">
-                                <div className="portfolio-stat-tile__label">Входящая сумма периода</div>
-                                <div className="portfolio-stat-tile__value">{formatMoney(stats?.period.period_inflow)}</div>
+                                <div className="portfolio-stat-tile__label">Чистый приток капитала</div>
+                                <div className={`portfolio-stat-tile__value ${roiClass(stats?.capital_flow.net_capital_inflow)}`}>{formatMoneySigned(stats?.capital_flow.net_capital_inflow)}</div>
                             </div>
                             <div className="portfolio-stat-tile">
-                                <div className="portfolio-stat-tile__label">Макс просадка</div>
-                                <div className={`portfolio-stat-tile__value ${roiClass(stats?.period.max_drawdown_percent, true)}`}>
-                                    {formatPercent(stats?.period.max_drawdown_percent, true)}
+                                <div className="portfolio-stat-tile__label">Дивиденды полученные</div>
+                                <div className="portfolio-stat-tile__value color-up">
+                                    {formatMoney(stats?.capital_flow.dividends_received)}
                                 </div>
                             </div>
                             <div className="portfolio-stat-tile">
-                                <div className="portfolio-stat-tile__label">Макс рост</div>
-                                <div className={`portfolio-stat-tile__value ${roiClass(stats?.period.max_growth_percent)}`}>
-                                    {formatPercent(stats?.period.max_growth_percent)}
+                                <div className="portfolio-stat-tile__label">Реализованный P&L (FIFO)</div>
+                                <div className={`portfolio-stat-tile__value ${roiClass(stats?.capital_flow.realized_pnl)}`}>
+                                    {formatMoneySigned(stats?.capital_flow.realized_pnl)}
                                 </div>
                             </div>
                             <div className="portfolio-stat-tile">
-                                <div className="portfolio-stat-tile__label">Крайняя сумма периода</div>
-                                <div className="portfolio-stat-tile__value">{formatMoney(stats?.period.end_value)}</div>
+                                <div className="portfolio-stat-tile__label">Нереализованный P&L</div>
+                                <div className={`portfolio-stat-tile__value ${roiClass(stats?.capital_flow.unrealized_pnl)}`}>
+                                    {formatMoneySigned(stats?.capital_flow.unrealized_pnl)}
+                                </div>
                             </div>
                             <div className="portfolio-stat-tile">
-                                <div className="portfolio-stat-tile__label">ROI периода</div>
-                                <div className={`portfolio-stat-tile__value ${roiClass(stats?.period.period_roi_percent)}`}>
-                                    {formatPercent(stats?.period.period_roi_percent)}
+                                <div className="portfolio-stat-tile__label">Win Rate</div>
+                                <div className={`portfolio-stat-tile__value ${roiClass((stats?.trading_performance.win_rate_percent ?? 0) - 50)}`}>
+                                    {formatPercent(stats?.trading_performance.win_rate_percent)}
+                                </div>
+                            </div>
+                            <div className="portfolio-stat-tile">
+                                <div className="portfolio-stat-tile__label">Profit Factor</div>
+                                <div className={`portfolio-stat-tile__value ${profitFactorClass(stats?.trading_performance.profit_factor)}`}>
+                                    {formatFactor(stats?.trading_performance.profit_factor)}
+                                </div>
+                            </div>
+                            <div className="portfolio-stat-tile">
+                                <div className="portfolio-stat-tile__label">Макс серия убытков</div>
+                                <div className="portfolio-stat-tile__value color-down">
+                                    {formatLossStreak(stats?.trading_performance.max_consecutive_losses, stats?.trading_performance.max_consecutive_losses_sum)}
+                                </div>
+                            </div>
+                            <div className="portfolio-stat-tile">
+                                <div className="portfolio-stat-tile__label">Средняя прибыльная / убыточная</div>
+                                <div className="portfolio-stat-tile__value">
+                                    {formatMoney(stats?.trading_performance.avg_winning_trade)} / {formatMoney(stats?.trading_performance.avg_losing_trade)}
+                                </div>
+                            </div>
+                            <div className="portfolio-stat-tile">
+                                <div className="portfolio-stat-tile__label">Avg Win / Avg Loss</div>
+                                <div className="portfolio-stat-tile__value">{formatFactor(stats?.trading_performance.avg_win_loss_ratio)}</div>
+                            </div>
+                            <div className="portfolio-stat-tile">
+                                <div className="portfolio-stat-tile__label">Среднее время удержания</div>
+                                <div className="portfolio-stat-tile__value">
+                                    {formatHoldTime(stats?.operational_metrics.average_hold_time_hours)} {stats?.operational_metrics.average_hold_time_label ? `(${stats.operational_metrics.average_hold_time_label})` : ''}
+                                </div>
+                            </div>
+                            <div className="portfolio-stat-tile">
+                                <div className="portfolio-stat-tile__label">Комиссии брокера / вознаграждение</div>
+                                <div className="portfolio-stat-tile__value color-down">
+                                    {formatMoney(stats?.operational_metrics.total_broker_fees)} / {formatMoney(stats?.operational_metrics.total_track_fees)}
+                                </div>
+                            </div>
+                            <div className="portfolio-stat-tile">
+                                <div className="portfolio-stat-tile__label">Налоги</div>
+                                <div className="portfolio-stat-tile__value color-down">
+                                    {formatMoney(stats?.operational_metrics.total_taxes)}
+                                </div>
+                            </div>
+                            <div className="portfolio-stat-tile">
+                                <div className="portfolio-stat-tile__label">Портфель vs IMOEX</div>
+                                <div className="portfolio-stat-tile__value">
+                                    {stats?.benchmark_metrics.benchmark_unavailable
+                                        ? 'нет данных'
+                                        : `${formatPercent(stats?.benchmark_metrics.portfolio_return_percent)} / ${formatPercent(stats?.benchmark_metrics.imoex_return_percent)}`}
+                                </div>
+                            </div>
+                            <div className="portfolio-stat-tile">
+                                <div className="portfolio-stat-tile__label">Относительная доходность</div>
+                                <div className={`portfolio-stat-tile__value ${roiClass(stats?.benchmark_metrics.relative_return_percent)}`}>
+                                    {stats?.benchmark_metrics.benchmark_unavailable ? 'нет данных' : formatPercent(stats?.benchmark_metrics.relative_return_percent)}
+                                </div>
+                            </div>
+                            <div className="portfolio-stat-tile">
+                                <div className="portfolio-stat-tile__label">Max Drawdown / Recovery / Current DD</div>
+                                <div className="portfolio-stat-tile__value">
+                                    {formatPercent(stats?.risk_recovery.max_drawdown_percent, true)} / {formatDays(stats?.risk_recovery.average_recovery_days)} / {formatPercent(stats?.risk_recovery.current_drawdown_percent, true)}
                                 </div>
                             </div>
                         </div>
@@ -397,36 +628,100 @@ export default function PortfolioPage() {
             <Card className="mb-6">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                     <h3 className="card__section-title">Стоимость портфеля</h3>
-                    {crosshairValue && (
-                        <div className="mono" style={{ fontSize: 'var(--text-lg)', color: 'var(--color-primary)' }}>
-                            {crosshairValue.value.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ₽
-                            {crosshairValue.delta != null && (
-                                <span
-                                    className={crosshairValue.delta >= 0 ? 'color-up' : 'color-down'}
-                                    style={{ fontSize: 'var(--text-sm)', marginLeft: 'var(--space-2)' }}
-                                >
-                                    {crosshairValue.delta >= 0 ? '+' : ''}
-                                    {crosshairValue.delta.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽
-                                    {crosshairValue.deltaPct != null && (
-                                        <span style={{ marginLeft: 4 }}>
-                                            ({crosshairValue.deltaPct >= 0 ? '+' : ''}
-                                            {crosshairValue.deltaPct.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}%)
-                                        </span>
-                                    )}
-                                </span>
-                            )}
-                            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginLeft: 'var(--space-2)' }}>
-                                {crosshairValue.time}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                        <label className="portfolio-toggle">
+                            <input
+                                type="checkbox"
+                                checked={chartMode === 'instruments'}
+                                onChange={(e) => setChartMode(e.target.checked ? 'instruments' : 'portfolio')}
+                            />
+                            <span className="portfolio-toggle__track">
+                                <span className="portfolio-toggle__thumb" />
                             </span>
-                        </div>
-                    )}
+                            <span>Посмотреть бумаги</span>
+                        </label>
+                    </div>
                 </div>
-                <Chart height={360} onReady={onChartReady} key={`${selectedAccountId}-${fromDate}-${toDate}`} />
+                {chartMode === 'portfolio' && crosshairValue && (
+                    <div className="mono" style={{ fontSize: 'var(--text-lg)', color: 'var(--color-primary)', marginBottom: 'var(--space-2)' }}>
+                        {crosshairValue.value.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ₽
+                        {crosshairValue.delta != null && (
+                            <span
+                                className={crosshairValue.delta >= 0 ? 'color-up' : 'color-down'}
+                                style={{ fontSize: 'var(--text-sm)', marginLeft: 'var(--space-2)' }}
+                            >
+                                {crosshairValue.delta >= 0 ? '+' : ''}
+                                {crosshairValue.delta.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽
+                                {crosshairValue.deltaPct != null && (
+                                    <span style={{ marginLeft: 4 }}>
+                                        ({crosshairValue.deltaPct >= 0 ? '+' : ''}
+                                        {crosshairValue.deltaPct.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}%)
+                                    </span>
+                                )}
+                            </span>
+                        )}
+                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginLeft: 'var(--space-2)' }}>
+                            {crosshairValue.time}
+                        </span>
+                    </div>
+                )}
+                {chartLoading ? (
+                    <div className="ops-loader">
+                        <div className="soft-loading-bar" />
+                        <div className="ops-loader__text">Построение графика...</div>
+                    </div>
+                ) : (
+                    <Chart height={360} onReady={onChartReady} key={`${selectedAccountId}-${fromDate}-${toDate}-${chartMode}-${selectedFigis.join(',')}`} />
+                )}
+                {chartMode === 'portfolio' && (
+                    <div style={{ marginTop: 'var(--space-3)' }}>
+                        {chartLoading ? (
+                            <div className="ops-loader">
+                                <div className="soft-loading-bar" />
+                                <div className="ops-loader__text">Построение графика просадки...</div>
+                            </div>
+                        ) : (
+                            <Chart
+                                height={140}
+                                onReady={onDrawdownChartReady}
+                                key={`dd-${selectedAccountId}-${fromDate}-${toDate}-${chartData?.drawdown_series?.length ?? 0}`}
+                            />
+                        )}
+                    </div>
+                )}
+                {chartMode === 'instruments' && (
+                    <div className="portfolio-legend">
+                        {(chartData?.instruments_series || [])
+                            .filter(s => Array.isArray(s.points) && s.points.length > 0)
+                            .map((s) => {
+                            const active = selectedFigis.includes(s.figi)
+                            return (
+                                <button
+                                    key={s.figi}
+                                    className={`portfolio-legend-item ${active ? 'portfolio-legend-item--active' : ''}`}
+                                    onClick={() => {
+                                        setSelectedFigis(prev => (
+                                            prev.includes(s.figi) ? prev.filter(x => x !== s.figi) : [...prev, s.figi]
+                                        ))
+                                    }}
+                                >
+                                    <span className="portfolio-legend-color" style={{ backgroundColor: getInstrumentColor(s.figi) }} />
+                                    <span>{s.ticker ? `${s.ticker} (${s.figi})` : s.figi}</span>
+                                </button>
+                            )
+                        })}
+                    </div>
+                )}
             </Card>
 
             <Card className="mb-6">
                 <h3 className="card__section-title">Состав портфеля</h3>
-                {posLoading ? <Skeleton height="200px" /> : (
+                {posLoading ? (
+                    <div className="ops-loader">
+                        <div className="soft-loading-bar" />
+                        <div className="ops-loader__text">Загрузка состава портфеля...</div>
+                    </div>
+                ) : (
                     <DataTable columns={posColumns} data={positions} keyField="figi" emptyText="Нет позиций" />
                 )}
             </Card>
@@ -469,8 +764,15 @@ export default function PortfolioPage() {
 }
 
 function formatMoney(val: any): string {
+    if (val == null || Number.isNaN(Number(val))) return '—'
     const n = Number(val ?? 0)
     return n.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + ' ₽'
+}
+
+function formatMoneySigned(val: any): string {
+    if (val == null || Number.isNaN(Number(val))) return '—'
+    const n = Number(val)
+    return `${n >= 0 ? '+' : ''}${n.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽`
 }
 
 function formatPercent(val: number | null | undefined, drawdown = false): string {
@@ -485,6 +787,46 @@ function roiClass(val: number | null | undefined, drawdown = false): string {
     const n = Number(val)
     if (drawdown) return n > 0 ? 'color-down' : 'color-up'
     return n >= 0 ? 'color-up' : 'color-down'
+}
+
+function formatFactor(val: number | null | undefined): string {
+    if (val == null || Number.isNaN(Number(val))) return '—'
+    return Number(val).toLocaleString('ru-RU', { maximumFractionDigits: 2 })
+}
+
+function profitFactorClass(val: number | null | undefined): string {
+    if (val == null || Number.isNaN(Number(val))) return ''
+    const n = Number(val)
+    if (n > 1.5) return 'color-up'
+    if (n < 1) return 'color-down'
+    return ''
+}
+
+function formatLossStreak(count: number | undefined, lossSum: number | null | undefined): string {
+    if (!count) return '—'
+    const sumText = lossSum != null ? ` (${formatMoney(lossSum)})` : ''
+    return `${count} подряд${sumText}`
+}
+
+function formatHoldTime(hours: number | null | undefined): string {
+    if (hours == null || Number.isNaN(Number(hours))) return '—'
+    const h = Number(hours)
+    if (h < 24) return `${h.toLocaleString('ru-RU', { maximumFractionDigits: 1 })} ч`
+    return `${(h / 24).toLocaleString('ru-RU', { maximumFractionDigits: 1 })} д`
+}
+
+function formatDays(days: number | null | undefined): string {
+    if (days == null || Number.isNaN(Number(days))) return '—'
+    return `${Number(days).toLocaleString('ru-RU', { maximumFractionDigits: 1 })} д`
+}
+
+function getInstrumentColor(figi: string): string {
+    const palette = ['#3b82f6', '#22c55e', '#a855f7', '#f59e0b', '#ef4444', '#14b8a6', '#f97316', '#84cc16', '#8b5cf6', '#06b6d4']
+    let hash = 0
+    for (let i = 0; i < figi.length; i += 1) {
+        hash = (hash * 31 + figi.charCodeAt(i)) >>> 0
+    }
+    return palette[hash % palette.length]
 }
 
 function toChartTime(value: string): Time | null {

@@ -2,7 +2,7 @@
 Робот для обновления портфеля пользователя
 """
 from typing import Dict, Any, List
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
 
 from app.modules.robots.base.base_robot import BaseRobot
@@ -128,6 +128,36 @@ class PortfolioUpdaterRobot(BaseRobot):
                                 "token_id": token_id,
                             },
                         )
+                        # Синхронизация операций: от последней операции в БД до текущего момента.
+                        latest_op = tinvest_svc._execute(
+                            tinvest_queries.build_get_latest_operation_date_query(),
+                            {"account_db_id": account_in_db[0]},
+                            fetch_one=True,
+                        )
+                        from_dt = (
+                            latest_op[0]
+                            if latest_op and latest_op[0]
+                            else (datetime.now(timezone.utc) - timedelta(days=30))
+                        )
+                        to_dt = datetime.now(timezone.utc)
+                        try:
+                            sync_result = await tinvest_svc.sync_account_operations(
+                                db=self.db,
+                                user_id=user_id,
+                                external_account_id=account["id"],
+                                from_dt=from_dt,
+                                to_dt=to_dt,
+                                token_id=token_id,
+                            )
+                            self.log.info(
+                                "    ↻ Операции синхронизированы: saved=%s, received=%s, period=%s..%s",
+                                sync_result.get("saved_operations"),
+                                sync_result.get("total_received"),
+                                from_dt.isoformat(),
+                                to_dt.isoformat(),
+                            )
+                        except Exception as e:
+                            self.log.warning(f"    ⚠️ Не удалось синхронизировать операции: {e}")
                         self.db.commit()
                     snapshots_saved += 1
                 else:

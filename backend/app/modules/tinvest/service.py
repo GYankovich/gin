@@ -545,6 +545,13 @@ class TInvestService:
 
         operations = payload.get("operations", []) or []
 
+        # Важно: operation_id у брокера может меняться со временем.
+        # Поэтому после успешного получения ответа полностью перезаписываем диапазон.
+        self._execute(
+            queries.build_delete_operations_by_period_query(),
+            {"account_db_id": account_db_id, "from_dt": from_dt, "to_dt": to_dt},
+        )
+
         upsert_query = queries.build_upsert_operation_query()
         saved = 0
         seen_operation_ids: set[str] = set()
