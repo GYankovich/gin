@@ -4,6 +4,7 @@
 from typing import Dict, Any, List
 from datetime import datetime, timezone, timedelta
 import json
+from sqlalchemy import text
 
 from app.modules.robots.base.base_robot import BaseRobot
 from app.modules.robots.common.utils import safe_str
@@ -79,6 +80,8 @@ class PortfolioUpdaterRobot(BaseRobot):
                 "closed_date": acc.get("closedDate")
             })
 
+        caller = str(kwargs.get("caller") or "scheduler")
+        write_daily_universe = caller == "trading_robot"
         portfolios_updated = 0
         snapshots_saved = 0
         tinvest_svc = TInvestService()
@@ -159,6 +162,12 @@ class PortfolioUpdaterRobot(BaseRobot):
                         except Exception as e:
                             self.log.warning(f"    ⚠️ Не удалось синхронизировать операции: {e}")
                         self.db.commit()
+                    if write_daily_universe:
+                        self._sync_daily_universe_from_portfolio(
+                            robot_id=robot_id,
+                            portfolio_data=portfolio_data,
+                            snapshot_id=snapshot_id,
+                        )
                     snapshots_saved += 1
                 else:
                     self.log.warning(f"    ⚠️ Снимок не сохранен")
@@ -179,3 +188,45 @@ class PortfolioUpdaterRobot(BaseRobot):
             "snapshots_saved": snapshots_saved,
             "execution_time_ms": int(execution_time)
         }
+
+    def _sync_daily_universe_from_portfolio(self, robot_id: int, portfolio_data: Dict[str, Any], snapshot_id: int) -> None:
+        positions = list(portfolio_data.get("positions") or [])
+        if not positions:
+            return
+        today = datetime.now(timezone.utc).date()
+        insert_sql = text(
+            f"""
+            INSERT INTO {self.schema}.daily_universe
+            (robot_id, trade_date, ticker, source, filter_result, reject_reason, snapshot_id, created_at)
+            VALUES
+            (:robot_id, :trade_date, :ticker, 'PORTFOLIO', 'ACCEPT', 'В портфеле', :snapshot_id, :created_at)
+            ON CONFLICT (robot_id, trade_date, ticker)
+            DO UPDATE SET
+                source = EXCLUDED.source,
+                filter_result = EXCLUDED.filter_result,
+                reject_reason = EXCLUDED.reject_reason,
+                snapshot_id = EXCLUDED.snapshot_id
+            """
+        )
+        now = datetime.now(timezone.utc)
+        for p in positions:
+            try:
+                qty = float((p.get("quantity") or {}).get("decimal") or 0)
+            except Exception:
+                qty = 0.0
+            if qty <= 0:
+                continue
+            ticker = (p.get("ticker") or p.get("figi") or "").strip().upper()
+            if not ticker:
+                continue
+            self.db.execute(
+                insert_sql,
+                {
+                    "robot_id": robot_id,
+                    "trade_date": today,
+                    "ticker": ticker,
+                    "snapshot_id": snapshot_id,
+                    "created_at": now,
+                },
+            )
+        self.db.commit()

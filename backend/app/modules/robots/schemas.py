@@ -1,16 +1,22 @@
 from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, time
 
 
 class RobotCreate(BaseModel):
     """Создание робота"""
     name: str = Field(..., min_length=1, max_length=255, description="Название робота")
-    type: int = Field(..., description="Тип робота (num_value из dictionary: 1 - Portfolio, 2 - Trading)")
+    type: int = Field(default=2, description="Тип робота (1 - Portfolio updater, 2 - Trading)")
     token_id: int = Field(..., description="ID токена доступа")
 
     class Config:
         from_attributes = True
+
+    @model_validator(mode="after")
+    def allowed_robot_types(self):
+        if int(self.type) not in (1, 2):
+            raise ValueError("Поддерживаются только типы: 1 (опросник), 2 (торговый)")
+        return self
 
 class RobotUpdate(BaseModel):
     """Обновление робота"""
@@ -19,12 +25,94 @@ class RobotUpdate(BaseModel):
     type: Optional[int] = None
     status: Optional[int] = None
     config: Optional[Dict[str, Any]] = None
+    poll_interval_hours: Optional[int] = Field(default=None, ge=1, le=12)
+    trading_hours_start: Optional[str] = None
+    trading_hours_end: Optional[str] = None
+    allowed_weekdays: Optional[int] = Field(default=None, ge=0, le=127)
+
+
+class RobotUpdateRequest(BaseModel):
+    """Patch-style update payload for robot base fields."""
+    robotId: int = Field(..., description="ID робота")
+    patch: RobotUpdate = Field(..., description="Изменяемые поля робота")
+
+
+class GrainSeedStrategyParams(BaseModel):
+    gap_filter_pct: float = 2.5
+    spread_limit_pct: float = 0.15
+    spread_proxy_multiplier: float = 8.0
+    atr_period: int = 14
+    atr_min_pct: float = 1.5
+    adx_period: int = 14
+    adx_threshold: float = 22.0
+    ma_fast_period: int = 5
+    ma_slow_period: int = 20
+    bb_period: int = 20
+    bb_stddev: float = 2.0
+    commission_pct: float = 0.05
+    min_profit_target_pct: float = 0.35
+    day_loss_streak_limit: int = 3
+    free_funds_reserve_pct: float = 50.0
+    risk_per_trade_pct: float = 2.0
+    max_position_size_pct: float = 20.0
+    force_close_time_msk: str = "18:45"
+    force_market_flatten: bool = True
+    interval: str = "CANDLE_INTERVAL_5_MIN"
+
+
+class GrainSeedRisk(BaseModel):
+    stop_loss_percent: float = 2.0
+    take_profit_percent: float = 3.0
+    max_position_percent: float = 10.0
+    max_position_rub: float = 50000.0
+    max_daily_loss: float = 10000.0
+    trading_hours_start: str = "10:00 MSK"
+    trading_hours_end: str = "18:45 MSK"
+    allowed_weekdays: int = 31
+
+
+class GrainSeedCosts(BaseModel):
+    broker_commission_rate: float = 0.0005
+    ndfl_rate: float = 0.15
+
+
+class GrainSeedConfig(BaseModel):
+    broker_type: str = "tinvest"
+    strategy: str = "grain_seed"
+    strategy_params: GrainSeedStrategyParams = Field(default_factory=GrainSeedStrategyParams)
+    allowed_figis: List[str] = Field(default_factory=list)
+    update_interval_seconds: int = 10
+    indicator_update_schedule: Dict[str, str] = Field(
+        default_factory=lambda: {
+            "CANDLE_INTERVAL_DAY": "10:00 MSK",
+            "CANDLE_INTERVAL_HOUR": "every hour at :05",
+        }
+    )
+    risk: GrainSeedRisk = Field(default_factory=GrainSeedRisk)
+    costs: GrainSeedCosts = Field(default_factory=GrainSeedCosts)
+
+    @model_validator(mode="after")
+    def validate_grain_seed_only(self):
+        if self.strategy != "grain_seed":
+            raise ValueError("Поддерживается только стратегия grain_seed")
+        if self.strategy_params.ma_fast_period >= self.strategy_params.ma_slow_period:
+            raise ValueError("ma_fast_period должен быть меньше ma_slow_period")
+        return self
 
 
 class RobotConfigUpdateRequest(BaseModel):
     """Запрос обновления конфигурации робота."""
     robotId: int = Field(..., description="ID робота")
-    config: Dict[str, Any] = Field(default_factory=dict, description="Новая конфигурация робота")
+    config: GrainSeedConfig = Field(default_factory=GrainSeedConfig, description="Новая конфигурация grain_seed")
+
+
+class RobotScheduleUpdateRequest(BaseModel):
+    """Запрос обновления расписания робота."""
+    robotId: int = Field(..., description="ID робота")
+    poll_interval_hours: int = Field(default=1, ge=1, le=12)
+    trading_hours_start: str = Field(default="10:00")
+    trading_hours_end: str = Field(default="18:45")
+    allowed_weekdays: int = Field(default=31, ge=0, le=127)
 
 
 class StrategyInfoResponse(BaseModel):
@@ -79,6 +167,45 @@ class RobotHistoryBacktestResponse(BaseModel):
     trades: List[RobotHistoryBacktestTrade] = Field(default_factory=list)
     equity_curve: List[Dict[str, Any]] = Field(default_factory=list)
     stages: List[str] = Field(default_factory=list)
+
+
+class RobotLiveSnapshotRequest(BaseModel):
+    robotId: int = Field(..., description="ID робота")
+
+
+class RobotLiveSnapshotResponse(BaseModel):
+    robot_id: int
+    status: int
+    broker_type: str
+    strategy: str
+    account_id: Optional[str] = None
+    active_positions: List[Dict[str, Any]] = Field(default_factory=list)
+    recent_signals: List[Dict[str, Any]] = Field(default_factory=list)
+    recent_orders: List[Dict[str, Any]] = Field(default_factory=list)
+    stream_health: Dict[str, Any] = Field(default_factory=dict)
+
+
+class RobotBacktestHistoryRequest(BaseModel):
+    robotId: int = Field(..., description="ID робота")
+    limit: int = Field(default=30, ge=1, le=200)
+
+
+class RobotBacktestHistoryItem(BaseModel):
+    id: int
+    robot_id: int
+    requested_from: datetime
+    requested_to: datetime
+    initial_capital: float
+    final_equity: float
+    total_return_percent: float
+    max_drawdown_percent: Optional[float] = None
+    created_at: datetime
+    result_payload: Dict[str, Any]
+
+
+class RobotBacktestHistoryResponse(BaseModel):
+    total: int
+    items: List[RobotBacktestHistoryItem] = Field(default_factory=list)
 
 
 class BacktestRequest(BaseModel):
@@ -154,6 +281,18 @@ class TokenInfo(BaseModel):
     typeName: Optional[str] = None
 
 
+class RobotScheduleInfo(BaseModel):
+    id: int
+    schedule_type: Optional[int] = None
+    interval_seconds: Optional[int] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    weekdays: Optional[int] = None
+    is_active: Optional[int] = None
+    priority: Optional[int] = None
+    description: Optional[str] = None
+
+
 class RobotInDB(BaseModel):
     """Полная схема робота из БД"""
     id: int
@@ -165,6 +304,7 @@ class RobotInDB(BaseModel):
     status: int
     statusName: str
     config: Dict[str, Any] = Field(default_factory=dict)
+    schedule: Optional[RobotScheduleInfo] = None
     last_started: Optional[datetime] = None
     last_error: Optional[str] = None
     last_error_at: Optional[datetime] = None

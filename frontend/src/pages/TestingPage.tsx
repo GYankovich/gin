@@ -10,7 +10,13 @@ import { useToast } from '@/components/ui/Toast'
 import { LineSeries } from 'lightweight-charts'
 import { robotService } from '@/services/robotService'
 import { marketService, type MarketInstrumentRow } from '@/services/marketService'
-import type { Robot, RobotHistoryBacktestResult, RobotHistoryBacktestTrade, StrategyParam } from '@/types/robot'
+import type {
+    Robot,
+    RobotBacktestHistoryItem,
+    RobotHistoryBacktestResult,
+    RobotHistoryBacktestTrade,
+    StrategyParam,
+} from '@/types/robot'
 
 const MOEX_INTERVAL_OPTIONS = [
     { value: 'CANDLE_INTERVAL_MONTH', label: 'Месяц' },
@@ -55,7 +61,7 @@ function normalizeSeriesByTime<T extends { time: Time }>(rows: T[]): T[] {
 }
 
 export default function TestingPage() {
-    const [mode, setMode] = useState<'robot' | 'builder'>('builder')
+    const [mode, setMode] = useState<'robot' | 'builder'>('robot')
     const [robots, setRobots] = useState<Robot[]>([])
     const [robotId, setRobotId] = useState<number | null>(null)
     const [marketRows, setMarketRows] = useState<MarketInstrumentRow[]>([])
@@ -85,6 +91,12 @@ export default function TestingPage() {
     const [running, setRunning] = useState(false)
     const [statusWindow, setStatusWindow] = useState<string[]>([])
     const [result, setResult] = useState<RobotHistoryBacktestResult | null>(null)
+    const [historyRuns, setHistoryRuns] = useState<RobotBacktestHistoryItem[]>([])
+    const [historyLoading, setHistoryLoading] = useState(false)
+    const [historySearch, setHistorySearch] = useState('')
+    const [historyMinReturn, setHistoryMinReturn] = useState<number | null>(null)
+    const [compareLeftId, setCompareLeftId] = useState<number | null>(null)
+    const [compareRightId, setCompareRightId] = useState<number | null>(null)
     const [priceCurve, setPriceCurve] = useState<Array<{ time: Time; value: number }>>([])
     const [chartLegend, setChartLegend] = useState<{ time: string; equity?: number; price?: number }>({ time: '' })
     const [error, setError] = useState<string | null>(null)
@@ -126,6 +138,25 @@ export default function TestingPage() {
     }, [mode, selectedRobot])
 
     useEffect(() => {
+        const loadHistory = async () => {
+            if (mode !== 'robot' || !selectedRobot) {
+                setHistoryRuns([])
+                return
+            }
+            setHistoryLoading(true)
+            try {
+                const data = await robotService.listHistoryBacktests({ robotId: selectedRobot.id, limit: 30 })
+                setHistoryRuns(data.items || [])
+            } catch {
+                setHistoryRuns([])
+            } finally {
+                setHistoryLoading(false)
+            }
+        }
+        loadHistory()
+    }, [mode, selectedRobot])
+
+    useEffect(() => {
         const schema = selectedStrategy?.params_schema ?? {}
         const next: Record<string, any> = { ...strategyParams }
         for (const [key, cfg] of Object.entries(schema)) {
@@ -163,6 +194,23 @@ export default function TestingPage() {
         () => tickerOptions.some(x => x.ticker.toLowerCase() === instrumentInput.trim().toLowerCase()),
         [tickerOptions, instrumentInput],
     )
+    const filteredHistoryRuns = useMemo(() => {
+        const q = historySearch.trim().toLowerCase()
+        return historyRuns.filter((r) => {
+            if (historyMinReturn != null && r.total_return_percent < historyMinReturn) return false
+            if (!q) return true
+            const text = `${r.id} ${r.total_return_percent} ${r.final_equity} ${r.created_at}`.toLowerCase()
+            return text.includes(q)
+        })
+    }, [historyRuns, historySearch, historyMinReturn])
+    const leftRun = useMemo(
+        () => historyRuns.find((x) => x.id === compareLeftId) ?? null,
+        [historyRuns, compareLeftId],
+    )
+    const rightRun = useMemo(
+        () => historyRuns.find((x) => x.id === compareRightId) ?? null,
+        [historyRuns, compareRightId],
+    )
 
     const runBacktest = async () => {
         setRunning(true)
@@ -174,6 +222,38 @@ export default function TestingPage() {
             'Расчёт бэктеста…',
         ])
         try {
+            if (mode === 'robot') {
+                if (!selectedRobot) {
+                    toast.show('Выберите робота для режима robot backtest', 'error', 4000)
+                    setStatusWindow([])
+                    setRunning(false)
+                    return
+                }
+                if (selectedRobot.type !== 2) {
+                    toast.show('Backtest доступен только для роботов type=2', 'error', 4000)
+                    setStatusWindow([])
+                    setRunning(false)
+                    return
+                }
+                if (!fromDate || !toDate) {
+                    setInvalid({ period: true })
+                    toast.show('Выберите период бэктеста', 'error', 4000)
+                    setStatusWindow([])
+                    setRunning(false)
+                    return
+                }
+                const bt = await robotService.runHistoryBacktest({
+                    robot_id: selectedRobot.id,
+                    from_date: `${toApiDate(fromDate)}T00:00:00Z`,
+                    to_date: `${toApiDate(toDate)}T23:59:59Z`,
+                    initial_capital: capital,
+                })
+                setStatusWindow(bt.stages ?? ['Backtest завершен'])
+                setResult(bt)
+                setChartLegend({ time: '' })
+                setRunning(false)
+                return
+            }
             const nextInvalid: Record<string, boolean> = {}
             const typedTicker = (customTicker || instrumentInput).trim()
             if (!figi && !typedTicker) nextInvalid.instrument = true
@@ -523,6 +603,141 @@ export default function TestingPage() {
                 <Card className="mb-6">
                     <h3 className="card__section-title">Статус подготовки/теста</h3>
                     <div className="form-hint">{statusWindow.map((s, i) => <div key={`${s}-${i}`}>• {s}</div>)}</div>
+                </Card>
+            )}
+
+            {selectedRobot && (
+                <Card className="mb-6">
+                    <div className="card__header">
+                        <h3>История бэктестов робота</h3>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            loading={historyLoading}
+                            onClick={async () => {
+                                setHistoryLoading(true)
+                                try {
+                                    const data = await robotService.listHistoryBacktests({ robotId: selectedRobot.id, limit: 30 })
+                                    setHistoryRuns(data.items || [])
+                                } finally {
+                                    setHistoryLoading(false)
+                                }
+                            }}
+                        >
+                            Обновить
+                        </Button>
+                    </div>
+                    {mode !== 'robot' && (
+                        <p className="form-hint" style={{ marginBottom: 'var(--space-3)' }}>
+                            История и сравнение работают по выбранному роботу, даже если активен режим «Конструктор».
+                        </p>
+                    )}
+                    <div className="form-row" style={{ marginBottom: 'var(--space-3)', gap: 'var(--space-3)' }}>
+                        <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
+                            <label className="form-label">Поиск</label>
+                            <input
+                                className="form-input"
+                                value={historySearch}
+                                onChange={(e) => setHistorySearch(e.target.value)}
+                                placeholder="id, дата, доходность"
+                            />
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0, width: 220 }}>
+                            <label className="form-label">Мин. доходность %</label>
+                            <input
+                                className="form-input"
+                                value={historyMinReturn == null ? '' : String(historyMinReturn)}
+                                onChange={(e) => {
+                                    const raw = e.target.value.trim()
+                                    if (!raw) {
+                                        setHistoryMinReturn(null)
+                                        return
+                                    }
+                                    const n = Number(raw.replace(',', '.'))
+                                    setHistoryMinReturn(Number.isFinite(n) ? n : null)
+                                }}
+                                placeholder="например, 5"
+                            />
+                        </div>
+                    </div>
+                    <DataTable
+                        columns={[
+                            { key: 'created_at', header: 'Запуск', render: (r: RobotBacktestHistoryItem) => new Date(r.created_at).toLocaleString('ru-RU') },
+                            { key: 'requested_from', header: 'Период', render: (r: RobotBacktestHistoryItem) => `${new Date(r.requested_from).toLocaleDateString('ru-RU')} - ${new Date(r.requested_to).toLocaleDateString('ru-RU')}` },
+                            { key: 'total_return_percent', header: 'Доходность', align: 'right', render: (r: RobotBacktestHistoryItem) => <span className={r.total_return_percent >= 0 ? 'color-up' : 'color-down'}>{r.total_return_percent.toFixed(2)}%</span> },
+                            { key: 'final_equity', header: 'Итог', align: 'right', render: (r: RobotBacktestHistoryItem) => `${r.final_equity.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ₽` },
+                            {
+                                key: 'open',
+                                header: '',
+                                render: (r: RobotBacktestHistoryItem) => (
+                                    <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={() => {
+                                            setResult(r.result_payload)
+                                            setStatusWindow([`Загружен прогон #${r.id} от ${new Date(r.created_at).toLocaleString('ru-RU')}`])
+                                        }}
+                                    >
+                                        Открыть
+                                    </Button>
+                                ),
+                            },
+                        ]}
+                        data={filteredHistoryRuns}
+                        keyField="id"
+                        emptyText={historyLoading ? 'Загрузка...' : 'Нет сохраненных прогонов'}
+                    />
+                    {historyRuns.length > 1 && (
+                        <div style={{ marginTop: 'var(--space-4)' }}>
+                            <h4 style={{ marginBottom: 'var(--space-2)' }}>Сравнение прогонов</h4>
+                            <div className="form-row" style={{ gap: 'var(--space-3)' }}>
+                                <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
+                                    <label className="form-label">Левый прогон</label>
+                                    <Select
+                                        options={[{ value: '', label: 'Выберите прогон' }, ...historyRuns.map((r) => ({
+                                            value: String(r.id),
+                                            label: `#${r.id} • ${new Date(r.created_at).toLocaleString('ru-RU')}`,
+                                        }))]}
+                                        value={compareLeftId != null ? String(compareLeftId) : ''}
+                                        onChange={(v) => setCompareLeftId(v ? Number(v) : null)}
+                                    />
+                                </div>
+                                <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
+                                    <label className="form-label">Правый прогон</label>
+                                    <Select
+                                        options={[{ value: '', label: 'Выберите прогон' }, ...historyRuns.map((r) => ({
+                                            value: String(r.id),
+                                            label: `#${r.id} • ${new Date(r.created_at).toLocaleString('ru-RU')}`,
+                                        }))]}
+                                        value={compareRightId != null ? String(compareRightId) : ''}
+                                        onChange={(v) => setCompareRightId(v ? Number(v) : null)}
+                                    />
+                                </div>
+                            </div>
+                            {leftRun && rightRun && (
+                                <div className="grid-kpi" style={{ marginTop: 'var(--space-3)' }}>
+                                    <div className="kpi-tile">
+                                        <span className="kpi-tile__label">Δ Доходность</span>
+                                        <span className={`kpi-tile__value mono ${(rightRun.total_return_percent - leftRun.total_return_percent) >= 0 ? 'color-up' : 'color-down'}`}>
+                                            {(rightRun.total_return_percent - leftRun.total_return_percent).toFixed(2)}%
+                                        </span>
+                                    </div>
+                                    <div className="kpi-tile">
+                                        <span className="kpi-tile__label">Δ Итоговый капитал</span>
+                                        <span className={`kpi-tile__value mono ${(rightRun.final_equity - leftRun.final_equity) >= 0 ? 'color-up' : 'color-down'}`}>
+                                            {(rightRun.final_equity - leftRun.final_equity).toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ₽
+                                        </span>
+                                    </div>
+                                    <div className="kpi-tile">
+                                        <span className="kpi-tile__label">Δ Сделок</span>
+                                        <span className="kpi-tile__value mono">
+                                            {(rightRun.result_payload?.trades?.length ?? 0) - (leftRun.result_payload?.trades?.length ?? 0)}
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </Card>
             )}
 

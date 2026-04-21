@@ -1,8 +1,8 @@
 # app/modules/robots/service.py
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, timezone
-import json
 import math
+import json
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -127,6 +127,7 @@ class RobotService:
             "status": result[10],
             "statusName": result[11],
             "config": result[12] or {},
+            "schedule": None,
             "last_started": result[13],
             "last_error": result[14],
             "last_error_at": result[15],
@@ -136,6 +137,30 @@ class RobotService:
             "usermod": result[19],
             "date_modification": result[20]
         }
+
+        schedule_sql = f"""
+            SELECT
+                id, schedule_type, interval_seconds, start_time, end_time,
+                weekdays, is_active, priority, description
+            FROM {settings.DB_SCHEMA}.robot_schedules
+            WHERE robot_id = :robot_id
+              AND COALESCE(is_active, 1) = 1
+            ORDER BY priority DESC, date_creation DESC
+            LIMIT 1
+        """
+        schedule_row = db.execute(text(schedule_sql), {"robot_id": robot_id}).first()
+        if schedule_row:
+            robot_dict["schedule"] = {
+                "id": int(schedule_row[0]),
+                "schedule_type": schedule_row[1],
+                "interval_seconds": schedule_row[2],
+                "start_time": schedule_row[3],
+                "end_time": schedule_row[4],
+                "weekdays": schedule_row[5],
+                "is_active": schedule_row[6],
+                "priority": schedule_row[7],
+                "description": schedule_row[8],
+            }
 
         return robot_dict
 
@@ -223,6 +248,100 @@ class RobotService:
         robot = await self.get_robot_by_id(db, result[0], user_id)
 
         return robot
+
+    async def update_robot(
+            self,
+            db: Session,
+            robot_id: int,
+            user_id: int,
+            patch: schemas.RobotUpdate
+    ) -> dict:
+        """Обновляет базовые поля робота (name/token/type/status/config)."""
+        self.db = db
+        robot = await self.get_robot_by_id(db, robot_id, user_id)
+
+        updates: Dict[str, Any] = {}
+        if patch.name is not None:
+            name = patch.name.strip()
+            if not name:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Название не может быть пустым")
+            if name != robot.get("name"):
+                check_name_query = queries.build_check_robot_name_exists_query(schema=settings.DB_SCHEMA)
+                existing = db.execute(text(check_name_query), {"user_id": user_id, "name": name}).first()
+                if existing and int(existing[0]) != int(robot_id):
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Робот с таким именем уже существует")
+            updates["name"] = name
+
+        if patch.token_id is not None:
+            check_token_query = queries.build_check_token_query(schema=settings.DB_SCHEMA)
+            token = db.execute(text(check_token_query), {"token_id": patch.token_id, "user_id": user_id}).first()
+            if not token:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Токен не найден или не активен")
+            updates["token_id"] = int(patch.token_id)
+
+        if patch.type is not None:
+            if int(patch.type) not in (1, 2):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Поддерживаются только типы 1 и 2")
+            updates["type"] = int(patch.type)
+
+        if patch.status is not None:
+            if int(patch.status) not in (1, 2):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Статус должен быть 1 или 2")
+            updates["status"] = int(patch.status)
+
+        if patch.config is not None:
+            cfg = dict(patch.config)
+            if int(updates.get("type", robot.get("type") or 0)) == 2:
+                self._validate_robot_config(cfg)
+            updates["config"] = json.dumps(cfg, ensure_ascii=False)
+
+        set_parts = []
+        params: Dict[str, Any] = {
+            "robot_id": robot_id,
+            "user_id": user_id,
+            "usermod": user_id,
+            "now": datetime.now(timezone.utc),
+        }
+        if updates:
+            for key, value in updates.items():
+                set_parts.append(f"{key} = :{key}")
+                params[key] = value
+
+            update_sql = f"""
+                UPDATE {settings.DB_SCHEMA}.robots
+                SET {", ".join(set_parts)},
+                    usermod = :usermod,
+                    date_modification = :now
+                WHERE id = :robot_id AND user_id = :user_id AND status != 0
+                RETURNING id
+            """
+            changed = db.execute(text(update_sql), params).first()
+            if not changed:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Не удалось обновить робота")
+
+        schedule_changed = any([
+            patch.poll_interval_hours is not None,
+            patch.trading_hours_start is not None,
+            patch.trading_hours_end is not None,
+            patch.allowed_weekdays is not None,
+        ])
+        if schedule_changed:
+            existing_schedule = robot.get("schedule") or {}
+            resolved_poll_hours = int(patch.poll_interval_hours if patch.poll_interval_hours is not None else max(1, round(float(existing_schedule.get("interval_seconds") or 3600) / 3600)))
+            resolved_start = str(patch.trading_hours_start if patch.trading_hours_start is not None else "10:00")
+            resolved_end = str(patch.trading_hours_end if patch.trading_hours_end is not None else "18:45")
+            resolved_weekdays = int(patch.allowed_weekdays if patch.allowed_weekdays is not None else int(existing_schedule.get("weekdays") or 31))
+            await self._replace_robot_schedule(
+                db=db,
+                robot_id=robot_id,
+                user_id=user_id,
+                poll_interval_hours=resolved_poll_hours,
+                trading_hours_start=resolved_start,
+                trading_hours_end=resolved_end,
+                allowed_weekdays=resolved_weekdays,
+            )
+        db.commit()
+        return await self.get_robot_by_id(db, robot_id, user_id)
 
 
 
@@ -326,8 +445,17 @@ class RobotService:
         Обновляет конфиг робота с базовой валидацией strategy_params.
         """
         self.db = db
-        await self.get_robot_by_id(db, robot_id, user_id)
-        self._validate_robot_config(config)
+        robot = await self.get_robot_by_id(db, robot_id, user_id)
+        robot_type = int(robot.get("type") or 0)
+        if robot_type == 2:
+            self._validate_robot_config(config)
+        else:
+            # Для опросника портфеля оставляем свободный JSON-конфиг.
+            if not isinstance(config, dict):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Некорректный config: expected object",
+                )
 
         update_query = queries.build_update_robot_config_query(schema=settings.DB_SCHEMA)
         result = db.execute(
@@ -335,7 +463,7 @@ class RobotService:
             {
                 "robot_id": robot_id,
                 "user_id": user_id,
-                "config": config,
+                "config": json.dumps(config, ensure_ascii=False),
                 "usermod": user_id,
                 "now": datetime.now(timezone.utc)
             }
@@ -348,6 +476,83 @@ class RobotService:
         db.commit()
         return await self.get_robot_by_id(db, robot_id, user_id)
 
+    async def update_robot_schedule(
+            self,
+            db: Session,
+            robot_id: int,
+            user_id: int,
+            poll_interval_hours: int,
+            trading_hours_start: str,
+            trading_hours_end: str,
+            allowed_weekdays: int,
+    ) -> dict:
+        """Обновляет/создает активное расписание в robot_schedules."""
+        self.db = db
+        await self.get_robot_by_id(db, robot_id, user_id)
+        await self._replace_robot_schedule(
+            db=db,
+            robot_id=robot_id,
+            user_id=user_id,
+            poll_interval_hours=poll_interval_hours,
+            trading_hours_start=trading_hours_start,
+            trading_hours_end=trading_hours_end,
+            allowed_weekdays=allowed_weekdays,
+        )
+        db.commit()
+        return await self.get_robot_by_id(db, robot_id, user_id)
+
+    async def _replace_robot_schedule(
+            self,
+            db: Session,
+            robot_id: int,
+            user_id: int,
+            poll_interval_hours: int,
+            trading_hours_start: str,
+            trading_hours_end: str,
+            allowed_weekdays: int,
+    ) -> None:
+        def _normalize_hhmm(hhmm: str) -> str:
+            parts = (hhmm or "00:00").strip().split(":")
+            h = int(parts[0]) if len(parts) > 0 else 0
+            m = int(parts[1]) if len(parts) > 1 else 0
+            h = max(0, min(23, h))
+            m = max(0, min(59, m))
+            return f"{h:02d}:{m:02d}:00+03:00"
+
+        start_time_tz = _normalize_hhmm(trading_hours_start)
+        end_time_tz = _normalize_hhmm(trading_hours_end)
+        interval_seconds = int(max(1, min(12, poll_interval_hours)) * 3600)
+
+        disable_sql = f"""
+            UPDATE {settings.DB_SCHEMA}.robot_schedules
+            SET is_active = 0,
+                usermod = :usermod,
+                date_modification = :now
+            WHERE robot_id = :robot_id
+              AND COALESCE(is_active, 1) = 1
+        """
+        db.execute(text(disable_sql), {"robot_id": robot_id, "usermod": user_id, "now": datetime.now(timezone.utc)})
+
+        insert_sql = f"""
+            INSERT INTO {settings.DB_SCHEMA}.robot_schedules
+                (robot_id, schedule_type, interval_seconds, start_time, end_time, weekdays, is_active, priority, description, usercre, date_creation)
+            VALUES
+                (:robot_id, 2, :interval_seconds, CAST(:start_time AS timetz), CAST(:end_time AS timetz), :weekdays, 1, 100, :description, :usercre, :created_at)
+        """
+        db.execute(
+            text(insert_sql),
+            {
+                "robot_id": robot_id,
+                "interval_seconds": interval_seconds,
+                "start_time": start_time_tz,
+                "end_time": end_time_tz,
+                "weekdays": int(max(0, min(127, allowed_weekdays))),
+                "description": "UI schedule",
+                "usercre": user_id,
+                "created_at": datetime.now(timezone.utc),
+            },
+        )
+
     async def run_robot_history_backtest(
             self,
             db: Session,
@@ -359,6 +564,11 @@ class RobotService:
         from app.modules.market_data import service as market_service
 
         robot = await self.get_robot_by_id(db, request.robot_id, user_id)
+        if int(robot.get("type") or 0) != 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Backtest доступен только для торговых роботов type=2",
+            )
         token_id = robot["token"]["id"]
         token_row = await token_service.get_token_by_id(db, token_id, user_id)
         if not token_row or not token_row.get("token"):
@@ -372,7 +582,7 @@ class RobotService:
         if not figis:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="В конфиге робота нет FIGI")
 
-        strategy_name = config.get("strategy") or "ma_cross"
+        strategy_name = config.get("strategy") or "grain_seed"
         strategy_params = dict(config.get("strategy_params") or {})
         strategy_params["figis"] = figis
         interval = strategy_params.get("interval", "CANDLE_INTERVAL_DAY")
@@ -408,7 +618,7 @@ class RobotService:
                 detail=f"Ошибка загрузки данных или расчёта: {e}",
             )
 
-        return {
+        result = {
             "initial_capital": res.initial_capital,
             "final_equity": res.final_equity,
             "total_return_percent": res.total_return_percent,
@@ -416,6 +626,178 @@ class RobotService:
             "trades": res.trades,
             "equity_curve": res.equity_curve,
         }
+        try:
+            save_sql = f"""
+                INSERT INTO {settings.DB_SCHEMA}.robot_backtest_runs
+                (robot_id, requested_from, requested_to, initial_capital, final_equity, total_return_percent, max_drawdown_percent, result_payload, created_at)
+                VALUES
+                (:robot_id, :requested_from, :requested_to, :initial_capital, :final_equity, :total_return_percent, :max_drawdown_percent, :result_payload, :created_at)
+            """
+            db.execute(
+                text(save_sql),
+                {
+                    "robot_id": request.robot_id,
+                    "requested_from": request.from_date,
+                    "requested_to": request.to_date,
+                    "initial_capital": res.initial_capital,
+                    "final_equity": res.final_equity,
+                    "total_return_percent": res.total_return_percent,
+                    "max_drawdown_percent": res.max_drawdown_percent,
+                    "result_payload": result,
+                    "created_at": datetime.now(timezone.utc),
+                },
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("failed to persist robot backtest run")
+        return result
+
+    async def get_live_snapshot(
+            self,
+            db: Session,
+            robot_id: int,
+            user_id: int,
+    ) -> Dict[str, Any]:
+        """REST snapshot для Live-экрана (на случай реконнекта/перезагрузки)."""
+        robot = await self.get_robot_by_id(db, robot_id, user_id)
+        if int(robot.get("type") or 0) != 2:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Робот не является торговым")
+
+        config = dict(robot.get("config") or {})
+        strategy = str(config.get("strategy") or "grain_seed")
+        broker_type = str(config.get("broker_type") or "tinvest")
+        account_id = config.get("account_id")
+
+        positions_q = f"""
+            SELECT id, figi, side, quantity, COALESCE(entry_price, price) AS entry_price, status, created_at
+            FROM {settings.DB_SCHEMA}.robot_trades
+            WHERE robot_id = :robot_id
+              AND status IN ('open', 'partial')
+            ORDER BY created_at DESC
+            LIMIT 100
+        """
+        positions_rows = db.execute(text(positions_q), {"robot_id": robot_id}).fetchall()
+        active_positions = [
+            {
+                "id": int(r[0]),
+                "figi": str(r[1]),
+                "side": str(r[2]),
+                "quantity": float(r[3] or 0),
+                "entry_price": float(r[4] or 0),
+                "status": str(r[5]),
+                "created_at": r[6],
+            }
+            for r in positions_rows
+        ]
+
+        signals_q = f"""
+            SELECT id, figi, signal_type, signal_strength, price_at_signal, was_executed, created_at
+            FROM {settings.DB_SCHEMA}.robot_signals
+            WHERE robot_id = :robot_id
+            ORDER BY created_at DESC
+            LIMIT 100
+        """
+        signals_rows = db.execute(text(signals_q), {"robot_id": robot_id}).fetchall()
+        recent_signals = [
+            {
+                "id": int(r[0]),
+                "figi": str(r[1]),
+                "signal_type": str(r[2]),
+                "signal_strength": int(r[3] or 0),
+                "price_at_signal": float(r[4] or 0),
+                "was_executed": int(r[5] or 0),
+                "created_at": r[6],
+            }
+            for r in signals_rows
+        ]
+
+        orders_q = f"""
+            SELECT id, figi, side, quantity, price, order_id, status, created_at
+            FROM {settings.DB_SCHEMA}.robot_trades
+            WHERE robot_id = :robot_id
+            ORDER BY created_at DESC
+            LIMIT 100
+        """
+        orders_rows = db.execute(text(orders_q), {"robot_id": robot_id}).fetchall()
+        recent_orders = [
+            {
+                "id": int(r[0]),
+                "figi": str(r[1]),
+                "side": str(r[2]),
+                "quantity": float(r[3] or 0),
+                "price": float(r[4] or 0),
+                "order_id": r[5],
+                "status": str(r[6]),
+                "created_at": r[7],
+            }
+            for r in orders_rows
+        ]
+
+        stream_q = f"""
+            SELECT MAX(created_at) AS last_event_at
+            FROM {settings.DB_SCHEMA}.robot_execution_logs
+            WHERE robot_id = :robot_id
+        """
+        stream_row = db.execute(text(stream_q), {"robot_id": robot_id}).first()
+        stream_health = {
+            "last_event_at": stream_row[0] if stream_row else None,
+            "connected_hint": int(robot.get("status") or 0) == 1,
+        }
+
+        return {
+            "robot_id": int(robot_id),
+            "status": int(robot.get("status") or 0),
+            "broker_type": broker_type,
+            "strategy": strategy,
+            "account_id": account_id,
+            "active_positions": active_positions,
+            "recent_signals": recent_signals,
+            "recent_orders": recent_orders,
+            "stream_health": stream_health,
+        }
+
+    async def get_backtest_history(
+            self,
+            db: Session,
+            robot_id: int,
+            user_id: int,
+            limit: int = 30,
+    ) -> Dict[str, Any]:
+        await self.get_robot_by_id(db, robot_id, user_id)
+
+        total_sql = f"""
+            SELECT COUNT(*)
+            FROM {settings.DB_SCHEMA}.robot_backtest_runs
+            WHERE robot_id = :robot_id
+        """
+        total = int(db.execute(text(total_sql), {"robot_id": robot_id}).scalar() or 0)
+
+        rows_sql = f"""
+            SELECT id, robot_id, requested_from, requested_to, initial_capital, final_equity,
+                   total_return_percent, max_drawdown_percent, created_at, result_payload
+            FROM {settings.DB_SCHEMA}.robot_backtest_runs
+            WHERE robot_id = :robot_id
+            ORDER BY created_at DESC
+            LIMIT :limit
+        """
+        rows = db.execute(text(rows_sql), {"robot_id": robot_id, "limit": limit}).fetchall()
+        items = [
+            {
+                "id": int(r[0]),
+                "robot_id": int(r[1]),
+                "requested_from": r[2],
+                "requested_to": r[3],
+                "initial_capital": float(r[4] or 0),
+                "final_equity": float(r[5] or 0),
+                "total_return_percent": float(r[6] or 0),
+                "max_drawdown_percent": float(r[7]) if r[7] is not None else None,
+                "created_at": r[8],
+                "result_payload": r[9] or {},
+            }
+            for r in rows
+        ]
+        return {"total": total, "items": items}
 
     async def run_backtest(self, request: schemas.BacktestRequest) -> Dict[str, Any]:
         returns = request.returns or []
@@ -524,47 +906,25 @@ class RobotService:
 
     def _validate_robot_config(self, config: Dict[str, Any]) -> None:
         """
-        Валидирует обязательные поля стратегии.
+        Валидирует конфигурацию grain_seed через pydantic-схему.
         """
-        if "broker_type" not in config:
-            config["broker_type"] = "tinvest"
-        elif config.get("broker_type") not in {"tinvest", "vtb", "alfa"}:
+        try:
+            validated = schemas.GrainSeedConfig.model_validate(config)
+        except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="broker_type must be one of: tinvest, vtb, alfa"
+                detail=f"Некорректный config: {e}",
             )
 
-        allowed_figis = config.get("allowed_figis")
-        if allowed_figis is not None and not isinstance(allowed_figis, list):
+        supported_brokers = {"tinvest", "vtb", "alfa"}
+        if str(validated.broker_type or "").lower() not in supported_brokers:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="allowed_figis must be an array"
+                detail=f"broker_type '{validated.broker_type}' не поддерживается",
             )
 
-        strategy_params = config.get("strategy_params") or {}
-        config["strategy_params"] = strategy_params
-        strategy_name = config.get("strategy", "ma_cross")
-        interval = strategy_params.get("interval")
-        if not interval:
-            strategy_params["interval"] = "CANDLE_INTERVAL_DAY"
-
-        if strategy_name == "ma_cross":
-            fast_period = strategy_params.get("fast_period")
-            slow_period = strategy_params.get("slow_period")
-            if fast_period is None:
-                strategy_params["fast_period"] = 10
-                fast_period = 10
-            if slow_period is None:
-                strategy_params["slow_period"] = 30
-                slow_period = 30
-            if int(fast_period) >= int(slow_period):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="strategy_params.fast_period must be less than strategy_params.slow_period"
-                )
-
-        if not strategy_params.get("candle_days"):
-            strategy_params["candle_days"] = 60
+        config.clear()
+        config.update(validated.model_dump())
 
 
 # Создаем экземпляр сервиса

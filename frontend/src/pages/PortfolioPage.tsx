@@ -27,6 +27,7 @@ export default function PortfolioPage() {
     const [fromDate, setFromDate] = useState(() => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10))
     const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10))
     const [snapshots, setSnapshots] = useState<PortfolioSnapshotSummary[]>([])
+    const [snapshotsLoading, setSnapshotsLoading] = useState(false)
     const [loading, setLoading] = useState(true)
     const [positions, setPositions] = useState<any[]>([])
     const [posLoading, setPosLoading] = useState(false)
@@ -95,6 +96,7 @@ export default function PortfolioPage() {
     }
 
     const loadSnapshots = async (accId: number) => {
+        setSnapshotsLoading(true)
         try {
             const data = await analyticsService.getSnapshotsByPeriod({
                 account_id: accId,
@@ -105,6 +107,7 @@ export default function PortfolioPage() {
         } catch {
             setSnapshots([])
         }
+        setSnapshotsLoading(false)
     }
 
     const loadOperations = async (accId: number) => {
@@ -458,12 +461,14 @@ export default function PortfolioPage() {
             {/*<h1 className="page__title">Портфель</h1>*/}
 
             <div className="portfolio-toolbar">
-                <Select
-                    options={accounts.map(a => ({ value: String(a.id), label: `${a.name || a.account_id} (${a.type})` }))}
-                    value={selectedAccountId != null ? String(selectedAccountId) : ''}
-                    onChange={handleAccountChange}
-                    placeholder="Выберите счёт"
-                />
+                <div className="portfolio-toolbar__account">
+                    <Select
+                        options={accounts.map(a => ({ value: String(a.id), label: `${a.name || a.account_id} (${a.type})` }))}
+                        value={selectedAccountId != null ? String(selectedAccountId) : ''}
+                        onChange={handleAccountChange}
+                        placeholder="Выберите счёт"
+                    />
+                </div>
 
                 <div className="tf-selector">
                     {PERIODS.map(p => (
@@ -481,20 +486,22 @@ export default function PortfolioPage() {
                     ))}
                 </div>
 
-                <DateRangePicker
-                    fromValue={`${fromDate}T00:00`}
-                    toValue={`${toDate}T00:00`}
-                    onFromChange={v => {
-                        setPeriod(0)
-                        setFromDate(v.slice(0, 10))
-                    }}
-                    onToChange={v => {
-                        setPeriod(0)
-                        setToDate(v.slice(0, 10))
-                    }}
-                    fromLabel="Период"
-                    toLabel="по"
-                />
+                <div className="portfolio-toolbar__range">
+                    <DateRangePicker
+                        fromValue={`${fromDate}T00:00`}
+                        toValue={`${toDate}T00:00`}
+                        onFromChange={v => {
+                            setPeriod(0)
+                            setFromDate(v.slice(0, 10))
+                        }}
+                        onToChange={v => {
+                            setPeriod(0)
+                            setToDate(v.slice(0, 10))
+                        }}
+                        fromLabel="Период"
+                        toLabel="по"
+                    />
+                </div>
             </div>
 
             <Card className="mb-6">
@@ -626,9 +633,9 @@ export default function PortfolioPage() {
             </Card>
 
             <Card className="mb-6">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <div className="portfolio-chart-header">
                     <h3 className="card__section-title">Стоимость портфеля</h3>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                    <div className="portfolio-chart-header__controls">
                         <label className="portfolio-toggle">
                             <input
                                 type="checkbox"
@@ -643,12 +650,12 @@ export default function PortfolioPage() {
                     </div>
                 </div>
                 {chartMode === 'portfolio' && crosshairValue && (
-                    <div className="mono" style={{ fontSize: 'var(--text-lg)', color: 'var(--color-primary)', marginBottom: 'var(--space-2)' }}>
+                    <div className="mono portfolio-crosshair-main">
                         {crosshairValue.value.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ₽
                         {crosshairValue.delta != null && (
                             <span
                                 className={crosshairValue.delta >= 0 ? 'color-up' : 'color-down'}
-                                style={{ fontSize: 'var(--text-sm)', marginLeft: 'var(--space-2)' }}
+                                style={{ marginLeft: 'var(--space-2)' }}
                             >
                                 {crosshairValue.delta >= 0 ? '+' : ''}
                                 {crosshairValue.delta.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽
@@ -660,7 +667,7 @@ export default function PortfolioPage() {
                                 )}
                             </span>
                         )}
-                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', marginLeft: 'var(--space-2)' }}>
+                        <span className="portfolio-crosshair-main__time">
                             {crosshairValue.time}
                         </span>
                     </div>
@@ -722,23 +729,82 @@ export default function PortfolioPage() {
                         <div className="ops-loader__text">Загрузка состава портфеля...</div>
                     </div>
                 ) : (
-                    <DataTable columns={posColumns} data={positions} keyField="figi" emptyText="Нет позиций" />
+                    <DataTable
+                        columns={posColumns}
+                        data={positions}
+                        keyField="figi"
+                        emptyText="Нет позиций"
+                        mobilePrimary={(r) => `${r.ticker || '—'} (${r.figi || '—'})`}
+                        mobileSecondary={(r) => `${Number(r.quantity ?? 0).toLocaleString('ru-RU')} шт. | ${formatMoney(r.total_value)}`}
+                        mobileDetails={(r) => (
+                            <>
+                                <div>Тип: {r.instrument_type || '—'}</div>
+                                <div>Средняя цена: {formatMoney(r.avg_price)}</div>
+                                <div>
+                                    Текущая цена: {formatMoney(r.current_price)}{' '}
+                                    <span className={Number(r.expected_yield ?? 0) >= 0 ? 'color-up' : 'color-down'}>
+                                        ({Number(r.expected_yield ?? 0) >= 0 ? '+' : ''}
+                                        {Number(r.expected_yield ?? 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽)
+                                    </span>
+                                </div>
+                                <div>
+                                    P&amp;L:{' '}
+                                    <span className={Number(r.expected_yield ?? 0) >= 0 ? 'color-up' : 'color-down'}>
+                                        {Number(r.expected_yield ?? 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽
+                                    </span>
+                                </div>
+                            </>
+                        )}
+                    />
                 )}
             </Card>
 
             <Card>
                 <h3 className="card__section-title">История снимков</h3>
-                <DataTable
-                    columns={historyColumns}
-                    data={snapshots.slice(0, 500)}
-                    keyField="date"
-                    emptyText="Нет истории"
-                    onRowClick={handleSnapshotClick as any}
-                    maxHeight={420}
-                />
-                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-2)' }}>
-                    Нажмите на строку, чтобы увидеть состав на момент снимка
-                </p>
+                {snapshotsLoading ? (
+                    <div className="ops-loader">
+                        <div className="soft-loading-bar" />
+                        <div className="ops-loader__text">Загрузка истории снимков...</div>
+                    </div>
+                ) : (
+                    <>
+                        <DataTable
+                            columns={historyColumns}
+                            data={snapshots.slice(0, 500)}
+                            keyField="date"
+                            emptyText="Нет истории"
+                            onRowClick={handleSnapshotClick as any}
+                            maxHeight={420}
+                            mobilePrimary={(r) => new Date(r.date).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            mobileSecondary={(r) => `${r.total_value.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ₽`}
+                            mobileDetails={(r) => (
+                                <>
+                                    <div>
+                                        Дневной доход:{' '}
+                                        <span className={r.daily_yield >= 0 ? 'color-up' : 'color-down'}>
+                                            {r.daily_yield >= 0 ? '+' : ''}
+                                            {r.daily_yield.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="btn btn--secondary btn--sm"
+                                        style={{ width: 'fit-content' }}
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleSnapshotClick(r)
+                                        }}
+                                    >
+                                        Показать состав снимка
+                                    </button>
+                                </>
+                            )}
+                        />
+                        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-2)' }}>
+                            Нажмите на строку, чтобы увидеть состав на момент снимка
+                        </p>
+                    </>
+                )}
             </Card>
 
             <Card className="mt-6">
@@ -755,7 +821,24 @@ export default function PortfolioPage() {
                             <div className="ops-loader__text">Загрузка истории операций...</div>
                         </div>
                     ) : (
-                        <DataTable columns={operationsColumns} data={operations} keyField="operation_id" emptyText="Нет операций за период" maxHeight={420} />
+                        <DataTable
+                            columns={operationsColumns}
+                            data={operations}
+                            keyField="operation_id"
+                            emptyText="Нет операций за период"
+                            maxHeight={420}
+                            mobilePrimary={(r) => `${new Date(r.operation_date).toLocaleDateString('ru-RU')} • ${r.type_text || '—'}`}
+                            mobileSecondary={(r) => `${Number(r.payment || 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${r.currency || ''}`}
+                            mobileDetails={(r) => (
+                                <>
+                                    <div>Описание: {r.type_text || '—'}</div>
+                                    <div>FIGI: {r.figi || '—'}</div>
+                                    <div>Количество: {Number(r.quantity || 0).toLocaleString('ru-RU')}</div>
+                                    <div>Цена: {Number(r.price || 0).toLocaleString('ru-RU', { maximumFractionDigits: 4 })}</div>
+                                    <div>Статус: {r.status || '—'}</div>
+                                </>
+                            )}
+                        />
                     )}
                 </div>
             </Card>

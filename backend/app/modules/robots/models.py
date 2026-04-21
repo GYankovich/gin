@@ -137,6 +137,10 @@ class RobotTrade(Base):
     quantity = Column(Numeric(20, 4), nullable=False)
     price = Column(Numeric(20, 4), nullable=False)
     total_amount = Column(Numeric(20, 4), nullable=False)  # quantity * price
+    entry_price = Column(Numeric(20, 4), nullable=True)
+    exit_price = Column(Numeric(20, 4), nullable=True)
+    filled_quantity = Column(Numeric(20, 4), nullable=True)
+    avg_fill_price = Column(Numeric(20, 4), nullable=True)
 
     # Комиссия
     commission = Column(Numeric(20, 4), nullable=True)
@@ -155,6 +159,7 @@ class RobotTrade(Base):
     # Временные метки
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     closed_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), nullable=True, onupdate=datetime.utcnow)
 
     # Аудит
     usercre = Column(BigInteger, nullable=True)
@@ -298,7 +303,7 @@ class RobotStrategy(Base):
     __tablename__ = "robot_strategies"
     __table_args__ = (
         Index("ix_robot_strategies_robot_id", "robot_id"),
-        Index("ix_robot_strategies_type", "strategy_type"),
+        Index("ix_robot_strategies_type", "type"),
         Index("ix_robot_strategies_active", "is_active"),
         {"schema": SCHEMA}
     )
@@ -307,7 +312,7 @@ class RobotStrategy(Base):
     robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
 
     # Тип стратегии (ссылка на dictionary)
-    strategy_type = Column(Integer, nullable=False)
+    strategy_type = Column("type", Integer, nullable=False)
 
     # Параметры стратегии в JSON (гибкая структура)
     parameters = Column(JSON, nullable=False, default={})
@@ -367,3 +372,106 @@ class RobotExecutionLog(Base):
     # Связи
     robot = relationship("Robot", foreign_keys=[robot_id])
     strategy = relationship("RobotStrategy", foreign_keys=[strategy_id])
+
+
+class RobotRunCycle(Base):
+    """
+    Детализация шагов выполнения робота в рамках одного execution log.
+    """
+    __tablename__ = "robot_run_cycles"
+    __table_args__ = (
+        Index("ix_robot_run_cycles_robot_id", "robot_id"),
+        Index("ix_robot_run_cycles_exec_log_id", "execution_log_id"),
+        Index("ix_robot_run_cycles_started_at", "started_at"),
+        {"schema": SCHEMA}
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    execution_log_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robot_execution_logs.id", ondelete="SET NULL"), nullable=True)
+    status = Column(String(20), nullable=False, default="pending")
+    started_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    context = Column(JSON, nullable=True)
+
+    robot = relationship("Robot", foreign_keys=[robot_id])
+    execution_log = relationship("RobotExecutionLog", foreign_keys=[execution_log_id])
+
+
+class RobotDecision(Base):
+    """
+    Структурированное решение на этапе пайплайна (signal/order/skip/etc).
+    """
+    __tablename__ = "robot_decisions"
+    __table_args__ = (
+        Index("ix_robot_decisions_robot_id", "robot_id"),
+        Index("ix_robot_decisions_cycle_id", "cycle_id"),
+        Index("ix_robot_decisions_created_at", "created_at"),
+        {"schema": SCHEMA}
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    execution_log_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robot_execution_logs.id", ondelete="SET NULL"), nullable=True)
+    cycle_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robot_run_cycles.id", ondelete="SET NULL"), nullable=True)
+    figi = Column(String(20), nullable=True)
+    stage = Column(String(50), nullable=False)
+    decision_type = Column(String(50), nullable=False)
+    decision = Column(String(50), nullable=False)
+    reason_code = Column(String(120), nullable=True)
+    payload = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    robot = relationship("Robot", foreign_keys=[robot_id])
+    execution_log = relationship("RobotExecutionLog", foreign_keys=[execution_log_id])
+    cycle = relationship("RobotRunCycle", foreign_keys=[cycle_id])
+
+
+class RobotOrderEvent(Base):
+    """
+    История изменения состояния ордера/исполнения.
+    """
+    __tablename__ = "robot_order_events"
+    __table_args__ = (
+        Index("ix_robot_order_events_robot_id", "robot_id"),
+        Index("ix_robot_order_events_order_id", "order_id"),
+        Index("ix_robot_order_events_created_at", "created_at"),
+        {"schema": SCHEMA}
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    trade_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robot_trades.id", ondelete="SET NULL"), nullable=True)
+    order_id = Column(String(120), nullable=True)
+    status = Column(String(50), nullable=False)
+    event_type = Column(String(50), nullable=False, default="status_update")
+    payload = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    robot = relationship("Robot", foreign_keys=[robot_id])
+    trade = relationship("RobotTrade", foreign_keys=[trade_id])
+
+
+class RobotBacktestRun(Base):
+    """
+    Сохраненный результат backtest по конкретному роботу.
+    """
+    __tablename__ = "robot_backtest_runs"
+    __table_args__ = (
+        Index("ix_robot_backtest_runs_robot_id", "robot_id"),
+        Index("ix_robot_backtest_runs_created_at", "created_at"),
+        {"schema": SCHEMA}
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    requested_from = Column(DateTime(timezone=True), nullable=False)
+    requested_to = Column(DateTime(timezone=True), nullable=False)
+    initial_capital = Column(Numeric(20, 4), nullable=False)
+    final_equity = Column(Numeric(20, 4), nullable=False)
+    total_return_percent = Column(Numeric(10, 4), nullable=False)
+    max_drawdown_percent = Column(Numeric(10, 4), nullable=True)
+    result_payload = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    robot = relationship("Robot", foreign_keys=[robot_id])

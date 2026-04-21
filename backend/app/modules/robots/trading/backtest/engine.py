@@ -228,7 +228,7 @@ async def run_robot_backtest(
     if not figis:
         raise ValueError("В конфиге робота нет allowed_figis")
 
-    strategy_name = robot_config.get("strategy") or "ma_cross"
+    strategy_name = robot_config.get("strategy") or "grain_seed"
     strategy_params = dict(robot_config.get("strategy_params") or {})
     strategy_params["figis"] = figis
     interval = strategy_params.get("interval", "CANDLE_INTERVAL_DAY")

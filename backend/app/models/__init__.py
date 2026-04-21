@@ -30,7 +30,21 @@ from app.modules.robots.models import (
     Robot,
     RobotTrade,
     RobotLog,
-    RobotSignal
+    RobotSignal,
+    RobotSchedule,
+    RobotStrategy,
+    RobotExecutionLog,
+    RobotRunCycle,
+    RobotDecision,
+    RobotOrderEvent,
+)
+from app.modules.dms.models import (
+    SecurityStatic,
+    DmsSubscription,
+    MarketSnapshot,
+    MarketSnapshotData,
+    CandleCache,
+    DailyUniverse,
 )
 
 # Для обратной совместимости
@@ -51,5 +65,17 @@ __all__ = [
     'Robot',
     'RobotTrade',
     'RobotLog',
-    'RobotSignal'
+    'RobotSignal',
+    'RobotSchedule',
+    'RobotStrategy',
+    'RobotExecutionLog',
+    'RobotRunCycle',
+    'RobotDecision',
+    'RobotOrderEvent',
+    'SecurityStatic',
+    'DmsSubscription',
+    'MarketSnapshot',
+    'MarketSnapshotData',
+    'CandleCache',
+    'DailyUniverse',
 ]

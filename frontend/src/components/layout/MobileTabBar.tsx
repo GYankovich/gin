@@ -6,6 +6,7 @@ const tabs = [
     { to: '/portfolio', label: 'Портфель', icon: '💼' },
     { to: '/robots', label: 'Роботы', icon: '🤖' },
     { to: '/testing', label: 'Тест', icon: '🧪' },
+    { to: '/live', label: 'Live', icon: '🔴' },
     { to: '/settings', label: 'Ещё', icon: '⚙' },
 ]
 

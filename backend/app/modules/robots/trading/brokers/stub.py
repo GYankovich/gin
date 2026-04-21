@@ -42,6 +42,21 @@ class StubBrokerFacade(BrokerFacade):
     async def get_order_state(self, account_id: str, order_id: str) -> Dict[str, Any]:
         await self._not_implemented()
 
+    async def post_market_order(
+        self,
+        figi: str,
+        quantity: int,
+        direction: str,
+        account_id: str,
+    ) -> Dict[str, Any]:
+        await self._not_implemented()
+
+    async def get_orders(self, account_id: str) -> List[Dict[str, Any]]:
+        await self._not_implemented()
+
+    async def cancel_order(self, account_id: str, order_id: str) -> Dict[str, Any]:
+        await self._not_implemented()
+
     async def connect_websocket(self, user_id: int) -> bool:
         await self._not_implemented()
 

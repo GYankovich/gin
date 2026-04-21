@@ -1,191 +1,158 @@
-import React, { useEffect, useState, useCallback } from 'react'
-import { KpiTile } from '@/components/ui/KpiTile'
+import React, { useCallback, useEffect, useState } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { EventFeed, type FeedEvent } from '@/components/ui/EventFeed'
-import { RobotIllustration } from '@/components/ui/RobotIllustration'
-import { Chart, type IChartApi, type Time } from '@/components/ui/Chart'
-import { AreaSeries } from 'lightweight-charts'
-import { analyticsService } from '@/services/analyticsService'
-import { robotService } from '@/services/robotService'
-import type { OverallSummary, AccountDetail } from '@/types/api'
-import type { Robot } from '@/types/robot'
-
-const TIMEFRAMES = ['1W', '1M', '3M', '6M', '1Y', 'ALL'] as const
+import { Button } from '@/components/ui/Button'
+import { dashboardService } from '@/services/dashboardService'
+import type { DashboardAccountItem, DashboardDataResponse } from '@/types/api'
 
 export default function DashboardPage() {
-    const [summary, setSummary] = useState<OverallSummary | null>(null)
-    const [detail, setDetail] = useState<AccountDetail | null>(null)
-    const [robots, setRobots] = useState<Robot[]>([])
+    const [data, setData] = useState<DashboardDataResponse | null>(null)
     const [loading, setLoading] = useState(true)
-    const [tf, setTf] = useState<string>('1Y')
 
-    useEffect(() => {
-        loadData()
-    }, [])
-
-    const loadData = async () => {
+    const load = useCallback(async () => {
         setLoading(true)
         try {
-            const [sum, robotRes] = await Promise.all([
-                analyticsService.getSummary(),
-                robotService.list(),
-            ])
-            setSummary(sum)
-            setRobots(robotRes.items)
-
-            if (sum.accounts.length > 0) {
-                const d = await analyticsService.getAccountDetail(sum.accounts[0].id)
-                setDetail(d)
-            }
-        } catch { /* handled by interceptor */ }
+            const res = await dashboardService.fetchData()
+            setData(res)
+        } catch { /* interceptor */ }
         setLoading(false)
-    }
+    }, [])
 
-    const activeRobots = robots.filter(r => r.status === 1).length
-    const totalYield = summary ? (summary.total_expected_yield / Math.max(summary.total_value - summary.total_expected_yield, 1)) * 100 : 0
-    const dailyYield = summary ? (summary.total_daily_yield / Math.max(summary.total_value - summary.total_daily_yield, 1)) * 100 : 0
-
-    const chartData = useCallback(() => {
-        if (!detail?.history) return []
-        const now = Date.now()
-        const tfDays: Record<string, number> = { '1W': 7, '1M': 30, '3M': 90, '6M': 180, '1Y': 365, 'ALL': 99999 }
-        const cutoff = now - (tfDays[tf] || 365) * 86400000
-
-        const byDay = new Map<string, number>()
-        for (const h of detail.history) {
-            const ts = new Date(h.date).getTime()
-            if (ts < cutoff) continue
-            const day = h.date.split('T')[0]
-            byDay.set(day, h.total_value)
-        }
-        return Array.from(byDay.entries())
-            .sort((a, b) => a[0].localeCompare(b[0]))
-            .map(([time, value]) => ({ time: time as Time, value }))
-    }, [detail, tf])
-
-    const onChartReady = useCallback((chart: IChartApi) => {
-        const data = chartData()
-        if (data.length === 0) return
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
-        const series = chart.addSeries(AreaSeries, {
-            lineColor: isDark ? '#00ffff' : '#0066cc',
-            topColor: isDark ? 'rgba(0,255,255,0.18)' : 'rgba(0,102,204,0.18)',
-            bottomColor: 'transparent',
-            lineWidth: 2,
-        })
-        series.setData(data)
-        chart.timeScale().fitContent()
-    }, [chartData])
-
-    const distribution = detail?.distribution || []
-
-    const distColors = ['#00ffff', '#ff00ff', '#aa00ff', '#00ffaa', '#ffaa00', '#ff3366']
-
-    const events: FeedEvent[] = robots.slice(0, 10).map((r, i) => ({
-        id: r.id,
-        type: r.status === 1 ? 'info' : 'signal',
-        text: `${r.name} — ${r.statusName}`,
-        time: r.last_started ? new Date(r.last_started).toLocaleTimeString('ru-RU') : '—',
-    }))
+    useEffect(() => {
+        load()
+    }, [load])
 
     if (loading) {
         return (
-            <div className="page">
+            <div className="page" data-page="dashboard">
                 <h1 className="page__title">Дашборд</h1>
-                <div className="grid-kpi"><Skeleton height="80px" count={6} /></div>
-                <Skeleton height="360px" />
+                <Skeleton height="120px" />
+                <Skeleton height="200px" />
+            </div>
+        )
+    }
+
+    if (!data) {
+        return (
+            <div className="page" data-page="dashboard">
+                <h1 className="page__title">Дашборд</h1>
+                <Card>
+                    <p>Не удалось загрузить данные.</p>
+                    <Button onClick={() => load()}>Повторить</Button>
+                </Card>
             </div>
         )
     }
 
     return (
-        <div className="page">
-            <div className="dashboard-header">
+        <div className="page" data-page="dashboard">
+            <div className="dashboard-page-head">
                 <h1 className="page__title">Дашборд</h1>
-                <RobotIllustration size={64} />
             </div>
 
-            <div className="grid-kpi">
-                <KpiTile
-                    label="Общая стоимость"
-                    value={summary?.total_value ?? 0}
-                    format={v => v.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}
-                    suffix=" ₽"
-                    icon={<span>💰</span>}
-                />
-                <KpiTile
-                    label="Доходность"
-                    value={totalYield}
-                    format={v => v.toFixed(1)}
-                    suffix="%"
-                    change={totalYield}
-                    icon={<span>📈</span>}
-                />
-                <KpiTile
-                    label="Доходность сегодня"
-                    value={dailyYield}
-                    format={v => v.toFixed(2)}
-                    suffix="%"
-                    change={dailyYield}
-                    icon={<span>📊</span>}
-                />
-                <KpiTile
-                    label="Активных роботов"
-                    value={activeRobots}
-                    icon={<span>🤖</span>}
-                />
-                <KpiTile
-                    label="Всего роботов"
-                    value={robots.length}
-                    icon={<span>⚙</span>}
-                />
-                <KpiTile
-                    label="Счетов"
-                    value={summary?.accounts_count ?? 0}
-                    icon={<span>🏦</span>}
-                />
-            </div>
-
-            <div className="grid-2col">
+            {data.accounts.length === 0 ? (
                 <Card>
-                    <div className="card__header">
-                        <h3>Стоимость портфеля</h3>
-                        <div className="tf-selector">
-                            {TIMEFRAMES.map(t => (
-                                <button key={t} className={`tf-btn ${t === tf ? 'tf-btn--active' : ''}`} onClick={() => setTf(t)}>{t}</button>
-                            ))}
-                        </div>
-                    </div>
-                    <Chart height={320} onReady={onChartReady} key={tf} />
+                    <p className="dashboard-empty">Нет открытых счетов (статус OPEN). Добавьте счёт в T‑Invest или проверьте синхронизацию.</p>
                 </Card>
-
-                <Card>
-                    <h3 style={{ marginBottom: 'var(--space-4)' }}>Распределение портфеля</h3>
-                    {distribution.length === 0 ? (
-                        <div className="event-feed__empty">Нет данных</div>
-                    ) : (
-                        <div className="distribution-list">
-                            {distribution.map((d, i) => (
-                                <div key={d.instrument_type} className="dist-row">
-                                    <span className="dist-color" style={{ background: distColors[i % distColors.length] }} />
-                                    <span className="dist-label">{d.instrument_type}</span>
-                                    <span className="dist-bar-wrap">
-                                        <span className="dist-bar" style={{ width: `${d.percentage}%`, background: distColors[i % distColors.length] }} />
-                                    </span>
-                                    <span className="dist-pct mono">{d.percentage.toFixed(1)}%</span>
-                                    <span className="dist-val mono">{d.value.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ₽</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </Card>
-            </div>
-
-            <Card className="mt-6">
-                <h3 style={{ marginBottom: 'var(--space-4)' }}>Активность роботов</h3>
-                <EventFeed events={events} maxHeight="280px" />
-            </Card>
+            ) : (
+                <div className="dashboard-account-stack">
+                    {data.accounts.map((row) => (
+                        <AccountSection key={row.account_id} row={row} />
+                    ))}
+                </div>
+            )}
         </div>
     )
+}
+
+function AccountSection({ row }: { row: DashboardAccountItem }) {
+    const title = row.account_name || row.external_account_id
+    const syncText = row.last_account_sync
+        ? new Date(row.last_account_sync).toLocaleString('ru-RU', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+        })
+        : '—'
+    const s = row.summary
+    const d = s.day_over_day_delta
+    const dp = s.day_over_day_delta_percent
+
+    return (
+        <Card className="dashboard-account-card">
+            <div className="dashboard-account-card__head">
+                <h2 className="dashboard-account-card__title">{title}</h2>
+                <div className="dashboard-account-card__meta-sync">
+                    <div className="dashboard-account-card__meta mono">
+                        {row.external_account_id} · {row.account_type} · {row.account_status}
+                        <span className="dashboard-account-card__meta-sync-append">
+                            {' · '}
+                            {syncText}
+                        </span>
+                    </div>
+                    <div className="dashboard-account-card__sync">
+                        <span className="dashboard-account-card__sync-label">Обновлено</span>
+                        <span className="dashboard-account-card__sync-value">{syncText}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="mt-4">
+                <div className="portfolio-stats-grid dashboard-summary-grid">
+                    <div className="portfolio-stat-tile">
+                        <div className="portfolio-stat-tile__label">Собственные средства</div>
+                        <div className="portfolio-stat-tile__value">{formatMoney(s.own_funds, s.currency)}</div>
+                    </div>
+                    <div className="portfolio-stat-tile">
+                        <div className="portfolio-stat-tile__label">Текущая стоимость</div>
+                        <div className="portfolio-stat-tile__value">{formatMoney(s.total_value, s.currency)}</div>
+                    </div>
+                    <div className="portfolio-stat-tile">
+                        <div className="portfolio-stat-tile__label">К портфелю vs вводы</div>
+                        <div className={`portfolio-stat-tile__value ${roiClass(s.total_minus_own_funds)}`}>
+                            {formatMoneySigned(s.total_minus_own_funds, s.currency)}
+                        </div>
+                    </div>
+                    <div className="portfolio-stat-tile">
+                        <div className="portfolio-stat-tile__label">Изменение к пред. дню</div>
+                        <div className={`portfolio-stat-tile__value ${d == null ? '' : roiClass(d)}`}>
+                            {d == null
+                                ? '—'
+                                : `${d >= 0 ? '+' : ''}${d.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${s.currency}`}
+                            {dp != null && d != null && (
+                                <span className="dashboard-dod-pct">
+                                    {' '}({dp >= 0 ? '+' : ''}
+                                    {dp.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}%)
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </Card>
+    )
+}
+
+function formatMoney(val: any, currency = 'RUB'): string {
+    if (val == null || Number.isNaN(Number(val))) return '—'
+    const n = Number(val ?? 0)
+    const sym = currency === 'RUB' ? '₽' : currency
+    return n.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + ' ' + sym
+}
+
+function formatMoneySigned(val: any, currency = 'RUB'): string {
+    if (val == null || Number.isNaN(Number(val))) return '—'
+    const n = Number(val)
+    const sym = currency === 'RUB' ? '₽' : currency
+    return `${n >= 0 ? '+' : ''}${n.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${sym}`
+}
+
+function roiClass(val: number | null | undefined, drawdown = false): string {
+    if (val == null || Number.isNaN(Number(val))) return ''
+    const n = Number(val)
+    if (drawdown) return n > 0 ? 'color-down' : 'color-up'
+    return n >= 0 ? 'color-up' : 'color-down'
 }

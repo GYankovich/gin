@@ -3,8 +3,6 @@ import logging
 import uuid
 from typing import List, Dict, Optional
 from datetime import datetime
-from app.core.config import settings
-
 logger = logging.getLogger(__name__)
 
 
@@ -97,6 +95,42 @@ class InstrumentsClient:
         return await self._request(
             "tinkoff.public.invest.api.contract.v1.OrdersService/PostOrder",
             data
+        )
+
+    async def post_market_order(
+        self,
+        figi: str,
+        quantity: int,
+        direction: str,
+        account_id: str,
+    ) -> Dict:
+        """Рыночная заявка (без цены)."""
+        data = {
+            "figi": figi,
+            "quantity": int(quantity),
+            "direction": direction,
+            "accountId": account_id,
+            "orderType": "ORDER_TYPE_MARKET",
+            "orderId": str(uuid.uuid4()),
+        }
+        return await self._request(
+            "tinkoff.public.invest.api.contract.v1.OrdersService/PostOrder",
+            data,
+        )
+
+    async def get_orders(self, account_id: str) -> List[Dict]:
+        """Активные и недавние заявки по счёту."""
+        result = await self._request(
+            "tinkoff.public.invest.api.contract.v1.OrdersService/GetOrders",
+            {"accountId": account_id},
+        )
+        return result.get("orders", [])
+
+    async def cancel_order(self, account_id: str, order_id: str) -> Dict:
+        """Отмена заявки."""
+        return await self._request(
+            "tinkoff.public.invest.api.contract.v1.OrdersService/CancelOrder",
+            {"accountId": account_id, "orderId": order_id},
         )
 
     async def get_accounts(self) -> List[Dict]:

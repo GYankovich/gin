@@ -92,10 +92,10 @@ def build_update_api_log_error_query() -> str:
 def build_get_robot_schedule_query() -> str:
     """
     Получение активного расписания робота
-    Возвращает: schedule_type, interval_seconds, is_active
+    Возвращает: schedule_type, interval_seconds, start_time, end_time, weekdays, is_active
     """
     return """
-           SELECT schedule_type, interval_seconds, is_active
+           SELECT schedule_type, interval_seconds, start_time, end_time, weekdays, is_active
            FROM {schema}.robot_schedules
            WHERE robot_id = :robot_id AND is_active = 1
            ORDER BY priority DESC, id ASC

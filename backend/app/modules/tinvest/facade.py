@@ -85,6 +85,7 @@ class TInvestFacade(PriceParsingMixin):
             "total_amount_currencies": self.parse_money_value(portfolio.get("totalAmountCurrencies")),
             "total_amount_futures": self.parse_money_value(portfolio.get("totalAmountFutures")),
             "total_amount_options": self.parse_money_value(portfolio.get("totalAmountOptions")),
+            "futures_margin": self.parse_money_value(portfolio.get("futuresMargin")),
             "expected_yield": self.parse_quotation(portfolio.get("expectedYield")),
             "daily_yield": self.parse_money_value(portfolio.get("dailyYield")),
             "daily_yield_relative": self.parse_quotation(portfolio.get("dailyYieldRelative")),
@@ -114,9 +115,34 @@ class TInvestFacade(PriceParsingMixin):
         total = portfolio.get("total_amount_portfolio", {})
         return total.get("decimal", 0.0) if total else 0.0
 
+    @staticmethod
+    def compute_free_funds_from_portfolio(portfolio: Dict[str, Any]) -> float:
+        """
+        Оценка доступных денежных средств: сумма валютных позиций (в т.ч. RUB на счёте).
+        Без учёта маржи по фьючерсам — при наличии фьючерсов в портфеле цифра может
+        быть выше фактически доступного под новые сделки; для фьючерсов нужен отдельный
+        источник GO из API.
+        """
+        cur = portfolio.get("total_amount_currencies")
+        cash = 0.0
+        if isinstance(cur, dict) and cur.get("decimal") is not None:
+            cash = float(cur.get("decimal") or 0.0)
+        if cash <= 0 and portfolio.get("positions"):
+            for pos in portfolio["positions"]:
+                it = (pos.get("instrument_type") or "").upper()
+                if "CURRENCY" not in it:
+                    continue
+                q = pos.get("quantity") or {}
+                cash += float(q.get("decimal") or 0.0)
+        margin = 0.0
+        fm = portfolio.get("futures_margin")
+        if isinstance(fm, dict) and fm.get("decimal") is not None:
+            margin = float(fm.get("decimal") or 0.0)
+        return max(0.0, cash - margin)
+
     async def get_free_funds(self, account_id: str) -> float:
-        total = await self.get_portfolio_total_value(account_id)
-        return total * 0.3  # временная заглушка
+        portfolio = await self.get_portfolio(account_id)
+        return self.compute_free_funds_from_portfolio(portfolio)
 
     # ============================================================
     # Свечи — БЕЗ ДЕФОЛТНЫХ ЗНАЧЕНИЙ
@@ -256,6 +282,24 @@ class TInvestFacade(PriceParsingMixin):
     async def get_order_state(self, account_id: str, order_id: str) -> Dict:
         """Получение статуса заявки"""
         return await self.instruments.get_order_state(account_id, order_id)
+
+    async def post_market_order(
+        self,
+        figi: str,
+        quantity: int,
+        direction: str,
+        account_id: str,
+    ) -> Dict:
+        """Рыночная заявка"""
+        return await self.instruments.post_market_order(figi, quantity, direction, account_id)
+
+    async def get_orders(self, account_id: str) -> List[Dict]:
+        """Список заявок по счёту"""
+        return await self.instruments.get_orders(account_id)
+
+    async def cancel_order(self, account_id: str, order_id: str) -> Dict:
+        """Отмена заявки"""
+        return await self.instruments.cancel_order(account_id, order_id)
 
     # ============================================================
     # WebSocket для цен в реальном времени

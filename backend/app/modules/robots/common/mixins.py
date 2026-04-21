@@ -81,7 +81,8 @@ class TradePersistenceMixin:
             self,
             db,
             schema: str,
-            signal_ids: List[int]
+            signal_ids: List[int],
+            executed_trade_id: Optional[int] = None,
     ) -> int:
         """Marks signals as executed by ids."""
         if not db or not signal_ids:
@@ -89,11 +90,12 @@ class TradePersistenceMixin:
         try:
             query = f"""
                 UPDATE {schema}.robot_signals
-                SET was_executed = 1
+                SET was_executed = 1,
+                    executed_trade_id = COALESCE(:executed_trade_id, executed_trade_id)
                 WHERE id = :signal_id
             """
             for signal_id in signal_ids:
-                db.execute(text(query), {"signal_id": signal_id})
+                db.execute(text(query), {"signal_id": signal_id, "executed_trade_id": executed_trade_id})
             db.commit()
             return len(signal_ids)
         except Exception:
@@ -236,6 +238,139 @@ class TradePersistenceMixin:
         except Exception as e:
             db.rollback()
             return False
+
+    async def save_order_event(
+            self,
+            db,
+            schema: str,
+            robot_id: int,
+            order_id: Optional[str],
+            status: str,
+            event_type: str = "status_update",
+            trade_id: Optional[int] = None,
+            payload: Optional[Dict[str, Any]] = None,
+    ) -> Optional[int]:
+        if not db:
+            return None
+        q = f"""
+            INSERT INTO {schema}.robot_order_events
+            (robot_id, trade_id, order_id, status, event_type, payload, created_at)
+            VALUES
+            (:robot_id, :trade_id, :order_id, :status, :event_type, :payload, :now)
+            RETURNING id
+        """
+        row = db.execute(
+            text(q),
+            {
+                "robot_id": robot_id,
+                "trade_id": trade_id,
+                "order_id": order_id,
+                "status": status,
+                "event_type": event_type,
+                "payload": payload,
+                "now": datetime.now(timezone.utc),
+            }
+        ).first()
+        db.commit()
+        return row[0] if row else None
+
+    async def save_decision(
+            self,
+            db,
+            schema: str,
+            robot_id: int,
+            stage: str,
+            decision_type: str,
+            decision: str,
+            reason_code: Optional[str] = None,
+            payload: Optional[Dict[str, Any]] = None,
+            execution_log_id: Optional[int] = None,
+            cycle_id: Optional[int] = None,
+            figi: Optional[str] = None,
+    ) -> Optional[int]:
+        if not db:
+            return None
+        q = f"""
+            INSERT INTO {schema}.robot_decisions
+            (robot_id, execution_log_id, cycle_id, figi, stage, decision_type, decision, reason_code, payload, created_at)
+            VALUES
+            (:robot_id, :execution_log_id, :cycle_id, :figi, :stage, :decision_type, :decision, :reason_code, :payload, :now)
+            RETURNING id
+        """
+        row = db.execute(
+            text(q),
+            {
+                "robot_id": robot_id,
+                "execution_log_id": execution_log_id,
+                "cycle_id": cycle_id,
+                "figi": figi,
+                "stage": stage,
+                "decision_type": decision_type,
+                "decision": decision,
+                "reason_code": reason_code,
+                "payload": payload,
+                "now": datetime.now(timezone.utc),
+            }
+        ).first()
+        db.commit()
+        return row[0] if row else None
+
+    async def create_run_cycle(
+            self,
+            db,
+            schema: str,
+            robot_id: int,
+            execution_log_id: Optional[int] = None,
+            context: Optional[Dict[str, Any]] = None,
+    ) -> Optional[int]:
+        if not db:
+            return None
+        q = f"""
+            INSERT INTO {schema}.robot_run_cycles
+            (robot_id, execution_log_id, status, started_at, context)
+            VALUES
+            (:robot_id, :execution_log_id, 'running', :started_at, :context)
+            RETURNING id
+        """
+        row = db.execute(
+            text(q),
+            {
+                "robot_id": robot_id,
+                "execution_log_id": execution_log_id,
+                "started_at": datetime.now(timezone.utc),
+                "context": context,
+            }
+        ).first()
+        db.commit()
+        return row[0] if row else None
+
+    async def complete_run_cycle(
+            self,
+            db,
+            schema: str,
+            cycle_id: int,
+            status: str = "completed",
+            context: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        if not db:
+            return
+        q = f"""
+            UPDATE {schema}.robot_run_cycles
+            SET status = :status,
+                finished_at = :finished_at,
+                context = COALESCE(:context, context)
+            WHERE id = :cycle_id
+        """
+        db.execute(
+            text(q),
+            {
+                "cycle_id": cycle_id,
+                "status": status,
+                "finished_at": datetime.now(timezone.utc),
+                "context": context,
+            }
+        )
+        db.commit()
 
     async def _update_trade_entry_price(
             self,

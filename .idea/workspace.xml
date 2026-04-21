@@ -4,21 +4,63 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 2.2.0 - portfolio and sync for operations">
+    <list default="true" id="c7ae2611-360b-45dd-8056-a13da45fa169" name="Changes" comment="v 2.2.2 - portfolio update">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/analytics/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/analytics/router.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/analytics/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/analytics/schemas.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/analytics/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/analytics/service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/market_data/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/market_data/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/alembic/versions/0013_robot_strategies.py" beforeDir="false" afterPath="$PROJECT_DIR$/alembic/versions/0013_robot_strategies.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/core/database.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/core/database.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/models/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/models/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/base/base_robot.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/base/base_robot.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/base/queries.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/base/queries.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/common/mixins.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/common/mixins.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/live_ws.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/live_ws.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/models.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/robot.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/portfolio_updater/robot.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/queries.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/queries.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/router.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/router.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/service.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/backtest/engine.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/trading/backtest/engine.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/brokers/base.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/trading/brokers/base.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/brokers/stub.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/trading/brokers/stub.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/brokers/tinvest.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/trading/brokers/tinvest.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/queries.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/trading/queries.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/robot.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/trading/robot.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/session.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/trading/session.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/stages/stage5_signals.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/trading/stages/stage5_signals.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/strategies/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/robots/trading/strategies/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/strategies/aggressive_momentum.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/strategies/conservative.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/strategies/defensive_cash.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/robots/trading/strategies/ma_cross.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/facade.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/facade.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/modules/tinvest/methods/instruments.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/modules/tinvest/methods/instruments.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/tests/test_backtest_strategies.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/test_backtest_strategies.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/dist/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/dist/index.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/Chart.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/ui/Chart.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/app/App.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/app/App.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/layout/MobileTabBar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/layout/MobileTabBar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/layout/Navbar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/layout/Navbar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/DataTable.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/ui/DataTable.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/RobotIllustration.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/ui/RobotIllustration.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/main.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/CreateRobotModal.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/RobotCard.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/components/RobotList.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/index.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/pages/RobotAnalyticsPage.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/pages/RobotsPage.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/services/robotService.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/modules/robots/types.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/DashboardPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/DashboardPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/LivePage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/LivePage.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/pages/PortfolioPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/PortfolioPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/services/analyticsService.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/services/analyticsService.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/RobotSettingsModal.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/RobotsPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/RobotsPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/pages/TestingPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/pages/TestingPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/services/robotService.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/services/robotService.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/styles/global.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/styles/global.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/styles/responsive.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/styles/responsive.css" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/types/api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/types/api.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/types/robot.ts" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/types/robot.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -159,7 +201,10 @@
       <workItem from="1774593395582" duration="87768000" />
       <workItem from="1775418636176" duration="18057000" />
       <workItem from="1775594530295" duration="7327000" />
-      <workItem from="1776090161353" duration="17824000" />
+      <workItem from="1776090161353" duration="26525000" />
+      <workItem from="1776301526608" duration="422000" />
+      <workItem from="1776422714688" duration="19487000" />
+      <workItem from="1776797909041" duration="3566000" />
     </task>
     <task id="LOCAL-00001" summary="v 0.8.0 - Логин и настройка токена">
       <option name="closed" value="true" />
@@ -329,7 +374,15 @@
       <option name="project" value="LOCAL" />
       <updated>1776115437979</updated>
     </task>
-    <option name="localTasksCounter" value="22" />
+    <task id="LOCAL-00022" summary="v 2.2.2 - portfolio update">
+      <option name="closed" value="true" />
+      <created>1776185761198</created>
+      <option name="number" value="00022" />
+      <option name="presentableId" value="LOCAL-00022" />
+      <option name="project" value="LOCAL" />
+      <updated>1776185761198</updated>
+    </task>
+    <option name="localTasksCounter" value="23" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -354,7 +407,8 @@
     <MESSAGE value="v 2.0.2 - select component,fix dual rest call, add price to diagram" />
     <MESSAGE value="v 2.1.0 - backtesting" />
     <MESSAGE value="v 2.2.0 - portfolio and sync for operations" />
-    <option name="LAST_COMMIT_MESSAGE" value="v 2.2.0 - portfolio and sync for operations" />
+    <MESSAGE value="v 2.2.2 - portfolio update" />
+    <option name="LAST_COMMIT_MESSAGE" value="v 2.2.2 - portfolio update" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

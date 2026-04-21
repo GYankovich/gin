@@ -6,6 +6,60 @@ export interface TokenInfo {
     typeName: string
 }
 
+export interface GrainSeedStrategyParams {
+    gap_filter_pct: number
+    spread_limit_pct: number
+    spread_proxy_multiplier: number
+    atr_period: number
+    atr_min_pct: number
+    adx_period: number
+    adx_threshold: number
+    ma_fast_period: number
+    ma_slow_period: number
+    bb_period: number
+    bb_stddev: number
+    commission_pct: number
+    min_profit_target_pct: number
+    day_loss_streak_limit: number
+    free_funds_reserve_pct: number
+    risk_per_trade_pct: number
+    max_position_size_pct: number
+    force_close_time_msk: string
+    force_market_flatten: boolean
+    interval: string
+}
+
+export interface GrainSeedRiskConfig {
+    stop_loss_percent: number
+    take_profit_percent: number
+    max_position_percent: number
+    max_position_rub: number
+    max_daily_loss: number
+    trading_hours_start: string
+    trading_hours_end: string
+    allowed_weekdays: number
+}
+
+export interface GrainSeedCostsConfig {
+    broker_commission_rate: number
+    ndfl_rate: number
+}
+
+export interface GrainSeedConfig {
+    broker_type: string
+    strategy: 'grain_seed'
+    strategy_params: GrainSeedStrategyParams
+    allowed_figis: string[]
+    update_interval_seconds: number
+    indicator_update_schedule: Record<string, string>
+    risk: GrainSeedRiskConfig
+    costs: GrainSeedCostsConfig
+}
+
+export interface PortfolioUpdaterConfig {
+    [key: string]: any
+}
+
 export interface Robot {
     id: number
     user_id: number
@@ -15,7 +69,18 @@ export interface Robot {
     typeName: string
     status: number
     statusName: string
-    config: Record<string, any> | null
+    config: GrainSeedConfig | PortfolioUpdaterConfig | null
+    schedule?: {
+        id: number
+        schedule_type?: number | null
+        interval_seconds?: number | null
+        start_time?: string | null
+        end_time?: string | null
+        weekdays?: number | null
+        is_active?: number | null
+        priority?: number | null
+        description?: string | null
+    } | null
     last_started: string | null
     last_error: string | null
     last_error_at: string | null
@@ -130,4 +195,22 @@ export interface RobotHistoryBacktestResult {
     trades: RobotHistoryBacktestTrade[]
     equity_curve: { time: string; equity: number }[]
     stages?: string[]
+}
+
+export interface RobotBacktestHistoryItem {
+    id: number
+    robot_id: number
+    requested_from: string
+    requested_to: string
+    initial_capital: number
+    final_equity: number
+    total_return_percent: number
+    max_drawdown_percent: number | null
+    created_at: string
+    result_payload: RobotHistoryBacktestResult
+}
+
+export interface RobotBacktestHistoryResponse {
+    total: number
+    items: RobotBacktestHistoryItem[]
 }

@@ -156,8 +156,15 @@ async def live_websocket(
             _put_nowait_drop_oldest(outbound_queue, event)
 
     async def writer():
+        event_seq = 0
         while True:
             payload = await outbound_queue.get()
+            if isinstance(payload, dict):
+                event_seq += 1
+                payload.setdefault("event_id", event_seq)
+                payload.setdefault("run_id", None)
+                payload.setdefault("cycle_id", None)
+                payload.setdefault("decision_id", None)
             await ws.send_json(payload)
 
     relay_task = None

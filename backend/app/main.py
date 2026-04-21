@@ -32,6 +32,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         system_log.error(f"❌ Ошибка запуска торгового планировщика: {e}")
 
+    # Запуск DMS-планировщика
+    try:
+        from app.modules.dms.scheduler import start_dms_scheduler
+        await start_dms_scheduler()
+        system_log.info("✅ DMS-планировщик запущен")
+    except Exception as e:
+        system_log.error(f"❌ Ошибка запуска DMS-планировщика: {e}")
+
     yield
 
     # Shutdown
@@ -51,6 +59,12 @@ async def lifespan(app: FastAPI):
         await stop_trading_scheduler()
     except Exception as e:
         system_log.error(f"Ошибка остановки торгового планировщика: {e}")
+
+    try:
+        from app.modules.dms.scheduler import stop_dms_scheduler
+        await stop_dms_scheduler()
+    except Exception as e:
+        system_log.error(f"Ошибка остановки DMS-планировщика: {e}")
 
     system_log.info("✅ Приложение остановлено")
 
@@ -85,6 +99,8 @@ def create_app() -> FastAPI:
     from app.modules.market_data.router import router as market_router
     from app.modules.settings.router import router as apikey_router
     from app.modules.dictionary.router import router as dictionary_router
+    from app.modules.dashboard.router import router as dashboard_router
+    from app.modules.dms.router import router as dms_router
 
     app.include_router(auth_router, prefix="/api", tags=["auth"])
     app.include_router(tinvest_router, prefix="/api/tinvest", tags=["tinvest"])
@@ -94,6 +110,8 @@ def create_app() -> FastAPI:
     app.include_router(market_router, prefix="/api", tags=["market"])
     app.include_router(apikey_router, prefix="/api", tags=["apikey"])
     app.include_router(dictionary_router, prefix="/api", tags=["dictionary"])
+    app.include_router(dashboard_router, prefix="/api", tags=["dashboard"])
+    app.include_router(dms_router, prefix="/api", tags=["dms"])
 
     @app.get("/health")
     async def health_check():

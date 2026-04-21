@@ -65,7 +65,7 @@ def build_update_robot_status_query() -> str:
     """
     return """
            UPDATE {schema}.robots
-           SET status = :status, updated_at = :now
+           SET status = :status, date_modification = :now
            WHERE id = :robot_id
                RETURNING id \
            """

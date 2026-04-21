@@ -53,6 +53,24 @@ class BrokerFacade(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def post_market_order(
+        self,
+        figi: str,
+        quantity: int,
+        direction: str,
+        account_id: str,
+    ) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_orders(self, account_id: str) -> List[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def cancel_order(self, account_id: str, order_id: str) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
     async def connect_websocket(self, user_id: int) -> bool:
         raise NotImplementedError
 

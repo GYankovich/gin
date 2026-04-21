@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import SQLAlchemyError
 from contextlib import contextmanager
 from typing import Generator
 import logging
@@ -122,7 +123,11 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     except Exception as e:
         logger.error(f"Database session error: {str(e)}")
-        db.rollback()
+        try:
+            db.rollback()
+        except SQLAlchemyError as rb_err:
+            # Соединение могло быть уже разорвано (например, после сетевой ошибки во время запроса).
+            logger.warning(f"Database rollback failed: {rb_err}")
         raise
     finally:
         db.close()

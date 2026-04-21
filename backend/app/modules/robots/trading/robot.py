@@ -78,7 +78,7 @@ class TradingRobot(BaseRobot, TradePersistenceMixin):
             robot_config = robot.get("config", {})
             account_id = robot_config.get("account_id")
             allowed_figis = robot_config.get("allowed_figis", [])
-            strategy_name = robot_config.get("strategy", "ma_cross")
+            strategy_name = robot_config.get("strategy", "grain_seed")
             strategy_params = robot_config.get("strategy_params", {})
             risk_params = robot_config.get("risk", {})
             broker_type = robot_config.get("broker_type", "tinvest")

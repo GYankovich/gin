@@ -1,81 +1,33 @@
 from .base import BaseStrategy
-from .ma_cross import MACrossStrategy
-from .conservative import ConservativeStrategy
-from .aggressive_momentum import AggressiveMomentumStrategy
-from .defensive_cash import DefensiveCashStrategy
+from .grain_seed import GrainSeedStrategy
 
 _strategies = {
-    'ma_cross': {
-        'class': MACrossStrategy,
-        'name': 'ma_cross',
-        'title': 'Пересечение скользящих средних',
-        'description': 'Покупает при пересечении быстрой MA снизу вверх, продаёт при пересечении сверху вниз',
+    'grain_seed': {
+        'class': GrainSeedStrategy,
+        'name': 'grain_seed',
+        'title': 'По зёрнышку, по семечке',
+        'description': 'Осторожная стратегия с фильтрами гэпа/волатильности и режимами тренд/флэт',
         'params_schema': {
-            'fast_period': {'type': 'integer', 'default': 10, 'min': 1, 'label': 'Быстрый период'},
-            'slow_period': {'type': 'integer', 'default': 30, 'min': 2, 'label': 'Медленный период'},
-            'interval': {
-                'type': 'string',
-                'default': 'CANDLE_INTERVAL_DAY',
-                'enum': [
-                    'CANDLE_INTERVAL_5_SEC',
-                    'CANDLE_INTERVAL_10_SEC',
-                    'CANDLE_INTERVAL_30_SEC',
-                    'CANDLE_INTERVAL_1_MIN',
-                    'CANDLE_INTERVAL_2_MIN',
-                    'CANDLE_INTERVAL_3_MIN',
-                    'CANDLE_INTERVAL_5_MIN',
-                    'CANDLE_INTERVAL_10_MIN',
-                    'CANDLE_INTERVAL_15_MIN',
-                    'CANDLE_INTERVAL_30_MIN',
-                    'CANDLE_INTERVAL_HOUR',
-                    'CANDLE_INTERVAL_2_HOUR',
-                    'CANDLE_INTERVAL_4_HOUR',
-                    'CANDLE_INTERVAL_DAY',
-                    'CANDLE_INTERVAL_WEEK',
-                    'CANDLE_INTERVAL_MONTH',
-                ],
-                'label': 'Интервал свечей'
-            },
-            'figis': {
-                'type': 'array',
-                'items': {'type': 'string'},
-                'label': 'Инструменты (FIGI)'
-            }
-        }
-    }
-    ,
-    'conservative': {
-        'class': ConservativeStrategy,
-        'name': 'conservative',
-        'title': 'Консервативный портфель',
-        'description': 'Снижает риск при повышенной волатильности и ребалансирует портфель',
-        'params_schema': {
-            'volatility_lookback': {'type': 'integer', 'default': 60, 'min': 20, 'label': 'Период волатильности'},
-            'max_volatility': {'type': 'number', 'default': 0.20, 'label': 'Макс. волатильность'},
-            'interval': {'type': 'string', 'default': 'CANDLE_INTERVAL_DAY', 'label': 'Интервал свечей'},
-            'figis': {'type': 'array', 'items': {'type': 'string'}, 'label': 'Инструменты (FIGI)'}
-        }
-    },
-    'aggressive_momentum': {
-        'class': AggressiveMomentumStrategy,
-        'name': 'aggressive_momentum',
-        'title': 'Агрессивный моментум',
-        'description': 'Покупает лидеров моментума, остальные инструменты сокращает',
-        'params_schema': {
-            'momentum_periods': {'type': 'array', 'default': [21, 63, 126], 'label': 'Периоды моментума'},
-            'top_n': {'type': 'integer', 'default': 3, 'min': 1, 'label': 'Топ активов'},
-            'interval': {'type': 'string', 'default': 'CANDLE_INTERVAL_DAY', 'label': 'Интервал свечей'},
-            'figis': {'type': 'array', 'items': {'type': 'string'}, 'label': 'Инструменты (FIGI)'}
-        }
-    },
-    'defensive_cash': {
-        'class': DefensiveCashStrategy,
-        'name': 'defensive_cash',
-        'title': 'Защитный кэш',
-        'description': 'Переходит в защитный режим при росте волатильности',
-        'params_schema': {
-            'volatility_threshold': {'type': 'number', 'default': 0.25, 'label': 'Порог волатильности'},
-            'interval': {'type': 'string', 'default': 'CANDLE_INTERVAL_DAY', 'label': 'Интервал свечей'},
+            'gap_filter_pct': {'type': 'number', 'default': 2.5, 'label': 'Фильтр гэпа (%)'},
+            'spread_limit_pct': {'type': 'number', 'default': 0.15, 'label': 'Лимит спреда (%)'},
+            'spread_proxy_multiplier': {'type': 'number', 'default': 8.0, 'label': 'Множитель прокси-спреда'},
+            'atr_period': {'type': 'integer', 'default': 14, 'min': 5, 'label': 'Период ATR'},
+            'atr_min_pct': {'type': 'number', 'default': 1.5, 'label': 'Минимум ATR/Close (%)'},
+            'adx_period': {'type': 'integer', 'default': 14, 'min': 5, 'label': 'Период ADX'},
+            'adx_threshold': {'type': 'number', 'default': 22.0, 'label': 'Порог ADX (trend)'},
+            'ma_fast_period': {'type': 'integer', 'default': 5, 'min': 1, 'label': 'MA fast (trend)'},
+            'ma_slow_period': {'type': 'integer', 'default': 20, 'min': 2, 'label': 'MA slow (trend)'},
+            'bb_period': {'type': 'integer', 'default': 20, 'min': 5, 'label': 'Период Bollinger'},
+            'bb_stddev': {'type': 'number', 'default': 2.0, 'label': 'Отклонение Bollinger'},
+            'commission_pct': {'type': 'number', 'default': 0.05, 'label': 'Комиссия брокера (%)'},
+            'min_profit_target_pct': {'type': 'number', 'default': 0.35, 'label': 'Мин. цель прибыли (%)'},
+            'day_loss_streak_limit': {'type': 'integer', 'default': 3, 'min': 1, 'label': 'Лимит убытков подряд/день'},
+            'free_funds_reserve_pct': {'type': 'number', 'default': 50.0, 'label': 'Резерв свободных средств (%)'},
+            'risk_per_trade_pct': {'type': 'number', 'default': 2.0, 'label': 'Риск на сделку (%)'},
+            'max_position_size_pct': {'type': 'number', 'default': 20.0, 'label': 'Макс. размер позиции (%)'},
+            'force_close_time_msk': {'type': 'string', 'default': '18:45', 'label': 'Принудительное закрытие (МСК)'},
+            'force_market_flatten': {'type': 'boolean', 'default': True, 'label': 'После времени закрытия: отмена лимитов и рыночный выход'},
+            'interval': {'type': 'string', 'default': 'CANDLE_INTERVAL_5_MIN', 'label': 'Интервал свечей'},
             'figis': {'type': 'array', 'items': {'type': 'string'}, 'label': 'Инструменты (FIGI)'}
         }
     }

@@ -2,7 +2,6 @@
 Stage 5: Генерация сигналов на основе стратегий из модуля strategies
 """
 from typing import Dict, List, Optional
-import math
 
 from app.modules.robots.trading.brokers.base import BrokerFacade
 from app.modules.robots.trading.indicators.service import indicator_service
@@ -168,61 +167,14 @@ class Stage5Signals:
         return closes
 
     def _calculate_indicators_for_figi(self, strategy_name: str, candles: List[Dict], strategy_params: Dict) -> Dict[str, float]:
+        # Для grain_seed детальные индикаторы рассчитываются внутри стратегии.
         closes = self._extract_closes(candles)
         if len(closes) < 3:
             return {}
-
-        if strategy_name == "ma_cross":
-            fast = int(strategy_params.get("fast_period", 10))
-            slow = int(strategy_params.get("slow_period", 30))
-            if len(closes) < slow + 1:
-                return {}
-            fast_ma = sum(closes[-fast:]) / fast
-            slow_ma = sum(closes[-slow:]) / slow
-            prev_fast_ma = sum(closes[-fast - 1:-1]) / fast
-            prev_slow_ma = sum(closes[-slow - 1:-1]) / slow
-            return {
-                "fast_ma": round(fast_ma, 6),
-                "slow_ma": round(slow_ma, 6),
-                "prev_fast_ma": round(prev_fast_ma, 6),
-                "prev_slow_ma": round(prev_slow_ma, 6),
-            }
-
-        if strategy_name == "conservative":
-            lookback = int(strategy_params.get("volatility_lookback", 60))
-            subset = closes[-lookback:] if len(closes) >= lookback else closes
-            if len(subset) < 3:
-                return {}
-            returns = [(subset[i] / subset[i - 1] - 1.0) for i in range(1, len(subset)) if subset[i - 1] != 0]
-            if not returns:
-                return {}
-            mean = sum(returns) / len(returns)
-            var = sum((r - mean) ** 2 for r in returns) / max(1, len(returns) - 1)
-            vol = math.sqrt(var) * math.sqrt(252)
-            return {"volatility": round(vol, 6)}
-
-        if strategy_name == "aggressive_momentum":
-            periods = strategy_params.get("momentum_periods", [21, 63, 126])
-            indicators: Dict[str, float] = {}
-            for p in periods:
-                p = int(p)
-                if len(closes) > p and closes[-p] != 0:
-                    indicators[f"momentum_{p}"] = round(closes[-1] / closes[-p] - 1.0, 6)
-            return indicators
-
-        if strategy_name == "defensive_cash":
-            subset = closes[-60:] if len(closes) >= 60 else closes
-            if len(subset) < 3:
-                return {}
-            returns = [(subset[i] / subset[i - 1] - 1.0) for i in range(1, len(subset)) if subset[i - 1] != 0]
-            if not returns:
-                return {}
-            mean = sum(returns) / len(returns)
-            var = sum((r - mean) ** 2 for r in returns) / max(1, len(returns) - 1)
-            vol = math.sqrt(var) * math.sqrt(252)
-            return {"portfolio_volatility_proxy": round(vol, 6)}
-
-        return {}
+        return {
+            "last_close": round(closes[-1], 6),
+            "prev_close": round(closes[-2], 6),
+        }
 
     def _calculate_target_price(self, signal: str, current_price: float, risk_params: Dict) -> float:
         take_profit_pct = float(risk_params.get("take_profit_percent", 3.0))

@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.security import get_current_user
 from app.modules.auth.models import User
 from . import schemas, service, queries
+from .usecases import robot_backtest_usecase, robot_live_snapshot_usecase
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/robots", tags=["Trading Robots"])
@@ -111,7 +112,7 @@ async def create_robot(
     if robot_data.type not in [1, 2]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Тип робота должен быть 1 (Portfolio) или 2 (Trading)"
+            detail="Поддерживаются только роботы: 1 (опросник), 2 (торговый)"
         )
 
     try:
@@ -125,6 +126,40 @@ async def create_robot(
             detail=f"Ошибка при создании робота: {str(e)}"
         )
 
+
+
+@router.get("/id/{robot_id}", response_model=schemas.RobotInDB)
+async def get_robot(
+        robot_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    return schemas.RobotInDB.model_validate(
+        await service.robot_service.get_robot_by_id(db, robot_id, current_user.id)
+    )
+
+
+@router.post("/update", response_model=schemas.RobotInDB)
+async def update_robot(
+        request: schemas.RobotUpdateRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    try:
+        robot = await service.robot_service.update_robot(
+            db=db,
+            robot_id=request.robotId,
+            user_id=current_user.id,
+            patch=request.patch
+        )
+        return schemas.RobotInDB.model_validate(robot)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при обновлении робота: {str(e)}"
+        )
 
 
 @router.post("/change_status", response_model=schemas.RobotInDB)
@@ -206,7 +241,7 @@ async def update_robot_config(
             db=db,
             robot_id=request.robotId,
             user_id=current_user.id,
-            config=request.config,
+            config=request.config.model_dump(),
         )
         return schemas.RobotInDB.model_validate(robot)
     except HTTPException:
@@ -215,6 +250,33 @@ async def update_robot_config(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка при обновлении конфигурации: {str(e)}"
+        )
+
+
+@router.post("/schedule", response_model=schemas.RobotInDB)
+async def update_robot_schedule(
+        request: schemas.RobotScheduleUpdateRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    """Обновление расписания робота в robot_schedules."""
+    try:
+        robot = await service.robot_service.update_robot_schedule(
+            db=db,
+            robot_id=request.robotId,
+            user_id=current_user.id,
+            poll_interval_hours=request.poll_interval_hours,
+            trading_hours_start=request.trading_hours_start,
+            trading_hours_end=request.trading_hours_end,
+            allowed_weekdays=request.allowed_weekdays,
+        )
+        return schemas.RobotInDB.model_validate(robot)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка при обновлении расписания: {str(e)}"
         )
 
 
@@ -235,7 +297,32 @@ async def run_robot_history_backtest(
         current_user: User = Depends(get_current_user),
 ):
     """Исторический бэктест стратегии робота на свечах T-Invest."""
-    return await service.robot_service.run_robot_history_backtest(db, current_user.id, request)
+    return await robot_backtest_usecase.execute(db, current_user.id, request)
+
+
+@router.post("/live/snapshot", response_model=schemas.RobotLiveSnapshotResponse)
+async def get_robot_live_snapshot(
+        request: schemas.RobotLiveSnapshotRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    data = await robot_live_snapshot_usecase.execute(db, current_user.id, request.robotId)
+    return schemas.RobotLiveSnapshotResponse(**data)
+
+
+@router.post("/history-backtest/list", response_model=schemas.RobotBacktestHistoryResponse)
+async def list_robot_backtest_history(
+        request: schemas.RobotBacktestHistoryRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    data = await service.robot_service.get_backtest_history(
+        db=db,
+        robot_id=request.robotId,
+        user_id=current_user.id,
+        limit=request.limit,
+    )
+    return schemas.RobotBacktestHistoryResponse(**data)
 
 
 @router.post("/instruments/auto-select")
@@ -259,26 +346,3 @@ async def auto_select_instruments(
         await selector.close()
 
 
-@router.post("/research/backtest", response_model=schemas.BacktestResultResponse)
-async def run_backtest(
-        request: schemas.BacktestRequest,
-        current_user: User = Depends(get_current_user)
-):
-    return await service.robot_service.run_backtest(request)
-
-
-@router.post("/research/walk-forward", response_model=schemas.WalkForwardResponse)
-async def run_walk_forward(
-        request: schemas.WalkForwardRequest,
-        current_user: User = Depends(get_current_user)
-):
-    return await service.robot_service.run_walk_forward(request)
-
-
-@router.post("/paper-mode", response_model=schemas.PaperModeResponse)
-async def set_paper_mode(
-        request: schemas.PaperModeRequest,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user)
-):
-    return await service.robot_service.set_paper_mode(db, current_user.id, request.robotId, request.enabled)

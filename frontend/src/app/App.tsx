@@ -38,6 +38,7 @@ export function App() {
                         <Route path="dashboard" element={<DashboardPage />} />
                         <Route path="portfolio" element={<PortfolioPage />} />
                         <Route path="robots" element={<RobotsPage />} />
+                        <Route path="robots/settings" element={<Navigate to="/robots" replace />} />
                         <Route path="analytics" element={<AnalyticsPage />} />
                         <Route path="settings" element={<SettingsPage />} />
                         <Route path="testing" element={<TestingPage />} />

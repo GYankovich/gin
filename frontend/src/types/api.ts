@@ -135,6 +135,29 @@ export interface PortfolioStatisticsExtendedResponse {
     drawdown_series: DrawdownPoint[]
 }
 
+export interface DashboardAccountSummaryKpi {
+    own_funds: number
+    total_value: number
+    total_minus_own_funds: number
+    day_over_day_delta: number | null
+    day_over_day_delta_percent: number | null
+    currency: string
+}
+
+export interface DashboardAccountItem {
+    account_id: number
+    external_account_id: string
+    account_name: string | null
+    account_type: string
+    account_status: string
+    last_account_sync: string | null
+    summary: DashboardAccountSummaryKpi
+}
+
+export interface DashboardDataResponse {
+    accounts: DashboardAccountItem[]
+}
+
 export interface ChartPoint {
     date: string
     value: number

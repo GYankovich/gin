@@ -4,7 +4,7 @@ WebSocket и торговля в независимых потоках чере�
 """
 import asyncio
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Set, Tuple
 
 from sqlalchemy import text
 
@@ -18,13 +18,22 @@ from app.modules.robots.trading.stages.stage4_positions import Stage4Positions
 from app.modules.robots.trading.stages.stage5_signals import Stage5Signals
 from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
 from app.modules.robots.trading import queries as trading_queries
+from app.modules.robots.trading.grain_seed_orchestrator import (
+    evaluate_grain_seed_orchestration,
+    filter_grain_seed_signals,
+)
 from app.modules.robots.trading.brokers import BrokerFacade, create_broker_facade
 from app.modules.robots.trading.indicators.service import indicator_service
-from app.modules.robots.trading.costs import resolve_robot_cost_rates
+from app.modules.robots.trading.costs import resolve_robot_cost_rates, TradingCosts
 from app.modules.robots.live_hub import live_event_hub
 
 # Получаем системный логгер
 system_log = get_logger("robots.trading.session")
+
+_GRAIN_ORDER_ACTIVE = frozenset({
+    "EXECUTION_REPORT_STATUS_NEW",
+    "EXECUTION_REPORT_STATUS_PARTIALLYFILL",
+})
 
 
 class TradingSession(TradePersistenceMixin, PriceParsingMixin):
@@ -60,6 +69,7 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
 
         # ID выполнения (для БД логов)
         self._execution_log_id: Optional[int] = None
+        self._cycle_id: Optional[int] = None
         self._api_logger: Optional[APILogger] = None
 
         # Компоненты
@@ -85,6 +95,12 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         self._last_trade_by_figi: Dict[str, datetime] = {}
         self._pending_position_closures: Dict[str, Dict[str, Any]] = {}
 
+        self._grain_seed_orchestration = None
+        self._grain_seed_mismatch_logged = False
+        self._grain_seed_force_time_logged = False
+        self._grain_seed_streak_block_logged = False
+        self._grain_seed_flatten_sent: Set[str] = set()
+
         # Статистика
         self.stats = {
             "prices_received": 0,
@@ -97,7 +113,7 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         self.config = None
         self.account_id = None
         self.allowed_figis = []
-        self.strategy_name = "ma_cross"
+        self.strategy_name = "grain_seed"
         self.strategy_params = {}
         self.risk_params = {}
         self.update_interval = 10
@@ -139,6 +155,10 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
 
     async def _publish_live_event(self, payload: Dict[str, Any]) -> None:
         try:
+            if "run_id" not in payload:
+                payload["run_id"] = self._execution_log_id
+            if "cycle_id" not in payload:
+                payload["cycle_id"] = self._cycle_id
             await live_event_hub.publish(self.robot_id, payload)
         except Exception:
             pass
@@ -232,7 +252,7 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         self.config = config or {}
         self.account_id = self.config.get("account_id")
         self.allowed_figis = self.config.get("allowed_figis", [])
-        self.strategy_name = self.config.get("strategy", "ma_cross")
+        self.strategy_name = self.config.get("strategy", "grain_seed")
         self.strategy_params = self.config.get("strategy_params", {})
         br, tx = resolve_robot_cost_rates(self.config)
         self.cost_params = {"broker_commission_rate": br, "ndfl_rate": tx}
@@ -394,10 +414,20 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
             try:
                 cycle_start = datetime.now(timezone.utc)
                 cycle_count += 1
+                self._cycle_id = await self.create_run_cycle(
+                    self.db,
+                    self.schema,
+                    self.robot_id,
+                    execution_log_id=self._execution_log_id,
+                    context={"cycle": cycle_count, "strategy": self.strategy_name, "broker_type": self.broker_type},
+                )
 
                 self._write_log(f"\n🔄 [TRADE] ЦИКЛ {cycle_count}")
 
                 await self.refresh_config()
+
+                if self.strategy_name == "grain_seed":
+                    await self._update_portfolio()
 
                 prices = await self._get_latest_prices_from_queue()
                 queue_size = self.price_queue.qsize()
@@ -407,7 +437,25 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                 if prices:
                     await self._update_positions()
 
-                    closed = await self._check_stop_loss(prices)
+                    if self.strategy_name == "grain_seed":
+                        await self._apply_grain_seed_orchestration()
+
+                    orch = self._grain_seed_orchestration
+                    flatten_trades: List[Dict[str, Any]] = []
+                    use_force_flatten = (
+                        self.strategy_name == "grain_seed"
+                        and orch is not None
+                        and orch.allow_only_reduce
+                        and bool(self.strategy_params.get("force_market_flatten", True))
+                    )
+                    if use_force_flatten:
+                        await self._grain_seed_cancel_open_orders_on_broker()
+                        flatten_trades, closed = await self._grain_seed_market_close_open_positions(
+                            prices
+                        )
+                    else:
+                        closed = await self._check_stop_loss(prices)
+
                     for item in closed:
                         if item.get("order_id"):
                             self._pending_position_closures[item["order_id"]] = item
@@ -422,6 +470,13 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                             )
 
                     signals = await self._generate_signals(prices)
+                    if (
+                        self.strategy_name == "grain_seed"
+                        and self._grain_seed_orchestration is not None
+                    ):
+                        signals = filter_grain_seed_signals(
+                            signals, self._grain_seed_orchestration
+                        )
                     if await self._is_daily_loss_limit_breached():
                         self._write_log("🛑 [TRADE] Достигнут лимит max_daily_loss, новые сигналы пропущены")
                         signals = []
@@ -430,6 +485,19 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                         signal_ids = await self.save_signals(self.db, self.schema, self.robot_id, signals)
                         self._write_log(f"   💾 Сохранено сигналов: {len(signal_ids)}")
                         for s in signals:
+                            decision_id = await self.save_decision(
+                                self.db,
+                                self.schema,
+                                self.robot_id,
+                                stage="stage5_signals",
+                                decision_type="signal",
+                                decision=str(s.get("signal", "")).lower(),
+                                reason_code=None,
+                                payload=s,
+                                execution_log_id=self._execution_log_id,
+                                cycle_id=self._cycle_id,
+                                figi=s.get("figi"),
+                            )
                             await self._publish_live_event({
                                 "type": "signal",
                                 "robot_id": self.robot_id,
@@ -438,14 +506,57 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                                 "price": s.get("price"),
                                 "target_price": s.get("target_price"),
                                 "indicators": s.get("indicators", {}),
+                                "decision_id": decision_id,
                                 "time": datetime.now(timezone.utc).isoformat(),
                             })
 
                     trades = await self._execute_orders(signals)
+                    if flatten_trades and self.db:
+                        ft_ids = await self.save_trades(
+                            self.db, self.schema, self.robot_id, flatten_trades
+                        )
+                        self._write_log(f"   💾 [grain_seed] Сохранено принудительных заявок: {len(ft_ids)}")
+                        for t in flatten_trades:
+                            await self._publish_live_event({
+                                "type": "order",
+                                "robot_id": self.robot_id,
+                                "figi": t.get("figi"),
+                                "side": t.get("side"),
+                                "quantity": t.get("quantity"),
+                                "price": t.get("price"),
+                                "status": t.get("status"),
+                                "reason": "grain_seed_force_flatten",
+                                "time": datetime.now(timezone.utc).isoformat(),
+                            })
+
                     if trades:
                         trade_ids = await self.save_trades(self.db, self.schema, self.robot_id, trades)
                         self._write_log(f"   💾 Сохранено сделок: {len(trade_ids)}")
-                        for t in trades:
+                        for idx, t in enumerate(trades):
+                            trade_id = trade_ids[idx] if idx < len(trade_ids) else None
+                            await self.save_decision(
+                                self.db,
+                                self.schema,
+                                self.robot_id,
+                                stage="stage6_orders",
+                                decision_type="order",
+                                decision=str(t.get("status", "unknown")),
+                                reason_code=t.get("error"),
+                                payload=t,
+                                execution_log_id=self._execution_log_id,
+                                cycle_id=self._cycle_id,
+                                figi=t.get("figi"),
+                            )
+                            await self.save_order_event(
+                                self.db,
+                                self.schema,
+                                self.robot_id,
+                                order_id=t.get("order_id"),
+                                status=str(t.get("status", "unknown")),
+                                event_type="created",
+                                trade_id=trade_id,
+                                payload=t,
+                            )
                             event_type = "order" if t.get("status") not in {"skipped"} else "skipped"
                             await self._publish_live_event({
                                 "type": event_type,
@@ -468,7 +579,7 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                             self._write_log(f"   ✅ Отмечено исполненных сигналов: {marked}")
 
                     self.stats["signals_generated"] += len(signals)
-                    self.stats["orders_placed"] += len(trades)
+                    self.stats["orders_placed"] += len(trades) + len(flatten_trades)
 
                 await self._process_order_statuses()
 
@@ -477,15 +588,30 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                 if wait_time > 0:
                     self._write_log(f"⏱️ [TRADE] Ожидание {wait_time:.1f} сек...")
                     await asyncio.sleep(wait_time)
+                if self._cycle_id:
+                    await self.complete_run_cycle(self.db, self.schema, self._cycle_id, status="completed")
+                    self._cycle_id = None
 
             except asyncio.CancelledError:
                 self._write_log("⏹️ [TRADE] Торговый поток отменен")
+                if self._cycle_id:
+                    await self.complete_run_cycle(self.db, self.schema, self._cycle_id, status="cancelled")
+                    self._cycle_id = None
                 raise
             except Exception as e:
                 self._write_log(f"❌ [TRADE] Ошибка в цикле: {e}")
                 import traceback
                 self._write_log(traceback.format_exc())
                 self.stats["errors"] += 1
+                if self._cycle_id:
+                    await self.complete_run_cycle(
+                        self.db,
+                        self.schema,
+                        self._cycle_id,
+                        status="failed",
+                        context={"error": str(e)},
+                    )
+                    self._cycle_id = None
                 await asyncio.sleep(5)
 
         # Завершаем запись выполнения
@@ -555,6 +681,15 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                     executed_price=state.get("executed_price"),
                     filled_quantity=state.get("lots_executed"),
                     commission=state.get("commission"),
+                )
+                await self.save_order_event(
+                    self.db,
+                    self.schema,
+                    self.robot_id,
+                    order_id=order_id,
+                    status=str(execution_status),
+                    event_type="status_update",
+                    payload=state,
                 )
             await self._publish_live_event({
                 "type": "order",
@@ -706,6 +841,178 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         except Exception as e:
             self._write_log(f"   ❌ Ошибка получения позиций: {e}")
             self.positions = self.cached_positions
+
+    async def _apply_grain_seed_orchestration(self) -> None:
+        """Правила сессии для grain_seed: резерв средств, серия убытков, сверка с брокером, окно закрытия МСК."""
+        if self.strategy_name != "grain_seed" or not self.account_id:
+            return
+        try:
+            portfolio_raw = await self.broker.get_portfolio(self.account_id)
+        except Exception as e:
+            self._write_log(f"   ❌ [grain_seed] Портфель для оркестрации: {e}")
+            return
+
+        orch = evaluate_grain_seed_orchestration(
+            now_utc=datetime.now(timezone.utc),
+            portfolio=portfolio_raw,
+            strategy_params=self.strategy_params,
+            open_positions=self.positions or [],
+            db=self.db,
+            schema=self.schema,
+            robot_id=self.robot_id,
+        )
+        self._grain_seed_orchestration = orch
+        if self.portfolio:
+            self.portfolio["free_funds"] = orch.effective_free_funds
+
+        if orch.position_mismatch and not self._grain_seed_mismatch_logged:
+            self._grain_seed_mismatch_logged = True
+            self._write_log(
+                "⚠️ [grain_seed] Позиции брокера и БД различаются: "
+                f"broker={sorted(orch.broker_non_currency_figis)} "
+                f"db_open={sorted(orch.db_open_figis)}"
+            )
+
+        if orch.block_new_entries and not self._grain_seed_streak_block_logged:
+            self._grain_seed_streak_block_logged = True
+            self._write_log(f"🛑 [grain_seed] Новые покупки отключены: {orch.block_reason}")
+        if orch.allow_only_reduce and not self._grain_seed_force_time_logged:
+            self._grain_seed_force_time_logged = True
+            self._write_log(
+                "⏱️ [grain_seed] Время принудительного сворачивания (МСК): новые BUY отфильтрованы."
+            )
+
+    async def _grain_seed_cancel_open_orders_on_broker(self) -> None:
+        """Отмена активных заявок робота, которые ещё есть на стороне брокера."""
+        if not self.account_id or not self.db:
+            return
+        try:
+            broker_orders = await self.broker.get_orders(self.account_id)
+        except Exception as e:
+            self._write_log(f"   ❌ [grain_seed] GetOrders: {e}")
+            return
+        by_id = {o.get("orderId"): o for o in broker_orders if o.get("orderId")}
+        our_ids = await self._get_open_order_ids()
+        for oid in our_ids:
+            bo = by_id.get(oid)
+            if not bo:
+                continue
+            st = bo.get("executionReportStatus", "")
+            if st not in _GRAIN_ORDER_ACTIVE:
+                continue
+            try:
+                await self.broker.cancel_order(self.account_id, oid)
+                self._write_log(f"   🧾 [grain_seed] Отменена заявка {oid} ({st})")
+            except Exception as e:
+                self._write_log(f"   ⚠️ [grain_seed] Отмена {oid}: {e}")
+
+    async def _grain_seed_market_close_open_positions(
+        self,
+        prices: Dict[str, float],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """
+        Рыночное закрытие открытых позиций из БД (после времени force_close_time_msk).
+        Возвращает (сделки для save_trades, элементы для pending_position_closures).
+        """
+        trades_out: List[Dict[str, Any]] = []
+        closures: List[Dict[str, Any]] = []
+        if not self.positions:
+            return trades_out, closures
+
+        open_figis = {str(p.get("figi")) for p in self.positions if p.get("figi")}
+        self._grain_seed_flatten_sent &= open_figis
+
+        cost_kw = {
+            "broker_commission_rate": float(self.cost_params["broker_commission_rate"]),
+            "ndfl_rate": float(self.cost_params["ndfl_rate"]),
+        }
+
+        for pos in self.positions:
+            figi = str(pos.get("figi") or "")
+            if not figi or figi in self._grain_seed_flatten_sent:
+                continue
+            qty = int(pos.get("quantity") or 0)
+            if qty <= 0:
+                continue
+            side = str(pos.get("side", "")).lower()
+            if side in ("buy", "long"):
+                direction = "ORDER_DIRECTION_SELL"
+                close_side = "sell"
+                is_long = True
+            elif side in ("sell", "short"):
+                direction = "ORDER_DIRECTION_BUY"
+                close_side = "buy"
+                is_long = False
+            else:
+                continue
+
+            px = prices.get(figi) or self.cached_prices.get(figi)
+            if px is None or float(px) <= 0:
+                lp = await self.broker.get_last_price(self.user_id, figi)
+                px = float(lp or 0.0)
+            if px <= 0:
+                self._write_log(
+                    f"   ⚠️ [grain_seed] Нет цены для рыночного закрытия {figi}, пропуск"
+                )
+                continue
+
+            try:
+                order = await self.broker.post_market_order(
+                    figi, qty, direction, self.account_id
+                )
+            except Exception as e:
+                self._write_log(f"   ❌ [grain_seed] Рыночная заявка {figi}: {e}")
+                continue
+
+            order_id = order.get("orderId")
+            order_status = order.get(
+                "executionReportStatus", "EXECUTION_REPORT_STATUS_NEW"
+            )
+            if order_status == "EXECUTION_REPORT_STATUS_REJECTED":
+                self._write_log(f"   ⚠️ [grain_seed] Рыночная заявка отклонена {figi}")
+                continue
+
+            self._grain_seed_flatten_sent.add(figi)
+
+            is_buy_close = close_side == "buy"
+            costs_close = TradingCosts(px, qty, is_buy=is_buy_close, **cost_kw)
+            commission = costs_close.calculate_commission()
+            db_status = Stage6Orders.map_execution_status_to_trade_status(str(order_status))
+
+            trades_out.append({
+                "figi": figi,
+                "side": close_side,
+                "quantity": qty,
+                "price": px,
+                "total_amount": qty * px,
+                "entry_price": px,
+                "commission": commission,
+                "status": db_status,
+                "execution_status": order_status,
+                "order_id": order_id,
+            })
+
+            costs_pos = TradingCosts(
+                float(pos.get("entry_price") or px),
+                qty,
+                is_buy=is_long,
+                **cost_kw,
+            )
+            profit_calc = costs_pos.calculate_actual_profit(px)
+
+            closures.append({
+                "trade_id": pos["id"],
+                "order_id": order_id,
+                "figi": figi,
+                "exit_price": px,
+                "reason": "grain_seed_force_flatten",
+                "profit": profit_calc.get("net_profit", 0.0),
+            })
+            self._write_log(
+                f"   📤 [grain_seed] Рыночное закрытие {figi} qty={qty} order={order_id} ({order_status})"
+            )
+
+        return trades_out, closures
 
     async def _check_stop_loss(self, prices: Dict[str, float]) -> List[Dict]:
         """Проверяет стоп-лоссы и тейк-профиты"""

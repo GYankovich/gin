@@ -26,7 +26,7 @@ def upgrade():
         sa.Column('robot_id', sa.BigInteger(), nullable=False),
 
         # Тип стратегии (ссылка на dictionary)
-        sa.Column('strategy_type', sa.Integer(), nullable=False),
+        sa.Column('type', sa.Integer(), nullable=False),
 
         # Параметры стратегии в JSON (гибкая структура)
         sa.Column('parameters', JSON(), nullable=False, server_default='{}'),

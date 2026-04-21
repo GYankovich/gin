@@ -2,7 +2,7 @@
 Абстрактный базовый класс для всех роботов
 """
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import datetime, timezone, time
 from typing import Optional, Dict, Any
 import traceback
 import json
@@ -266,11 +266,70 @@ class BaseRobot(ABC):
 
         schedule_type = schedule[0]
         interval_seconds = schedule[1]
+        start_time_raw = schedule[2] if len(schedule) > 2 else None
+        end_time_raw = schedule[3] if len(schedule) > 3 else None
+        weekdays_mask = schedule[4] if len(schedule) > 4 else None
 
-        if schedule_type == 1:
-            if not interval_seconds:
-                return True, None
+        def _to_time(val: Any) -> Optional[time]:
+            if val is None:
+                return None
+            if isinstance(val, datetime):
+                return val.timetz() if val.tzinfo is not None else val.time()
+            if isinstance(val, time):
+                return val
+            if isinstance(val, str):
+                s = val.strip()
+                try:
+                    return time.fromisoformat(s)
+                except Exception:
+                    try:
+                        return time.fromisoformat(s[:8])
+                    except Exception:
+                        return None
+            return None
 
+        now = datetime.now(timezone.utc)
+
+        # Ограничение по дням недели (битовая маска, понедельник=бит0 ... воскресенье=бит6).
+        if weekdays_mask is not None:
+            try:
+                mask = int(weekdays_mask)
+            except Exception:
+                mask = 0
+            if mask > 0:
+                weekday_bit = 1 << now.weekday()
+                if (mask & weekday_bit) == 0:
+                    return False, "текущий день недели не разрешен расписанием"
+
+        # Ограничение по торговому окну времени.
+        start_t = _to_time(start_time_raw)
+        end_t = _to_time(end_time_raw)
+        if start_t and end_t:
+            now_t = now.timetz()
+
+            def _normalize(t: time) -> time:
+                return t if t.tzinfo is not None else t.replace(tzinfo=timezone.utc)
+
+            start_t = _normalize(start_t)
+            end_t = _normalize(end_t)
+            now_t = _normalize(now_t)
+
+            if start_t <= end_t:
+                in_window = start_t <= now_t <= end_t
+            else:
+                # Окно через полночь, например 22:00-02:00
+                in_window = now_t >= start_t or now_t <= end_t
+            if not in_window:
+                return False, "вне временного окна расписания"
+
+        # Интервальная проверка применяется для всех schedule_type, если интервал задан.
+        if interval_seconds:
+            try:
+                interval_seconds = int(interval_seconds)
+            except Exception:
+                interval_seconds = 0
+
+        if interval_seconds and interval_seconds > 0:
             query = base_queries.build_get_robot_info_query().format(schema=self.schema)
             robot_info = self.db.execute(text(query), {"robot_id": robot_id}).first()
             if not robot_info:
@@ -280,7 +339,6 @@ class BaseRobot(ABC):
             if not last_started:
                 return True, None
 
-            now = datetime.now(timezone.utc)
             if last_started.tzinfo is None:
                 last_started = last_started.replace(tzinfo=timezone.utc)
 

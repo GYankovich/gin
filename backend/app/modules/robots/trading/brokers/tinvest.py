@@ -69,6 +69,23 @@ class TInvestBrokerFacade(BrokerFacade):
     async def get_order_state(self, account_id: str, order_id: str) -> Dict[str, Any]:
         return await self._rest_call(self._facade.get_order_state, account_id, order_id)
 
+    async def post_market_order(
+        self,
+        figi: str,
+        quantity: int,
+        direction: str,
+        account_id: str,
+    ) -> Dict[str, Any]:
+        return await self._rest_call(
+            self._facade.post_market_order, figi, quantity, direction, account_id
+        )
+
+    async def get_orders(self, account_id: str) -> List[Dict[str, Any]]:
+        return await self._rest_call(self._facade.get_orders, account_id)
+
+    async def cancel_order(self, account_id: str, order_id: str) -> Dict[str, Any]:
+        return await self._rest_call(self._facade.cancel_order, account_id, order_id)
+
     async def connect_websocket(self, user_id: int) -> bool:
         return await global_websocket_manager.ensure_connected(user_id, self._token, self.broker_type)
 
