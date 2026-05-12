@@ -4,6 +4,9 @@
 Ротация всех файлов — каждые 4 часа (0-4, 4-8, 8-12, 12-16, 16-20, 20-24).
 Имена файлов: rest_2026-04-01_08-12.log, app_2026-04-01_08-12.log, и т.д.
 """
+#///EPIC Platform.ITEM Core.TOPIC BackendAppCoreLoggingConfig [1]
+#/// Исходный модуль `backend/app/core/logging_config.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import logging
 import sys
 import io

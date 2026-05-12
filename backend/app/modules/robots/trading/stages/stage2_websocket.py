@@ -2,6 +2,9 @@
 Stage 2: Подключение к WebSocket и получение цен
 Использует PriceParsingMixin для парсинга цен
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingStagesStage2Websocket [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/stages/stage2_websocket.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import asyncio
 from typing import Dict, List, Optional
 

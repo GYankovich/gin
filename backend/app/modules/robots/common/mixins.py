@@ -2,6 +2,9 @@
 Общие миксины для роботов
 Устраняет дублирование кода между TradingRobot и TradingSession
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsCommonMixins [1]
+#/// Исходный модуль `backend/app/modules/robots/common/mixins.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from sqlalchemy import text

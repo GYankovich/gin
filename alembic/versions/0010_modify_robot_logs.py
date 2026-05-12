@@ -5,6 +5,9 @@ Revises: 0009_create_robot_configs_table
 Create Date: 2026-03-17 01:30:00.000000
 
 """
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0010ModifyRobotLogs [1]
+#/// Исходный модуль `alembic/versions/0010_modify_robot_logs.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 import sqlalchemy as sa
 from app.core.config import settings

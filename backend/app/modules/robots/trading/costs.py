@@ -2,6 +2,9 @@
 Расчет комиссий, налогов и точки безубыточности.
 Ставки по умолчанию — из settings.robots; робот может переопределить в config.costs.
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingCosts [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/costs.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from typing import Any, Dict, Optional
 from decimal import Decimal, ROUND_HALF_UP
 

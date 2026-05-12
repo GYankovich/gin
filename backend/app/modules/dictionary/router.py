@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesDictionaryRouter [1]
+#/// Исходный модуль `backend/app/modules/dictionary/router.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/dictionary/router.py
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session

@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesAnalyticsQueries [1]
+#/// Исходный модуль `backend/app/modules/analytics/queries.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/analytics/queries.py
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta

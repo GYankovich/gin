@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsCommonInit [1]
+#/// Исходный модуль `backend/app/modules/robots/common/__init__.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/robots/common/__init__.py
 # from .logger import get_logger, close_logger, RobotLogger  # ← ЗАКОММЕНТИРОВАТЬ ИЛИ УДАЛИТЬ
 from .utils import (

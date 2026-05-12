@@ -3,6 +3,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Optional, List
 
+#///EPIC Backtesting.ITEM RobotsAPI.TOPIC Endpoints Map [1]
+#/// REST-контракт модуля robots: CRUD, schedule/config, history-backtest, live snapshot,
+#/// сравнение прогонов и вспомогательные операции по инструментам.
 from app.core.database import get_db
 from app.core.logging_config import get_logger
 from app.core.config import settings
@@ -323,6 +326,81 @@ async def list_robot_backtest_history(
         limit=request.limit,
     )
     return schemas.RobotBacktestHistoryResponse(**data)
+
+
+@router.post("/history-backtest/run", response_model=schemas.RobotBacktestRunDetailsResponse)
+async def get_robot_backtest_run_details(
+        request: schemas.RobotBacktestRunRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    data = await service.robot_service.get_backtest_run_details(
+        db=db,
+        run_id=request.runId,
+        user_id=current_user.id,
+    )
+    return schemas.RobotBacktestRunDetailsResponse(**data)
+
+
+@router.post("/history-backtest/compare", response_model=schemas.RobotBacktestCompareResponse)
+async def compare_robot_backtest_runs(
+        request: schemas.RobotBacktestCompareRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    data = await service.robot_service.compare_backtest_runs(
+        db=db,
+        base_run_id=request.baseRunId,
+        compare_run_id=request.compareRunId,
+        user_id=current_user.id,
+        name=request.name,
+    )
+    return schemas.RobotBacktestCompareResponse(**data)
+
+
+@router.post("/history-backtest/compare/list", response_model=schemas.RobotBacktestCompareListResponse)
+async def list_robot_backtest_comparisons(
+        request: schemas.RobotBacktestCompareListRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    data = await service.robot_service.list_backtest_comparisons(
+        db=db,
+        user_id=current_user.id,
+        limit=request.limit,
+        offset=request.offset,
+    )
+    return schemas.RobotBacktestCompareListResponse(**data)
+
+
+@router.post("/history-backtest/compare/id", response_model=schemas.RobotBacktestCompareResponse)
+async def get_robot_backtest_comparison(
+        request: schemas.RobotBacktestCompareIdRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    data = await service.robot_service.get_backtest_comparison(
+        db=db,
+        comparison_id=request.comparisonId,
+        user_id=current_user.id,
+    )
+    return schemas.RobotBacktestCompareResponse(**data)
+
+
+@router.post("/history-backtest/compare", response_model=schemas.RobotBacktestCompareResponse)
+async def compare_robot_backtest_runs(
+        request: schemas.RobotBacktestCompareRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    data = await service.robot_service.compare_backtest_runs(
+        db=db,
+        base_run_id=request.baseRunId,
+        compare_run_id=request.compareRunId,
+        user_id=current_user.id,
+        name=request.name,
+    )
+    return schemas.RobotBacktestCompareResponse(**data)
 
 
 @router.post("/instruments/auto-select")

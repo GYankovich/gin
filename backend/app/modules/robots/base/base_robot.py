@@ -1,6 +1,9 @@
 """
 Абстрактный базовый класс для всех роботов
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsBaseBaseRobot [1]
+#/// Исходный модуль `backend/app/modules/robots/base/base_robot.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone, time
 from typing import Optional, Dict, Any

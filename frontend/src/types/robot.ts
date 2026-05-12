@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Types.TOPIC FrontendSrcTypesRobot [1]
+///@ Исходный модуль `frontend/src/types/robot.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 export interface TokenInfo {
     id: number
     name: string
@@ -188,6 +191,7 @@ export interface RobotHistoryBacktestTrade {
 }
 
 export interface RobotHistoryBacktestResult {
+    run_id?: number
     initial_capital: number
     final_equity: number
     total_return_percent: number
@@ -195,6 +199,12 @@ export interface RobotHistoryBacktestResult {
     trades: RobotHistoryBacktestTrade[]
     equity_curve: { time: string; equity: number }[]
     stages?: string[]
+    history_stats?: {
+        processed: number
+        skipped_fetch: number
+        skipped_empty: number
+        total_trade_dates: number
+    }
 }
 
 export interface RobotBacktestHistoryItem {
@@ -213,4 +223,23 @@ export interface RobotBacktestHistoryItem {
 export interface RobotBacktestHistoryResponse {
     total: number
     items: RobotBacktestHistoryItem[]
+}
+
+export interface RobotBacktestRunDetails {
+    run_id: number
+    robot_id: number
+    status: string
+    requested_from: string
+    requested_to: string
+    started_at: string
+    finished_at?: string | null
+    initial_capital: number
+    total_return_percent?: number | null
+    max_drawdown_percent?: number | null
+    final_equity?: number | null
+    trades_total: number
+    result_payload: RobotHistoryBacktestResult
+    signals: Array<Record<string, any>>
+    orders: Array<Record<string, any>>
+    portfolio_snapshots: Array<{ time?: string; snapshot_time?: string; equity?: number } & Record<string, any>>
 }

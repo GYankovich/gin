@@ -22,9 +22,13 @@ class DmsService:
         "only_tickers": 6,
         "volume": 7,
         "volume_lots": 8,
+        "turnover": 8,
         "num_trades": 9,
+        "gap_retention": 9,
         "gap": 10,
+        "price_vs_open": 10,
         "spread": 11,
+        "opening_range": 11,
         "capitalization": 12,
         "min_step_ratio": 13,
         "atr": 100,
@@ -38,6 +42,296 @@ class DmsService:
             return float(value)
         except Exception:
             return None
+
+    @staticmethod
+    def _interval_code_to_cache_label(interval_code: int) -> str:
+        if int(interval_code) == 5:
+            return "M5"
+        if int(interval_code) == 24:
+            return "D1"
+        return f"I{interval_code}"
+
+    async def _fetch_moex_candles(
+        self,
+        db: Session,
+        *,
+        board: str,
+        ticker: str,
+        interval_code: int,
+        days_back: int,
+        from_date: Optional[str] = None,
+        till_date: Optional[str] = None,
+        user_id: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        if not from_date:
+            from_date = (datetime.now(timezone.utc) - timedelta(days=max(1, int(days_back)))).date().isoformat()
+        if not till_date:
+            till_date = datetime.now(timezone.utc).date().isoformat()
+        url = f"https://iss.moex.com/iss/engines/stock/markets/shares/boards/{board}/securities/{ticker}/candles.json"
+        params = {
+            "iss.meta": "off",
+            "interval": int(interval_code),
+            "from": from_date,
+            "till": till_date,
+        }
+        started_at = datetime.now(timezone.utc)
+        try:
+            async with httpx.AsyncClient(timeout=20, verify=False) as client:
+                resp = await client.get(url, params=params)
+        except Exception as e:
+            finished_at = datetime.now(timezone.utc)
+            self._log_external_api_call(
+                db,
+                endpoint=url,
+                request_data={"params": dict(params)},
+                response_status=None,
+                response_data={},
+                started_at=started_at,
+                finished_at=finished_at,
+                success=False,
+                error_message=str(e),
+                user_id=user_id,
+            )
+            return []
+        finished_at = datetime.now(timezone.utc)
+        payload: Dict[str, Any] = {}
+        try:
+            payload = resp.json()
+        except Exception:
+            payload = {}
+        self._log_external_api_call(
+            db,
+            endpoint=url,
+            request_data={"params": dict(params)},
+            response_status=resp.status_code,
+            response_data=payload,
+            started_at=started_at,
+            finished_at=finished_at,
+            success=resp.status_code == 200,
+            error_message=None if resp.status_code == 200 else f"HTTP {resp.status_code}",
+            user_id=user_id,
+        )
+        if resp.status_code != 200:
+            return []
+        candles_block = payload.get("candles") or {}
+        cols = candles_block.get("columns") or []
+        rows = candles_block.get("data") or []
+        idx = {name: i for i, name in enumerate(cols)}
+        begin_i = idx.get("begin")
+        open_i = idx.get("open")
+        high_i = idx.get("high")
+        low_i = idx.get("low")
+        close_i = idx.get("close")
+        volume_i = idx.get("volume")
+        out: List[Dict[str, Any]] = []
+        for r in rows:
+            if begin_i is None or begin_i >= len(r):
+                continue
+            out.append(
+                {
+                    "candle_time": r[begin_i],
+                    "open": r[open_i] if open_i is not None and open_i < len(r) else None,
+                    "high": r[high_i] if high_i is not None and high_i < len(r) else None,
+                    "low": r[low_i] if low_i is not None and low_i < len(r) else None,
+                    "close": r[close_i] if close_i is not None and close_i < len(r) else None,
+                    "volume": r[volume_i] if volume_i is not None and volume_i < len(r) else None,
+                }
+            )
+        return out
+
+    def _upsert_candles_cache(
+        self,
+        db: Session,
+        *,
+        ticker: str,
+        interval_label: str,
+        candles: List[Dict[str, Any]],
+    ) -> None:
+        if not candles:
+            return
+        q = text(
+            f"""
+            INSERT INTO {settings.DB_SCHEMA}.candles_cache
+            (ticker, interval, candle_time, open, high, low, close, volume, updated_at)
+            VALUES
+            (:ticker, :interval, :candle_time, :open, :high, :low, :close, :volume, :updated_at)
+            ON CONFLICT (ticker, interval, candle_time)
+            DO UPDATE SET
+                open = EXCLUDED.open,
+                high = EXCLUDED.high,
+                low = EXCLUDED.low,
+                close = EXCLUDED.close,
+                volume = EXCLUDED.volume,
+                updated_at = EXCLUDED.updated_at
+            """
+        )
+        now = datetime.now(timezone.utc)
+        for c in candles:
+            db.execute(
+                q,
+                {
+                    "ticker": ticker,
+                    "interval": interval_label,
+                    "candle_time": c.get("candle_time"),
+                    "open": c.get("open"),
+                    "high": c.get("high"),
+                    "low": c.get("low"),
+                    "close": c.get("close"),
+                    "volume": c.get("volume"),
+                    "updated_at": now,
+                },
+            )
+
+    #///EPIC Backtesting.ITEM CandleCache.TOPIC Incremental Fetch Strategy [1]
+    #/// Гарантирует полноту candles_cache на диапазоне дат без лишних запросов:
+    #/// вычисляет min/max покрытие по тикеру, догружает только разрывы,
+    #/// при необходимости обновляет последний intraday-день и ведет статистику fetch/cache hits.
+    async def _ensure_candles_cached_for_tickers(
+        self,
+        db: Session,
+        *,
+        board: str,
+        tickers: List[str],
+        interval_code: int,
+        days_back: int,
+        from_date: Optional[date] = None,
+        till_date: Optional[date] = None,
+        refresh_recent_intraday: bool = True,
+        min_candles_per_ticker: int = 0,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, int]:
+        interval_label = self._interval_code_to_cache_label(interval_code)
+        now_utc = datetime.now(timezone.utc)
+        req_from_date = from_date or (now_utc - timedelta(days=max(1, int(days_back)))).date()
+        req_till_date = till_date or now_utc.date()
+        stats = {
+            "total_tickers": len(tickers),
+            "cache_full_hits": 0,
+            "fetched_tickers": 0,
+            "fetched_ranges": 0,
+            "fetched_candles": 0,
+        }
+
+        def _to_utc(v: Any) -> Optional[datetime]:
+            if v is None:
+                return None
+            if isinstance(v, datetime):
+                return v.astimezone(timezone.utc) if v.tzinfo else v.replace(tzinfo=timezone.utc)
+            s = str(v)
+            try:
+                dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+                return dt.astimezone(timezone.utc) if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            except Exception:
+                try:
+                    d = date.fromisoformat(s[:10])
+                    return datetime.combine(d, time.min, tzinfo=timezone.utc)
+                except Exception:
+                    return None
+
+        for tk in tickers:
+            cached_count = int(
+                db.execute(
+                    text(
+                        f"""
+                        SELECT COUNT(*)
+                        FROM {settings.DB_SCHEMA}.candles_cache
+                        WHERE ticker=:ticker
+                          AND interval=:interval
+                          AND candle_time >= :from_dt
+                          AND candle_time < :till_dt
+                        """
+                    ),
+                    {
+                        "ticker": tk,
+                        "interval": interval_label,
+                        "from_dt": datetime.combine(req_from_date, time.min, tzinfo=timezone.utc),
+                        "till_dt": datetime.combine(req_till_date + timedelta(days=1), time.min, tzinfo=timezone.utc),
+                    },
+                ).scalar()
+                or 0
+            )
+            cache_range = db.execute(
+                text(
+                    f"""
+                    SELECT
+                        MIN(candle_time) AS min_ct,
+                        MAX(candle_time) AS max_ct
+                    FROM {settings.DB_SCHEMA}.candles_cache
+                    WHERE ticker=:ticker
+                      AND interval=:interval
+                      AND candle_time >= :from_dt
+                      AND candle_time < :till_dt
+                    """
+                ),
+                {
+                    "ticker": tk,
+                    "interval": interval_label,
+                    "from_dt": datetime.combine(req_from_date, time.min, tzinfo=timezone.utc),
+                    "till_dt": datetime.combine(req_till_date + timedelta(days=1), time.min, tzinfo=timezone.utc),
+                },
+            ).first()
+
+            min_cached = _to_utc(cache_range[0]) if cache_range else None
+            max_cached = _to_utc(cache_range[1]) if cache_range else None
+            fetch_ranges: List[tuple[date, date]] = []
+
+            if min_cached is None or max_cached is None:
+                fetch_ranges.append((req_from_date, req_till_date))
+            else:
+                min_cached_day = min_cached.date()
+                max_cached_day = max_cached.date()
+                if min_cached_day > req_from_date:
+                    fetch_ranges.append((req_from_date, min_cached_day - timedelta(days=1)))
+                if max_cached_day < req_till_date:
+                    fetch_ranges.append((max_cached_day + timedelta(days=1), req_till_date))
+                elif refresh_recent_intraday and interval_label == "M5" and max_cached_day == req_till_date:
+                    # Intraday candles can be incomplete for the current day.
+                    last_touch = db.execute(
+                        text(
+                            f"""
+                            SELECT MAX(updated_at)
+                            FROM {settings.DB_SCHEMA}.candles_cache
+                            WHERE ticker=:ticker
+                              AND interval=:interval
+                              AND candle_time >= :today_from
+                            """
+                        ),
+                        {
+                            "ticker": tk,
+                            "interval": interval_label,
+                            "today_from": datetime.combine(req_till_date, time.min, tzinfo=timezone.utc),
+                        },
+                    ).scalar()
+                    last_touch_utc = _to_utc(last_touch)
+                    if not last_touch_utc or (now_utc - last_touch_utc) > timedelta(minutes=3):
+                        fetch_ranges.append((req_till_date, req_till_date))
+            if int(min_candles_per_ticker or 0) > 0 and cached_count < int(min_candles_per_ticker):
+                fetch_ranges = [(req_from_date, req_till_date)]
+
+            fetched_any = False
+            for rng_from, rng_till in fetch_ranges:
+                if rng_from > rng_till:
+                    continue
+                candles = await self._fetch_moex_candles(
+                    db,
+                    board=board,
+                    ticker=tk,
+                    interval_code=interval_code,
+                    days_back=days_back,
+                    from_date=rng_from.isoformat(),
+                    till_date=rng_till.isoformat(),
+                    user_id=user_id,
+                )
+                self._upsert_candles_cache(db, ticker=tk, interval_label=interval_label, candles=candles)
+                fetched_any = True
+                stats["fetched_ranges"] += 1
+                stats["fetched_candles"] += len(candles)
+            if fetched_any:
+                stats["fetched_tickers"] += 1
+            else:
+                stats["cache_full_hits"] += 1
+        db.commit()
+        return stats
 
     def _log_external_api_call(
         self,
@@ -91,16 +385,30 @@ class DmsService:
         *,
         optimize_order: bool = False,
         allowed_figis: Optional[set[str]] = None,
+        allow_missing_spread: bool = False,
     ) -> Dict[str, Any]:
         ticker = str(row.get("ticker") or "").upper()
         open_price = self._safe_float(row.get("open_price"))
         prev_price = self._safe_float(row.get("prev_price"))
         last_price = self._safe_float(row.get("last_price"))
+        high_price = self._safe_float(row.get("high_price"))
+        low_price = self._safe_float(row.get("low_price"))
         value_today = self._safe_float(row.get("value_today")) or 0.0
         volume_lots = self._safe_float(row.get("volume_lots")) or 0.0
         trades_count = int(row.get("num_trades") or 0)
         issue_size = self._safe_float(row.get("issue_size"))
         min_step = self._safe_float(row.get("min_step"))
+        sec_payload = row.get("securities_payload") or row.get("raw_payload") or {}
+        if not isinstance(sec_payload, dict):
+            sec_payload = {}
+        if issue_size is None:
+            issue_size = self._safe_float(sec_payload.get("ISSUE_SIZE"))
+            if issue_size is None:
+                issue_size = self._safe_float(sec_payload.get("ISSUESIZE"))
+        if min_step is None:
+            min_step = self._safe_float(sec_payload.get("MINSTEP"))
+            if min_step is None:
+                min_step = self._safe_float(sec_payload.get("MIN_STEP"))
         spread_raw = self._safe_float(row.get("spread"))
         bid = self._safe_float(row.get("bid"))
         ask = self._safe_float(row.get("ask"))
@@ -200,7 +508,10 @@ class DmsService:
                     reasons.append(f"VOLTODAY {volume_lots:.0f} < {min_lots:.0f}")
             elif t == "spread":
                 max_spread = float(f.get("max_percent") or 0.0)
-                ok = spread_percent is not None and spread_percent <= max_spread
+                if spread_percent is None and allow_missing_spread:
+                    ok = True
+                else:
+                    ok = spread_percent is not None and spread_percent <= max_spread
                 checks.append(ok)
                 if not ok:
                     reasons.append(f"SPREAD {spread_percent if spread_percent is not None else 0:.3f}% > {max_spread:.3f}%")
@@ -231,6 +542,60 @@ class DmsService:
                 checks.append(ok)
                 if not ok:
                     reasons.append("MINSTEP ratio too high for commission cover")
+            elif t == "turnover":
+                min_turnover = float(f.get("min_percent") or 0.0)
+                if volume_lots and issue_size and issue_size > 0:
+                    turnover = (volume_lots / issue_size) * 100.0
+                    ok = turnover >= min_turnover
+                else:
+                    turnover = None
+                    ok = False
+                checks.append(ok)
+                if not ok:
+                    turnover_label = f"{turnover:.3f}" if turnover is not None else "N/A"
+                    reasons.append(f"TURNOVER {turnover_label}% < {min_turnover:.3f}%")
+            elif t == "gap_retention":
+                min_retention = float(f.get("min_ratio") or 0.0)
+                if open_price and prev_price and prev_price > 0 and last_price:
+                    gap_val = abs(open_price - prev_price)
+                    movement = abs(last_price - open_price)
+                    if gap_val > 1e-9:
+                        retention = movement / gap_val
+                        ok = retention >= min_retention
+                    else:
+                        retention = 0.0
+                        ok = False
+                else:
+                    retention = None
+                    ok = False
+                checks.append(ok)
+                if not ok:
+                    retention_label = f"{retention:.2f}" if retention is not None else "N/A"
+                    reasons.append(f"GAP_RETENTION {retention_label} < {min_retention:.2f}")
+            elif t == "price_vs_open":
+                min_ratio = float(f.get("min_percent") or 0.998)
+                if last_price and open_price and open_price > 0:
+                    ratio = last_price / open_price
+                    ok = ratio >= min_ratio
+                else:
+                    ratio = None
+                    ok = False
+                checks.append(ok)
+                if not ok:
+                    ratio_label = f"{ratio:.3f}" if ratio is not None else "N/A"
+                    reasons.append(f"PRICE_VS_OPEN {ratio_label} < {min_ratio:.3f}")
+            elif t == "opening_range":
+                min_range = float(f.get("min_percent") or 0.0)
+                if high_price and low_price and prev_price and prev_price > 0:
+                    range_pct = ((high_price - low_price) / prev_price) * 100.0
+                    ok = range_pct >= min_range
+                else:
+                    range_pct = None
+                    ok = False
+                checks.append(ok)
+                if not ok:
+                    range_label = f"{range_pct:.2f}" if range_pct is not None else "N/A"
+                    reasons.append(f"OPENING_RANGE {range_label}% < {min_range:.2f}%")
 
         if not checks:
             return {"accepted": True, "reason": None, "gap_percent": gap_percent, "atr_percent": atr_percent, "spread_percent": spread_percent}
@@ -246,82 +611,85 @@ class DmsService:
         board: str,
         rows: List[Dict[str, Any]],
         filters: List[Dict[str, Any]],
+        as_of_date: Optional[date] = None,
+        fetch_missing_candles: bool = True,
         user_id: Optional[int] = None,
-    ) -> Dict[str, float]:
+    ) -> tuple[Dict[str, float], Dict[str, int]]:
         atr_filter = next((f for f in filters if str((f or {}).get("type") or "").lower() == "atr" and (f or {}).get("enabled", True) is not False), None)
         if not atr_filter:
-            return {}
+            return {}, {
+                "total_tickers": 0,
+                "cache_full_hits": 0,
+                "fetched_tickers": 0,
+                "fetched_ranges": 0,
+                "fetched_candles": 0,
+            }
         period = int(atr_filter.get("period") or 14)
-        limit = max(5, min(60, period))
+        lookback_days = max(20, min(120, period + 20))
         out: Dict[str, float] = {}
         candidate_rows = [r for r in rows if str(r.get("ticker") or "").upper() and (self._safe_float(r.get("last_price")) or 0) > 0]
-        chunk_size = 50
-        for i in range(0, len(candidate_rows), chunk_size):
-            chunk = candidate_rows[i:i + chunk_size]
-            tickers = [str(r.get("ticker")).upper() for r in chunk]
-            # Batch request for multiple tickers in one call.
-            url = f"https://iss.moex.com/iss/engines/stock/markets/shares/boards/{board}/securities.json"
-            params = {"iss.meta": "off", "securities": ",".join(tickers), "interval": 24, "limit": limit}
-            started_at = datetime.now(timezone.utc)
-            try:
-                async with httpx.AsyncClient(timeout=20, verify=False) as client:
-                    resp = await client.get(url, params=params)
-            except Exception as e:
-                finished_at = datetime.now(timezone.utc)
-                self._log_external_api_call(
-                    db, endpoint=url, request_data={"params": dict(params)}, response_status=None, response_data={},
-                    started_at=started_at, finished_at=finished_at, success=False, error_message=str(e), user_id=user_id
-                )
-                continue
-            finished_at = datetime.now(timezone.utc)
-            payload: Dict[str, Any] = {}
-            try:
-                payload = resp.json()
-            except Exception:
-                payload = {}
-            self._log_external_api_call(
-                db, endpoint=url, request_data={"params": dict(params)}, response_status=resp.status_code, response_data=payload,
-                started_at=started_at, finished_at=finished_at, success=resp.status_code == 200,
-                error_message=None if resp.status_code == 200 else f"HTTP {resp.status_code}", user_id=user_id
+        tickers = [str(r.get("ticker")).upper() for r in candidate_rows]
+        atr_till_date = (as_of_date - timedelta(days=1)) if as_of_date else None
+        atr_from_date = (atr_till_date - timedelta(days=lookback_days)) if atr_till_date else None
+        if fetch_missing_candles:
+            cache_stats = await self._ensure_candles_cached_for_tickers(
+                db,
+                board=board,
+                tickers=tickers,
+                interval_code=24,
+                days_back=lookback_days,
+                from_date=atr_from_date,
+                till_date=atr_till_date,
+                refresh_recent_intraday=False,
+                user_id=user_id,
             )
-            if resp.status_code != 200:
+        else:
+            cache_stats = {
+                "total_tickers": len(tickers),
+                "cache_full_hits": 0,
+                "fetched_tickers": 0,
+                "fetched_ranges": 0,
+                "fetched_candles": 0,
+            }
+        price_by_ticker = {str(r.get("ticker") or "").upper(): self._safe_float(r.get("last_price")) for r in candidate_rows}
+        for ticker in tickers:
+            rows_db = db.execute(
+                text(
+                    f"""
+                    SELECT high, low, close
+                    FROM {settings.DB_SCHEMA}.candles_cache
+                    WHERE ticker=:ticker AND interval='D1'
+                      AND (:from_dt IS NULL OR candle_time >= :from_dt)
+                      AND (:to_dt IS NULL OR candle_time < :to_dt)
+                    ORDER BY candle_time ASC
+                    """
+                ),
+                {
+                    "ticker": ticker,
+                    "from_dt": datetime.combine(atr_from_date, time.min, tzinfo=timezone.utc) if atr_from_date else None,
+                    "to_dt": datetime.combine((atr_till_date + timedelta(days=1)), time.min, tzinfo=timezone.utc) if atr_till_date else None,
+                },
+            ).fetchall()
+            last_price = price_by_ticker.get(ticker)
+            if not last_price or last_price <= 0 or len(rows_db) < 2:
                 continue
-            candles_block = payload.get("candles") or {}
-            candles = candles_block.get("data") or []
-            cols = candles_block.get("columns") or []
-            idx = {name: ix for ix, name in enumerate(cols)}
-            secid_i = idx.get("SECID") if "SECID" in idx else idx.get("secid")
-            h_i, l_i, c_i = idx.get("high"), idx.get("low"), idx.get("close")
-            if secid_i is None or h_i is None or l_i is None or c_i is None:
-                continue
-            candles_by_ticker: Dict[str, List[List[Any]]] = {}
-            for c in candles:
-                if secid_i >= len(c):
-                    continue
-                tk = str(c[secid_i]).upper()
-                candles_by_ticker.setdefault(tk, []).append(c)
-            price_by_ticker = {str(r.get("ticker") or "").upper(): self._safe_float(r.get("last_price")) for r in chunk}
-            for ticker, c_rows in candles_by_ticker.items():
-                last_price = price_by_ticker.get(ticker)
-                if not last_price or last_price <= 0 or len(c_rows) < 2:
-                    continue
-                trs: List[float] = []
-                prev_close: Optional[float] = None
-                for c in c_rows:
-                    high = self._safe_float(c[h_i] if h_i < len(c) else None)
-                    low = self._safe_float(c[l_i] if l_i < len(c) else None)
-                    close = self._safe_float(c[c_i] if c_i < len(c) else None)
-                    if high is None or low is None:
-                        prev_close = close
-                        continue
-                    tr = (high - low) if prev_close is None else max(high - low, abs(high - prev_close), abs(low - prev_close))
-                    trs.append(float(tr))
+            trs: List[float] = []
+            prev_close: Optional[float] = None
+            for h, l, c in rows_db:
+                high = self._safe_float(h)
+                low = self._safe_float(l)
+                close = self._safe_float(c)
+                if high is None or low is None:
                     prev_close = close
-                if not trs:
                     continue
-                atr = sum(trs[-period:]) / float(min(len(trs), period))
-                out[ticker] = (atr / last_price) * 100.0
-        return out
+                tr = (high - low) if prev_close is None else max(high - low, abs(high - prev_close), abs(low - prev_close))
+                trs.append(float(tr))
+                prev_close = close
+            if not trs:
+                continue
+            atr = sum(trs[-period:]) / float(min(len(trs), period))
+            out[ticker] = (atr / last_price) * 100.0
+        return out, cache_stats
 
     @staticmethod
     def _is_probably_market_closed(now: datetime) -> bool:
@@ -366,6 +734,7 @@ class DmsService:
         start = 0
         seen_page_signatures: set[str] = set()
         max_pages = 200
+
         while True:
             params["securities.start"] = start
             params["marketdata.start"] = start
@@ -393,33 +762,40 @@ class DmsService:
             if resp.status_code != 200:
                 db.commit()
                 raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"MOEX API error {resp.status_code}")
+
             sec = payload.get("securities", {})
             md = payload.get("marketdata", {})
             sec_cols = sec.get("columns", []) or []
             md_cols = md.get("columns", []) or []
             sec_data = sec.get("data", []) or []
             md_data = md.get("data", []) or []
+
             if not sec_data:
                 break
+
             page_signature = f"{len(sec_data)}:{sec_data[0][0] if sec_data and sec_data[0] else ''}:{sec_data[-1][0] if sec_data and sec_data[-1] else ''}"
             if page_signature in seen_page_signatures:
-                # MOEX sometimes ignores paging params; protect from infinite loops on repeated pages.
                 break
             seen_page_signatures.add(page_signature)
+
             has_cursor = isinstance(payload, dict) and (
-                ("securities.cursor" in payload) or ("marketdata.cursor" in payload)
+                    ("securities.cursor" in payload) or ("marketdata.cursor" in payload)
             )
+
             sec_idx = {name: i for i, name in enumerate(sec_cols)}
             md_idx = {name: i for i, name in enumerate(md_cols)}
+
             def secv(sec_row, name: str):
                 i = sec_idx.get(name)
                 return sec_row[i] if i is not None and i < len(sec_row) else None
+
             md_by_secid: Dict[str, Any] = {}
             for row in md_data:
                 secid_i = md_idx.get("SECID")
                 if secid_i is None or secid_i >= len(row):
                     continue
                 md_by_secid[str(row[secid_i])] = row
+
             for row in sec_data:
                 secid_i = sec_idx.get("SECID")
                 if secid_i is None or secid_i >= len(row):
@@ -428,9 +804,19 @@ class DmsService:
                 md_row = md_by_secid.get(ticker)
                 if not md_row:
                     continue
+
                 def mdv(name: str):
                     i = md_idx.get(name)
                     return md_row[i] if i is not None and i < len(md_row) else None
+
+                # === ИСПРАВЛЕНИЕ: правильный prev_price ===
+                close_price = mdv("CLOSEPRICE")
+                prev_price = secv(row, "PREVPRICE")  # fallback
+
+                # Явная логика: CLOSEPRICE приоритетнее, но если он None — берем PREVPRICE
+                if close_price is not None:
+                    prev_price = close_price
+
                 rows.append(
                     {
                         "ticker": ticker,
@@ -438,14 +824,41 @@ class DmsService:
                         "short_name": secv(row, "SHORTNAME"),
                         "sec_name": secv(row, "SECNAME"),
                         "isin": secv(row, "ISIN"),
+                        "sec_type": secv(row, "SECTYPE"),
+                        "list_level": secv(row, "LISTLEVEL"),
+                        "face_value": secv(row, "FACEVALUE"),
+                        "board_name": secv(row, "BOARDNAME"),
+                        "decimals": secv(row, "DECIMALS"),
+                        "remarks": secv(row, "REMARKS"),
+                        "market_code": secv(row, "MARKETCODE"),
+                        "instr_id": secv(row, "INSTRID"),
+                        "sector_id": secv(row, "SECTORID"),
+                        "face_unit": secv(row, "FACEUNIT"),
+                        "prev_date": secv(row, "PREVDATE"),
+                        "lat_name": secv(row, "LATNAME"),
+                        "reg_number": secv(row, "REGNUMBER"),
+                        "currency_id": secv(row, "CURRENCYID"),
+                        "settle_date": secv(row, "SETTLEDATE"),
                         "lot_size": secv(row, "LOTSIZE"),
                         "last_price": mdv("LAST"),
                         "open_price": mdv("OPEN"),
                         "low_price": mdv("LOW"),
                         "high_price": mdv("HIGH"),
-                        "prev_price": mdv("PREVPRICE"),
-                        "close_price": mdv("CLOSEPRICE"),
+                        # === ИСПРАВЛЕНИЕ ===
+                        "prev_price": prev_price,
+                        "prev_wa_price": secv(row, "PREVWAPRICE"),
+                        "prev_legal_close_price": secv(row, "PREVLEGALCLOSEPRICE"),
+                        # Убираем close_price, оставляем только prev_price
+                        "value": mdv("VALUE"),
+                        "value_usd": mdv("VALUE_USD"),
+                        "wa_price": mdv("WAPRICE"),
+                        "last_change": mdv("LASTCHANGE"),
+                        "last_change_prcnt": mdv("LASTCHANGEPRCNT"),
+                        "market_price_today": mdv("MARKETPRICETODAY"),
+                        "market_price": mdv("MARKETPRICE"),
+                        "last_to_prev_price": mdv("LASTTOPREVPRICE"),
                         "value_today": mdv("VALTODAY"),
+                        "val_today_rur": mdv("VALTODAY_RUR"),
                         "volume_lots": mdv("VOLTODAY"),
                         "security_status": secv(row, "STATUS"),
                         "trading_status": mdv("TRADINGSTATUS"),
@@ -456,18 +869,25 @@ class DmsService:
                         "ask": mdv("OFFER"),
                         "spread": mdv("SPREAD"),
                         "market_update_time": mdv("UPDATETIME"),
+                        "trading_session": mdv("TRADINGSESSION"),
+                        "seq_num": mdv("SEQNUM"),
+                        "sys_time": mdv("SYSTIME"),
+                        "issue_capitalization": mdv("ISSUECAPITALIZATION"),
+                        "trend_issue_capitalization": mdv("TRENDISSUECAPITALIZATION"),
                         "securities_payload": {k: secv(row, k) for k in sec_cols},
                         "marketdata_payload": {k: mdv(k) for k in md_cols},
                     }
                 )
+
             if not has_cursor:
-                # Endpoint returned a full dataset without explicit cursor paging metadata.
                 break
             if len(sec_data) < 100:
                 break
             start += len(sec_data)
             if len(seen_page_signatures) >= max_pages:
                 break
+
+        # === ВОТ ЗДЕСЬ ПРАВИЛЬНОЕ МЕСТО ДЛЯ COMMIT И RETURN ===
         db.commit()
         return rows
 
@@ -510,28 +930,54 @@ class DmsService:
                 return {"snapshot_id": snapshot_id, "status": "MARKET_CLOSED", "securities_count": 0, "message": "Биржа закрыта"}
             insert_data_q = f"""
                 INSERT INTO {settings.DB_SCHEMA}.market_snapshot_data
-                (snapshot_id, ticker, board_id, short_name, sec_name, isin, lot_size,
-                 last_price, open_price, low_price, high_price, prev_price, close_price,
-                 value_today, volume_lots, security_status, trading_status, num_trades, min_step, issue_size, bid, ask, spread, market_update_time,
+                (snapshot_id, ticker, board_id, short_name, sec_name, isin, sec_type, list_level, face_value, board_name, decimals, remarks, market_code, instr_id, sector_id, face_unit, prev_date, lat_name, reg_number, currency_id, settle_date, lot_size,
+                 last_price, open_price, low_price, high_price, prev_price, prev_wa_price, prev_legal_close_price, close_price, value, value_usd, wa_price, last_change, last_change_prcnt, market_price_today, market_price, last_to_prev_price,
+                 value_today, val_today_rur, volume_lots, security_status, trading_status, num_trades, min_step, issue_size, bid, ask, spread, market_update_time, trading_session, seq_num, sys_time, issue_capitalization, trend_issue_capitalization,
                  securities_payload, marketdata_payload)
                 VALUES
-                (:snapshot_id, :ticker, :board_id, :short_name, :sec_name, :isin, :lot_size,
-                 :last_price, :open_price, :low_price, :high_price, :prev_price, :close_price,
-                 :value_today, :volume_lots, :security_status, :trading_status, :num_trades, :min_step, :issue_size, :bid, :ask, :spread, :market_update_time,
+                (:snapshot_id, :ticker, :board_id, :short_name, :sec_name, :isin, :sec_type, :list_level, :face_value, :board_name, :decimals, :remarks, :market_code, :instr_id, :sector_id, :face_unit, :prev_date, :lat_name, :reg_number, :currency_id, :settle_date, :lot_size,
+                 :last_price, :open_price, :low_price, :high_price, :prev_price, :prev_wa_price, :prev_legal_close_price, :close_price, :value, :value_usd, :wa_price, :last_change, :last_change_prcnt, :market_price_today, :market_price, :last_to_prev_price,
+                 :value_today, :val_today_rur, :volume_lots, :security_status, :trading_status, :num_trades, :min_step, :issue_size, :bid, :ask, :spread, :market_update_time, :trading_session, :seq_num, :sys_time, :issue_capitalization, :trend_issue_capitalization,
                  CAST(:securities_payload AS jsonb), CAST(:marketdata_payload AS jsonb))
                 ON CONFLICT (snapshot_id, ticker) DO UPDATE SET
                     board_id = EXCLUDED.board_id,
                     short_name = EXCLUDED.short_name,
                     sec_name = EXCLUDED.sec_name,
                     isin = EXCLUDED.isin,
+                    sec_type = EXCLUDED.sec_type,
+                    list_level = EXCLUDED.list_level,
+                    face_value = EXCLUDED.face_value,
+                    board_name = EXCLUDED.board_name,
+                    decimals = EXCLUDED.decimals,
+                    remarks = EXCLUDED.remarks,
+                    market_code = EXCLUDED.market_code,
+                    instr_id = EXCLUDED.instr_id,
+                    sector_id = EXCLUDED.sector_id,
+                    face_unit = EXCLUDED.face_unit,
+                    prev_date = EXCLUDED.prev_date,
+                    lat_name = EXCLUDED.lat_name,
+                    reg_number = EXCLUDED.reg_number,
+                    currency_id = EXCLUDED.currency_id,
+                    settle_date = EXCLUDED.settle_date,
                     lot_size = EXCLUDED.lot_size,
                     last_price = EXCLUDED.last_price,
                     open_price = EXCLUDED.open_price,
                     low_price = EXCLUDED.low_price,
                     high_price = EXCLUDED.high_price,
                     prev_price = EXCLUDED.prev_price,
+                    prev_wa_price = EXCLUDED.prev_wa_price,
+                    prev_legal_close_price = EXCLUDED.prev_legal_close_price,
                     close_price = EXCLUDED.close_price,
+                    value = EXCLUDED.value,
+                    value_usd = EXCLUDED.value_usd,
+                    wa_price = EXCLUDED.wa_price,
+                    last_change = EXCLUDED.last_change,
+                    last_change_prcnt = EXCLUDED.last_change_prcnt,
+                    market_price_today = EXCLUDED.market_price_today,
+                    market_price = EXCLUDED.market_price,
+                    last_to_prev_price = EXCLUDED.last_to_prev_price,
                     value_today = EXCLUDED.value_today,
+                    val_today_rur = EXCLUDED.val_today_rur,
                     volume_lots = EXCLUDED.volume_lots,
                     security_status = EXCLUDED.security_status,
                     trading_status = EXCLUDED.trading_status,
@@ -542,13 +988,20 @@ class DmsService:
                     ask = EXCLUDED.ask,
                     spread = EXCLUDED.spread,
                     market_update_time = EXCLUDED.market_update_time,
+                    trading_session = EXCLUDED.trading_session,
+                    seq_num = EXCLUDED.seq_num,
+                    sys_time = EXCLUDED.sys_time,
+                    issue_capitalization = EXCLUDED.issue_capitalization,
+                    trend_issue_capitalization = EXCLUDED.trend_issue_capitalization,
                     securities_payload = EXCLUDED.securities_payload,
                     marketdata_payload = EXCLUDED.marketdata_payload
             """
             for r in raw_rows:
                 bid = float(r["bid"]) if r.get("bid") is not None else None
                 ask = float(r["ask"]) if r.get("ask") is not None else None
-                spread = (ask - bid) if bid is not None and ask is not None else None
+                spread = r.get("spread")
+                if spread is None and bid is not None and ask is not None:
+                    spread = ask - bid
                 db.execute(
                     text(insert_data_q),
                     {
@@ -558,14 +1011,40 @@ class DmsService:
                         "short_name": r.get("short_name"),
                         "sec_name": r.get("sec_name"),
                         "isin": r.get("isin"),
+                        "sec_type": r.get("sec_type"),
+                        "list_level": r.get("list_level"),
+                        "face_value": r.get("face_value"),
+                        "board_name": r.get("board_name"),
+                        "decimals": r.get("decimals"),
+                        "remarks": r.get("remarks"),
+                        "market_code": r.get("market_code"),
+                        "instr_id": r.get("instr_id"),
+                        "sector_id": r.get("sector_id"),
+                        "face_unit": r.get("face_unit"),
+                        "prev_date": r.get("prev_date"),
+                        "lat_name": r.get("lat_name"),
+                        "reg_number": r.get("reg_number"),
+                        "currency_id": r.get("currency_id"),
+                        "settle_date": r.get("settle_date"),
                         "lot_size": r.get("lot_size"),
                         "last_price": r.get("last_price"),
                         "open_price": r.get("open_price"),
                         "low_price": r.get("low_price"),
                         "high_price": r.get("high_price"),
                         "prev_price": r.get("prev_price"),
+                        "prev_wa_price": r.get("prev_wa_price"),
+                        "prev_legal_close_price": r.get("prev_legal_close_price"),
                         "close_price": r.get("close_price"),
+                        "value": r.get("value"),
+                        "value_usd": r.get("value_usd"),
+                        "wa_price": r.get("wa_price"),
+                        "last_change": r.get("last_change"),
+                        "last_change_prcnt": r.get("last_change_prcnt"),
+                        "market_price_today": r.get("market_price_today"),
+                        "market_price": r.get("market_price"),
+                        "last_to_prev_price": r.get("last_to_prev_price"),
                         "value_today": r.get("value_today"),
+                        "val_today_rur": r.get("val_today_rur"),
                         "volume_lots": r.get("volume_lots"),
                         "security_status": r.get("security_status"),
                         "trading_status": r.get("trading_status"),
@@ -576,6 +1055,11 @@ class DmsService:
                         "ask": r.get("ask"),
                         "spread": spread,
                         "market_update_time": r.get("market_update_time"),
+                        "trading_session": r.get("trading_session"),
+                        "seq_num": r.get("seq_num"),
+                        "sys_time": r.get("sys_time"),
+                        "issue_capitalization": r.get("issue_capitalization"),
+                        "trend_issue_capitalization": r.get("trend_issue_capitalization"),
                         "securities_payload": json.dumps(r.get("securities_payload") or {}, ensure_ascii=False),
                         "marketdata_payload": json.dumps(r.get("marketdata_payload") or {}, ensure_ascii=False),
                     },
@@ -593,6 +1077,113 @@ class DmsService:
             )
             db.commit()
             return {"snapshot_id": snapshot_id, "status": "ERROR", "securities_count": 0, "message": str(e)}
+
+    async def initialize_trading_day(
+        self,
+        db: Session,
+        *,
+        user_id: Optional[int],
+        robot_id: int,
+        board: str = "TQBR",
+        force_refresh_snapshot: bool = False,
+    ) -> Dict[str, Any]:
+        if user_id is None:
+            robot = db.execute(
+                text(
+                    f"""
+                    SELECT id
+                    FROM {settings.DB_SCHEMA}.robots
+                    WHERE id=:robot_id AND status != 0
+                    LIMIT 1
+                    """
+                ),
+                {"robot_id": robot_id},
+            ).first()
+        else:
+            robot = db.execute(
+                text(
+                    f"""
+                    SELECT id
+                    FROM {settings.DB_SCHEMA}.robots
+                    WHERE id=:robot_id AND user_id=:user_id AND status != 0
+                    LIMIT 1
+                    """
+                ),
+                {"robot_id": robot_id, "user_id": user_id},
+            ).first()
+        if not robot:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Робот не найден")
+
+        today = datetime.now(timezone.utc).date()
+        existing = db.execute(
+            text(
+                f"""
+                SELECT snapshot_id
+                FROM {settings.DB_SCHEMA}.daily_universe
+                WHERE robot_id=:robot_id
+                  AND trade_date=:trade_date
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            ),
+            {"robot_id": robot_id, "trade_date": today},
+        ).first()
+
+        if existing and not force_refresh_snapshot:
+            return {
+                "robot_id": robot_id,
+                "board": board,
+                "trade_date": today,
+                "snapshot_id": int(existing[0]) if existing[0] is not None else 0,
+                "initialized": False,
+                "analyzer_written_rows": 0,
+                "message": "Уже инициализировано за сегодня",
+            }
+
+        snap = db.execute(
+            text(
+                f"""
+                SELECT id, snapshot_time
+                FROM {settings.DB_SCHEMA}.market_snapshot
+                WHERE board=:board AND status='SUCCESS'
+                ORDER BY snapshot_time DESC
+                LIMIT 1
+                """
+            ),
+            {"board": board},
+        ).first()
+        snapshot_id: Optional[int] = None
+        if not force_refresh_snapshot and snap:
+            snap_id = int(snap[0])
+            snap_time = snap[1]
+            if snap_time and snap_time.astimezone(timezone.utc).date() == today:
+                snapshot_id = snap_id
+
+        if snapshot_id is None:
+            created = await self.create_snapshot(
+                db=db,
+                board=board,
+                ttl_minutes=0,
+                is_manual=True,
+                user_id=user_id,
+            )
+            if created.get("status") != "SUCCESS":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=created.get("message") or "Не удалось создать snapshot",
+                )
+            snapshot_id = int(created["snapshot_id"])
+
+        written = await self._apply_analyzer(db, robot_id=robot_id, snapshot_id=snapshot_id)
+        return {
+            "robot_id": robot_id,
+            "board": board,
+            "trade_date": today,
+            "snapshot_id": int(snapshot_id),
+            "initialized": written > 0,
+            "analyzer_written_rows": written,
+            "message": None if written > 0 else "Уже инициализировано за сегодня",
+        }
 
     async def cleanup_old_snapshots(self, db: Session, older_than_days: int = 3) -> Dict[str, int]:
         threshold = datetime.now(timezone.utc) - timedelta(days=max(1, int(older_than_days)))
@@ -650,6 +1241,22 @@ class DmsService:
         }
 
     async def _apply_analyzer(self, db: Session, robot_id: int, snapshot_id: int) -> int:
+        today = datetime.now(timezone.utc).date()
+        already_initialized = db.execute(
+            text(
+                f"""
+                SELECT 1
+                FROM {settings.DB_SCHEMA}.daily_universe
+                WHERE robot_id = :robot_id
+                  AND trade_date = :trade_date
+                LIMIT 1
+                """
+            ),
+            {"robot_id": robot_id, "trade_date": today},
+        ).first()
+        if already_initialized:
+            return 0
+
         robot_row = db.execute(
             text(f"SELECT config FROM {settings.DB_SCHEMA}.robots WHERE id=:robot_id"),
             {"robot_id": robot_id},
@@ -677,7 +1284,7 @@ class DmsService:
         rows = db.execute(
             text(
                 f"""
-                SELECT ticker, last_price, open_price, prev_price, value_today, volume_lots, security_status, trading_status, num_trades, min_step, issue_size, spread, bid, ask
+                SELECT ticker, last_price, open_price, high_price, low_price, prev_price, value_today, volume_lots, security_status, trading_status, num_trades, min_step, issue_size, spread, bid, ask
                 FROM {settings.DB_SCHEMA}.market_snapshot_data
                 WHERE snapshot_id = :snapshot_id
                 """
@@ -689,17 +1296,19 @@ class DmsService:
                 "ticker": str(r[0]).upper(),
                 "last_price": float(r[1]) if r[1] is not None else None,
                 "open_price": float(r[2]) if r[2] is not None else None,
-                "prev_price": float(r[3]) if r[3] is not None else None,
-                "value_today": float(r[4]) if r[4] is not None else 0.0,
-                "volume_lots": float(r[5]) if r[5] is not None else 0.0,
-                "security_status": r[6],
-                "trading_status": r[7],
-                "num_trades": int(r[8]) if r[8] is not None else 0,
-                "min_step": float(r[9]) if r[9] is not None else None,
-                "issue_size": float(r[10]) if r[10] is not None else None,
-                "spread": float(r[11]) if r[11] is not None else None,
-                "bid": float(r[12]) if r[12] is not None else None,
-                "ask": float(r[13]) if r[13] is not None else None,
+                "high_price": float(r[3]) if r[3] is not None else None,
+                "low_price": float(r[4]) if r[4] is not None else None,
+                "prev_price": float(r[5]) if r[5] is not None else None,
+                "value_today": float(r[6]) if r[6] is not None else 0.0,
+                "volume_lots": float(r[7]) if r[7] is not None else 0.0,
+                "security_status": r[8],
+                "trading_status": r[9],
+                "num_trades": int(r[10]) if r[10] is not None else 0,
+                "min_step": float(r[11]) if r[11] is not None else None,
+                "issue_size": float(r[12]) if r[12] is not None else None,
+                "spread": float(r[13]) if r[13] is not None else None,
+                "bid": float(r[14]) if r[14] is not None else None,
+                "ask": float(r[15]) if r[15] is not None else None,
             }
             for r in rows
         ]
@@ -712,8 +1321,7 @@ class DmsService:
             )
             if (pipeline_mode == "ALL" and pre_res["accepted"]) or (pipeline_mode == "ANY" and not pre_res["accepted"]):
                 pre_candidates.append(mapped)
-        atr_map = await self._load_atr_percent_map(db=db, board="TQBR", rows=pre_candidates if atr_filter_enabled else [], filters=filters)
-        today = datetime.now(timezone.utc).date()
+        atr_map, _ = await self._load_atr_percent_map(db=db, board="TQBR", rows=pre_candidates if atr_filter_enabled else [], filters=filters)
         upsert_q = text(
             f"""
             INSERT INTO {settings.DB_SCHEMA}.daily_universe
@@ -734,7 +1342,16 @@ class DmsService:
                 applied_filters = EXCLUDED.applied_filters
             """
         )
+        decision_q = text(
+            f"""
+            INSERT INTO {settings.DB_SCHEMA}.robot_decisions
+            (robot_id, figi, stage, decision_type, decision, reason_code, payload, created_at)
+            VALUES
+            (:robot_id, :figi, 'dms_init', 'paper_selection', :decision, :reason_code, CAST(:payload AS jsonb), :created_at)
+            """
+        )
         written = 0
+        accepted_tickers: List[str] = []
         for mapped in mapped_rows:
             ticker = mapped["ticker"]
             mapped["atr_percent"] = atr_map.get(ticker)
@@ -778,7 +1395,88 @@ class DmsService:
                     "created_at": datetime.now(timezone.utc),
                 },
             )
+            db.execute(
+                decision_q,
+                {
+                    "robot_id": robot_id,
+                    "figi": ticker,
+                    "decision": "ACCEPT" if reject_reason is None else "REJECT",
+                    "reason_code": None if reject_reason is None else "FILTER_REJECT",
+                    "payload": json.dumps(
+                        {
+                            "source": "PIPELINE",
+                            "snapshot_id": snapshot_id,
+                            "reason": reject_reason,
+                            "filters": filters,
+                        },
+                        ensure_ascii=False,
+                    ),
+                    "created_at": datetime.now(timezone.utc),
+                },
+            )
+            if reject_reason is None:
+                accepted_tickers.append(ticker)
             written += 1
+
+        # Always include open portfolio positions for monitoring, even if they failed morning filters.
+        portfolio_rows = db.execute(
+            text(
+                f"""
+                SELECT DISTINCT COALESCE(NULLIF(ticker, ''), figi) AS ticker
+                FROM {settings.DB_SCHEMA}.robot_trades
+                WHERE robot_id = :robot_id
+                  AND status = 'open'
+                """
+            ),
+            {"robot_id": robot_id},
+        ).fetchall()
+        portfolio_tickers = [str(r[0]).upper() for r in portfolio_rows if r[0]]
+        for ticker in portfolio_tickers:
+            db.execute(
+                upsert_q,
+                {
+                    "robot_id": robot_id,
+                    "trade_date": today,
+                    "ticker": ticker,
+                    "filter_result": "ACCEPT",
+                    "reject_reason": "В портфеле",
+                    "snapshot_id": snapshot_id,
+                    "price_at_filter": None,
+                    "volume_at_filter": 0,
+                    "gap_percent": None,
+                    "applied_filters": json.dumps(filters, ensure_ascii=False),
+                    "created_at": datetime.now(timezone.utc),
+                },
+            )
+            db.execute(
+                decision_q,
+                {
+                    "robot_id": robot_id,
+                    "figi": ticker,
+                    "decision": "ACCEPT",
+                    "reason_code": "PORTFOLIO_FORCE_INCLUDE",
+                    "payload": json.dumps(
+                        {
+                            "source": "PORTFOLIO",
+                            "snapshot_id": snapshot_id,
+                            "reason": "Open position exists",
+                        },
+                        ensure_ascii=False,
+                    ),
+                    "created_at": datetime.now(timezone.utc),
+                },
+            )
+            if ticker not in accepted_tickers:
+                accepted_tickers.append(ticker)
+
+        if accepted_tickers:
+            await self._ensure_candles_cached_for_tickers(
+                db,
+                board="TQBR",
+                tickers=accepted_tickers,
+                interval_code=5,
+                days_back=2,
+            )
         db.commit()
         return written
 
@@ -1100,10 +1798,12 @@ class DmsService:
         pipeline = dict(robot_config.get("pipeline") or {})
         optimize_order = bool(pipeline.get("optimize_order", True))
 
+        now_utc = datetime.now(timezone.utc)
+        today_utc = now_utc.date()
         snap = db.execute(
             text(
                 f"""
-                SELECT id
+                SELECT id, snapshot_time
                 FROM {settings.DB_SCHEMA}.market_snapshot
                 WHERE board=:board AND status='SUCCESS'
                 ORDER BY snapshot_time DESC
@@ -1112,18 +1812,30 @@ class DmsService:
             ),
             {"board": board},
         ).first()
-        if not snap:
+        latest_snapshot_id: Optional[int] = None
+        latest_snapshot_time: Optional[datetime] = None
+        if snap:
+            latest_snapshot_id = int(snap[0])
+            latest_snapshot_time = snap[1]
+
+        is_fresh_today = bool(
+            latest_snapshot_id
+            and latest_snapshot_time is not None
+            and latest_snapshot_time.astimezone(timezone.utc).date() == today_utc
+        )
+
+        if not is_fresh_today:
             created = await self.create_snapshot(db, board=board, ttl_minutes=0, is_manual=True, user_id=user_id)
             if created.get("status") != "SUCCESS":
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=created.get("message") or "Не удалось получить snapshot")
             snapshot_id = int(created["snapshot_id"])
         else:
-            snapshot_id = int(snap[0])
+            snapshot_id = int(latest_snapshot_id)
 
         rows = db.execute(
             text(
                 f"""
-                SELECT ticker, last_price, open_price, prev_price, value_today, volume_lots, security_status, trading_status, num_trades, min_step, issue_size, spread, bid, ask
+                SELECT ticker, last_price, open_price, high_price, low_price, prev_price, value_today, volume_lots, security_status, trading_status, num_trades, min_step, issue_size, spread, bid, ask
                 FROM {settings.DB_SCHEMA}.market_snapshot_data
                 WHERE snapshot_id=:snapshot_id
                 ORDER BY ticker
@@ -1136,17 +1848,19 @@ class DmsService:
                 "ticker": r[0],
                 "last_price": float(r[1]) if r[1] is not None else None,
                 "open_price": float(r[2]) if r[2] is not None else None,
-                "prev_price": float(r[3]) if r[3] is not None else None,
-                "value_today": float(r[4]) if r[4] is not None else 0.0,
-                "volume_lots": float(r[5]) if r[5] is not None else 0.0,
-                "security_status": r[6],
-                "trading_status": r[7],
-                "num_trades": int(r[8]) if r[8] is not None else 0,
-                "min_step": float(r[9]) if r[9] is not None else None,
-                "issue_size": float(r[10]) if r[10] is not None else None,
-                "spread": float(r[11]) if r[11] is not None else None,
-                "bid": float(r[12]) if r[12] is not None else None,
-                "ask": float(r[13]) if r[13] is not None else None,
+                "high_price": float(r[3]) if r[3] is not None else None,
+                "low_price": float(r[4]) if r[4] is not None else None,
+                "prev_price": float(r[5]) if r[5] is not None else None,
+                "value_today": float(r[6]) if r[6] is not None else 0.0,
+                "volume_lots": float(r[7]) if r[7] is not None else 0.0,
+                "security_status": r[8],
+                "trading_status": r[9],
+                "num_trades": int(r[10]) if r[10] is not None else 0,
+                "min_step": float(r[11]) if r[11] is not None else None,
+                "issue_size": float(r[12]) if r[12] is not None else None,
+                "spread": float(r[13]) if r[13] is not None else None,
+                "bid": float(r[14]) if r[14] is not None else None,
+                "ask": float(r[15]) if r[15] is not None else None,
             }
             for r in rows
         ]
@@ -1160,13 +1874,14 @@ class DmsService:
             )
             if (pipeline_mode == "ALL" and pre_res["accepted"]) or (pipeline_mode == "ANY" and not pre_res["accepted"]):
                 pre_candidates.append(mapped)
-        atr_map = await self._load_atr_percent_map(
+        atr_map, _ = await self._load_atr_percent_map(
             db=db, board=board, rows=pre_candidates if atr_filter_enabled else [], filters=filters, user_id=user_id
         )
         total = len(rows)
         passed = 0
         rejected = 0
         sample: List[Dict[str, Any]] = []
+        accepted_tickers: List[str] = []
         for mapped in mapped_rows:
             mapped["atr_percent"] = atr_map.get(str(mapped["ticker"]).upper())
             res = self._evaluate_pipeline_row(
@@ -1174,23 +1889,37 @@ class DmsService:
             )
             if res["accepted"]:
                 passed += 1
+                accepted_tickers.append(str(mapped["ticker"]).upper())
             else:
                 rejected += 1
-            if len(sample) < 50:
-                sample.append(
-                    {
-                        "ticker": mapped["ticker"],
-                        "result": "ACCEPT" if res["accepted"] else "REJECT",
-                        "reason": res["reason"],
-                        "last_price": mapped["last_price"],
-                        "value_today": mapped["value_today"],
-                        "volume_lots": mapped["volume_lots"],
-                        "gap_percent": res["gap_percent"],
-                        "atr_percent": res.get("atr_percent"),
-                        "spread_percent": res.get("spread_percent"),
-                    }
-                )
-        return {"total_checked": total, "passed": passed, "rejected": rejected, "sample": sample}
+            sample.append(
+                {
+                    "ticker": mapped["ticker"],
+                    "result": "ACCEPT" if res["accepted"] else "REJECT",
+                    "reason": res["reason"],
+                    "last_price": mapped["last_price"],
+                    "value_today": mapped["value_today"],
+                    "volume_lots": mapped["volume_lots"],
+                    "gap_percent": res["gap_percent"],
+                    "atr_percent": res.get("atr_percent"),
+                    "spread_percent": res.get("spread_percent"),
+                }
+            )
+        if accepted_tickers:
+            await self._ensure_candles_cached_for_tickers(
+                db,
+                board=board,
+                tickers=accepted_tickers,
+                interval_code=5,
+                days_back=2,
+                user_id=user_id,
+            )
+        return {
+            "total_checked": total,
+            "passed": passed,
+            "rejected": rejected,
+            "sample": sample,
+        }
 
 
 dms_service = DmsService()

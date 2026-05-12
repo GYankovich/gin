@@ -1,4 +1,7 @@
 # app/modules/analytics/router.py
+#///EPIC Analytics.ITEM API.TOPIC Portfolio Reporting Endpoints [1]
+#/// Роутер аналитики: сводки по счетам, исторические метрики, графики и
+#/// агрегаты эффективности портфеля/роботов для UI аналитики.
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional

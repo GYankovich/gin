@@ -1,6 +1,9 @@
 """
 Stage 1: Сбор роботов, которые должны быть запущены по расписанию
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingStagesStage1Collect [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/stages/stage1_collect.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime, time
 from typing import List, Dict, Any, Optional
 from sqlalchemy import text

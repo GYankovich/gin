@@ -1,6 +1,9 @@
 """
 Кэш для свечей и цен
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingCache [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/cache.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
 import asyncio

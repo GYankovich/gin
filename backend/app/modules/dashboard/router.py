@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+#///EPIC Frontend.ITEM Dashboard.TOPIC Backend Data Endpoint [1]
+#/// Компактный endpoint дашборда, собирающий агрегированную витрину данных
+#/// для стартового экрана (счета, баланс, изменения, служебные summary).
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.modules.auth.models import User

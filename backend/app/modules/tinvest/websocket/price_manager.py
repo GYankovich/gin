@@ -1,6 +1,9 @@
 """
 WebSocket менеджер для получения цен в реальном времени
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesTinvestWebsocketPriceManager [1]
+#/// Исходный модуль `backend/app/modules/tinvest/websocket/price_manager.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import asyncio
 import websockets
 import ssl

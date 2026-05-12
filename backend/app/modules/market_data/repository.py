@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesMarketDataRepository [1]
+#/// Исходный модуль `backend/app/modules/market_data/repository.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime
 from typing import Any, List, Optional, Tuple
 

@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Types.TOPIC FrontendSrcTypesPortfolio [1]
+///@ Исходный модуль `frontend/src/types/portfolio.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 export interface PortfolioAccount {
     id: number
     account_id: string

@@ -2,6 +2,9 @@ import sys
 from pathlib import Path
 from logging.config import fileConfig
 
+#///EPIC Platform.ITEM Migrations.TOPIC Alembic Runtime Config [1]
+#/// Конфигурация Alembic окружения: загрузка metadata, установка DB URL
+#/// и запуск offline/online миграций для схемы проекта.
 from sqlalchemy import engine_from_config, pool, text
 from alembic import context
 

@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesTinvestFacade [1]
+#/// Исходный модуль `backend/app/modules/tinvest/facade.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/tinvest/facade.py
 
 from datetime import datetime, timezone

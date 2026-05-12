@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesTinvestSchemas [1]
+#/// Исходный модуль `backend/app/modules/tinvest/schemas.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime

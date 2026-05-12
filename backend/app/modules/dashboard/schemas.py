@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesDashboardSchemas [1]
+#/// Исходный модуль `backend/app/modules/dashboard/schemas.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime
 from typing import List, Optional
 

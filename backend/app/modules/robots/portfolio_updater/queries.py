@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsPortfolioUpdaterQueries [1]
+#/// Исходный модуль `backend/app/modules/robots/portfolio_updater/queries.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/robots/portfolio_updater/queries.py
 """
 Специфичные SQL запросы для портфельного робота

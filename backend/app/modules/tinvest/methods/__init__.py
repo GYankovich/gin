@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesTinvestMethodsInit [1]
+#/// Исходный модуль `backend/app/modules/tinvest/methods/__init__.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # Экспортируем клиентов для удобного импорта
 from .clients.tbank_client import (
     TBankClient,

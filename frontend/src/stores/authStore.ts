@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM State.TOPIC FrontendSrcStoresAuthstore [1]
+///@ Исходный модуль `frontend/src/stores/authStore.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { create } from 'zustand'
 
 interface User {

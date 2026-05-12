@@ -1,10 +1,14 @@
+///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiChart [1]
+///@ Исходный модуль `frontend/src/components/ui/Chart.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React, { useRef, useEffect } from 'react'
 import { createChart, IChartApi, DeepPartial, ChartOptions, ISeriesApi, Time } from 'lightweight-charts'
 
 interface ChartProps {
     height?: number
     className?: string
-    onReady?: (chart: IChartApi) => void
+    /** Second argument is the chart container div (for tooltips / overlays). */
+    onReady?: (chart: IChartApi, container?: HTMLDivElement | null) => void
 }
 
 export function Chart({ height = 360, className = '', onReady }: ChartProps) {
@@ -68,7 +72,7 @@ export function Chart({ height = 360, className = '', onReady }: ChartProps) {
         } as DeepPartial<ChartOptions>)
 
         chartRef.current = chart
-        onReady?.(chart)
+        onReady?.(chart, containerRef.current)
 
         const ro = new ResizeObserver(() => {
             if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth })

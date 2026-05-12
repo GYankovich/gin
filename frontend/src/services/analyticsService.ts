@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM APIClient.TOPIC FrontendSrcServicesAnalyticsservice [1]
+///@ Исходный модуль `frontend/src/services/analyticsService.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { api } from './api'
 import type {
     OverallSummary,

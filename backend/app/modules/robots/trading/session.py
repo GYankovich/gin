@@ -2,6 +2,9 @@
 Торговая сессия для одного робота
 WebSocket и торговля в независимых потоках через очередь
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingSession [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/session.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import asyncio
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Set, Tuple

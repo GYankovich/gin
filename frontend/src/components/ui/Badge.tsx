@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiBadge [1]
+///@ Исходный модуль `frontend/src/components/ui/Badge.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React from 'react'
 
 interface BadgeProps {

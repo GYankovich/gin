@@ -1,10 +1,15 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesDmsScheduler [1]
+#/// Исходный модуль `backend/app/modules/dms/scheduler.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 
 from app.core.database import SessionLocal
+from app.core.config import settings
 from app.core.logging_config import get_logger
 from app.modules.dms.service import dms_service
+from sqlalchemy import text
 
 system_log = get_logger("dms.scheduler")
 
@@ -30,6 +35,30 @@ class DmsScheduler:
                         result.get("created_snapshots", 0),
                         result.get("analyzer_written_rows", 0),
                     )
+                # Best-effort daily initialization for robots with today's DMS subscriptions.
+                active_robots = db.execute(
+                    text(
+                        f"""
+                        SELECT DISTINCT s.robot_id, s.board
+                        FROM {settings.DB_SCHEMA}.dms_subscriptions s
+                        JOIN {settings.DB_SCHEMA}.robots r ON r.id = s.robot_id
+                        WHERE r.status != 0
+                          AND s.request_date = CURRENT_DATE
+                        LIMIT 200
+                        """
+                    )
+                ).fetchall()
+                for robot_id, board in active_robots:
+                    try:
+                        await dms_service.initialize_trading_day(
+                            db=db,
+                            user_id=None,  # scheduler/system context
+                            robot_id=int(robot_id),
+                            board=str(board or "TQBR"),
+                            force_refresh_snapshot=False,
+                        )
+                    except Exception as e:
+                        system_log.warning("DMS init-day skipped for robot_id=%s: %s", robot_id, e)
                 today_key = datetime.now(timezone.utc).date().isoformat()
                 if self._last_cleanup_day != today_key:
                     cleanup_res = await dms_service.cleanup_old_snapshots(db, older_than_days=3)

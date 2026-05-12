@@ -2,6 +2,9 @@ from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, time
 
+#///EPIC Backtesting.ITEM RobotsAPI.TOPIC Request Response Schemas [1]
+#/// Централизованные Pydantic-схемы robots-модуля: управление роботом, расписание,
+#/// запуск/история/детализация бэктеста и сравнение прогонов.
 
 class RobotCreate(BaseModel):
     """Создание робота"""
@@ -25,7 +28,7 @@ class RobotUpdate(BaseModel):
     type: Optional[int] = None
     status: Optional[int] = None
     config: Optional[Dict[str, Any]] = None
-    poll_interval_hours: Optional[int] = Field(default=None, ge=1, le=12)
+    poll_interval_hours: Optional[float] = Field(default=None, ge=(1 / 60), le=12)
     trading_hours_start: Optional[str] = None
     trading_hours_end: Optional[str] = None
     allowed_weekdays: Optional[int] = Field(default=None, ge=0, le=127)
@@ -109,7 +112,7 @@ class RobotConfigUpdateRequest(BaseModel):
 class RobotScheduleUpdateRequest(BaseModel):
     """Запрос обновления расписания робота."""
     robotId: int = Field(..., description="ID робота")
-    poll_interval_hours: int = Field(default=1, ge=1, le=12)
+    poll_interval_hours: float = Field(default=1, ge=(1 / 60), le=12)
     trading_hours_start: str = Field(default="10:00")
     trading_hours_end: str = Field(default="18:45")
     allowed_weekdays: int = Field(default=31, ge=0, le=127)
@@ -140,6 +143,13 @@ class RobotHistoryBacktestRequest(BaseModel):
     from_date: datetime = Field(..., description="Начало периода (UTC)")
     to_date: datetime = Field(..., description="Конец периода (UTC)")
     initial_capital: float = Field(default=1_000_000.0, ge=1000, description="Начальный капитал, ₽")
+    token_id: Optional[int] = None
+    type: Optional[int] = None
+    poll_interval_hours: Optional[float] = Field(default=None, ge=(1 / 60), le=12)
+    trading_hours_start: Optional[str] = None
+    trading_hours_end: Optional[str] = None
+    allowed_weekdays: Optional[int] = Field(default=None, ge=0, le=127)
+    config: Optional[Dict[str, Any]] = None
 
     @model_validator(mode="after")
     def check_range(self):
@@ -160,6 +170,7 @@ class RobotHistoryBacktestTrade(BaseModel):
 
 
 class RobotHistoryBacktestResponse(BaseModel):
+    run_id: Optional[int] = None
     initial_capital: float
     final_equity: float
     total_return_percent: float
@@ -167,6 +178,8 @@ class RobotHistoryBacktestResponse(BaseModel):
     trades: List[RobotHistoryBacktestTrade] = Field(default_factory=list)
     equity_curve: List[Dict[str, Any]] = Field(default_factory=list)
     stages: List[str] = Field(default_factory=list)
+    history_stats: Dict[str, int] = Field(default_factory=dict)
+    daily_summary: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class RobotLiveSnapshotRequest(BaseModel):
@@ -206,6 +219,70 @@ class RobotBacktestHistoryItem(BaseModel):
 class RobotBacktestHistoryResponse(BaseModel):
     total: int
     items: List[RobotBacktestHistoryItem] = Field(default_factory=list)
+
+
+class RobotBacktestRunRequest(BaseModel):
+    runId: int = Field(..., description="ID прогона из backtest_runs")
+
+
+class RobotBacktestRunDetailsResponse(BaseModel):
+    run_id: int
+    robot_id: int
+    status: str
+    requested_from: datetime
+    requested_to: datetime
+    started_at: datetime
+    finished_at: Optional[datetime] = None
+    initial_capital: float
+    total_return_percent: Optional[float] = None
+    max_drawdown_percent: Optional[float] = None
+    final_equity: Optional[float] = None
+    trades_total: int = 0
+    result_payload: Dict[str, Any] = Field(default_factory=dict)
+    signals: List[Dict[str, Any]] = Field(default_factory=list)
+    orders: List[Dict[str, Any]] = Field(default_factory=list)
+    portfolio_snapshots: List[Dict[str, Any]] = Field(default_factory=list)
+    daily_summary: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class RobotBacktestCompareRequest(BaseModel):
+    baseRunId: int = Field(..., description="Базовый run_id")
+    compareRunId: int = Field(..., description="Сравниваемый run_id")
+    name: Optional[str] = Field(default=None, description="Название сравнения")
+
+
+class RobotBacktestCompareResponse(BaseModel):
+    comparison_id: int
+    name: str
+    base_run_id: int
+    compare_run_id: int
+    metrics_base: Dict[str, Any] = Field(default_factory=dict)
+    metrics_compare: Dict[str, Any] = Field(default_factory=dict)
+    metrics_diff: Dict[str, Any] = Field(default_factory=dict)
+    config_diff: Dict[str, Any] = Field(default_factory=dict)
+
+
+class RobotBacktestCompareListRequest(BaseModel):
+    limit: int = Field(default=30, ge=1, le=200)
+    offset: int = Field(default=0, ge=0)
+
+
+class RobotBacktestCompareListItem(BaseModel):
+    id: int
+    name: str
+    base_run_id: int
+    compare_run_id: int
+    created_at: datetime
+    config_diff: Dict[str, Any] = Field(default_factory=dict)
+
+
+class RobotBacktestCompareListResponse(BaseModel):
+    total: int
+    items: List[RobotBacktestCompareListItem] = Field(default_factory=list)
+
+
+class RobotBacktestCompareIdRequest(BaseModel):
+    comparisonId: int = Field(..., description="ID записи сравнения")
 
 
 class BacktestRequest(BaseModel):

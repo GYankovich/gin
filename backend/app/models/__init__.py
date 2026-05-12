@@ -1,3 +1,6 @@
+#///EPIC Platform.ITEM App.TOPIC BackendAppModelsInit [1]
+#/// Исходный модуль `backend/app/models/__init__.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/models/__init__.py
 """
 Единая точка импорта всех моделей SQLAlchemy

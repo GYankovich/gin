@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM State.TOPIC FrontendSrcStoresThemestore [1]
+///@ Исходный модуль `frontend/src/stores/themeStore.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { create } from 'zustand'
 
 type Theme = 'dark' | 'light'

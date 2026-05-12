@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Modules.TOPIC FrontendSrcModulesRobotsComponentsRobotsettingsform [1]
+///@ Исходный модуль `frontend/src/modules/robots/components/RobotSettingsForm.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { robotService } from '../services/robotService';
 import { showToast } from '../../../shared/components/Toast';
 import type { StrategyInfo, StrategyParam } from '../types';

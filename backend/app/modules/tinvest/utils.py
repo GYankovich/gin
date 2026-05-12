@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesTinvestUtils [1]
+#/// Исходный модуль `backend/app/modules/tinvest/utils.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/tinvest/utils.py
 """
 Специфичные для T-Invest утилиты парсинга

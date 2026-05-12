@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Hooks.TOPIC FrontendSrcHooksUsewebsocket [1]
+///@ Исходный модуль `frontend/src/hooks/useWebSocket.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { useEffect, useRef, useCallback, useState } from 'react'
 
 interface UseWebSocketOptions {

@@ -1,6 +1,9 @@
 """
 Stage 4: Управление позициями (открытые, стоп-лосс, тейк-профит)
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingStagesStage4Positions [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/stages/stage4_positions.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from typing import Dict, List, Optional
 from datetime import datetime, timezone
 from sqlalchemy import text

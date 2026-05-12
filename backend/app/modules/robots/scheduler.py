@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsScheduler [1]
+#/// Исходный модуль `backend/app/modules/robots/scheduler.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/robots/scheduler.py
 import asyncio
 import logging

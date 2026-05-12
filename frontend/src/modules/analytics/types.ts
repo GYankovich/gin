@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Modules.TOPIC FrontendSrcModulesAnalyticsTypes [1]
+///@ Исходный модуль `frontend/src/modules/analytics/types.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 export interface AccountSummary {
     id: number;
     account_id: string;

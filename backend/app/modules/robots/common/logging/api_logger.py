@@ -1,6 +1,9 @@
 """
 API логгер - объединяет файловое и БД логирование для API вызовов
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsCommonLoggingApiLogger [1]
+#/// Исходный модуль `backend/app/modules/robots/common/logging/api_logger.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session

@@ -1,6 +1,9 @@
 """
 Модели для роботов
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsModels [1]
+#/// Исходный модуль `backend/app/modules/robots/models.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime
 from sqlalchemy import (
     Column, BigInteger, String, DateTime, ForeignKey,
@@ -475,3 +478,101 @@ class RobotBacktestRun(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
     robot = relationship("Robot", foreign_keys=[robot_id])
+
+
+class BacktestRun(Base):
+    __tablename__ = "backtest_runs"
+    __table_args__ = (
+        Index("ix_backtest_runs_robot_created", "robot_id", "started_at"),
+        {"schema": SCHEMA},
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    requested_from = Column(DateTime(timezone=True), nullable=False)
+    requested_to = Column(DateTime(timezone=True), nullable=False)
+    started_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    status = Column(String(20), nullable=False)
+    board = Column(String(20), nullable=False, default="TQBR")
+    initial_capital = Column(Numeric(20, 4), nullable=False)
+    config_snapshot = Column(JSON, nullable=False, default={})
+    execution_model = Column(JSON, nullable=False, default={})
+    metrics_summary = Column(JSON, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    robot = relationship("Robot", foreign_keys=[robot_id])
+
+
+class BacktestSignal(Base):
+    __tablename__ = "backtest_signals"
+    __table_args__ = (
+        Index("ix_backtest_signals_run_id", "run_id"),
+        {"schema": SCHEMA},
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    run_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.backtest_runs.id", ondelete="CASCADE"), nullable=False)
+    signal_time = Column(DateTime(timezone=True), nullable=True)
+    figi = Column(String(20), nullable=False)
+    signal_type = Column(String(20), nullable=False)
+    price = Column(Numeric(20, 6), nullable=True)
+    was_executed = Column(Integer, nullable=False, default=0)
+    payload = Column(JSON, nullable=False, default={})
+
+
+class BacktestOrder(Base):
+    __tablename__ = "backtest_orders"
+    __table_args__ = (
+        Index("ix_backtest_orders_run_id", "run_id"),
+        {"schema": SCHEMA},
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    run_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.backtest_runs.id", ondelete="CASCADE"), nullable=False)
+    signal_time = Column(DateTime(timezone=True), nullable=True)
+    figi = Column(String(20), nullable=False)
+    side = Column(String(10), nullable=False)
+    status = Column(String(20), nullable=False)
+    quantity = Column(Numeric(20, 4), nullable=False)
+    requested_price = Column(Numeric(20, 6), nullable=True)
+    executed_price = Column(Numeric(20, 6), nullable=True)
+    slippage_pct = Column(Numeric(10, 6), nullable=False, default=0)
+    commission = Column(Numeric(20, 6), nullable=True)
+    tax = Column(Numeric(20, 6), nullable=True)
+    pnl_net = Column(Numeric(20, 6), nullable=True)
+    payload = Column(JSON, nullable=False, default={})
+
+
+class BacktestPortfolioSnapshot(Base):
+    __tablename__ = "backtest_portfolio_snapshots"
+    __table_args__ = (
+        Index("ix_backtest_portfolio_run_id", "run_id"),
+        {"schema": SCHEMA},
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    run_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.backtest_runs.id", ondelete="CASCADE"), nullable=False)
+    snapshot_time = Column(DateTime(timezone=True), nullable=False)
+    cash_balance = Column(Numeric(20, 4), nullable=False)
+    equity = Column(Numeric(20, 4), nullable=False)
+    positions_payload = Column(JSON, nullable=False, default=[])
+
+
+class BacktestMetric(Base):
+    __tablename__ = "backtest_metrics"
+    __table_args__ = (
+        Index("uq_backtest_metrics_run_id", "run_id", unique=True),
+        {"schema": SCHEMA},
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    run_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.backtest_runs.id", ondelete="CASCADE"), nullable=False)
+    total_return_percent = Column(Numeric(12, 6), nullable=True)
+    max_drawdown_percent = Column(Numeric(12, 6), nullable=True)
+    sharpe_ratio = Column(Numeric(12, 6), nullable=True)
+    trades_total = Column(BigInteger, nullable=False, default=0)
+    win_rate_percent = Column(Numeric(12, 6), nullable=True)
+    avg_pnl_per_trade = Column(Numeric(20, 6), nullable=True)
+    final_equity = Column(Numeric(20, 6), nullable=True)
+    payload = Column(JSON, nullable=False, default={})

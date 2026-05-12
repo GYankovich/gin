@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingStrategiesBase [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/strategies/base.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List
 from app.modules.tinvest.methods.instruments import InstrumentsClient

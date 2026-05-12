@@ -1,4 +1,7 @@
 # app/modules/analytics/service.py
+#///EPIC Analytics.ITEM Engine.TOPIC Portfolio Metrics Computation [1]
+#/// Сервис аналитики: вычисление KPI, доходностей, просадок, статистик сделок
+#/// и подготовка временных рядов для графиков аналитического интерфейса.
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional, Dict, Any

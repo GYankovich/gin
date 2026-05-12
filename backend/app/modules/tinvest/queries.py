@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesTinvestQueries [1]
+#/// Исходный модуль `backend/app/modules/tinvest/queries.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/tinvest/queries.py
 from typing import Optional, Dict, Any, List
 

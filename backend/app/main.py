@@ -1,4 +1,7 @@
 # app/main.py
+#///EPIC Platform.ITEM AppBootstrap.TOPIC FastAPI Composition [1]
+#/// Точка сборки приложения: lifespan старта/остановки планировщиков, middleware,
+#/// подключение API-роутеров и системные health/force-run endpoints.
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,6 +43,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         system_log.error(f"❌ Ошибка запуска DMS-планировщика: {e}")
 
+    try:
+        from app.modules.market_data_v1.scheduler import start_candle_load_scheduler
+        await start_candle_load_scheduler()
+        system_log.info("✅ Планировщик загрузки свечей (MOEX) запущен")
+    except Exception as e:
+        system_log.error(f"❌ Ошибка запуска планировщика candle_load: {e}")
+
     yield
 
     # Shutdown
@@ -65,6 +75,12 @@ async def lifespan(app: FastAPI):
         await stop_dms_scheduler()
     except Exception as e:
         system_log.error(f"Ошибка остановки DMS-планировщика: {e}")
+
+    try:
+        from app.modules.market_data_v1.scheduler import stop_candle_load_scheduler
+        await stop_candle_load_scheduler()
+    except Exception as e:
+        system_log.error(f"Ошибка остановки планировщика candle_load: {e}")
 
     system_log.info("✅ Приложение остановлено")
 
@@ -101,6 +117,7 @@ def create_app() -> FastAPI:
     from app.modules.dictionary.router import router as dictionary_router
     from app.modules.dashboard.router import router as dashboard_router
     from app.modules.dms.router import router as dms_router
+    from app.modules.market_data_v1.router import router as market_data_v1_router
 
     app.include_router(auth_router, prefix="/api", tags=["auth"])
     app.include_router(tinvest_router, prefix="/api/tinvest", tags=["tinvest"])
@@ -112,6 +129,7 @@ def create_app() -> FastAPI:
     app.include_router(dictionary_router, prefix="/api", tags=["dictionary"])
     app.include_router(dashboard_router, prefix="/api", tags=["dashboard"])
     app.include_router(dms_router, prefix="/api", tags=["dms"])
+    app.include_router(market_data_v1_router, prefix="/api")
 
     @app.get("/health")
     async def health_check():

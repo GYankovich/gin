@@ -1,3 +1,6 @@
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0017AddExecutionLogId [1]
+#/// Исходный модуль `alembic/versions/0017_add_execution_log_id.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # alembic/versions/0017_add_execution_log_id_to_robot_logs.py
 """add execution_log_id to robot_logs
 

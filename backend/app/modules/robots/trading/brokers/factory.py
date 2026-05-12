@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingBrokersFactory [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/brokers/factory.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from app.modules.robots.trading.brokers.base import BrokerFacade
 from app.modules.robots.trading.brokers.stub import StubBrokerFacade
 from app.modules.robots.trading.brokers.tinvest import TInvestBrokerFacade

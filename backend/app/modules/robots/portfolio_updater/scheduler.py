@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsPortfolioUpdaterScheduler [1]
+#/// Исходный модуль `backend/app/modules/robots/portfolio_updater/scheduler.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/robots/portfolio_updater/scheduler.py
 from typing import Dict, Any, List
 import asyncio

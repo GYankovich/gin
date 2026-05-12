@@ -5,6 +5,9 @@ Revises: 0014_migrate_schedules
 Create Date: 2026-03-24 10:15:00.000000
 
 """
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0015RobotConfigVal [1]
+#/// Исходный модуль `alembic/versions/0015_robot_config_val.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 import sqlalchemy as sa
 from app.core.config import settings

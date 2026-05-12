@@ -7,6 +7,9 @@ Create Date: 2026-04-13
 OPERATION_STATE_* values exceed VARCHAR(20) (e.g. OPERATION_STATE_EXECUTED).
 """
 
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0023WidenPoStatus [1]
+#/// Исходный модуль `alembic/versions/0023_widen_po_status.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 import sqlalchemy as sa
 from app.core.config import settings

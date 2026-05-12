@@ -1,6 +1,9 @@
 """
 Единый модуль логирования роботов: БД + файлы.
 """
+#///EPIC Platform.ITEM Core.TOPIC BackendAppCoreRobotLogging [1]
+#/// Исходный модуль `backend/app/core/robot_logging.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import json
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any

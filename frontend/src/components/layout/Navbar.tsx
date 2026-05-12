@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsLayoutNavbar [1]
+///@ Исходный модуль `frontend/src/components/layout/Navbar.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'

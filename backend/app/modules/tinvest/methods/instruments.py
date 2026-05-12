@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesTinvestMethodsInstruments [1]
+#/// Исходный модуль `backend/app/modules/tinvest/methods/instruments.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import httpx
 import logging
 import uuid

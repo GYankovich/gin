@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Core.TOPIC FrontendSrcCoreRouter [1]
+///@ Исходный модуль `frontend/src/core/router.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 type RouteHandler = () => void;
 
 class Router {

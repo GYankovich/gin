@@ -7,8 +7,12 @@ import type {
     RobotTradingDefaults,
     RobotHistoryBacktestResult,
     RobotBacktestHistoryResponse,
+    RobotBacktestRunDetails,
 } from '@/types/robot'
 
+///@EPIC Frontend.ITEM APIClient.TOPIC Robots Service Facade [1]
+///@ Клиентский фасад для /robots и связанных endpoints: CRUD, backtest, live snapshot,
+///@ DMS preview и вспомогательные методы для экранов настройки/тестирования.
 export const robotService = {
     async list(limit = 50, offset = 0): Promise<RobotListResponse> {
         const { data } = await api.post<RobotListResponse>('/robots/data', { limit, offset })
@@ -84,6 +88,13 @@ export const robotService = {
         from_date: string
         to_date: string
         initial_capital?: number
+        token_id?: number
+        type?: number
+        poll_interval_hours?: number
+        trading_hours_start?: string
+        trading_hours_end?: string
+        allowed_weekdays?: number
+        config?: Record<string, any>
     }): Promise<RobotHistoryBacktestResult> {
         const { data } = await api.post<RobotHistoryBacktestResult>('/robots/history-backtest', payload)
         return data
@@ -91,6 +102,11 @@ export const robotService = {
 
     async listHistoryBacktests(payload: { robotId: number; limit?: number }): Promise<RobotBacktestHistoryResponse> {
         const { data } = await api.post<RobotBacktestHistoryResponse>('/robots/history-backtest/list', payload)
+        return data
+    },
+
+    async getHistoryBacktestRun(runId: number): Promise<RobotBacktestRunDetails> {
+        const { data } = await api.post<RobotBacktestRunDetails>('/robots/history-backtest/run', { runId })
         return data
     },
 

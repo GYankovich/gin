@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM APIClient.TOPIC FrontendSrcServicesPortfolioservice [1]
+///@ Исходный модуль `frontend/src/services/portfolioService.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { api } from './api'
 import type { TokenResponse } from '@/types/portfolio'
 

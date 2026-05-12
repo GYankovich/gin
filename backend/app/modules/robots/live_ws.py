@@ -2,6 +2,9 @@
 WebSocket endpoint for live robot monitoring.
 Proxies T-Invest price stream to the frontend for a given robot.
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsLiveWs [1]
+#/// Исходный модуль `backend/app/modules/robots/live_ws.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import asyncio
 import json
 from datetime import datetime, timezone

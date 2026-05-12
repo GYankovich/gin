@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiRobotillustration [1]
+///@ Исходный модуль `frontend/src/components/ui/RobotIllustration.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React, { useState, memo } from 'react'
 
 interface RobotIllustrationProps {

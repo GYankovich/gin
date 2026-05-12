@@ -4,6 +4,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+#///EPIC Backtesting.ITEM DMS.TOPIC Data Management Endpoints [1]
+#/// Роутер DMS: подписки, снапшоты, preview pipeline, инициализация дня и логи
+#/// фильтрации; используется как фундамент отбора бумаг для торговли/бэктеста.
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.modules.auth.models import User
@@ -93,6 +96,22 @@ async def preview_pipeline(
         mode=body.mode,
     )
     return schemas.DmsPipelinePreviewResponse(**data)
+
+
+@router.post("/initialize-day", response_model=schemas.DmsInitializeDayResponse)
+async def initialize_day(
+    body: schemas.DmsInitializeDayRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    data = await dms_service.initialize_trading_day(
+        db=db,
+        user_id=current_user.id,
+        robot_id=body.robot_id,
+        board=body.board,
+        force_refresh_snapshot=body.force_refresh_snapshot,
+    )
+    return schemas.DmsInitializeDayResponse(**data)
 
 
 @router.get("/daily-universe", response_model=schemas.DailyUniverseResponse)

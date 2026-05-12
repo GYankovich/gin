@@ -1,6 +1,9 @@
 """
 Stage 5: Генерация сигналов на основе стратегий из модуля strategies
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingStagesStage5Signals [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/stages/stage5_signals.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from typing import Dict, List, Optional
 
 from app.modules.robots.trading.brokers.base import BrokerFacade

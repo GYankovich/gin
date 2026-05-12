@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingQueries [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/queries.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/robots/trading/queries.py
 """
 SQL запросы для торгового робота

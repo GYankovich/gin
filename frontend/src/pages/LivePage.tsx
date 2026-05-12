@@ -15,6 +15,9 @@ import { robotService } from '@/services/robotService'
 import type { Robot } from '@/types/robot'
 import { useToast } from '@/components/ui/Toast'
 
+///@EPIC Frontend.ITEM LiveMonitoring.TOPIC Realtime Robot Screen [1]
+///@ Экран live-мониторинга: WebSocket события, статус робота, поток сигналов/ордеров,
+///@ графики и управляющие действия для оперативного контроля торговли.
 const SERIES_COLORS = [
     '#00ffff', '#ff00ff', '#00ffaa', '#ffaa00', '#aa00ff',
     '#ff3366', '#66ffcc', '#ff9900', '#33ccff', '#ff66cc',

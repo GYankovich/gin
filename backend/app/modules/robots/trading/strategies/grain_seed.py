@@ -1,5 +1,6 @@
 from typing import Dict, Optional, List, Any
 
+import numpy as np
 import pandas as pd
 
 from .base import BaseStrategy
@@ -8,11 +9,22 @@ from .base import BaseStrategy
 def _price(q: Optional[Dict[str, Any]]) -> float:
     if not q:
         return 0.0
+    if isinstance(q, (int, float)):
+        return float(q)
+    if isinstance(q, str):
+        try:
+            return float(q)
+        except Exception:
+            return 0.0
     units = int(q.get("units", 0) or 0)
     nano = int(q.get("nano", 0) or 0)
     return float(units + nano / 1e9)
 
 
+#///EPIC Backtesting.ITEM StrategySignals.TOPIC Candle Normalization And ADX [1]
+#/// Стратегия приводится к устойчивой numeric-модели: свечи нормализуются в float,
+#/// inf/NaN чистятся перед индикаторами, ADX считается через EWM с защитой деления на 0.
+#/// Это устраняет падения pandas на object/NAType в rolling/ewm во время history-backtest.
 def _build_frame(candles: List[Dict[str, Any]]) -> pd.DataFrame:
     rows = []
     for c in candles:
@@ -25,7 +37,13 @@ def _build_frame(candles: List[Dict[str, Any]]) -> pd.DataFrame:
                 "volume": float(c.get("volume", 0) or 0),
             }
         )
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+    for col in ("open", "high", "low", "close", "volume"):
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.replace([np.inf, -np.inf], np.nan)
+    return df.fillna(0.0)
 
 
 def _calc_adx(df: pd.DataFrame, period: int) -> pd.Series:
@@ -45,9 +63,9 @@ def _calc_adx(df: pd.DataFrame, period: int) -> pd.Series:
 
     alpha = 1.0 / max(period, 1)
     atr = tr.ewm(alpha=alpha, adjust=False).mean()
-    plus_di = 100.0 * plus_dm.ewm(alpha=alpha, adjust=False).mean() / atr.replace(0, pd.NA)
-    minus_di = 100.0 * minus_dm.ewm(alpha=alpha, adjust=False).mean() / atr.replace(0, pd.NA)
-    dx = 100.0 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, pd.NA)
+    plus_di = 100.0 * plus_dm.ewm(alpha=alpha, adjust=False).mean() / atr.replace(0, np.nan)
+    minus_di = 100.0 * minus_dm.ewm(alpha=alpha, adjust=False).mean() / atr.replace(0, np.nan)
+    dx = 100.0 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
     return dx.ewm(alpha=alpha, adjust=False).mean().fillna(0.0)
 
 
@@ -71,6 +89,10 @@ class GrainSeedStrategy(BaseStrategy):
         bb_period = int(self.params.get("bb_period", 20))
         return max(atr_period, adx_period, ma_slow, bb_period) + 30
 
+    #///EPIC Backtesting.ITEM StrategySignals.TOPIC Grain Seed Decision Pipeline [2]
+    #/// Последовательность сигналов: gap -> spread proxy -> ATR -> ADX regime,
+    #/// далее trigger (MA crossover для trend, Bollinger touch для flat) и отсев
+    #/// по минимальной цели прибыли с учетом round-trip комиссии.
     async def generate_signals(self, candles_data: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Optional[str]]:
         gap_filter_pct = float(self.params.get("gap_filter_pct", 2.5))
         spread_limit_pct = float(self.params.get("spread_limit_pct", 0.15))

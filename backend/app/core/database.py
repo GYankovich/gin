@@ -4,6 +4,9 @@
 SQL-запросы, выполняемые в контексте REST-запроса, дублируются
 в rest-лог (rest_YYYY-MM-DD_HH1-HH2.log).
 """
+#///EPIC Platform.ITEM Core.TOPIC BackendAppCoreDatabase [1]
+#/// Исходный модуль `backend/app/core/database.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from sqlalchemy import create_engine, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session

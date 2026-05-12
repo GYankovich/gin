@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsQueries [1]
+#/// Исходный модуль `backend/app/modules/robots/queries.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/robots/queries.py
 from typing import Optional, List, Dict, Any
 from datetime import datetime

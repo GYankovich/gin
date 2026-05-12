@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiModal [1]
+///@ Исходный модуль `frontend/src/components/ui/Modal.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React, { useEffect, useCallback } from 'react'
 
 interface ModalProps {

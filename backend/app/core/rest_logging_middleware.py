@@ -12,6 +12,9 @@ Middleware для подробного логирования всех REST-за
   - статус ответа, длительность
   - тело ответа (до 2 КБ) при ошибках (4xx/5xx)
 """
+#///EPIC Platform.ITEM Core.TOPIC BackendAppCoreRestLoggingMiddleware [1]
+#/// Исходный модуль `backend/app/core/rest_logging_middleware.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import contextvars
 import time
 import json

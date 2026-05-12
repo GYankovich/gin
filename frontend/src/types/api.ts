@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Types.TOPIC FrontendSrcTypesApi [1]
+///@ Исходный модуль `frontend/src/types/api.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 /* Shared API types */
 
 export interface AccountSummary {

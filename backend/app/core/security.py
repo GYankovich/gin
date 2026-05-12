@@ -1,6 +1,9 @@
 """
 Функции для хеширования паролей и работы с JWT токенами
 """
+#///EPIC Platform.ITEM Core.TOPIC BackendAppCoreSecurity [1]
+#/// Исходный модуль `backend/app/core/security.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 from fastapi import Depends, HTTPException, status

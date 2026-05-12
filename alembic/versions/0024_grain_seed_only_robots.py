@@ -5,6 +5,9 @@ Revises: 0023_widen_po_status
 Create Date: 2026-04-15
 """
 
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0024GrainSeedOnlyRobots [1]
+#/// Исходный модуль `alembic/versions/0024_grain_seed_only_robots.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 from app.core.config import settings
 

@@ -1,4 +1,7 @@
 """Преобразование свечей API T-Invest ↔ хранение в БД ↔ формат стратегий."""
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesMarketDataCandleFormat [1]
+#/// Исходный модуль `backend/app/modules/market_data/candle_format.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from __future__ import annotations
 
 from datetime import datetime, timezone

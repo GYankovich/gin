@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Shared.TOPIC FrontendSrcSharedTypesSelectTypes [1]
+///@ Исходный модуль `frontend/src/shared/types/select.types.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 // frontend/src/shared/types/select.types.ts
 export interface SelectOption {
     value: string | number;

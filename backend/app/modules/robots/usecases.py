@@ -4,6 +4,9 @@ from typing import Dict, Any
 
 from sqlalchemy.orm import Session
 
+#///EPIC Backtesting.ITEM RobotsAPI.TOPIC UseCase Delegation [1]
+#/// Лёгкий слой usecase: делегирует backtest/live snapshot в robot_service,
+#/// удерживая единый вход для роутера и последующего расширения orchestration.
 from . import schemas
 from .service import robot_service
 

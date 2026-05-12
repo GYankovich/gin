@@ -5,6 +5,9 @@ Revises: 0013_robot_strategies
 Create Date: 2026-03-24 10:10:00.000000
 
 """
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0014MigrateSchedules [1]
+#/// Исходный модуль `alembic/versions/0014_migrate_schedules.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 from app.core.config import settings
 

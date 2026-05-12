@@ -2,6 +2,9 @@
 Оркестрация для стратегии «По зёрнышку, по семечке»: правила вне generate_signals
 (резерв средств, окно принудительного сворачивания, серия убыточных дней, сверка БД/брокер).
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingGrainSeedOrchestrator [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/grain_seed_orchestrator.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from __future__ import annotations
 
 from dataclasses import dataclass

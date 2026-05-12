@@ -11,6 +11,9 @@ import { useThemeStore } from '@/stores/themeStore'
 import { useToast } from '@/components/ui/Toast'
 import { api } from '@/services/api'
 
+///@EPIC Frontend.ITEM Settings.TOPIC Profile Tokens Theme [1]
+///@ Экран пользовательских настроек: профиль, API токены, оформление и общие
+///@ параметры, с CRUD-операциями через backend settings/auth endpoints.
 const TABS = ['Профиль', 'API токены', 'Оформление', 'Общие'] as const
 
 export default function SettingsPage() {

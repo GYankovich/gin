@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Modules.TOPIC FrontendSrcModulesSettingsTypes [1]
+///@ Исходный модуль `frontend/src/modules/settings/types.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 // Типы для API ключей
 
 export interface TokenTypeInfo {

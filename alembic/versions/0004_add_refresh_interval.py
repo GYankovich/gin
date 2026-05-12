@@ -5,6 +5,9 @@ Revises: 0003_add_portfolio_tables
 Create Date: 2026-03-04 12:00:00.000000
 
 """
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0004AddRefreshInterval [1]
+#/// Исходный модуль `alembic/versions/0004_add_refresh_interval.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 import sqlalchemy as sa
 from app.core.config import settings

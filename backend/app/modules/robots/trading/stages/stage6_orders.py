@@ -2,6 +2,9 @@
 Stage 6: Выставление заявок
 Использует TInvestFacade и PriceParsingMixin
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingStagesStage6Orders [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/stages/stage6_orders.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone, timedelta
 

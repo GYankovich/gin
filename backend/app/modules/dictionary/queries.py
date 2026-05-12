@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesDictionaryQueries [1]
+#/// Исходный модуль `backend/app/modules/dictionary/queries.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/dictionary/queries.py
 from sqlalchemy.orm import Session
 from typing import List, Any, Optional, Dict

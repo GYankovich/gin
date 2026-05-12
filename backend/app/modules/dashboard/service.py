@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesDashboardService [1]
+#/// Исходный модуль `backend/app/modules/dashboard/service.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime
 from functools import cmp_to_key
 from typing import Any, Dict, List, Optional, Tuple

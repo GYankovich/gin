@@ -1,5 +1,8 @@
 import axios from 'axios'
 
+///@EPIC Frontend.ITEM APIClient.TOPIC Axios Base And Auth Interceptors [1]
+///@ Базовый HTTP-клиент фронтенда: подставляет bearer token в запросы и
+///@ централизованно обрабатывает 401 (сброс сессии и редирект на login).
 export const api = axios.create({ baseURL: '/api' })
 
 api.interceptors.request.use((config) => {

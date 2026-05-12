@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM APIClient.TOPIC FrontendSrcServicesDashboardservice [1]
+///@ Исходный модуль `frontend/src/services/dashboardService.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { api } from './api'
 import type { DashboardDataResponse } from '@/types/api'
 

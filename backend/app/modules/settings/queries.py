@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesSettingsQueries [1]
+#/// Исходный модуль `backend/app/modules/settings/queries.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/apikey/queries.py
 from typing import Optional, Dict, Any, List
 

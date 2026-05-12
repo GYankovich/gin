@@ -5,6 +5,9 @@ Revises: 0001_init_schema
 Create Date: 2026-03-02 16:00:00.000000
 
 """
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0002CreateApiTokens [1]
+#/// Исходный модуль `alembic/versions/0002_create_api_tokens.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 import sqlalchemy as sa
 from app.core.config import settings

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingBrokersGlobalWebsocket [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/brokers/global_websocket.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import asyncio
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple

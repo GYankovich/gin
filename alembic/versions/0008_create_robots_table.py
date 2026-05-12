@@ -5,6 +5,9 @@ Revises: 0007_create_dictionary_table
 Create Date: 2026-03-17 01:10:00.000000
 
 """
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0008CreateRobotsTable [1]
+#/// Исходный модуль `alembic/versions/0008_create_robots_table.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 import sqlalchemy as sa
 from app.core.config import settings

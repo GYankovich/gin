@@ -4,6 +4,9 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+#///EPIC MarketData.ITEM API.TOPIC Historical Candles Endpoints [1]
+#/// Роутер исторических данных: нормализация диапазонов дат, получение свечей,
+#/// проксирование/кеширование и lightweight backtest утилиты поверх market data.
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.modules.auth.models import User

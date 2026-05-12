@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingIndicatorsService [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/indicators/service.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone

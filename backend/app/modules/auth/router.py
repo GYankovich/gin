@@ -2,6 +2,9 @@
 """
 Маршруты для модуля авторизации
 """
+#///EPIC Platform.ITEM Auth.TOPIC REST Authentication Endpoints [1]
+#/// Роуты авторизации: login/register/profile и операции валидации токена
+#/// для сессионного доступа к защищенным разделам API.
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordBearer

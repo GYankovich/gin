@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesTinvestMethodsClientsTbankClient [1]
+#/// Исходный модуль `backend/app/modules/tinvest/methods/clients/tbank_client.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import httpx
 import logging
 from typing import Optional, Dict, Any, List

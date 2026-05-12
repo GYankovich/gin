@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiDatetimepopoverinput [1]
+///@ Исходный модуль `frontend/src/components/ui/DateTimePopoverInput.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 interface Props {

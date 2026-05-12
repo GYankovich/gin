@@ -1,6 +1,9 @@
 """
 Общие SQL запросы для базовых операций с роботами
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsBaseQueries [1]
+#/// Исходный модуль `backend/app/modules/robots/base/queries.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from typing import Optional, List, Dict, Any
 
 # ============================================================

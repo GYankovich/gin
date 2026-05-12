@@ -1,3 +1,6 @@
+#///EPIC Platform.ITEM Core.TOPIC BackendAppCoreExceptions [1]
+#/// Исходный модуль `backend/app/core/exceptions.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError

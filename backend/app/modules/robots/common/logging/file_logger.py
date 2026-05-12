@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsCommonLoggingFileLogger [1]
+#/// Исходный модуль `backend/app/modules/robots/common/logging/file_logger.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/robots/common/logging/file_logger.py
 
 import logging

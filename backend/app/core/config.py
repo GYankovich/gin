@@ -2,6 +2,9 @@
 Настройки приложения.
 Все переменные окружения загружаются из .env файла и валидируются здесь.
 """
+#///EPIC Platform.ITEM Core.TOPIC BackendAppCoreConfig [1]
+#/// Исходный модуль `backend/app/core/config.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional

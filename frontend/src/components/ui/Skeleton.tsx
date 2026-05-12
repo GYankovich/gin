@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiSkeleton [1]
+///@ Исходный модуль `frontend/src/components/ui/Skeleton.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React from 'react'
 
 interface SkeletonProps {

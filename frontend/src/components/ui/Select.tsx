@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiSelect [1]
+///@ Исходный модуль `frontend/src/components/ui/Select.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 
 export interface SelectOption {

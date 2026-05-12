@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Src.TOPIC FrontendSrcMain [1]
+///@ Исходный модуль `frontend/src/main.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'

@@ -4,6 +4,9 @@ Revision ID: 0020_market_backtests
 Revises: 0019_market_candles
 Create Date: 2026-04-07
 """
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0020MarketBacktests [1]
+#/// Исходный модуль `alembic/versions/0020_market_backtests.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 import sqlalchemy as sa
 from app.core.config import settings

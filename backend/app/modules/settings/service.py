@@ -1,4 +1,7 @@
 # app/modules/apikey/service.py
+#///EPIC Platform.ITEM Settings.TOPIC API Key Service Logic [1]
+#/// Бизнес-логика API-ключей: SQL-операции CRUD, проверки уникальности/статуса,
+#/// аудит изменений и формирование ответов для settings endpoints.
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Tuple, Dict, Any
 from sqlalchemy.orm import Session

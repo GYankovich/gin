@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiDatatable [1]
+///@ Исходный модуль `frontend/src/components/ui/DataTable.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React, { useEffect, useMemo, useState } from 'react'
 
 export interface Column<T> {

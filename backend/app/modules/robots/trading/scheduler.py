@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingScheduler [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/scheduler.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/robots/trading/scheduler.py (исправленный)
 
 """

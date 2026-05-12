@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesDmsSchemas [1]
+#/// Исходный модуль `backend/app/modules/dms/schemas.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
@@ -79,6 +82,22 @@ class DmsPipelinePreviewResponse(BaseModel):
     passed: int = 0
     rejected: int = 0
     sample: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class DmsInitializeDayRequest(BaseModel):
+    robot_id: int
+    board: str = "TQBR"
+    force_refresh_snapshot: bool = False
+
+
+class DmsInitializeDayResponse(BaseModel):
+    robot_id: int
+    board: str
+    trade_date: date
+    snapshot_id: int
+    initialized: bool = False
+    analyzer_written_rows: int = 0
+    message: Optional[str] = None
 
 
 class DailyUniverseItem(BaseModel):

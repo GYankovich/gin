@@ -1,6 +1,9 @@
 """
 Логирование в БД для роботов
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsCommonLoggingDbLogger [1]
+#/// Исходный модуль `backend/app/modules/robots/common/logging/db_logger.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 import json

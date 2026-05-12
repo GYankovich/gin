@@ -1,6 +1,9 @@
 """
 Торговый робот - модульная архитектура
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingRobot [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/robot.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime, timezone
 from typing import Dict, Any, List
 from pathlib import Path

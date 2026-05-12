@@ -6,6 +6,9 @@ Create Date: 2026-04-07 12:00:00.000000
 
 """
 
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0021PaLastTokenId [1]
+#/// Исходный модуль `alembic/versions/0021_pa_last_token_id.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 import sqlalchemy as sa
 from app.core.config import settings

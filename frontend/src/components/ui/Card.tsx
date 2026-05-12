@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiCard [1]
+///@ Исходный модуль `frontend/src/components/ui/Card.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React from 'react'
 
 interface CardProps {

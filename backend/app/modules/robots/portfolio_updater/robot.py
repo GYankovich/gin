@@ -1,6 +1,9 @@
 """
 Робот для обновления портфеля пользователя
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsPortfolioUpdaterRobot [1]
+#/// Исходный модуль `backend/app/modules/robots/portfolio_updater/robot.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from typing import Dict, Any, List
 from datetime import datetime, timezone, timedelta
 import json

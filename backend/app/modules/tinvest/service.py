@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesTinvestService [1]
+#/// Исходный модуль `backend/app/modules/tinvest/service.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/tinvest/service.py
 from typing import Optional, List, Dict, Any
 import json

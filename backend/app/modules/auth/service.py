@@ -2,6 +2,9 @@
 """
 Бизнес-логика модуля авторизации с явными SQL запросами
 """
+#///EPIC Platform.ITEM Auth.TOPIC Service Layer And Security Flow [1]
+#/// Сервис авторизации: валидация пользователя, выпуск JWT, управление профилем
+#/// и проверка прав доступа через SQL-слой и security helpers.
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
 import logging

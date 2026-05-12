@@ -1,4 +1,7 @@
 # app/modules/tinvest/router.py
+#///EPIC Integrations.ITEM TInvest.TOPIC Portfolio Token API [1]
+#/// Роутер интеграции T-Invest: портфель/счета/операции и управление токенами доступа,
+#/// включая тестирование и синхронизацию данных в локальную БД.
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import Optional

@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Modules.TOPIC FrontendSrcModulesAuthTypes [1]
+///@ Исходный модуль `frontend/src/modules/auth/types.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 // Типы для запросов и ответов API
 export interface LoginRequest {
     login: string;

@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingStrategiesInit [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/strategies/__init__.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from .base import BaseStrategy
 from .grain_seed import GrainSeedStrategy
 

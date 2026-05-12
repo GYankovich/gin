@@ -3,6 +3,9 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import logging
 
+#///EPIC Platform.ITEM Settings.TOPIC API Keys Endpoints [1]
+#/// Управление API-ключами пользователя: создание, обновление, удаление,
+#/// активация/деактивация и получение параметров интеграций.
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.modules.auth.models import User

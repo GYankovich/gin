@@ -1,6 +1,9 @@
 """
 Модели для хранения данных из T-Invest API
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesTinvestModels [1]
+#/// Исходный модуль `backend/app/modules/tinvest/models.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime
 from sqlalchemy import (
     Column, BigInteger, String, DateTime, ForeignKey,

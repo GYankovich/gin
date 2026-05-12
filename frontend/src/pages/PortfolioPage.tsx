@@ -10,6 +10,9 @@ import { analyticsService } from '@/services/analyticsService'
 import type { AccountSummary, PortfolioSnapshotSummary, PortfolioStatisticsExtendedResponse, AnalyticsChartSeriesResponse } from '@/types/api'
 import { useToast } from '@/components/ui/Toast'
 
+///@EPIC Frontend.ITEM Portfolio.TOPIC Account Performance Screen [1]
+///@ Экран портфеля: выбор счета/периода, таблицы позиций, динамика стоимости,
+///@ статистика и графики, собранные из analytics endpoints.
 const PERIODS = [
     { label: 'День', days: 1 },
     { label: 'Неделя', days: 7 },

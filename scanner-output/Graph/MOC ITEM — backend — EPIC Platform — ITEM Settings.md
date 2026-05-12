@@ -1,0 +1,16 @@
+---
+tags:
+  - gin-graph
+  - gin-scanner
+  - moc/item
+  - gin-root/backend
+---
+
+# MOC ITEM — backend — EPIC Platform — ITEM Settings
+
+Наверх: [[Graph/MOC EPIC — backend — EPIC Platform]] · [[Graph/MOC Root — backend]]
+
+## TOPIC
+
+- [[backend/EPIC Platform/ITEM Settings/TOPIC API Key Service Logic]]
+- [[backend/EPIC Platform/ITEM Settings/TOPIC API Keys Endpoints]]

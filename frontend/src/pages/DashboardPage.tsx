@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/Button'
 import { dashboardService } from '@/services/dashboardService'
 import type { DashboardAccountItem, DashboardDataResponse } from '@/types/api'
 
+///@EPIC Frontend.ITEM Dashboard.TOPIC Accounts Summary View [1]
+///@ Дашборд загружает сводку по счетам/капиталу и показывает карточки состояния
+///@ с базовыми действиями обновления данных.
 export default function DashboardPage() {
     const [data, setData] = useState<DashboardDataResponse | null>(null)
     const [loading, setLoading] = useState(true)

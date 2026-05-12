@@ -3,6 +3,9 @@
 """
 from __future__ import annotations
 
+#///EPIC MarketData.ITEM Service.TOPIC Candle Load Cache Pipeline [1]
+#/// Сервис market data: загрузка свечей из внешних источников, нормализация формата,
+#/// сохранение в локальный репозиторий и выдача данных для аналитики/бэктеста.
 import asyncio
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal

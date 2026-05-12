@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesDictionarySchemas [1]
+#/// Исходный модуль `backend/app/modules/dictionary/schemas.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/dictionary/schemas.py
 
 from pydantic import BaseModel, Field, field_validator

@@ -1,6 +1,9 @@
 """
 Модели для модуля авторизации
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesAuthModels [1]
+#/// Исходный модуль `backend/app/modules/auth/models.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime
 from sqlalchemy import (
     BigInteger, Boolean, Column, DateTime,
