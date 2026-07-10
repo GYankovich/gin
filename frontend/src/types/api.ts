@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Types.TOPIC FrontendSrcTypesApi [1]
+///@ Исходный модуль `frontend/src/types/api.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 /* Shared API types */
 
 export interface AccountSummary {
@@ -137,8 +140,9 @@ export interface PortfolioStatisticsExtendedResponse {
 
 export interface DashboardAccountSummaryKpi {
     own_funds: number
-    total_value: number
-    total_minus_own_funds: number
+    value: number
+    minus_own_funds: number
+    minus_own_funds_percent: number | null
     day_over_day_delta: number | null
     day_over_day_delta_percent: number | null
     currency: string
@@ -150,11 +154,34 @@ export interface DashboardAccountItem {
     account_name: string | null
     account_type: string
     account_status: string
+    account_opened: string | null
     last_account_sync: string | null
+    dashboard_hidden: boolean
     summary: DashboardAccountSummaryKpi
 }
 
+export interface DashboardCurrencyTotals {
+    currency: string
+    total_own_funds: number
+    total_value: number
+    total_minus_own_funds: number
+    total_minus_own_funds_percent: number | null
+    total_day_over_day_delta: number | null
+    total_day_over_day_delta_percent: number | null
+}
+
+export interface DashboardAssetItem {
+    type: string
+    value: number
+    percent: number
+    currency: string
+    day_over_day_delta: number | null
+    day_over_day_delta_percent: number | null
+}
+
 export interface DashboardDataResponse {
+    totals: DashboardCurrencyTotals[]
+    assets: DashboardAssetItem[]
     accounts: DashboardAccountItem[]
 }
 

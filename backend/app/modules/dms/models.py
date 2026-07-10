@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesDmsModels [1]
+#/// Исходный модуль `backend/app/modules/dms/models.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime
 
 from sqlalchemy import (
@@ -101,14 +104,40 @@ class MarketSnapshotData(Base):
     short_name = Column(String(255), nullable=True)
     sec_name = Column(String(255), nullable=True)
     isin = Column(String(20), nullable=True)
+    sec_type = Column(String(3), nullable=True)
+    list_level = Column(Integer, nullable=True)
+    face_value = Column(Numeric(20, 6), nullable=True)
+    board_name = Column(String(381), nullable=True)
+    decimals = Column(Integer, nullable=True)
+    remarks = Column(String(255), nullable=True)
+    market_code = Column(String(12), nullable=True)
+    instr_id = Column(String(12), nullable=True)
+    sector_id = Column(String(12), nullable=True)
+    face_unit = Column(String(12), nullable=True)
+    prev_date = Column(Date, nullable=True)
+    lat_name = Column(String(255), nullable=True)
+    reg_number = Column(String(90), nullable=True)
+    currency_id = Column(String(12), nullable=True)
+    settle_date = Column(Date, nullable=True)
     lot_size = Column(Integer, nullable=True)
     last_price = Column(Numeric(12, 4), nullable=True)
     open_price = Column(Numeric(12, 4), nullable=True)
     low_price = Column(Numeric(12, 4), nullable=True)
     high_price = Column(Numeric(12, 4), nullable=True)
     prev_price = Column(Numeric(12, 4), nullable=True)
+    prev_wa_price = Column(Numeric(12, 4), nullable=True)
+    prev_legal_close_price = Column(Numeric(12, 4), nullable=True)
     close_price = Column(Numeric(12, 4), nullable=True)
+    value = Column(Numeric(20, 4), nullable=True)
+    value_usd = Column(Numeric(20, 4), nullable=True)
+    wa_price = Column(Numeric(12, 4), nullable=True)
+    last_change = Column(Numeric(12, 4), nullable=True)
+    last_change_prcnt = Column(Numeric(12, 4), nullable=True)
+    market_price_today = Column(Numeric(12, 4), nullable=True)
+    market_price = Column(Numeric(12, 4), nullable=True)
+    last_to_prev_price = Column(Numeric(12, 4), nullable=True)
     value_today = Column(BigInteger, nullable=True)
+    val_today_rur = Column(BigInteger, nullable=True)
     volume_lots = Column(BigInteger, nullable=True)
     security_status = Column(String(10), nullable=True)
     trading_status = Column(String(20), nullable=True)
@@ -119,6 +148,11 @@ class MarketSnapshotData(Base):
     ask = Column(Numeric(12, 4), nullable=True)
     spread = Column(Numeric(12, 4), nullable=True)
     market_update_time = Column(String(20), nullable=True)
+    trading_session = Column(String(3), nullable=True)
+    seq_num = Column(BigInteger, nullable=True)
+    sys_time = Column(DateTime(timezone=True), nullable=True)
+    issue_capitalization = Column(Numeric(20, 4), nullable=True)
+    trend_issue_capitalization = Column(Numeric(20, 4), nullable=True)
     securities_payload = Column(JSON, nullable=True)
     marketdata_payload = Column(JSON, nullable=True)
 
@@ -126,12 +160,26 @@ class MarketSnapshotData(Base):
 class CandleCache(Base):
     __tablename__ = "candles_cache"
     __table_args__ = (
-        UniqueConstraint("ticker", "interval", "candle_time", name="uq_candles_cache_ticker_interval_time"),
-        Index("idx_candles_ticker_interval_time", "ticker", "interval", "candle_time"),
+        UniqueConstraint(
+            "market",
+            "instrument_id",
+            "interval",
+            "candle_time",
+            name="uq_candles_cache_market_instrument_interval_time",
+        ),
+        Index(
+            "idx_candles_market_instrument_interval_time",
+            "market",
+            "instrument_id",
+            "interval",
+            "candle_time",
+        ),
         {"schema": SCHEMA},
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
+    market = Column(String(16), nullable=False, default="moex")
+    instrument_id = Column(String(64), nullable=False)
     ticker = Column(String(20), nullable=False)
     interval = Column(String(10), nullable=False)
     candle_time = Column(DateTime(timezone=True), nullable=False)
@@ -140,6 +188,7 @@ class CandleCache(Base):
     low = Column(Numeric(12, 4), nullable=True)
     close = Column(Numeric(12, 4), nullable=True)
     volume = Column(BigInteger, nullable=True)
+    source = Column(String(32), nullable=False, default="legacy_moex")
     updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
 
@@ -166,4 +215,27 @@ class DailyUniverse(Base):
     atr_value = Column(Numeric(12, 4), nullable=True)
     gap_percent = Column(Numeric(6, 3), nullable=True)
     applied_filters = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class CryptoUniverseDaily(Base):
+    __tablename__ = "crypto_universe_daily"
+    __table_args__ = (
+        UniqueConstraint("robot_id", "trade_date", "symbol", name="uq_crypto_universe_daily_robot_date_symbol"),
+        Index("idx_crypto_universe_daily_robot_date", "robot_id", "trade_date"),
+        Index("idx_crypto_universe_daily_result", "filter_result"),
+        {"schema": SCHEMA},
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    trade_date = Column(Date, nullable=False)
+    symbol = Column(String(32), nullable=False)
+    source = Column(String(30), nullable=False, default="crypto_screening")
+    filter_result = Column(String(20), nullable=True)
+    reject_reason = Column(Text, nullable=True)
+    turnover_24h = Column(Numeric(20, 4), nullable=True)
+    last_price = Column(Numeric(20, 8), nullable=True)
+    spread_percent = Column(Numeric(10, 6), nullable=True)
+    meta_payload = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)

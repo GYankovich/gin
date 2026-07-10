@@ -1,13 +1,22 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesTinvestMethodsClientsTbankClient [1]
+#/// Исходный модуль `backend/app/modules/tinvest/methods/clients/tbank_client.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import httpx
 import logging
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+
+from app.modules.tinvest.http_client import is_transport_error, post_with_transport_recovery
 
 logger = logging.getLogger(__name__)
 
 TBANK_GET_OPERATIONS_BY_CURSOR_ENDPOINT = (
     "tinkoff.public.invest.api.contract.v1.OperationsService/GetOperationsByCursor"
 )
+
+
+class TBankAuthError(Exception):
+    """Raised when T-Bank API token is invalid/expired (HTTP 401)."""
 
 
 def _normalize_operation_for_upsert(raw: Dict[str, Any]) -> Dict[str, Any]:
@@ -66,44 +75,50 @@ class TBankClient:
         logger.debug(f"Request data: {data}")
 
         try:
-            # ВАЖНО: добавляем verify=False для отключения проверки SSL
-            async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
-                response = await client.post(
-                    url,
-                    headers=self.headers,
-                    json=data
-                )
+            response = await post_with_transport_recovery(
+                url,
+                headers=self.headers,
+                json=data,
+                timeout=timeout,
+                token=self.token,
+            )
 
-                logger.info(f"Response status: {response.status_code}")
-                logger.debug(f"Response headers: {dict(response.headers)}")
+            logger.info(f"Response status: {response.status_code}")
+            logger.debug(f"Response headers: {dict(response.headers)}")
 
-                if response.status_code == 401:
-                    error_text = await response.text() if response.text else "No error message"
-                    logger.error(f"Unauthorized (401): {error_text}")
-                    raise Exception(f"Неверный токен или токен истек. Получите новый токен в личном кабинете Т-Банка.")
+            def _response_text(resp: Any) -> str:
+                text_attr = getattr(resp, "text", "")
+                if callable(text_attr):
+                    return str(text_attr() or "No error message")
+                return str(text_attr or "No error message")
 
-                if response.status_code == 403:
-                    error_text = await response.text() if response.text else "No error message"
-                    logger.error(f"Forbidden (403): {error_text}")
-                    raise Exception(f"Нет доступа к API. Проверьте права токена.")
+            if response.status_code == 401:
+                error_text = _response_text(response)
+                logger.error(f"Unauthorized (401): {error_text}")
+                raise TBankAuthError("Неверный токен или токен истек. Получите новый токен в личном кабинете Т-Банка.")
 
-                if response.status_code == 429:
-                    logger.error("Rate limit exceeded (429)")
-                    raise Exception("Слишком много запросов. Превышен лимит API. Попробуйте позже.")
+            if response.status_code == 403:
+                error_text = _response_text(response)
+                logger.error(f"Forbidden (403): {error_text}")
+                raise Exception("Нет доступа к API. Проверьте права токена.")
 
-                if response.status_code >= 500:
-                    error_text = await response.text() if response.text else "No error message"
-                    logger.error(f"Server error ({response.status_code}): {error_text}")
-                    raise Exception(f"Ошибка на стороне Т-Банка. Попробуйте позже.")
+            if response.status_code == 429:
+                logger.error("Rate limit exceeded (429)")
+                raise Exception("Слишком много запросов. Превышен лимит API. Попробуйте позже.")
 
-                if response.status_code >= 400:
-                    error_text = await response.text() if response.text else "No error message"
-                    logger.error(f"Client error ({response.status_code}): {error_text}")
-                    raise Exception(f"Ошибка запроса: {error_text[:200]}")
+            if response.status_code >= 500:
+                error_text = _response_text(response)
+                logger.error(f"Server error ({response.status_code}): {error_text}")
+                raise Exception("Ошибка на стороне Т-Банка. Попробуйте позже.")
 
-                response_json = response.json() if response.text else {}
-                logger.debug(f"Response JSON: {response_json}")
-                return response_json
+            if response.status_code >= 400:
+                error_text = _response_text(response)
+                logger.error(f"Client error ({response.status_code}): {error_text}")
+                raise Exception(f"Ошибка запроса: {error_text[:200]}")
+
+            response_json = response.json() if response.text else {}
+            logger.debug(f"Response JSON: {response_json}")
+            return response_json
 
         except httpx.TimeoutException:
             logger.error("Timeout exception")
@@ -112,6 +127,9 @@ class TBankClient:
             logger.error(f"Network error: {e}")
             raise Exception(f"Сетевая ошибка при подключении к T-Bank API: {str(e)}")
         except Exception as e:
+            if is_transport_error(e):
+                logger.error("Transport error after retries: %s", e)
+                raise Exception(f"Сетевая ошибка при подключении к T-Bank API: {str(e)}") from e
             logger.error(f"Request error: {e}", exc_info=True)
             raise
 
@@ -188,6 +206,7 @@ class TBankClient:
             to_dt: datetime,
             state: str = "OPERATION_STATE_UNSPECIFIED",
             page_limit: int = 1000,
+            max_pages: int = 500,
     ) -> Dict[str, Any]:
         """
         Все операции за период через GetOperationsByCursor (лимит до 1000 на страницу).
@@ -198,7 +217,7 @@ class TBankClient:
         page_responses: List[Dict[str, Any]] = []
         cursor: Optional[str] = None
         pages = 0
-        max_pages = 500
+        max_pages = max(1, min(int(max_pages), 500))
 
         while pages < max_pages:
             data: Dict[str, Any] = {
@@ -211,6 +230,11 @@ class TBankClient:
             if cursor:
                 data["cursor"] = cursor
 
+            logger.info(
+                "GetOperationsByCursor page %s for account %s",
+                pages + 1,
+                account_id,
+            )
             result = await self._make_request(
                 TBANK_GET_OPERATIONS_BY_CURSOR_ENDPOINT,
                 data,

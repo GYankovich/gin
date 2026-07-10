@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesTinvestFacade [1]
+#/// Исходный модуль `backend/app/modules/tinvest/facade.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/tinvest/facade.py
 
 from datetime import datetime, timezone
@@ -7,6 +10,7 @@ import asyncio
 from app.modules.tinvest.methods import create_tbank_client
 from app.modules.tinvest.methods.instruments import InstrumentsClient
 from app.modules.tinvest.websocket.price_manager import PriceStreamManager
+from app.modules.tinvest.utils import parse_api_timestamp
 from app.modules.robots.common.mixins import PriceParsingMixin
 from app.core.logging_config import get_logger
 
@@ -56,8 +60,8 @@ class TInvestFacade(PriceParsingMixin):
                 "type": self._normalize_account_type(acc.get("type", "")),
                 "name": acc.get("name", ""),
                 "status": self._normalize_account_status(acc.get("status", "")),
-                "opened_date": acc.get("openedDate"),
-                "closed_date": acc.get("closedDate"),
+                "opened_date": parse_api_timestamp(acc.get("openedDate")),
+                "closed_date": parse_api_timestamp(acc.get("closedDate")),
                 "access_level": acc.get("accessLevel", "")
             })
 

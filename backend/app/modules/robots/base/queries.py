@@ -1,6 +1,9 @@
 """
 Общие SQL запросы для базовых операций с роботами
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsBaseQueries [1]
+#/// Исходный модуль `backend/app/modules/robots/base/queries.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from typing import Optional, List, Dict, Any
 
 # ============================================================
@@ -149,5 +152,5 @@ def build_get_token_query() -> str:
     return """
            SELECT id, token, user_id
            FROM {schema}.api_tokens
-           WHERE id = :token_id AND is_active = 1 \
+           WHERE id = :token_id AND status = 1 \
            """

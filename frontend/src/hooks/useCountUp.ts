@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Hooks.TOPIC FrontendSrcHooksUsecountup [1]
+///@ Исходный модуль `frontend/src/hooks/useCountUp.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { useEffect, useRef, useState } from 'react'
 
 export function useCountUp(target: number, duration = 800): number {

@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Shared.TOPIC FrontendSrcSharedComponentsCustomselect [1]
+///@ Исходный модуль `frontend/src/shared/components/CustomSelect.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 // frontend/src/shared/components/CustomSelect.ts
 import { SelectOption, SelectProps } from '../types/select.types';
 

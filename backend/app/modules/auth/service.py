@@ -2,6 +2,9 @@
 """
 Бизнес-логика модуля авторизации с явными SQL запросами
 """
+#///EPIC Platform.ITEM Auth.TOPIC Service Layer And Security Flow [1]
+#/// Сервис авторизации: валидация пользователя, выпуск JWT, управление профилем
+#/// и проверка прав доступа через SQL-слой и security helpers.
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
 import logging
@@ -191,11 +194,21 @@ class AuthService:
         """
         self.db = db
 
+        cfg_ttl = db.execute(
+            text(f"SELECT value FROM {settings.DB_SCHEMA}.app_config WHERE key = 'jwt_ttl_minutes' LIMIT 1")
+        ).scalar()
+        try:
+            ttl_minutes = int(cfg_ttl) if cfg_ttl is not None else int(settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        except (TypeError, ValueError):
+            ttl_minutes = int(settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        if ttl_minutes <= 0:
+            ttl_minutes = int(settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+
         # Создаем JWT токен
         token_data = {"sub": str(user_data["id"]), "login": user_data["login"]}
         token, expires_at = create_access_token(
             token_data,
-            timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+            timedelta(minutes=ttl_minutes)
         )
 
         # Текущее время для БД
@@ -242,8 +255,8 @@ class AuthService:
 
         self.db = db
 
-        # Декодируем токен
-        payload = decode_token(token)
+        # Декодируем токен (exp в JWT не проверяем — сессия в user_token)
+        payload = decode_token(token, verify_exp=False)
         if not payload:
             logger.warning("Token decode failed")
             return None

@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Modules.TOPIC FrontendSrcModulesSettingsViewsSettingsview [1]
+///@ Исходный модуль `frontend/src/modules/settings/views/SettingsView.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 // frontend/src/modules/settings/views/SettingsView.ts
 
 import { apiKeyService } from '../services/apiKeyService';

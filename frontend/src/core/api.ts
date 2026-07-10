@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Core.TOPIC FrontendSrcCoreApi [1]
+///@ Исходный модуль `frontend/src/core/api.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { router } from './router';
 
 interface ApiOptions extends RequestInit {

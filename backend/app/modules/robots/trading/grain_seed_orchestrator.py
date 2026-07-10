@@ -1,7 +1,15 @@
 """
 Оркестрация для стратегии «По зёрнышку, по семечке»: правила вне generate_signals
 (резерв средств, окно принудительного сворачивания, серия убыточных дней, сверка БД/брокер).
+
+DEPRECATED (см. docs/BRD-ARCH-03 §11): общая логика перенесена в
+`app.modules.robots.trading.risk.manager.RiskManager`. Этот модуль сохраняется
+как обратно совместимый ре-экспорт; новые места кода должны импортировать
+напрямую из `risk.manager`.
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingGrainSeedOrchestrator [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/grain_seed_orchestrator.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,6 +21,12 @@ from sqlalchemy.orm import Session
 from zoneinfo import ZoneInfo
 
 from app.modules.tinvest.facade import TInvestFacade
+
+# Ре-экспорт общих утилит из нового модуля риск-менеджмента (BRD-ARCH-03 §11).
+from app.modules.robots.trading.risk.manager import (
+    parse_force_close_time,
+    compute_effective_free_funds,
+)
 
 MSK = ZoneInfo("Europe/Moscow")
 
@@ -26,21 +40,6 @@ class GrainSeedOrchestrationResult:
     broker_non_currency_figis: frozenset
     db_open_figis: frozenset
     position_mismatch: bool
-
-
-def parse_force_close_time(value: Optional[str]) -> time:
-    raw = (value or "").strip()
-    for fmt in ("%H:%M", "%H:%M:%S"):
-        try:
-            return datetime.strptime(raw, fmt).time()
-        except ValueError:
-            continue
-    return time(18, 45)
-
-
-def compute_effective_free_funds(raw_free: float, reserve_pct: float) -> float:
-    r = max(0.0, min(100.0, float(reserve_pct or 0.0)))
-    return max(0.0, float(raw_free or 0.0) * (1.0 - r / 100.0))
 
 
 def extract_broker_position_figis(portfolio: Optional[Dict[str, Any]]) -> Set[str]:
@@ -128,14 +127,19 @@ def evaluate_grain_seed_orchestration(
     sp = strategy_params or {}
     reserve_pct = float(sp.get("free_funds_reserve_pct", 50.0))
     streak_limit = int(sp.get("day_loss_streak_limit", 3) or 3)
-    force_t = parse_force_close_time(sp.get("force_close_time_msk"))
+    force_close_raw = str(sp.get("force_close_time_msk") or "").strip()
+    force_flatten_enabled = bool(sp.get("force_market_flatten", False)) and bool(force_close_raw)
 
     raw = float(TInvestFacade.compute_free_funds_from_portfolio(portfolio) if portfolio else 0.0)
     effective = compute_effective_free_funds(raw, reserve_pct)
 
     now_msk = now_utc.astimezone(MSK)
     cur_t = now_msk.time()
-    allow_only_reduce = cur_t >= force_t
+    if force_flatten_enabled:
+        force_t = parse_force_close_time(force_close_raw)
+        allow_only_reduce = cur_t >= force_t
+    else:
+        allow_only_reduce = False
 
     loss_streak = 0
     if db:

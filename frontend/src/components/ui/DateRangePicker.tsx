@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiDaterangepicker [1]
+///@ Исходный модуль `frontend/src/components/ui/DateRangePicker.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Select } from '@/components/ui/Select'
 

@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Core.TOPIC FrontendSrcCoreStore [1]
+///@ Исходный модуль `frontend/src/core/store.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 interface User {
     id: number;
     login: string;

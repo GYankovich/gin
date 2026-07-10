@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM APIClient.TOPIC FrontendSrcServicesAnalyticsservice [1]
+///@ Исходный модуль `frontend/src/services/analyticsService.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { api } from './api'
 import type {
     OverallSummary,
@@ -11,8 +14,10 @@ import type {
 import type { RobotMetricsResponse, UserRobotsTradingOverview } from '@/types/robot'
 
 export const analyticsService = {
-    async getSummary(): Promise<OverallSummary> {
-        const { data } = await api.get<OverallSummary>('/analytics/summary')
+    async getSummary(includeInactive = false): Promise<OverallSummary> {
+        const { data } = await api.get<OverallSummary>('/analytics/summary', {
+            params: includeInactive ? { include_inactive: true } : undefined,
+        })
         return data
     },
 

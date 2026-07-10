@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingQueries [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/queries.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/robots/trading/queries.py
 """
 SQL запросы для торгового робота
@@ -20,7 +23,7 @@ def build_get_active_trading_robots_query() -> str:
         INNER JOIN {schema}.api_tokens at ON r.token_id = at.id
            WHERE r.type = :robot_type
              AND r.status = :status_active
-             AND at.is_active = 1 \
+             AND at.status = 1 \
            """
 
 
@@ -35,17 +38,19 @@ def build_collect_scheduled_trading_robots_query() -> str:
                r.token_id,
                r.config,
                at.token as token_value,
+               at.extra_data as token_extra_data,
                rs.schedule_type,
                rs.interval_seconds,
                rs.start_time,
                rs.end_time,
-               rs.weekdays
+               rs.weekdays,
+               at.token_type
            FROM {schema}.robots r
         INNER JOIN {schema}.api_tokens at ON r.token_id = at.id
          LEFT JOIN {schema}.robot_schedules rs ON r.id = rs.robot_id AND rs.is_active = 1
            WHERE r.type = 2
              AND r.status = 1
-             AND at.is_active = 1 \
+             AND at.status = 1 \
            """
 
 

@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesAnalyticsSchemas [1]
+#/// Исходный модуль `backend/app/modules/analytics/schemas.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime

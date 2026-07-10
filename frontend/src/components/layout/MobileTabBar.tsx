@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsLayoutMobiletabbar [1]
+///@ Исходный модуль `frontend/src/components/layout/MobileTabBar.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React from 'react'
 import { NavLink } from 'react-router-dom'
 

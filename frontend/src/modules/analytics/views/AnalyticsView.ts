@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Modules.TOPIC FrontendSrcModulesAnalyticsViewsAnalyticsview [1]
+///@ Исходный модуль `frontend/src/modules/analytics/views/AnalyticsView.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { analyticsService } from '../services/analyticsService';
 import { router } from '../../../core/router';
 import { store } from '../../../core/store';

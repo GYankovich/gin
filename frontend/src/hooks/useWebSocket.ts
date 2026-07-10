@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Hooks.TOPIC FrontendSrcHooksUsewebsocket [1]
+///@ Исходный модуль `frontend/src/hooks/useWebSocket.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { useEffect, useRef, useCallback, useState } from 'react'
 
 interface UseWebSocketOptions {
@@ -11,6 +14,7 @@ export function useWebSocket({ url, onMessage, enabled = true, reconnectInterval
     const wsRef = useRef<WebSocket | null>(null)
     const [connected, setConnected] = useState(false)
     const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+    const reconnectAttempt = useRef(0)
     const onMessageRef = useRef<UseWebSocketOptions['onMessage']>(onMessage)
     const shouldReconnectRef = useRef<boolean>(enabled)
     const connVersionRef = useRef(0)
@@ -18,6 +22,15 @@ export function useWebSocket({ url, onMessage, enabled = true, reconnectInterval
     useEffect(() => {
         onMessageRef.current = onMessage
     }, [onMessage])
+
+    const scheduleReconnect = useCallback((connectFn: () => void) => {
+        reconnectAttempt.current += 1
+        const delay = Math.min(
+            reconnectInterval * Math.pow(2, reconnectAttempt.current - 1),
+            30000,
+        )
+        reconnectTimer.current = setTimeout(connectFn, delay)
+    }, [reconnectInterval])
 
     const connect = useCallback(() => {
         if (!enabled || !url) return
@@ -33,6 +46,7 @@ export function useWebSocket({ url, onMessage, enabled = true, reconnectInterval
             wsRef.current = ws
             ws.onopen = () => {
                 if (connVersionRef.current !== version || wsRef.current !== ws) return
+                reconnectAttempt.current = 0
                 setConnected(true)
             }
             ws.onmessage = (ev) => {
@@ -45,7 +59,7 @@ export function useWebSocket({ url, onMessage, enabled = true, reconnectInterval
                 if (connVersionRef.current !== version) return
                 setConnected(false)
                 if (shouldReconnectRef.current) {
-                    reconnectTimer.current = setTimeout(connect, reconnectInterval)
+                    scheduleReconnect(connect)
                 }
             }
             ws.onerror = () => {
@@ -54,10 +68,10 @@ export function useWebSocket({ url, onMessage, enabled = true, reconnectInterval
             }
         } catch {
             if (shouldReconnectRef.current) {
-                reconnectTimer.current = setTimeout(connect, reconnectInterval)
+                scheduleReconnect(connect)
             }
         }
-    }, [url, enabled, reconnectInterval])
+    }, [url, enabled, scheduleReconnect])
 
     useEffect(() => {
         shouldReconnectRef.current = enabled

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingBrokersTinvest [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/brokers/tinvest.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import asyncio
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -23,6 +26,10 @@ class TInvestBrokerFacade(BrokerFacade):
     @property
     def cache_namespace(self) -> str:
         return f"{self.broker_type}:{self._token[:12]}"
+
+    @property
+    def auth_token(self) -> str:
+        return self._token
 
     async def _rest_call(self, func, *args, **kwargs):
         limiter = await get_token_rate_limiter(self._token)
@@ -50,6 +57,23 @@ class TInvestBrokerFacade(BrokerFacade):
     async def get_portfolio(self, account_id: str) -> Dict[str, Any]:
         return await self._rest_call(self._facade.get_portfolio, account_id)
 
+    async def get_operations(
+        self,
+        account_id: str,
+        from_dt: datetime,
+        to_dt: datetime,
+        *,
+        max_pages: int = 10,
+    ) -> List[Dict[str, Any]]:
+        payload = await self._rest_call(
+            self._facade.rest.get_operations_all_pages,
+            account_id,
+            from_dt,
+            to_dt,
+            max_pages=max_pages,
+        )
+        return list((payload or {}).get("operations") or [])
+
     async def get_free_funds(self, account_id: str) -> float:
         return await self._rest_call(self._facade.get_free_funds, account_id)
 
@@ -64,7 +88,7 @@ class TInvestBrokerFacade(BrokerFacade):
         direction: str,
         account_id: str,
     ) -> Dict[str, Any]:
-        return await self._rest_call(self._facade.post_order, figi, quantity, price, direction, account_id)
+        return await self._rest_call(self._facade.post_order, figi, int(quantity), price, direction, account_id)
 
     async def get_order_state(self, account_id: str, order_id: str) -> Dict[str, Any]:
         return await self._rest_call(self._facade.get_order_state, account_id, order_id)
@@ -77,7 +101,7 @@ class TInvestBrokerFacade(BrokerFacade):
         account_id: str,
     ) -> Dict[str, Any]:
         return await self._rest_call(
-            self._facade.post_market_order, figi, quantity, direction, account_id
+            self._facade.post_market_order, figi, int(quantity), direction, account_id
         )
 
     async def get_orders(self, account_id: str) -> List[Dict[str, Any]]:
@@ -89,8 +113,16 @@ class TInvestBrokerFacade(BrokerFacade):
     async def connect_websocket(self, user_id: int) -> bool:
         return await global_websocket_manager.ensure_connected(user_id, self._token, self.broker_type)
 
-    async def subscribe_prices(self, user_id: int, figis: List[str], queue) -> Dict[str, str]:
-        return await global_websocket_manager.subscribe(user_id, self._token, self.broker_type, figis, queue)
+    async def subscribe_prices(
+        self,
+        user_id: int,
+        figis: List[str],
+        queue,
+        candle_interval: Optional[str] = None,
+    ) -> Dict[str, str]:
+        return await global_websocket_manager.subscribe(
+            user_id, self._token, self.broker_type, figis, queue, candle_interval=candle_interval
+        )
 
     async def unsubscribe_prices(self, user_id: int, figis: List[str], queue) -> None:
         await global_websocket_manager.unsubscribe(user_id, self._token, self.broker_type, figis, queue)
@@ -100,6 +132,11 @@ class TInvestBrokerFacade(BrokerFacade):
 
     async def close_websocket(self, user_id: int, queue=None) -> None:
         await global_websocket_manager.close(user_id, self._token, self.broker_type, queue=queue)
+
+    async def force_resubscribe_websocket(self, user_id: int) -> bool:
+        return await global_websocket_manager.force_resubscribe(
+            user_id, self._token, self.broker_type
+        )
 
     async def close(self) -> None:
         await self._facade.close()

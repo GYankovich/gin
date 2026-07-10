@@ -1,9 +1,18 @@
 """
 Единая настройка логирования приложения и роботов.
 
-Ротация всех файлов — каждые 4 часа (0-4, 4-8, 8-12, 12-16, 16-20, 20-24).
-Имена файлов: rest_2026-04-01_08-12.log, app_2026-04-01_08-12.log, и т.д.
+Ротация — каждые 4 часа (0-4, 4-8, 8-12, 12-16, 16-20, 20-24).
+
+Layout:
+  logs/app/{YYYY-MM-DD}/app/{HH}-{HH}.log
+  logs/app/{YYYY-MM-DD}/rest/{HH}-{HH}.log
+  logs/app/{YYYY-MM-DD}/errors/{HH}-{HH}.log
+  logs/app/{YYYY-MM-DD}/robots/portfolio_updater_robot/id_{id}_{HH}-{HH}.log
+  logs/app/{YYYY-MM-DD}/robots/trading_robot/id_{id}_{HH}-{HH}.log
 """
+#///EPIC Platform.ITEM Core.TOPIC BackendAppCoreLoggingConfig [1]
+#/// Исходный модуль `backend/app/core/logging_config.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import logging
 import sys
 import io
@@ -14,64 +23,91 @@ from typing import Optional
 
 ROTATION_HOURS = 4
 
+# Корень репозитория (директория `gin`).
+# backend/app/core/logging_config.py -> parents[0]=core, [1]=app, [2]=backend, [3]=gin
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_LOG_ROOT = _REPO_ROOT / "logs" / "app"
+# Совместимость: каталог текущего дня.
+_LOG_DIR = _LOG_ROOT / datetime.now().strftime("%Y-%m-%d")
 
-class _Timed4hHandler(BaseRotatingHandler):
+_ROBOT_LOG_FOLDERS = {
+    "portfolio_updater": "portfolio_updater_robot",
+    "trading": "trading_robot",
+}
+
+
+def _slot_now() -> tuple:
+    """(date_str, hour_start, hour_end) текущего 4-часового слота."""
+    now = datetime.now()
+    slot_start = (now.hour // ROTATION_HOURS) * ROTATION_HOURS
+    slot_end = slot_start + ROTATION_HOURS
+    return now.strftime("%Y-%m-%d"), slot_start, slot_end
+
+
+class _ChannelSlotFileHandler(BaseRotatingHandler):
     """
-    Файловый хендлер с ротацией каждые 4 часа.
-
-    Имя файла: <base>_YYYY-MM-DD_HH1-HH2.log
-    Пример:    logs/rest_2026-04-01_08-12.log
+    Канал приложения:
+      logs/app/{YYYY-MM-DD}/{channel}/{HH}-{HH}.log
     """
 
-    def __init__(self, log_dir: Path, base_name: str, level: int,
-                 formatter: logging.Formatter, backup_count: int = 30):
-        self._log_dir = log_dir
-        self._base_name = base_name
+    def __init__(
+        self,
+        log_root: Path,
+        channel: str,
+        level: int,
+        formatter: logging.Formatter,
+        backup_count: int = 60,
+    ):
+        self._log_root = log_root
+        self._channel = str(channel or "app").replace("/", "_")
         self._backup_count = backup_count
-        self._current_slot = self._slot_now()
+        self._current_slot = _slot_now()
         file_path = self._make_path(self._current_slot)
         super().__init__(str(file_path), mode="a", encoding="utf-8")
         self.setLevel(level)
         self.setFormatter(formatter)
 
-    # --- rotation logic ---
-
-    @staticmethod
-    def _slot_now() -> tuple:
-        """Возвращает (date_str, hour_start, hour_end) текущего 4-часового слота."""
-        now = datetime.now()
-        slot_start = (now.hour // ROTATION_HOURS) * ROTATION_HOURS
-        slot_end = slot_start + ROTATION_HOURS
-        return now.strftime("%Y-%m-%d"), slot_start, slot_end
-
     def _make_path(self, slot: tuple) -> Path:
         date_str, h_start, h_end = slot
-        return self._log_dir / f"{self._base_name}_{date_str}_{h_start:02d}-{h_end:02d}.log"
+        day_dir = self._log_root / date_str / self._channel
+        day_dir.mkdir(parents=True, exist_ok=True)
+        return day_dir / f"{h_start:02d}-{h_end:02d}.log"
 
     def shouldRollover(self, record: logging.LogRecord) -> int:
-        return 1 if self._slot_now() != self._current_slot else 0
+        return 1 if _slot_now() != self._current_slot else 0
 
     def doRollover(self) -> None:
         if self.stream:
             self.stream.close()
             self.stream = None  # type: ignore[assignment]
-        self._current_slot = self._slot_now()
+        self._current_slot = _slot_now()
         self.baseFilename = str(self._make_path(self._current_slot))
         self.stream = self._open()
         self._cleanup_old()
 
     def _cleanup_old(self) -> None:
-        prefix = f"{self._base_name}_"
-        files = sorted(
-            [f for f in self._log_dir.iterdir() if f.name.startswith(prefix) and f.suffix == ".log"],
-            key=lambda p: p.stat().st_mtime,
-        )
+        files: list[Path] = []
+        try:
+            if not self._log_root.is_dir():
+                return
+            for day_dir in self._log_root.iterdir():
+                channel_dir = day_dir / self._channel
+                if not channel_dir.is_dir():
+                    continue
+                files.extend(f for f in channel_dir.iterdir() if f.suffix == ".log")
+        except OSError:
+            return
+        files = sorted(files, key=lambda p: p.stat().st_mtime)
         while len(files) > self._backup_count:
             oldest = files.pop(0)
             try:
                 oldest.unlink()
             except OSError:
                 pass
+
+
+# Backward-compatible alias (tests / old imports).
+_Timed4hHandler = _ChannelSlotFileHandler
 
 
 class RobotLogFormatter(logging.Formatter):
@@ -81,6 +117,72 @@ class RobotLogFormatter(logging.Formatter):
         if not hasattr(record, "robot_id"):
             record.robot_id = "-"
         return super().format(record)
+
+
+class _RobotSlotFileHandler(BaseRotatingHandler):
+    """
+    logs/app/{YYYY-MM-DD}/robots/{portfolio_updater_robot}/id_{id}_{HH}-{HH}.log
+    """
+
+    def __init__(
+        self,
+        log_root: Path,
+        robot_folder: str,
+        robot_id: str,
+        level: int,
+        formatter: logging.Formatter,
+        backup_count: int = 90,
+    ):
+        self._log_root = log_root
+        self._robot_folder = str(robot_folder or "robot").replace("/", "_")
+        self._robot_id = str(robot_id or "-").replace("/", "_")
+        self._backup_count = backup_count
+        self._current_slot = _slot_now()
+        file_path = self._make_path(self._current_slot)
+        super().__init__(str(file_path), mode="a", encoding="utf-8")
+        self.setLevel(level)
+        self.setFormatter(formatter)
+
+    def _make_path(self, slot: tuple) -> Path:
+        date_str, h_start, h_end = slot
+        day_dir = self._log_root / date_str / "robots" / self._robot_folder
+        day_dir.mkdir(parents=True, exist_ok=True)
+        return day_dir / f"id_{self._robot_id}_{h_start:02d}-{h_end:02d}.log"
+
+    def shouldRollover(self, record: logging.LogRecord) -> int:
+        return 1 if _slot_now() != self._current_slot else 0
+
+    def doRollover(self) -> None:
+        if self.stream:
+            self.stream.close()
+            self.stream = None  # type: ignore[assignment]
+        self._current_slot = _slot_now()
+        self.baseFilename = str(self._make_path(self._current_slot))
+        self.stream = self._open()
+        self._cleanup_old()
+
+    def _cleanup_old(self) -> None:
+        prefix = f"id_{self._robot_id}_"
+        files: list[Path] = []
+        try:
+            if not self._log_root.is_dir():
+                return
+            for day_dir in self._log_root.iterdir():
+                robot_dir = day_dir / "robots" / self._robot_folder
+                if not robot_dir.is_dir():
+                    continue
+                files.extend(
+                    f for f in robot_dir.iterdir() if f.name.startswith(prefix) and f.suffix == ".log"
+                )
+        except OSError:
+            return
+        files = sorted(files, key=lambda p: p.stat().st_mtime)
+        while len(files) > self._backup_count:
+            oldest = files.pop(0)
+            try:
+                oldest.unlink()
+            except OSError:
+                pass
 
 
 def _clear_existing_handlers() -> None:
@@ -95,16 +197,16 @@ def _clear_existing_handlers() -> None:
             logger.removeHandler(handler)
 
 
-def _h(log_dir: Path, base_name: str, level: int, formatter: logging.Formatter) -> _Timed4hHandler:
-    """Shortcut: создаёт 4-часовой ротирующий хендлер."""
-    return _Timed4hHandler(log_dir, base_name, level, formatter)
+def _h(log_root: Path, channel: str, level: int, formatter: logging.Formatter) -> _ChannelSlotFileHandler:
+    """Shortcut: канал под logs/app/{date}/{channel}/{HH}-{HH}.log."""
+    return _ChannelSlotFileHandler(log_root, channel, level, formatter)
 
 
 def setup_logging() -> None:
     """Настраивает единое логирование для приложения и роботов."""
-
-    log_dir = Path("logs")
-    log_dir.mkdir(parents=True, exist_ok=True)
+    global _LOG_DIR
+    _LOG_DIR = _LOG_ROOT / datetime.now().strftime("%Y-%m-%d")
+    _LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     app_fmt = logging.Formatter(
         "[%(asctime)s.%(msecs)03d] [APP] [%(levelname)s] %(message)s",
@@ -122,8 +224,6 @@ def setup_logging() -> None:
     _clear_existing_handlers()
 
     stream = sys.stdout
-    # Windows cp1251 consoles can crash on emoji/unicode log messages.
-    # Re-wrap stdout with UTF-8 + replacement fallback for safe logging.
     if hasattr(sys.stdout, "buffer"):
         stream = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True)
     console_handler = logging.StreamHandler(stream)
@@ -133,35 +233,59 @@ def setup_logging() -> None:
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     root.addHandler(console_handler)
-    root.addHandler(_h(log_dir, "app", logging.DEBUG, app_fmt))
-    root.addHandler(_h(log_dir, "errors", logging.ERROR, app_fmt))
+    root.addHandler(_h(_LOG_ROOT, "app", logging.DEBUG, app_fmt))
+    root.addHandler(_h(_LOG_ROOT, "errors", logging.ERROR, app_fmt))
 
-    # REST API logger
     rest_logger = logging.getLogger("rest")
     rest_logger.setLevel(logging.DEBUG)
     rest_logger.propagate = False
-    rest_logger.addHandler(_h(log_dir, "rest", logging.DEBUG, rest_fmt))
+    rest_logger.addHandler(_h(_LOG_ROOT, "rest", logging.DEBUG, rest_fmt))
 
-    # Portfolio updater
+    # Type-level aggregate (без конкретного robot_id) — id_all в той же папке.
     portfolio_logger = logging.getLogger("robots.portfolio_updater")
     portfolio_logger.setLevel(logging.DEBUG)
     portfolio_logger.propagate = False
-    portfolio_logger.addHandler(_h(log_dir, "portfolio_updater", logging.DEBUG, robot_fmt))
+    portfolio_logger.addHandler(
+        _RobotSlotFileHandler(
+            _LOG_ROOT,
+            "portfolio_updater_robot",
+            "all",
+            logging.DEBUG,
+            robot_fmt,
+        )
+    )
 
-    # Trading robots
     trading_logger = logging.getLogger("robots.trading")
     trading_logger.setLevel(logging.DEBUG)
     trading_logger.propagate = False
-    trading_logger.addHandler(_h(log_dir, "trading_robot", logging.DEBUG, robot_fmt))
+    trading_logger.addHandler(
+        _RobotSlotFileHandler(
+            _LOG_ROOT,
+            "trading_robot",
+            "all",
+            logging.DEBUG,
+            robot_fmt,
+        )
+    )
 
-    logging.getLogger("sqlalchemy.engine").setLevel(logging.DEBUG)
-    logging.info("Logging configured (4h rotation)")
+    _sql_engine = logging.getLogger("sqlalchemy.engine")
+    _sql_engine.setLevel(logging.WARNING)
+    _sql_engine.propagate = False
+    logging.info("Logging configured (date/channel folders, 4h slots)")
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Возвращает общий логгер по имени."""
+    """Возвращает общий логгер по имени.
+
+    Type-roots ``robots.trading`` / ``robots.portfolio_updater`` имеют свои file handlers
+    (id_all) и не должны дублироваться в APP.
+
+    Дочерние логгеры (``robots.trading.scheduler``, ``robots.trading.session``, …)
+    обязаны propagate=True, иначе сообщения исчезают: у них нет handlers, а
+    propagate=False отрезает путь к type-root.
+    """
     logger = logging.getLogger(name)
-    if name.startswith("robots.portfolio_updater") or name.startswith("robots.trading"):
+    if name in ("robots.portfolio_updater", "robots.trading"):
         logger.propagate = False
     else:
         logger.propagate = True
@@ -173,26 +297,48 @@ def get_rest_logger() -> logging.Logger:
     return logging.getLogger("rest")
 
 
+def _robot_folder_for(base_name: str) -> str:
+    robot_type = str(base_name or "robot").rstrip(".").split(".")[-1] or "robot"
+    robot_type = robot_type.replace("/", "_")
+    return _ROBOT_LOG_FOLDERS.get(robot_type, f"{robot_type}_robot")
+
+
 def get_robot_logger(base_name: str, robot_id: Optional[int] = None) -> logging.LoggerAdapter:
-    """Возвращает логгер-адаптер робота с robot_id."""
-    return logging.LoggerAdapter(get_logger(base_name), {"robot_id": robot_id if robot_id is not None else "-"})
-
-
-def register_trading_session_logger(robot_id: int) -> logging.LoggerAdapter:
     """
-    Возвращает логгер trading-сессии с отдельным файловым хендлером.
+    Логгер робота:
+      logs/app/{YYYY-MM-DD}/robots/portfolio_updater_robot/id_{id}_{HH}-{HH}.log
     """
-    log_dir = Path("logs")
-    log_dir.mkdir(parents=True, exist_ok=True)
+    robot_id_val = robot_id if robot_id is not None else "-"
+    robot_folder = _robot_folder_for(base_name)
+    slug_robot = str(robot_id_val).replace("/", "_")
+
+    logger_name = f"{base_name.replace('.', '_')}.robot.{slug_robot}"
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+
     formatter = RobotLogFormatter(
         "[%(asctime)s.%(msecs)03d] [ROBOT_%(robot_id)s] [%(levelname)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    logger_name = f"robots.trading.session.{robot_id}"
-    session_logger = logging.getLogger(logger_name)
-    session_logger.setLevel(logging.DEBUG)
-    session_logger.propagate = False
-    log_file_base = f"trading_session_{robot_id}"
-    if not any(isinstance(h, _Timed4hHandler) and h._base_name == log_file_base for h in session_logger.handlers):
-        session_logger.addHandler(_Timed4hHandler(log_dir, log_file_base, logging.DEBUG, formatter))
-    return logging.LoggerAdapter(session_logger, {"robot_id": robot_id})
+
+    has_slot = any(
+        isinstance(h, _RobotSlotFileHandler)
+        and h._robot_folder == robot_folder
+        and h._robot_id == slug_robot
+        for h in logger.handlers
+    )
+    if not has_slot:
+        for h in list(logger.handlers):
+            h.close()
+            logger.removeHandler(h)
+        logger.addHandler(
+            _RobotSlotFileHandler(_LOG_ROOT, robot_folder, slug_robot, logging.DEBUG, formatter)
+        )
+
+    return logging.LoggerAdapter(logger, {"robot_id": robot_id_val})
+
+
+def register_trading_session_logger(robot_id: int) -> logging.LoggerAdapter:
+    """Логгер trading-сессии: тот же layout, что у get_robot_logger(trading)."""
+    return get_robot_logger("robots.trading", robot_id)

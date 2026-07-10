@@ -4,6 +4,9 @@ import { useAuthStore } from '@/stores/authStore'
 import { PageLayout } from '@/components/layout/PageLayout'
 import { ToastProvider } from '@/components/ui/Toast'
 
+///@EPIC Frontend.ITEM Routing.TOPIC App Shell And Guards [1]
+///@ Корневой роутинг фронтенда: lazy pages, protected layout, fallback loader
+///@ и redirect-логика для публичных/приватных маршрутов.
 const LoginPage = lazy(() => import('@/pages/LoginPage'))
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
 const PortfolioPage = lazy(() => import('@/pages/PortfolioPage'))
@@ -42,6 +45,7 @@ export function App() {
                         <Route path="analytics" element={<AnalyticsPage />} />
                         <Route path="settings" element={<SettingsPage />} />
                         <Route path="testing" element={<TestingPage />} />
+                        <Route path="testing-v2" element={<Navigate to="/testing" replace />} />
                         <Route path="live" element={<LivePage />} />
                     </Route>
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />

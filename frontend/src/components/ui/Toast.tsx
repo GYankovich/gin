@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiToast [1]
+///@ Исходный модуль `frontend/src/components/ui/Toast.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React, { createContext, useContext, useState, useCallback } from 'react'
 
 type ToastType = 'success' | 'error' | 'warning' | 'info'

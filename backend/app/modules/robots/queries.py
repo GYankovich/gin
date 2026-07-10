@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsQueries [1]
+#/// Исходный модуль `backend/app/modules/robots/queries.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/robots/queries.py
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -25,7 +28,7 @@ def build_get_user_robots_query(
                      r.user_id,
                      t.id,
                      t.name,
-                     t.is_active,
+                     t.status,
                      t.token_type,
                      da.name,
                      r.name,
@@ -161,7 +164,7 @@ def build_get_robot_by_id_query(schema: str = "ganaly") -> str:
                r.user_id,
                t.id,
                t.name,
-               t.is_active,
+              t.status,
                t.token_type,
                da.name,
                r.name,
@@ -179,11 +182,11 @@ def build_get_robot_by_id_query(schema: str = "ganaly") -> str:
                r.usermod,
                r.date_modification
            FROM {schema}.robots r
-                    JOIN {schema}.api_tokens t ON r.token_id = t.id 
+                    JOIN {schema}.api_tokens t ON r.token_id = t.id and t.status != 0
                     join {schema}.dictionary da ON t.token_type = da.num_value AND da.table_name = 'TOKEN' AND da.column_name = 'TYPE'
                     JOIN {schema}.dictionary dt ON r.type = dt.num_value AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
                     JOIN {schema}.dictionary ds ON r.status = ds.num_value AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
-           WHERE r.id = :robot_id AND r.user_id = :user_id and status != 0
+           WHERE r.id = :robot_id AND r.user_id = :user_id
            """.format(schema=schema)
 
 
@@ -317,9 +320,9 @@ def build_get_dictionary_values_query(
 def build_check_token_query(schema: str = "ganaly") -> str:
     """Проверка существования и активности токена"""
     return """
-           SELECT id
+           SELECT id, token_type
            FROM {schema}.api_tokens
-           WHERE id = :token_id AND user_id = :user_id AND is_active = 1
+          WHERE id = :token_id AND user_id = :user_id AND status = 1
            """.format(schema=schema)
 
 

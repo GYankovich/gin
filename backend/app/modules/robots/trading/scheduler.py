@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingScheduler [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/scheduler.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/robots/trading/scheduler.py (исправленный)
 
 """
@@ -8,10 +11,14 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List
 from sqlalchemy import text
 
-from app.core.database import SessionLocal
+from app.core.database import SessionLocal, try_dispose_pool_on_connectivity_error
 from app.core.config import settings
 from app.core.logging_config import get_logger
-from app.modules.robots.trading.session import TradingSession
+from app.core.scheduler_utils import scheduler_startup_delay
+from app.core.background_jobs.repository import enqueue_background_job, has_active_job
+from app.core.background_jobs.worker import LANE_HEAVY
+from app.modules.robots.trading.runtime import get_trading_orchestrator
+from app.modules.robots.scheduling.schedule_policy import should_start_trading_session
 from app.modules.robots.trading import queries as trading_queries
 from app.modules.robots.trading.brokers.global_websocket import global_websocket_manager
 
@@ -24,20 +31,19 @@ class TradingScheduler:
     def __init__(self):
         self.running = False
         self.task = None
-        self.active_sessions: Dict[int, asyncio.Task] = {}
         self.check_interval = 30
 
     async def _get_active_robots(self, db) -> List[Dict]:
-        """Получает активных торговых роботов"""
-        query = trading_queries.build_get_active_trading_robots_query().format(schema=settings.DB_SCHEMA)
+        """Активные торговые роботы type=2 с robot_schedules (если есть)."""
+        query = trading_queries.build_collect_scheduled_trading_robots_query().format(
+            schema=settings.DB_SCHEMA
+        )
 
         try:
-            result = db.execute(
-                text(query),
-                {"robot_type": 2, "status_active": 1}
-            ).fetchall()
+            result = db.execute(text(query)).fetchall()
         except Exception as e:
             system_log.error(f"Ошибка получения списка роботов: {e}")
+            try_dispose_pool_on_connectivity_error(e)
             return []
 
         robots = []
@@ -47,15 +53,21 @@ class TradingScheduler:
                 "user_id": row[1],
                 "token_id": row[2],
                 "config": row[3] or {},
-                "token": row[4]
+                "token": row[4],
+                "token_extra_data": row[5] if isinstance(row[5], dict) else {},
+                "schedule_type": row[6],
+                "interval_seconds": row[7],
+                "start_time": row[8],
+                "end_time": row[9],
+                "weekdays": row[10],
+                "token_type": int(row[11]) if len(row) > 11 and row[11] is not None else None,
             })
 
         return robots
 
     def _should_start_session(self, robot: Dict) -> bool:
-        """Проверяет, нужно ли запускать сессию для робота"""
-        # TODO: реализовать проверку по расписанию
-        return True
+        """Проверка robot_schedules / config.risk (BRD-ARCH-04 этап 5)."""
+        return should_start_trading_session(robot)
 
     async def _run_session(self, robot: Dict):
         """Запускает сессию для одного робота"""
@@ -67,65 +79,116 @@ class TradingScheduler:
 
         session = None
         try:
-            session = TradingSession(
-                db=None,
+            from app.modules.robots.trading.brokers.routing import (
+                BrokerTokenMismatchError,
+                enforce_broker_for_token,
+            )
+
+            cfg = dict(robot.get("config") or {})
+            try:
+                broker_type = enforce_broker_for_token(
+                    cfg,
+                    token_type=robot.get("token_type"),
+                    mutate=True,
+                    require_token=True,
+                )
+            except (BrokerTokenMismatchError, ValueError) as exc:
+                system_log.error(
+                    "❌ Робот %s: отказ запуска — broker/token mismatch: %s",
+                    robot_id,
+                    exc,
+                )
+                return
+
+            result = await get_trading_orchestrator().run_live_session(
                 schema=settings.DB_SCHEMA,
                 robot_id=robot_id,
                 user_id=robot["user_id"],
                 token_id=robot["token_id"],
                 token=robot["token"],
-                config=robot["config"],
-                log_func=log_func
+                config=cfg,
+                db=None,
+                log_func=log_func,
+                token_extra_data=robot.get("token_extra_data"),
+                token_type=robot.get("token_type"),
             )
-
-            result = await session.run()
-            system_log.info(f"✅ Сессия робота {robot_id} завершена: {result.get('status', 'unknown')}")
+            system_log.info(
+                "✅ Сессия робота %s завершена: %s (broker=%s)",
+                robot_id,
+                result.get("status", "unknown"),
+                broker_type,
+            )
 
         except asyncio.CancelledError:
             system_log.info(f"⏹️ Сессия робота {robot_id} отменена")
         except Exception as e:
             system_log.error(f"❌ Ошибка в сессии робота {robot_id}: {e}", exc_info=True)
-        finally:
-            if session:
-                try:
-                    session.running = False
-                except:
-                    pass
-            if robot_id in self.active_sessions:
-                del self.active_sessions[robot_id]
 
     async def _run_cycle(self):
-        """Один цикл работы шедулера"""
+        """Один цикл: постановка live-сессий в heavy lane."""
         db = SessionLocal()
         try:
             robots = await self._get_active_robots(db)
 
             if robots:
-                system_log.debug(f"📊 Найдено активных торговых роботов: {len(robots)}")
+                system_log.info("📊 Найдено активных торговых роботов: %s", len(robots))
+            else:
+                system_log.info("📊 Активных торговых роботов нет (type=2, status=1, token active)")
 
+            enqueued = 0
+            skipped = 0
+            skipped_schedule = 0
             for robot in robots:
                 robot_id = robot["robot_id"]
 
-                if robot_id in self.active_sessions and not self.active_sessions[robot_id].done():
+                if not self._should_start_session(robot):
+                    skipped_schedule += 1
+                    system_log.info(
+                        "⏭️ Робот %s: вне окна robot_schedules (broker=%s)",
+                        robot_id,
+                        (robot.get("config") or {}).get("broker_type"),
+                    )
                     continue
 
-                if self._should_start_session(robot):
-                    system_log.info(f"🔄 Создание новой сессии для робота {robot_id}")
-                    task = asyncio.create_task(self._run_session(robot))
-                    self.active_sessions[robot_id] = task
+                idempotency_key = f"live_session:{robot_id}"
+                if has_active_job(db, idempotency_key=idempotency_key):
+                    skipped += 1
+                    continue
 
-            to_remove = [rid for rid, t in self.active_sessions.items() if t.done()]
-            for rid in to_remove:
-                if rid in self.active_sessions:
-                    del self.active_sessions[rid]
+                job_id = enqueue_background_job(
+                    db,
+                    lane=LANE_HEAVY,
+                    job_type="live_trading_session",
+                    payload=robot,
+                    idempotency_key=idempotency_key,
+                )
+                if job_id:
+                    enqueued += 1
+                    system_log.info(
+                        "🔄 В очередь heavy: live session robot_id=%s job_id=%s",
+                        robot_id,
+                        job_id,
+                    )
+
+            if enqueued or skipped or skipped_schedule:
+                system_log.info(
+                    "Торговая очередь: enqueued=%s, skipped_active=%s, skipped_schedule=%s",
+                    enqueued,
+                    skipped,
+                    skipped_schedule,
+                )
+            db.commit()
 
         except Exception as e:
+            db.rollback()
             system_log.error(f"Ошибка в цикле шедулера: {e}")
+            try_dispose_pool_on_connectivity_error(e)
         finally:
             db.close()
 
     async def _run_loop(self):
         """Основной цикл шедулера"""
+        await scheduler_startup_delay("trading")
         system_log.info(f"🔄 Торговый планировщик запущен (интервал: {self.check_interval} сек)")
 
         while self.running:
@@ -136,6 +199,7 @@ class TradingScheduler:
                 break
             except Exception as e:
                 system_log.error(f"Ошибка в основном цикле: {e}")
+                try_dispose_pool_on_connectivity_error(e)
                 await asyncio.sleep(5)
 
         system_log.info("🛑 Торговый планировщик остановлен")
@@ -157,14 +221,6 @@ class TradingScheduler:
 
         self.running = False
 
-        for robot_id, task in list(self.active_sessions.items()):
-            if not task.done():
-                task.cancel()
-                system_log.info(f"🛑 Отмена сессии робота {robot_id}")
-        if self.active_sessions:
-            await asyncio.gather(*self.active_sessions.values(), return_exceptions=True)
-            self.active_sessions.clear()
-
         if self.task:
             self.task.cancel()
             try:
@@ -177,18 +233,25 @@ class TradingScheduler:
         system_log.info("🛑 Торговый планировщик остановлен")
 
     async def force_run(self, robot_id: int) -> Dict:
-        """Принудительный запуск робота"""
+        """Принудительный запуск робота через heavy lane (без idempotency)."""
         db = SessionLocal()
         try:
             robots = await self._get_active_robots(db)
             robot = next((r for r in robots if r["robot_id"] == robot_id), None)
 
-            if robot:
-                system_log.info(f"🔧 Принудительный запуск робота {robot_id}")
-                await self._run_session(robot)
-                return {"status": "success", "robot_id": robot_id}
-            else:
+            if not robot:
                 return {"status": "error", "message": f"Robot {robot_id} not found"}
+
+            job_id = enqueue_background_job(
+                db,
+                lane=LANE_HEAVY,
+                job_type="live_trading_session",
+                payload=robot,
+                idempotency_key=None,
+            )
+            db.commit()
+            system_log.info(f"🔧 Принудительная постановка в очередь robot_id={robot_id} job_id={job_id}")
+            return {"status": "queued", "robot_id": robot_id, "job_id": str(job_id) if job_id else None}
         finally:
             db.close()
 

@@ -1,6 +1,9 @@
 """
 Stage 3: Получение портфеля и доступного баланса через TInvestFacade
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingStagesStage3Portfolio [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/stages/stage3_portfolio.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from typing import Dict, Optional
 
 from app.modules.robots.trading.brokers.base import BrokerFacade

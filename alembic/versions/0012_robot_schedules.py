@@ -5,6 +5,9 @@ Revises: 0011_drop_old_tables
 Create Date: 2026-03-24 10:00:00.000000
 
 """
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0012RobotSchedules [1]
+#/// Исходный модуль `alembic/versions/0012_robot_schedules.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 import sqlalchemy as sa
 from app.core.config import settings

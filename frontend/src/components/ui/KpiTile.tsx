@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiKpitile [1]
+///@ Исходный модуль `frontend/src/components/ui/KpiTile.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React, { memo } from 'react'
 import { useCountUp } from '@/hooks/useCountUp'
 

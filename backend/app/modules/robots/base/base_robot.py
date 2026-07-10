@@ -1,6 +1,9 @@
 """
 Абстрактный базовый класс для всех роботов
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsBaseBaseRobot [1]
+#/// Исходный модуль `backend/app/modules/robots/base/base_robot.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone, time
 from typing import Optional, Dict, Any
@@ -12,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.core.logging_config import get_logger
+from app.core.logging_config import get_logger, get_robot_logger
 from app.core.robot_logging import APILogger
 from . import queries as base_queries
 
@@ -39,6 +42,12 @@ class BaseRobot(ABC):
         self._execution_log_id: Optional[int] = None
         self._started_at: Optional[datetime] = None
         self._api_logger: Optional[APILogger] = None
+        self._run_robot_id: Optional[int] = None
+
+    def _attach_run_file_logger(self, robot_id: int) -> None:
+        """Полный лог запуска в файл {robot_type}_{robot_id}_{YYYY-MM-DD}.log."""
+        self._run_robot_id = robot_id
+        self._logger = get_robot_logger(f"robots.{self.robot_type}", robot_id)
 
     @property
     def log(self):
@@ -112,6 +121,7 @@ class BaseRobot(ABC):
         """Запуск робота с полным логированием"""
         self.db = SessionLocal()
         self._started_at = datetime.now(timezone.utc)
+        self._attach_run_file_logger(robot_id)
 
         try:
             self.log.info(f"▶️ Запуск робота v{self.version}")
@@ -120,6 +130,9 @@ class BaseRobot(ABC):
             # Сохраняем начало выполнения
             await self._save_execution_log(robot_id, 0, "Started")
             if self._execution_log_id:
+                # portfolio_updater: external_api_logs — источник истины по внешним API;
+                # robot_logs оставляем для trading (совместимость).
+                write_robot_logs = self.robot_type != "portfolio_updater"
                 self._api_logger = APILogger(
                     db=self.db,
                     schema=self.schema,
@@ -127,7 +140,9 @@ class BaseRobot(ABC):
                     robot_name=self.robot_name,
                     robot_version=self.version,
                     execution_log_id=self._execution_log_id,
-                    robot_id=robot_id
+                    robot_id=robot_id,
+                    write_external_api_logs=True,
+                    write_robot_logs=write_robot_logs,
                 )
 
             # Проверяем расписание

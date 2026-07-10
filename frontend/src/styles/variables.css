@@ -23,6 +23,7 @@
     /* Typography */
     --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
     --font-mono: 'Fira Code', ui-monospace, monospace;
+    --font-cyber: 'Orbitron', 'Share Tech Mono', var(--font-mono);
     --text-xs: 0.75rem;
     --text-sm: 0.875rem;
     --text-base: 1rem;
@@ -38,8 +39,10 @@
 
     /* Z-index layers */
     --z-dropdown: 100;
+    --z-navbar: 160;
     --z-modal-backdrop: 200;
     --z-modal: 201;
+    --z-popover: 250;
     --z-toast: 300;
 
     /* Navbar */

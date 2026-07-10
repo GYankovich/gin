@@ -5,6 +5,9 @@ Revises: 0004_add_refresh_interval  # Замените на ID вашей пос
 Create Date: 2026-03-04 15:00:00.000000
 
 """
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0005AddRobotLogs [1]
+#/// Исходный модуль `alembic/versions/0005_add_robot_logs.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 import sqlalchemy as sa
 from app.core.config import settings

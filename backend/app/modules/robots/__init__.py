@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsInit [1]
+#/// Исходный модуль `backend/app/modules/robots/__init__.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/robots/__init__.py
 from .scheduler import scheduler, start_scheduler, stop_scheduler
 from .service import robot_service

@@ -12,6 +12,9 @@ import { robotService } from '@/services/robotService'
 import type { AccountSummary, AccountDetail, PortfolioSnapshotSummary } from '@/types/api'
 import type { Robot, RobotMetrics, RobotTradeItem, UserRobotsTradingOverview } from '@/types/robot'
 
+///@EPIC Frontend.ITEM Analytics.TOPIC Portfolio And Robot Metrics [1]
+///@ Аналитический экран: KPI, доходность/просадка, сделки и метрики роботов,
+///@ с выбором периодов и источников данных из analytics/robots сервисов.
 /** Максимум дней истории портфеля на бэкенде (совпадает с le=3650). */
 const HISTORY_DAYS_CAP = 3650
 

@@ -1,6 +1,9 @@
 """
 Кэш для свечей и цен
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingCache [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/cache.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
 import asyncio
@@ -47,6 +50,30 @@ class CandlesCache:
                 del self._cache[key]
 
         return None
+
+    def append_candle(self, figi: str, interval: str, days: int, candle: Dict) -> bool:
+        """Добавляет или обновляет свечу в кэше (по time). Возвращает False если ключа нет."""
+        key = self._make_key(figi, interval, days)
+        entry = self._cache.get(key)
+        if not entry:
+            return False
+
+        ts = str(candle.get("time") or "")
+        data: List[Dict] = list(entry["data"])
+        replaced = False
+        for idx, existing in enumerate(data):
+            if str(existing.get("time") or "") == ts:
+                data[idx] = candle
+                replaced = True
+                break
+        if not replaced:
+            data.append(candle)
+            data.sort(key=lambda c: str(c.get("time") or ""))
+
+        now = datetime.now(timezone.utc)
+        entry["data"] = data
+        entry["expires_at"] = now + timedelta(seconds=self._ttl)
+        return True
 
     def set(self, figi: str, interval: str, days: int, candles: List[Dict]):
         """
@@ -115,7 +142,7 @@ class CandlesCache:
 
 
 # Глобальный экземпляр кэша
-_candles_cache = CandlesCache(ttl_seconds=300)  # 5 минут
+_candles_cache = CandlesCache(ttl_seconds=86400)  # 24h, продлевается при append
 
 
 def get_candles_cache() -> CandlesCache:

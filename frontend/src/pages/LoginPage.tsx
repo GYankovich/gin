@@ -5,6 +5,9 @@ import { authService } from '@/services/authService'
 import { Button } from '@/components/ui/Button'
 import { RobotIllustration } from '@/components/ui/RobotIllustration'
 
+///@EPIC Frontend.ITEM Auth.TOPIC Login Flow [1]
+///@ Страница входа: отправка credential в auth API, сохранение сессии в store
+///@ и навигация пользователя в защищенную часть приложения.
 export default function LoginPage() {
     const navigate = useNavigate()
     const setAuth = useAuthStore(s => s.setAuth)

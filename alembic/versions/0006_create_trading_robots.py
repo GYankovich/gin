@@ -5,6 +5,9 @@ Revises: 0005_add_robot_logs
 Create Date: 2026-03-12 16:00:00.000000
 
 """
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0006CreateTradingRobots [1]
+#/// Исходный модуль `alembic/versions/0006_create_trading_robots.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 import sqlalchemy as sa
 from app.core.config import settings

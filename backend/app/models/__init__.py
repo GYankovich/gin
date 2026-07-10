@@ -1,3 +1,6 @@
+#///EPIC Platform.ITEM App.TOPIC BackendAppModelsInit [1]
+#/// Исходный модуль `backend/app/models/__init__.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/models/__init__.py
 """
 Единая точка импорта всех моделей SQLAlchemy
@@ -13,17 +16,19 @@ from app.modules.auth.models import (
     AppConfig
 )
 
-# Затем модели tinvest
-from app.modules.tinvest.models import (
-    ApiToken,
+# Портфельные модели (брокер-независимые)
+from app.modules.portfolio.models import (
     PortfolioAccount,
     PortfolioSnapshot,
     PortfolioPosition,
     PortfolioOperation,
     PortfolioOrder,
     ExternalApiLog,
-    InstrumentCache
+    InstrumentCache,
 )
+
+# T-Invest: токены и прочие tinvest-специфичные сущности
+from app.modules.tinvest.models import ApiToken
 
 # Затем модели robots
 from app.modules.robots.models import (

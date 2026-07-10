@@ -5,6 +5,9 @@
 исключает низколиквидные (< 1 млн руб/день),
 возвращает топ-20.
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingInstrumentSelector [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/instrument_selector.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 

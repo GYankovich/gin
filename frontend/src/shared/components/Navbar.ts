@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Shared.TOPIC FrontendSrcSharedComponentsNavbar [1]
+///@ Исходный модуль `frontend/src/shared/components/Navbar.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { store } from '../../core/store';
 import { router } from '../../core/router';
 import { themeManager, Theme } from '../../core/theme';

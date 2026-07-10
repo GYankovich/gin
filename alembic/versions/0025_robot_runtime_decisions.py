@@ -5,6 +5,9 @@ Revises: 0024_grain_seed_only_robots
 Create Date: 2026-04-20
 """
 
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0025RobotRuntimeDecisions [1]
+#/// Исходный модуль `alembic/versions/0025_robot_runtime_decisions.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 import sqlalchemy as sa
 from app.core.config import settings

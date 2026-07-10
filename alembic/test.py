@@ -1,3 +1,6 @@
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicTest [1]
+#/// Исходный модуль `alembic/test.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # test_sqlalchemy.py
 import sys
 from pathlib import Path

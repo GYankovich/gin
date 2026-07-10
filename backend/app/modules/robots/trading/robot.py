@@ -1,6 +1,9 @@
 """
 Торговый робот - модульная архитектура
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingRobot [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/robot.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime, timezone
 from typing import Dict, Any, List
 from pathlib import Path
@@ -12,8 +15,8 @@ from app.modules.robots.trading.stages.stage2_websocket import Stage2WebSocket
 from app.modules.robots.trading.stages.stage3_portfolio import Stage3Portfolio
 from app.modules.robots.trading.stages.stage4_positions import Stage4Positions
 from app.modules.robots.trading.stages.stage5_signals import Stage5Signals
-from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
-from app.modules.robots.trading.brokers.factory import create_broker_facade
+from app.modules.robots.trading.execution import build_live_execution_service
+from app.modules.robots.trading.brokers import create_broker_facade, normalize_broker_type
 
 
 class TradingRobot(BaseRobot, TradePersistenceMixin):
@@ -81,7 +84,7 @@ class TradingRobot(BaseRobot, TradePersistenceMixin):
             strategy_name = robot_config.get("strategy", "grain_seed")
             strategy_params = robot_config.get("strategy_params", {})
             risk_params = robot_config.get("risk", {})
-            broker_type = robot_config.get("broker_type", "tinvest")
+            broker_type = normalize_broker_type(robot_config.get("broker_type", "tinvest"))
             broker = create_broker_facade(broker_type, token)
 
             self.log.info(f"🤖 Выбран робот {robot['robot_id']}")
@@ -140,10 +143,17 @@ class TradingRobot(BaseRobot, TradePersistenceMixin):
 
             # ========== STAGE 6: Выставление заявок ==========
             if signals:
-                stage6 = Stage6Orders(
-                    self.db, self.schema, broker, account_id, robot_id, token_id, user_id, self._write_log_wrapper
+                execution = build_live_execution_service(
+                    db=self.db,
+                    schema=self.schema,
+                    broker=broker,
+                    account_id=account_id,
+                    robot_id=robot_id,
+                    token_id=token_id,
+                    user_id=user_id,
+                    log_func=self._write_log_wrapper,
                 )
-                trades = await stage6.execute_signals(signals, risk_params=risk_params)
+                trades = await execution.submit_signals(signals, risk_params=risk_params)
                 trade_ids = await self.save_trades(self.db, self.schema, robot_id, trades)
                 self.log.info(f"   💾 Сохранено сделок: {len(trade_ids)}")
                 executed_signal_ids = [

@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiEventfeed [1]
+///@ Исходный модуль `frontend/src/components/ui/EventFeed.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React, { useRef, useEffect, useState } from 'react'
 
 export interface FeedEvent {

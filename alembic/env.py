@@ -2,6 +2,9 @@ import sys
 from pathlib import Path
 from logging.config import fileConfig
 
+#///EPIC Platform.ITEM Migrations.TOPIC Alembic Runtime Config [1]
+#/// Конфигурация Alembic окружения: загрузка metadata, установка DB URL
+#/// и запуск offline/online миграций для схемы проекта.
 from sqlalchemy import engine_from_config, pool, text
 from alembic import context
 
@@ -12,7 +15,8 @@ sys.path.append(str(Path(__file__).parent / 'backend'))
 from app.core.config import settings
 from app.core.database import Base
 from app.modules.auth import models
-from app.modules.tinvest.models import PortfolioAccount, PortfolioSnapshot, PortfolioPosition, ApiToken
+from app.modules.portfolio.models import PortfolioAccount, PortfolioSnapshot, PortfolioPosition
+from app.modules.tinvest.models import ApiToken
 
 config = context.config
 

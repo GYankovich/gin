@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Modules.TOPIC FrontendSrcModulesSettingsTypes [1]
+///@ Исходный модуль `frontend/src/modules/settings/types.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 // Типы для API ключей
 
 export interface TokenTypeInfo {
@@ -10,7 +13,9 @@ export interface ApiKey {
     id: number;
     name?: string | null;
     token_type: TokenTypeInfo;
-    is_active: boolean;
+    status: number;
+    status_name?: string | null;
+    status_description?: string | null;
     created_at: string;
     masked_token: string;
     refresh_interval_minutes?: number;
@@ -32,7 +37,7 @@ export interface ApiKeyCreate {
 
 export interface ApiKeyUpdate {
     name?: string | null;
-    is_active?: boolean | null;
+    status?: number | null;
     refresh_interval_minutes?: number;
 }
 

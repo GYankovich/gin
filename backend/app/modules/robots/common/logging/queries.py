@@ -1,6 +1,9 @@
 """
 Общие SQL запросы для логирования роботов
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsCommonLoggingQueries [1]
+#/// Исходный модуль `backend/app/modules/robots/common/logging/queries.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from typing import Optional
 
 # ============================================================

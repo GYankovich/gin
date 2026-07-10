@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiButton [1]
+///@ Исходный модуль `frontend/src/components/ui/Button.tsx` — автоматическая разметка для Obsidian Source Scanner.
+
 import React from 'react'
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {

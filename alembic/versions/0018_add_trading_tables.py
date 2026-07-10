@@ -5,6 +5,9 @@ Revises: 0017_add_execution_log_id
 Create Date: 2024-03-25 22:30:00.000000
 
 """
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0018AddTradingTables [1]
+#/// Исходный модуль `alembic/versions/0018_add_trading_tables.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 import sqlalchemy as sa
 from app.core.config import settings

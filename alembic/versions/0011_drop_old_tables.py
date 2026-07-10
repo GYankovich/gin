@@ -5,6 +5,9 @@ Revises: 0010_modify_robot_logs
 Create Date: 2026-03-17 02:00:00.000000
 
 """
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0011DropOldTables [1]
+#/// Исходный модуль `alembic/versions/0011_drop_old_tables.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 import sqlalchemy as sa
 from app.core.config import settings

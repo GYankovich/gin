@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsPortfolioUpdaterScheduler [1]
+#/// Исходный модуль `backend/app/modules/robots/portfolio_updater/scheduler.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/robots/portfolio_updater/scheduler.py
 from typing import Dict, Any, List
 import asyncio
@@ -6,8 +9,11 @@ from datetime import datetime, timezone
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core.database import SessionLocal
+from app.core.database import SessionLocal, try_dispose_pool_on_connectivity_error
 from app.core.logging_config import get_logger
+from app.core.scheduler_utils import scheduler_startup_delay
+from app.core.background_jobs.repository import enqueue_background_job
+from app.core.background_jobs.worker import LANE_PORTFOLIO
 from app.modules.robots.portfolio_updater.robot import PortfolioUpdaterRobot
 from . import queries
 
@@ -45,74 +51,68 @@ class PortfolioUpdaterScheduler:
         ).fetchall()
 
         robots = []
+        from app.modules.robots.trading.brokers.routing import enforce_broker_for_token
         for row in results:
+            token_type = int(row[6]) if len(row) > 6 and row[6] is not None else None
+            broker_type = enforce_broker_for_token(
+                None,
+                token_type=token_type,
+                token_type_name=str(row[4] or ""),
+                mutate=False,
+                require_token=True,
+            )
             robots.append({
                 "robot_id": row[0],
                 "user_id": row[1],
                 "token_id": row[2],
-                "token": row[3]
+                "token": row[3],
+                "broker_type": broker_type,
+                "token_extra_data": row[5] if isinstance(row[5], dict) else {},
+                "token_type": token_type,
             })
 
         return robots
 
     async def run_update_cycle(self, db: Session) -> Dict[str, Any]:
         """
-        Запускает цикл обновления для всех активных роботов
+        Ставит в очередь portfolio lane задачи на каждого активного робота.
         """
-        self.robot.db = db
-
         results = {
             "total": 0,
-            "processed": 0,
-            "skipped": 0,
-            "errors": []
+            "enqueued": 0,
+            "skipped_duplicate": 0,
         }
 
-        # Получаем роботов
         robots = await self.get_robots_for_update(db)
         results["total"] = len(robots)
 
         if robots:
-            system_log.info(f"🔄 Найдено {len(robots)} портфельных роботов для обработки")
+            system_log.info(f"🔄 Найдено {len(robots)} портфельных роботов — постановка в очередь")
 
         for robot_data in robots:
-            try:
-                system_log.debug(f"   Запуск робота {robot_data['robot_id']} (user: {robot_data['user_id']})")
-
-                # Запускаем робота
-                result = await self.robot.run(
-                    robot_id=robot_data["robot_id"],
-                    user_id=robot_data["user_id"],
-                    token_id=robot_data["token_id"],
-                    token=robot_data["token"]
+            job_id = enqueue_background_job(
+                db,
+                lane=LANE_PORTFOLIO,
+                job_type="portfolio_sync",
+                payload=robot_data,
+                idempotency_key=f"portfolio_sync:{robot_data['robot_id']}",
+            )
+            if job_id:
+                results["enqueued"] += 1
+                system_log.debug(
+                    "   queued portfolio_sync robot_id=%s job_id=%s",
+                    robot_data["robot_id"],
+                    job_id,
                 )
-
-                if result.get("status") == "skipped":
-                    results["skipped"] += 1
-                    system_log.debug(f"   Робот {robot_data['robot_id']} пропущен: {result.get('reason')}")
-                else:
-                    results["processed"] += 1
-                    accounts = result.get("accounts_found", 0)
-                    snapshots = result.get("snapshots_saved", 0)
-                    system_log.info(f"   ✅ Робот {robot_data['robot_id']}: {accounts} счетов, {snapshots} снимков")
-
-            except Exception as e:
-                error = {
-                    "robot_id": robot_data["robot_id"],
-                    "user_id": robot_data["user_id"],
-                    "token_id": robot_data["token_id"],
-                    "error": str(e)
-                }
-                results["errors"].append(error)
-                system_log.error(f"   ❌ Ошибка для робота {robot_data['robot_id']}: {e}")
+            else:
+                results["skipped_duplicate"] += 1
 
         if robots:
             system_log.info(
-                f"📊 Итоги портфельного обновления: "
-                f"всего={results['total']}, "
-                f"обработано={results['processed']}, "
-                f"пропущено={results['skipped']}, "
-                f"ошибок={len(results['errors'])}"
+                "📊 Портфельная очередь: всего=%s, enqueued=%s, duplicate_skip=%s",
+                results["total"],
+                results["enqueued"],
+                results["skipped_duplicate"],
             )
 
         return results
@@ -121,6 +121,7 @@ class PortfolioUpdaterScheduler:
         """
         Основной цикл планировщика
         """
+        await scheduler_startup_delay("portfolio")
         system_log.info(f"🔄 Портфельный планировщик запущен (интервал: {self.interval_seconds} сек)")
 
         while self.running:
@@ -132,6 +133,10 @@ class PortfolioUpdaterScheduler:
                 db = SessionLocal()
                 try:
                     await self.run_update_cycle(db)
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                    raise
                 finally:
                     db.close()
 
@@ -147,9 +152,8 @@ class PortfolioUpdaterScheduler:
                 break
             except Exception as e:
                 system_log.error(f"Ошибка в цикле портфельного планировщика: {e}")
+                try_dispose_pool_on_connectivity_error(e)
                 await asyncio.sleep(5)
-
-        system_log.info("🛑 Портфельный планировщик остановлен")
 
     async def start(self):
         """
@@ -188,7 +192,11 @@ class PortfolioUpdaterScheduler:
         db = SessionLocal()
         try:
             result = await self.run_update_cycle(db)
+            db.commit()
             return result
+        except Exception:
+            db.rollback()
+            raise
         finally:
             db.close()
 

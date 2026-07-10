@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Modules.TOPIC FrontendSrcModulesAuthViewsLoginview [1]
+///@ Исходный модуль `frontend/src/modules/auth/views/LoginView.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { authService } from '../services/authService';
 import { router } from '../../../core/router';
 import { store } from '../../../core/store';

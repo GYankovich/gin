@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Modules.TOPIC FrontendSrcModulesRobotsComponentsLivepanel [1]
+///@ Исходный модуль `frontend/src/modules/robots/components/LivePanel.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { showToast } from '../../../shared/components/Toast';
 
 interface PriceUpdate {

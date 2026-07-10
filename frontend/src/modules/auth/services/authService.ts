@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Modules.TOPIC FrontendSrcModulesAuthServicesAuthservice [1]
+///@ Исходный модуль `frontend/src/modules/auth/services/authService.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { apiFetch } from '../../../core/api';
 import type {
     LoginCredentials,

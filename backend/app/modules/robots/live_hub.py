@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsLiveHub [1]
+#/// Исходный модуль `backend/app/modules/robots/live_hub.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import asyncio
 from collections import defaultdict
 from typing import Any, Dict, List

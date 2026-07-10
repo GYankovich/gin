@@ -1,7 +1,9 @@
 """
 Stage 1: Сбор роботов, которые должны быть запущены по расписанию
 """
-from datetime import datetime, time
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingStagesStage1Collect [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/stages/stage1_collect.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from typing import List, Dict, Any, Optional
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -27,47 +29,10 @@ class Stage1Collect:
             logger.info(f"[STAGE1] {message}")
 
     def _should_run_now(self, robot: Dict) -> bool:
-        """Проверяет, должен ли робот запуститься сейчас"""
-        from datetime import datetime, time, timezone
+        """Проверяет robot_schedules (общая политика с TradingScheduler)."""
+        from app.modules.robots.scheduling.schedule_policy import should_start_trading_session
 
-        now = datetime.now(timezone.utc)
-        current_weekday = now.weekday() + 1
-
-        # Проверка по дням недели
-        weekdays = robot.get("weekdays")
-        if weekdays:
-            if not (weekdays & (1 << (current_weekday - 1))):
-                return False
-
-        # Проверка по времени
-        start_time = robot.get("start_time")
-        end_time = robot.get("end_time")
-
-        if start_time and end_time:
-            current_time = now.time()
-
-            # Приводим start_time и end_time к time без tzinfo
-            if hasattr(start_time, 'tzinfo') and start_time.tzinfo is not None:
-                start_time = start_time.replace(tzinfo=None)
-            if hasattr(end_time, 'tzinfo') and end_time.tzinfo is not None:
-                end_time = end_time.replace(tzinfo=None)
-
-            # Если это datetime, берем time()
-            if isinstance(start_time, datetime):
-                start_time = start_time.time()
-            if isinstance(end_time, datetime):
-                end_time = end_time.time()
-
-            # Если это строка (например "10:00:00+03"), парсим
-            if isinstance(start_time, str):
-                start_time = time.fromisoformat(start_time[:8])
-            if isinstance(end_time, str):
-                end_time = time.fromisoformat(end_time[:8])
-
-            if current_time < start_time or current_time > end_time:
-                return False
-
-        return True
+        return should_start_trading_session(robot)
 
     async def execute(self) -> List[Dict[str, Any]]:
         """

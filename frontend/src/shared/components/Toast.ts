@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Shared.TOPIC FrontendSrcSharedComponentsToast [1]
+///@ Исходный модуль `frontend/src/shared/components/Toast.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
 interface ToastOptions {

@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Modules.TOPIC FrontendSrcModulesSettingsComponentsCreatetokenmodal [1]
+///@ Исходный модуль `frontend/src/modules/settings/components/CreateTokenModal.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 // frontend/src/modules/settings/components/CreateTokenModal.ts
 
 interface TokenType {

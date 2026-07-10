@@ -1,15 +1,27 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
 import { DataTable, type Column } from '@/components/ui/DataTable'
 import { Chart, type IChartApi, type ISeriesApi, type Time } from '@/components/ui/Chart'
 import { AreaSeries, LineSeries } from 'lightweight-charts'
 import { Select } from '@/components/ui/Select'
 import { DateRangePicker } from '@/components/ui/DateRangePicker'
+import { Toggle } from '@/components/ui/Toggle'
 import { analyticsService } from '@/services/analyticsService'
 import type { AccountSummary, PortfolioSnapshotSummary, PortfolioStatisticsExtendedResponse, AnalyticsChartSeriesResponse } from '@/types/api'
 import { useToast } from '@/components/ui/Toast'
+import {
+    formatPortfolioAccountLabel,
+    formatPortfolioMoney,
+    formatPortfolioMoneySigned,
+    isBybitPortfolioAccount,
+} from '@/utils/portfolioFormat'
+import cyberHero from '@/assets/dashboard/cyber-hero.png'
 
+///@EPIC Frontend.ITEM Portfolio.TOPIC Account Performance Screen [1]
+///@ Экран портфеля: выбор счета/периода, таблицы позиций, динамика стоимости,
+///@ статистика и графики, собранные из analytics endpoints.
 const PERIODS = [
     { label: 'День', days: 1 },
     { label: 'Неделя', days: 7 },
@@ -23,6 +35,11 @@ export default function PortfolioPage() {
     const [accounts, setAccounts] = useState<AccountSummary[]>([])
     const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null)
     const selectedAccount = accounts.find(a => a.id === selectedAccountId) ?? null
+    const accountCurrency = selectedAccount?.currency || 'RUB'
+    const bybitAccount = isBybitPortfolioAccount(selectedAccount)
+    const money = (val: unknown, maxFractionDigits = 2) =>
+        formatPortfolioMoney(val, accountCurrency, maxFractionDigits)
+    const moneySigned = (val: unknown) => formatPortfolioMoneySigned(val, accountCurrency)
     const [period, setPeriod] = useState(30)
     const [fromDate, setFromDate] = useState(() => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10))
     const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10))
@@ -79,8 +96,11 @@ export default function PortfolioPage() {
             const accs = summary.accounts ?? []
             setAccounts(accs)
             if (accs.length > 0) {
-                setSelectedAccountId(accs[0].id)
-                loadPositions(accs[0].id)
+                const fromUrl = new URLSearchParams(window.location.search).get('accountId')
+                const preferred = fromUrl ? accs.find(a => String(a.id) === fromUrl) : null
+                const initial = preferred ?? accs[0]
+                setSelectedAccountId(initial.id)
+                loadPositions(initial.id)
             }
         } catch { /* */ }
         setLoading(false)
@@ -161,6 +181,9 @@ export default function PortfolioPage() {
         setSelectedFigis([])
         setCrosshairValue(null)
         setSelectedAccountId(id)
+        const params = new URLSearchParams(window.location.search)
+        params.set('accountId', String(id))
+        window.history.replaceState(null, '', `${window.location.pathname}?${params}`)
         setLoading(true)
         loadPositions(id)
         setLoading(false)
@@ -229,7 +252,7 @@ export default function PortfolioPage() {
                 lineColor: isDark ? '#22d3ee' : '#2563eb',
                 topColor: isDark ? 'rgba(34,211,238,0.22)' : 'rgba(37,99,235,0.22)',
                 bottomColor: 'transparent',
-                lineWidth: 2.25,
+                lineWidth: 2,
                 priceLineVisible: false,
                 lastValueVisible: true,
             })
@@ -246,7 +269,7 @@ export default function PortfolioPage() {
                 const color = getInstrumentColor(s.figi)
                 const ls = chart.addSeries(LineSeries, {
                     color,
-                    lineWidth: 2.25,
+                    lineWidth: 2,
                     priceLineVisible: false,
                     lastValueVisible: false,
                 })
@@ -319,7 +342,6 @@ export default function PortfolioPage() {
                 } else {
                     setCrosshairValue(null)
                 }
-                setInstrumentCrosshairValues([])
             } else if (chartMode === 'instruments') {
                 setCrosshairValue(null)
                 instrumentSeriesRef.current.forEach(x => {
@@ -368,7 +390,7 @@ export default function PortfolioPage() {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
         const series = chart.addSeries(LineSeries, {
             color: isDark ? '#f87171' : '#dc2626',
-            lineWidth: 2.1,
+            lineWidth: 2,
             priceLineVisible: false,
             lastValueVisible: false,
         })
@@ -394,22 +416,22 @@ export default function PortfolioPage() {
     }
 
     const posColumns: Column<any>[] = [
-        { key: 'figi', header: 'FIGI', sortable: true, width: '140px' },
+        { key: 'figi', header: bybitAccount ? 'Символ' : 'FIGI', sortable: true, width: '140px' },
         { key: 'ticker', header: 'Тикер', sortable: true, width: '80px', render: r => r.ticker || '—' },
         { key: 'instrument_type', header: 'Тип', sortable: true, width: '80px' },
         { key: 'quantity', header: 'Кол-во', sortable: true, align: 'right', render: r => Number(r.quantity ?? 0).toLocaleString('ru-RU') },
-        { key: 'avg_price', header: 'Средняя', sortable: true, align: 'right', render: r => formatMoney(r.avg_price) },
-        { key: 'current_price', header: 'Текущая', align: 'right', render: r => formatMoney(r.current_price) },
+        { key: 'avg_price', header: 'Средняя', sortable: true, align: 'right', render: r => money(r.avg_price) },
+        { key: 'current_price', header: 'Текущая', align: 'right', render: r => money(r.current_price) },
         {
             key: 'expected_yield', header: 'P&L', sortable: true, align: 'right',
             render: r => {
                 const v = Number(r.expected_yield ?? 0)
-                return <span className={v >= 0 ? 'color-up' : 'color-down'}>{v >= 0 ? '+' : ''}{v.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽</span>
+                return <span className={v >= 0 ? 'color-up' : 'color-down'}>{moneySigned(v)}</span>
             },
         },
         {
             key: 'total_value', header: 'Стоимость', sortable: true, align: 'right',
-            render: r => formatMoney(r.total_value),
+            render: r => money(r.total_value),
         },
     ]
 
@@ -418,10 +440,10 @@ export default function PortfolioPage() {
             key: 'date', header: 'Дата и время', sortable: true,
             render: r => new Date(r.date).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
         },
-        { key: 'total_value', header: 'Стоимость', sortable: true, align: 'right', render: r => r.total_value.toLocaleString('ru-RU', { maximumFractionDigits: 0 }) + ' ₽' },
+        { key: 'total_value', header: 'Стоимость', sortable: true, align: 'right', render: r => money(r.total_value) },
         {
             key: 'daily_yield', header: 'Дневной доход', sortable: true, align: 'right',
-            render: r => <span className={r.daily_yield >= 0 ? 'color-up' : 'color-down'}>{r.daily_yield >= 0 ? '+' : ''}{r.daily_yield.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽</span>,
+            render: r => <span className={r.daily_yield >= 0 ? 'color-up' : 'color-down'}>{moneySigned(r.daily_yield)}</span>,
         },
     ]
 
@@ -429,7 +451,7 @@ export default function PortfolioPage() {
         { key: 'operation_date', header: 'Дата', render: r => new Date(r.operation_date).toLocaleString('ru-RU') },
         { key: 'operation_type', header: 'Тип API', width: '180px' },
         { key: 'type_text', header: 'Описание', render: r => r.type_text || '—' },
-        { key: 'figi', header: 'FIGI', render: r => r.figi || '—' },
+        { key: 'figi', header: bybitAccount ? 'Символ' : 'FIGI', render: r => r.figi || '—' },
         { key: 'quantity', header: 'Кол-во', align: 'right', render: r => Number(r.quantity || 0).toLocaleString('ru-RU') },
         { key: 'price', header: 'Цена', align: 'right', render: r => Number(r.price || 0).toLocaleString('ru-RU', { maximumFractionDigits: 4 }) },
         {
@@ -446,8 +468,8 @@ export default function PortfolioPage() {
 
     if (loading) {
         return (
-            <div className="page">
-                <h1 className="page__title">Портфель</h1>
+            <div className="page" data-page="portfolio">
+                <PortfolioHero />
                 <div className="ops-loader">
                     <div className="soft-loading-bar" />
                     <div className="ops-loader__text">Загрузка портфеля...</div>
@@ -456,14 +478,30 @@ export default function PortfolioPage() {
         )
     }
 
+    if (accounts.length === 0) {
+        return (
+            <div className="page" data-page="portfolio">
+                <PortfolioHero />
+                <Card className="portfolio-panel">
+                    <p className="portfolio-empty">
+                        Нет счетов портфеля. Запустите робота обновления портфеля (ByBit или T-Invest), чтобы появились снимки.
+                    </p>
+                </Card>
+            </div>
+        )
+    }
+
     return (
         <div className="page" data-page="portfolio">
-            {/*<h1 className="page__title">Портфель</h1>*/}
+            <PortfolioHero
+                accountLabel={selectedAccount ? formatPortfolioAccountLabel(selectedAccount) : undefined}
+            />
 
+            <div className="portfolio-layout">
             <div className="portfolio-toolbar">
                 <div className="portfolio-toolbar__account">
                     <Select
-                        options={accounts.map(a => ({ value: String(a.id), label: `${a.name || a.account_id} (${a.type})` }))}
+                        options={accounts.map(a => ({ value: String(a.id), label: formatPortfolioAccountLabel(a) }))}
                         value={selectedAccountId != null ? String(selectedAccountId) : ''}
                         onChange={handleAccountChange}
                         placeholder="Выберите счёт"
@@ -504,8 +542,8 @@ export default function PortfolioPage() {
                 </div>
             </div>
 
-            <Card className="mb-6">
-                <h3 className="card__section-title">Статистика портфеля</h3>
+            <Card className="portfolio-panel portfolio-panel--stats">
+                <h3 className="dashboard-panel-title">Статистика портфеля</h3>
                 {statsLoading ? (
                     <div className="ops-loader">
                         <div className="soft-loading-bar" />
@@ -517,11 +555,11 @@ export default function PortfolioPage() {
                         <div className="portfolio-stats-grid">
                             <div className="portfolio-stat-tile">
                                 <div className="portfolio-stat-tile__label">Собственные средства</div>
-                                <div className="portfolio-stat-tile__value">{formatMoney(stats?.overall.own_funds)}</div>
+                                <div className="portfolio-stat-tile__value">{money(stats?.overall.own_funds)}</div>
                             </div>
                             <div className="portfolio-stat-tile">
                                 <div className="portfolio-stat-tile__label">Текущая стоимость</div>
-                                <div className="portfolio-stat-tile__value">{formatMoney(stats?.overall.current_total_value)}</div>
+                                <div className="portfolio-stat-tile__value">{money(stats?.overall.current_total_value)}</div>
                             </div>
                             <div className="portfolio-stat-tile">
                                 <div className="portfolio-stat-tile__label">ROI общий</div>
@@ -541,24 +579,24 @@ export default function PortfolioPage() {
                         <div className="portfolio-stats-grid">
                             <div className="portfolio-stat-tile">
                                 <div className="portfolio-stat-tile__label">Чистый приток капитала</div>
-                                <div className={`portfolio-stat-tile__value ${roiClass(stats?.capital_flow.net_capital_inflow)}`}>{formatMoneySigned(stats?.capital_flow.net_capital_inflow)}</div>
+                                <div className={`portfolio-stat-tile__value ${roiClass(stats?.capital_flow.net_capital_inflow)}`}>{moneySigned(stats?.capital_flow.net_capital_inflow)}</div>
                             </div>
                             <div className="portfolio-stat-tile">
                                 <div className="portfolio-stat-tile__label">Дивиденды полученные</div>
                                 <div className="portfolio-stat-tile__value color-up">
-                                    {formatMoney(stats?.capital_flow.dividends_received)}
+                                    {money(stats?.capital_flow.dividends_received)}
                                 </div>
                             </div>
                             <div className="portfolio-stat-tile">
                                 <div className="portfolio-stat-tile__label">Реализованный P&L (FIFO)</div>
                                 <div className={`portfolio-stat-tile__value ${roiClass(stats?.capital_flow.realized_pnl)}`}>
-                                    {formatMoneySigned(stats?.capital_flow.realized_pnl)}
+                                    {moneySigned(stats?.capital_flow.realized_pnl)}
                                 </div>
                             </div>
                             <div className="portfolio-stat-tile">
                                 <div className="portfolio-stat-tile__label">Нереализованный P&L</div>
                                 <div className={`portfolio-stat-tile__value ${roiClass(stats?.capital_flow.unrealized_pnl)}`}>
-                                    {formatMoneySigned(stats?.capital_flow.unrealized_pnl)}
+                                    {moneySigned(stats?.capital_flow.unrealized_pnl)}
                                 </div>
                             </div>
                             <div className="portfolio-stat-tile">
@@ -576,13 +614,17 @@ export default function PortfolioPage() {
                             <div className="portfolio-stat-tile">
                                 <div className="portfolio-stat-tile__label">Макс серия убытков</div>
                                 <div className="portfolio-stat-tile__value color-down">
-                                    {formatLossStreak(stats?.trading_performance.max_consecutive_losses, stats?.trading_performance.max_consecutive_losses_sum)}
+                                    {formatLossStreak(
+                                        stats?.trading_performance.max_consecutive_losses,
+                                        stats?.trading_performance.max_consecutive_losses_sum,
+                                        accountCurrency,
+                                    )}
                                 </div>
                             </div>
                             <div className="portfolio-stat-tile">
                                 <div className="portfolio-stat-tile__label">Средняя прибыльная / убыточная</div>
                                 <div className="portfolio-stat-tile__value">
-                                    {formatMoney(stats?.trading_performance.avg_winning_trade)} / {formatMoney(stats?.trading_performance.avg_losing_trade)}
+                                    {money(stats?.trading_performance.avg_winning_trade)} / {money(stats?.trading_performance.avg_losing_trade)}
                                 </div>
                             </div>
                             <div className="portfolio-stat-tile">
@@ -598,13 +640,13 @@ export default function PortfolioPage() {
                             <div className="portfolio-stat-tile">
                                 <div className="portfolio-stat-tile__label">Комиссии брокера / вознаграждение</div>
                                 <div className="portfolio-stat-tile__value color-down">
-                                    {formatMoney(stats?.operational_metrics.total_broker_fees)} / {formatMoney(stats?.operational_metrics.total_track_fees)}
+                                    {money(stats?.operational_metrics.total_broker_fees)} / {money(stats?.operational_metrics.total_track_fees)}
                                 </div>
                             </div>
                             <div className="portfolio-stat-tile">
                                 <div className="portfolio-stat-tile__label">Налоги</div>
                                 <div className="portfolio-stat-tile__value color-down">
-                                    {formatMoney(stats?.operational_metrics.total_taxes)}
+                                    {money(stats?.operational_metrics.total_taxes)}
                                 </div>
                             </div>
                             <div className="portfolio-stat-tile">
@@ -632,33 +674,26 @@ export default function PortfolioPage() {
                 )}
             </Card>
 
-            <Card className="mb-6">
+            <Card className="portfolio-panel portfolio-panel--chart">
                 <div className="portfolio-chart-header">
-                    <h3 className="card__section-title">Стоимость портфеля</h3>
+                    <h3 className="dashboard-panel-title">Стоимость портфеля</h3>
                     <div className="portfolio-chart-header__controls">
-                        <label className="portfolio-toggle">
-                            <input
-                                type="checkbox"
-                                checked={chartMode === 'instruments'}
-                                onChange={(e) => setChartMode(e.target.checked ? 'instruments' : 'portfolio')}
-                            />
-                            <span className="portfolio-toggle__track">
-                                <span className="portfolio-toggle__thumb" />
-                            </span>
-                            <span>Посмотреть бумаги</span>
-                        </label>
+                        <Toggle
+                            checked={chartMode === 'instruments'}
+                            onChange={(on) => setChartMode(on ? 'instruments' : 'portfolio')}
+                            label="Посмотреть бумаги"
+                        />
                     </div>
                 </div>
                 {chartMode === 'portfolio' && crosshairValue && (
                     <div className="mono portfolio-crosshair-main">
-                        {crosshairValue.value.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ₽
+                        {formatPortfolioMoney(crosshairValue.value, accountCurrency, 0)}
                         {crosshairValue.delta != null && (
                             <span
                                 className={crosshairValue.delta >= 0 ? 'color-up' : 'color-down'}
                                 style={{ marginLeft: 'var(--space-2)' }}
                             >
-                                {crosshairValue.delta >= 0 ? '+' : ''}
-                                {crosshairValue.delta.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽
+                                {formatPortfolioMoneySigned(crosshairValue.delta, accountCurrency)}
                                 {crosshairValue.deltaPct != null && (
                                     <span style={{ marginLeft: 4 }}>
                                         ({crosshairValue.deltaPct >= 0 ? '+' : ''}
@@ -721,8 +756,16 @@ export default function PortfolioPage() {
                 )}
             </Card>
 
-            <Card className="mb-6">
-                <h3 className="card__section-title">Состав портфеля</h3>
+            <CollapsibleSection
+                className="portfolio-collapse"
+                title="Состав портфеля "
+                badge={
+                    <span className="portfolio-collapse__count">
+                        {positions.length}
+                    </span>
+                }
+                defaultOpen
+            >
                 {posLoading ? (
                     <div className="ops-loader">
                         <div className="soft-loading-bar" />
@@ -735,32 +778,35 @@ export default function PortfolioPage() {
                         keyField="figi"
                         emptyText="Нет позиций"
                         mobilePrimary={(r) => `${r.ticker || '—'} (${r.figi || '—'})`}
-                        mobileSecondary={(r) => `${Number(r.quantity ?? 0).toLocaleString('ru-RU')} шт. | ${formatMoney(r.total_value)}`}
+                        mobileSecondary={(r) => `${Number(r.quantity ?? 0).toLocaleString('ru-RU')} шт. | ${money(r.total_value)}`}
                         mobileDetails={(r) => (
                             <>
                                 <div>Тип: {r.instrument_type || '—'}</div>
-                                <div>Средняя цена: {formatMoney(r.avg_price)}</div>
+                                <div>Средняя цена: {money(r.avg_price)}</div>
                                 <div>
-                                    Текущая цена: {formatMoney(r.current_price)}{' '}
+                                    Текущая цена: {money(r.current_price)}{' '}
                                     <span className={Number(r.expected_yield ?? 0) >= 0 ? 'color-up' : 'color-down'}>
                                         ({Number(r.expected_yield ?? 0) >= 0 ? '+' : ''}
-                                        {Number(r.expected_yield ?? 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽)
+                                        {money(r.expected_yield ?? 0)})
                                     </span>
                                 </div>
                                 <div>
                                     P&amp;L:{' '}
                                     <span className={Number(r.expected_yield ?? 0) >= 0 ? 'color-up' : 'color-down'}>
-                                        {Number(r.expected_yield ?? 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽
+                                        {money(r.expected_yield ?? 0)}
                                     </span>
                                 </div>
                             </>
                         )}
                     />
                 )}
-            </Card>
+            </CollapsibleSection>
 
-            <Card>
-                <h3 className="card__section-title">История снимков</h3>
+            <CollapsibleSection
+                className="portfolio-collapse"
+                title="История снимков"
+                defaultOpen={false}
+            >
                 {snapshotsLoading ? (
                     <div className="ops-loader">
                         <div className="soft-loading-bar" />
@@ -776,14 +822,13 @@ export default function PortfolioPage() {
                             onRowClick={handleSnapshotClick as any}
                             maxHeight={420}
                             mobilePrimary={(r) => new Date(r.date).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            mobileSecondary={(r) => `${r.total_value.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} ₽`}
+                            mobileSecondary={(r) => money(r.total_value, 0)}
                             mobileDetails={(r) => (
                                 <>
                                     <div>
                                         Дневной доход:{' '}
                                         <span className={r.daily_yield >= 0 ? 'color-up' : 'color-down'}>
-                                            {r.daily_yield >= 0 ? '+' : ''}
-                                            {r.daily_yield.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽
+                                            {moneySigned(r.daily_yield)}
                                         </span>
                                     </div>
                                     <button
@@ -800,62 +845,64 @@ export default function PortfolioPage() {
                                 </>
                             )}
                         />
-                        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 'var(--space-2)' }}>
-                            Нажмите на строку, чтобы увидеть состав на момент снимка
-                        </p>
                     </>
                 )}
-            </Card>
+            </CollapsibleSection>
 
-            <Card className="mt-6">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-                    <h3 className="card__section-title" style={{ margin: 0 }}>История операций</h3>
-                    <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <Button size="sm" onClick={handleSyncOperations} loading={opsSyncing}>Синхронизировать</Button>
+            <CollapsibleSection
+                className="portfolio-collapse"
+                title="История операций"
+                defaultOpen={false}
+            >
+                {opsLoading ? (
+                    <div className="ops-loader">
+                        <div className="soft-loading-bar" />
+                        <div className="ops-loader__text">Загрузка истории операций...</div>
                     </div>
-                </div>
-                <div style={{ marginTop: 'var(--space-3)' }}>
-                    {opsLoading ? (
-                        <div className="ops-loader">
-                            <div className="soft-loading-bar" />
-                            <div className="ops-loader__text">Загрузка истории операций...</div>
-                        </div>
-                    ) : (
-                        <DataTable
-                            columns={operationsColumns}
-                            data={operations}
-                            keyField="operation_id"
-                            emptyText="Нет операций за период"
-                            maxHeight={420}
-                            mobilePrimary={(r) => `${new Date(r.operation_date).toLocaleDateString('ru-RU')} • ${r.type_text || '—'}`}
-                            mobileSecondary={(r) => `${Number(r.payment || 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${r.currency || ''}`}
-                            mobileDetails={(r) => (
-                                <>
-                                    <div>Описание: {r.type_text || '—'}</div>
-                                    <div>FIGI: {r.figi || '—'}</div>
-                                    <div>Количество: {Number(r.quantity || 0).toLocaleString('ru-RU')}</div>
-                                    <div>Цена: {Number(r.price || 0).toLocaleString('ru-RU', { maximumFractionDigits: 4 })}</div>
-                                    <div>Статус: {r.status || '—'}</div>
-                                </>
-                            )}
-                        />
-                    )}
-                </div>
-            </Card>
+                ) : (
+                    <DataTable
+                        columns={operationsColumns}
+                        data={operations}
+                        keyField="operation_id"
+                        emptyText="Нет операций за период"
+                        maxHeight={420}
+                        mobilePrimary={(r) => `${new Date(r.operation_date).toLocaleDateString('ru-RU')} • ${r.type_text || '—'}`}
+                        mobileSecondary={(r) => `${Number(r.payment || 0).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${r.currency || ''}`}
+                        mobileDetails={(r) => (
+                            <>
+                                <div>Описание: {r.type_text || '—'}</div>
+                                <div>FIGI: {r.figi || '—'}</div>
+                                <div>Количество: {Number(r.quantity || 0).toLocaleString('ru-RU')}</div>
+                                <div>Цена: {Number(r.price || 0).toLocaleString('ru-RU', { maximumFractionDigits: 4 })}</div>
+                                <div>Статус: {r.status || '—'}</div>
+                            </>
+                        )}
+                    />
+                )}
+            </CollapsibleSection>
+            </div>
         </div>
     )
 }
 
-function formatMoney(val: any): string {
-    if (val == null || Number.isNaN(Number(val))) return '—'
-    const n = Number(val ?? 0)
-    return n.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + ' ₽'
-}
-
-function formatMoneySigned(val: any): string {
-    if (val == null || Number.isNaN(Number(val))) return '—'
-    const n = Number(val)
-    return `${n >= 0 ? '+' : ''}${n.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽`
+function PortfolioHero({ accountLabel }: { accountLabel?: string }) {
+    return (
+        <header className="dashboard-hero portfolio-hero">
+            <div className="dashboard-hero__bg" style={{ backgroundImage: `url(${cyberHero})` }} aria-hidden />
+            <div className="dashboard-hero__veil" aria-hidden />
+            <div className="dashboard-hero__content">
+                <p className="dashboard-hero__eyebrow">GIN // ANALYTICS NODE</p>
+                <h1 className="dashboard-hero__title">
+                    <span className="dashboard-hero__title-glitch" data-text="ПОРТФЕЛЬ">ПОРТФЕЛЬ</span>
+                </h1>
+                <p className="dashboard-hero__sub">
+                    {accountLabel
+                        ? `Счёт · ${accountLabel}`
+                        : 'Статистика · графики · позиции · операции'}
+                </p>
+            </div>
+        </header>
+    )
 }
 
 function formatPercent(val: number | null | undefined, drawdown = false): string {
@@ -885,9 +932,9 @@ function profitFactorClass(val: number | null | undefined): string {
     return ''
 }
 
-function formatLossStreak(count: number | undefined, lossSum: number | null | undefined): string {
+function formatLossStreak(count: number | undefined, lossSum: number | null | undefined, currency = 'RUB'): string {
     if (!count) return '—'
-    const sumText = lossSum != null ? ` (${formatMoney(lossSum)})` : ''
+    const sumText = lossSum != null ? ` (${formatPortfolioMoney(lossSum, currency)})` : ''
     return `${count} подряд${sumText}`
 }
 

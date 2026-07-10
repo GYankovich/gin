@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesAuthQueries [1]
+#/// Исходный модуль `backend/app/modules/auth/queries.py` — автоматическая разметка для Obsidian Source Scanner.
+
 # app/modules/auth/queries.py
 from typing import Optional, Dict, Any
 from datetime import datetime

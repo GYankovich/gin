@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Modules.TOPIC FrontendSrcModulesSettingsServicesApikeyservice [1]
+///@ Исходный модуль `frontend/src/modules/settings/services/apiKeyService.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 // frontend/src/modules/settings/services/apiKeyService.ts
 
 import { apiFetch } from '../../../core/api';

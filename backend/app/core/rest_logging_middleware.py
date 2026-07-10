@@ -12,6 +12,9 @@ Middleware для подробного логирования всех REST-за
   - статус ответа, длительность
   - тело ответа (до 2 КБ) при ошибках (4xx/5xx)
 """
+#///EPIC Platform.ITEM Core.TOPIC BackendAppCoreRestLoggingMiddleware [1]
+#/// Исходный модуль `backend/app/core/rest_logging_middleware.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import contextvars
 import time
 import json
@@ -31,6 +34,28 @@ rest_request_ctx: contextvars.ContextVar[bool] = contextvars.ContextVar(
 rest_request_path_ctx: contextvars.ContextVar[str] = contextvars.ContextVar(
     "rest_request_path_ctx", default="",
 )
+
+import threading
+
+_rest_inflight_lock = threading.Lock()
+_rest_inflight_count = 0
+
+
+def get_rest_inflight() -> int:
+    with _rest_inflight_lock:
+        return _rest_inflight_count
+
+
+def _increment_rest_inflight() -> None:
+    global _rest_inflight_count
+    with _rest_inflight_lock:
+        _rest_inflight_count += 1
+
+
+def _decrement_rest_inflight() -> None:
+    global _rest_inflight_count
+    with _rest_inflight_lock:
+        _rest_inflight_count = max(0, _rest_inflight_count - 1)
 
 
 def _safe_truncate(text: str, max_len: int = _MAX_BODY_LOG) -> str:
@@ -111,6 +136,7 @@ class RestLoggingMiddleware:
         # --- contextvars для SQL-логирования ---
         tok_ctx = rest_request_ctx.set(True)
         tok_path = rest_request_path_ctx.set(f"{method} {path}")
+        _increment_rest_inflight()
 
         # --- перехват response ---
         status_code = 0
@@ -136,6 +162,7 @@ class RestLoggingMiddleware:
         finally:
             rest_request_ctx.reset(tok_ctx)
             rest_request_path_ctx.reset(tok_path)
+            _decrement_rest_inflight()
 
         elapsed_ms = (time.perf_counter() - start) * 1000
 

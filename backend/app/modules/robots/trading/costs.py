@@ -2,6 +2,9 @@
 Расчет комиссий, налогов и точки безубыточности.
 Ставки по умолчанию — из settings.robots; робот может переопределить в config.costs.
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingCosts [1]
+#/// Исходный модуль `backend/app/modules/robots/trading/costs.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from typing import Any, Dict, Optional
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -18,11 +21,84 @@ def resolve_robot_cost_rates(robot_config: Optional[Dict[str, Any]]) -> tuple[fl
     cfg = (robot_config or {}).get("costs") or {}
     if not isinstance(cfg, dict):
         return base_br, base_tx
+    broker_type = str((robot_config or {}).get("broker_type") or "tinvest").strip().lower()
+    if broker_type == "bybit":
+        maker = cfg.get("maker_fee_rate")
+        taker = cfg.get("taker_fee_rate")
+        # Для старых путей (одна ставка) используем taker как более консервативную.
+        out_br = float(taker if taker is not None else maker if maker is not None else base_br)
+        # Crypto backtest/live: налог не применяется, если явно не задан ndfl_rate.
+        out_tx = float(cfg["ndfl_rate"]) if cfg.get("ndfl_rate") is not None else 0.0
+        return out_br, out_tx
     br = cfg.get("broker_commission_rate")
     tx = cfg.get("ndfl_rate")
     out_br = float(br) if br is not None else base_br
     out_tx = float(tx) if tx is not None else base_tx
     return out_br, out_tx
+
+
+def resolve_crypto_fee_rates(robot_config: Optional[Dict[str, Any]]) -> tuple[float, float]:
+    """
+    Возвращает maker/taker rate для crypto path.
+    Если указана только одна из ставок — вторая наследуется от неё.
+    """
+    cfg = (robot_config or {}).get("costs") or {}
+    if not isinstance(cfg, dict):
+        return 0.0001, 0.0006
+    maker = cfg.get("maker_fee_rate")
+    taker = cfg.get("taker_fee_rate")
+    if maker is None and taker is None:
+        return 0.0001, 0.0006
+    if maker is None:
+        maker = taker
+    if taker is None:
+        taker = maker
+    return float(maker), float(taker)
+
+
+def resolve_backtest_sim_rates(robot_config: Optional[Dict[str, Any]]) -> tuple[float, float, float, float]:
+    """
+    Ставки для SimBacktestBrokerFacade: (commission_rate, maker_fee, taker_fee, ndfl_rate).
+    Crypto (bybit): ndfl_rate=0 по умолчанию.
+    """
+    br, ndfl = resolve_robot_cost_rates(robot_config)
+    broker_type = str((robot_config or {}).get("broker_type") or "tinvest").strip().lower()
+    cfg = (robot_config or {}).get("costs") or {}
+    if not isinstance(cfg, dict):
+        cfg = {}
+    if broker_type == "bybit":
+        maker, taker = resolve_crypto_fee_rates(robot_config)
+        return br, maker, taker, ndfl
+    maker = float(cfg["maker_fee_rate"]) if cfg.get("maker_fee_rate") is not None else br
+    taker = float(cfg["taker_fee_rate"]) if cfg.get("taker_fee_rate") is not None else br
+    return br, maker, taker, ndfl
+
+
+def resolve_backtest_execution(config: Optional[Dict[str, Any]]) -> str:
+    """
+    Order style for sim backtest:
+      - limit_maker: post_order (maker fee)
+      - market_taker: post_market_order (taker fee)
+    """
+    cfg = (config or {}).get("costs") or {}
+    if isinstance(cfg, dict) and cfg.get("backtest_execution"):
+        return str(cfg["backtest_execution"]).strip().lower()
+    broker = str((config or {}).get("broker_type") or "tinvest").strip().lower()
+    if broker == "bybit":
+        return "market_taker"
+    return "limit_maker"
+
+
+def resolve_backtest_fee_model(config: Optional[Dict[str, Any]]) -> str:
+    """maker_taker | taker_only | maker_only — override fee on both order types."""
+    cfg = (config or {}).get("costs") or {}
+    if isinstance(cfg, dict) and cfg.get("backtest_fee_model"):
+        return str(cfg["backtest_fee_model"]).strip().lower()
+    return "maker_taker"
+
+
+def annualization_days_for_broker(broker_type: Optional[str]) -> int:
+    return 365 if str(broker_type or "").strip().lower() == "bybit" else 252
 
 
 class TradingCosts:
@@ -162,19 +238,39 @@ def calculate_position_size(
         current_price: float,
         max_position_percent: float = 10.0,
         max_position_rub: float = None,
-        free_funds: float = None
-) -> int:
-    """
-    Рассчитывает размер позиции в лотах
-    """
-    if free_funds is None:
-        free_funds = portfolio_value
-    max_by_percent = portfolio_value * (max_position_percent / 100)
-    max_by_rub = max_position_rub if max_position_rub else float('inf')
-    max_amount = min(max_by_percent, max_by_rub, free_funds)
+        free_funds: float = None,
+        existing_position_value: float = 0.0,
+) -> float:
+    """Size a new BUY from broker portfolio equity (may be fractional for crypto).
 
-    lots = int(max_amount / current_price)
-    return max(1, lots)
+    Caps:
+    - max_position_percent of *total* portfolio_value for this instrument
+      (remaining room after existing_position_value of the same coin)
+    - optional absolute max_position_rub
+    - free_funds
+
+    Returns 0 when even one full price unit does not fit the remaining budget.
+    Broker facades apply lot-step rounding (ByBit qtyStep / MOEX lots).
+    """
+    if current_price is None or float(current_price) <= 0:
+        return 0.0
+    price = float(current_price)
+    equity = max(0.0, float(portfolio_value or 0.0))
+    if free_funds is None:
+        free_funds = equity
+    cash = max(0.0, float(free_funds or 0.0))
+    existing = max(0.0, float(existing_position_value or 0.0))
+
+    max_by_percent = equity * (float(max_position_percent or 0.0) / 100.0)
+    remaining_by_pct = max(0.0, max_by_percent - existing)
+    max_by_rub = float(max_position_rub) if max_position_rub not in (None, "") else float("inf")
+    max_amount = min(remaining_by_pct, max_by_rub, cash)
+
+    if max_amount < price:
+        # Still allow fractional crypto size when budget < 1 full coin.
+        raw = max_amount / price
+        return float(raw) if raw > 0 else 0.0
+    return float(max_amount / price)
 
 
 def calculate_stop_loss_price(

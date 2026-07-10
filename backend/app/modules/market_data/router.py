@@ -4,13 +4,17 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+#///EPIC MarketData.ITEM API.TOPIC Historical Candles Endpoints [1]
+#/// Роутер исторических данных: нормализация диапазонов дат, получение свечей,
+#/// проксирование/кеширование и lightweight backtest утилиты поверх market data.
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.modules.auth.models import User
 from app.modules.market_data import schemas
 from app.modules.market_data import service as market_service
 from app.modules.robots.schemas import RobotHistoryBacktestResponse, RobotHistoryBacktestTrade
-from app.modules.robots.trading.backtest.engine import run_backtest_simulation
+from app.core.config import settings
+from app.modules.robots.trading.runtime import get_trading_orchestrator
 
 router = APIRouter(prefix="/market", tags=["Market data"])
 
@@ -134,14 +138,19 @@ async def run_market_backtest(
     if "interval" not in sp:
         sp["interval"] = body.candle_interval
 
-    result = await run_backtest_simulation(
+    robot_cfg: dict = {}
+    if body.costs:
+        robot_cfg["costs"] = dict(body.costs)
+    result = await get_trading_orchestrator().run_backtest_quick(
+        db=db,
+        schema=settings.DB_SCHEMA,
         candles_by_figi={figi_resolved: candles},
         strategy_name=body.strategy,
         strategy_params=sp,
         risk_params=dict(body.risk or {}),
         initial_capital=body.initial_capital,
-        cost_override=body.costs or None,
-        robot_config_for_cost_defaults=None,
+        robot_config=robot_cfg,
+        user_id=int(current_user.id),
     )
 
     return RobotHistoryBacktestResponse(
