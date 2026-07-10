@@ -1,3 +1,12 @@
+"""DEPRECATED: см. docs/BRD-ARCH-03-unified-engine-architecture.md §11.
+
+Этот модуль остаётся как обратно совместимый адаптер для текущего
+`backtest/engine.py:run_backtest_simulation`. Новые места кода должны
+использовать единый контур market-data через
+`app.modules.robots.trading.data.get_market_data_facade()` (`MarketDataFacade.ensure_*`),
+который читает те же снапшоты из
+`{schema}.market_snapshot_history` и `{schema}.market_snapshot_data_history`.
+"""
 from __future__ import annotations
 
 #///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingBacktestDmsEmulator [1]

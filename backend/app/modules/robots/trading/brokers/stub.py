@@ -17,6 +17,10 @@ class StubBrokerFacade(BrokerFacade):
     def cache_namespace(self) -> str:
         return f"{self.broker_type}:stub"
 
+    @property
+    def auth_token(self) -> str:
+        return ""
+
     async def _not_implemented(self):
         raise NotImplementedError(f"Broker '{self.broker_type}' is not implemented yet")
 
@@ -63,7 +67,7 @@ class StubBrokerFacade(BrokerFacade):
     async def connect_websocket(self, user_id: int) -> bool:
         await self._not_implemented()
 
-    async def subscribe_prices(self, user_id: int, figis: List[str], queue) -> Dict[str, str]:
+    async def subscribe_prices(self, user_id: int, figis: List[str], queue, candle_interval: Optional[str] = None) -> Dict[str, str]:
         await self._not_implemented()
 
     async def unsubscribe_prices(self, user_id: int, figis: List[str], queue) -> None:

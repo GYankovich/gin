@@ -75,6 +75,7 @@ class DmsPipelinePreviewRequest(BaseModel):
     board: str = "TQBR"
     filters: List[Dict[str, Any]] = Field(default_factory=list)
     mode: str = "ALL"
+    warmup_candles: bool = True
 
 
 class DmsPipelinePreviewResponse(BaseModel):
@@ -84,10 +85,24 @@ class DmsPipelinePreviewResponse(BaseModel):
     sample: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+class DmsPipelinePreviewSetupRequest(BaseModel):
+    """Ad-hoc preview для /testing без привязки к роботу."""
+    board: str = "TQBR"
+    filters: List[Dict[str, Any]] = Field(default_factory=list)
+    mode: str = "ALL"
+    universe_mode: str = "dms_pipeline"
+    fixed_tickers: List[str] = Field(default_factory=list)
+    warmup_candles: bool = False
+
+
 class DmsInitializeDayRequest(BaseModel):
     robot_id: int
     board: str = "TQBR"
     force_refresh_snapshot: bool = False
+    force_recompute_universe: bool = Field(
+        default=False,
+        description="Пересчитать daily_universe за сегодня по актуальному snapshot (внутридневной пересмотр)",
+    )
 
 
 class DmsInitializeDayResponse(BaseModel):
@@ -113,7 +128,8 @@ class DailyUniverseItem(BaseModel):
     volume_at_filter: Optional[int] = None
     atr_value: Optional[float] = None
     gap_percent: Optional[float] = None
-    applied_filters: Optional[Dict[str, Any]] = None
+    # Исторически в БД встречаются оба формата: dict и list[dict].
+    applied_filters: Optional[Any] = None
     created_at: datetime
 
 

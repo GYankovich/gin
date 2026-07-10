@@ -4,17 +4,21 @@
     "type": "split",
     "children": [
       {
-        "id": "83e5a7e6ed5a3c65",
+        "id": "8e90951adf0bb68f",
         "type": "tabs",
         "children": [
           {
-            "id": "d657184e9534c758",
+            "id": "8c51812301960976",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Граф"
+              "type": "markdown",
+              "state": {
+                "file": "2026-06-16.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "2026-06-16"
             }
           }
         ]
@@ -70,12 +74,11 @@
               "title": "Закладки"
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "horizontal",
-    "width": 300
+    "width": 478.49999618530273
   },
   "right": {
     "id": "135eb96e578f6ee3",
@@ -177,8 +180,12 @@
       "bases:Создать новую базу": false
     }
   },
-  "active": "d657184e9534c758",
+  "active": "8c51812301960976",
   "lastOpenFiles": [
+    "2026-06-16.md",
+    "Graph/MOC Root — backend.md",
+    "alembic/EPIC Platform/ITEM Migrations/TOPIC AlembicVersions0001InitSchema.md",
+    "Graph/MOC ITEM — alembic — EPIC Platform — ITEM Migrations.md",
     "_vault_all_files.txt",
     "backend/EPIC Backtesting/ITEM DMS/TOPIC Data Management Endpoints.md",
     "backend/EPIC Modules/ITEM Module/TOPIC BackendAppModulesRobotsTradingBacktestMetrics.md",
@@ -188,7 +195,6 @@
     "Graph/MOC ITEM — frontend-tsx — EPIC Frontend — ITEM Portfolio.md",
     "Graph/MOC ITEM — frontend-tsx — EPIC Frontend — ITEM Pages.md",
     "Graph/MOC Root — frontend-ts.md",
-    "Graph/MOC Root — backend.md",
     "Graph/MOC Root — alembic.md",
     "Graph/MOC ITEM — frontend-tsx — EPIC Frontend — ITEM Src.md",
     "Graph/MOC ITEM — frontend-tsx — EPIC Frontend — ITEM Settings.md",
@@ -203,8 +209,6 @@
     "Graph/MOC ITEM — frontend-ts — EPIC Frontend — ITEM Types.md",
     "Graph/MOC ITEM — frontend-ts — EPIC Frontend — ITEM State.md",
     "Graph/MOC ITEM — frontend-ts — EPIC Frontend — ITEM Src.md",
-    "Graph/MOC ITEM — frontend-ts — EPIC Frontend — ITEM Shared.md",
-    "Graph/MOC ITEM — frontend-ts — EPIC Frontend — ITEM Modules.md",
     "Graph"
   ]
 }

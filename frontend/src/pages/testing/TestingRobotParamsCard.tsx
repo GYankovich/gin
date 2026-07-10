@@ -1,182 +1,152 @@
 import React from 'react'
 import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
-import { DateRangePicker } from '@/components/ui/DateRangePicker'
-import type { Robot } from '@/types/robot'
-import { normalizeSignalInterval } from '@/pages/testing/testingPipeline'
-import { clampDateToToday } from '@/pages/testing/testingUtils'
-
-const TRADING_POLL_MINUTE_OPTIONS = [1, 2, 5, 10, 15, 30, 60]
-
-const SIGNAL_CANDLE_INTERVAL_OPTIONS = [
-    { value: 'CANDLE_INTERVAL_1_MIN', label: '1м' },
-    { value: 'CANDLE_INTERVAL_5_MIN', label: '5м' },
-    { value: 'CANDLE_INTERVAL_10_MIN', label: '10м' },
-    { value: 'CANDLE_INTERVAL_HOUR', label: '1ч' },
-    { value: 'CANDLE_INTERVAL_DAY', label: '1д' },
-    { value: 'CANDLE_INTERVAL_WEEK', label: '1н' },
-    { value: 'CANDLE_INTERVAL_MONTH', label: '1М' },
-    { value: 'CANDLE_INTERVAL_QUARTER', label: '1К' },
-]
+import { brokerTypeLabel } from '@/modules/robots/config/brokerImmutability'
+import { PollFrequencyField } from '@/pages/testing/refactored/components/setup/PollFrequencyField'
 
 export type TestingRobotParamsCardProps = {
-    robots: Robot[]
-    robotId: number | null
-    onRobotIdChange: (id: number | null) => void
-    strategyOptions: Array<{ value: string; label: string }>
-    strategy: string
-    onStrategyChange: (v: string) => void
     brokerType: string
-    onBrokerTypeChange: (v: string) => void
-    pollValue: number
-    onPollValueChange: (v: number) => void
-    pollUnit: 'minutes' | 'hours'
-    onPollUnitChange: (u: 'minutes' | 'hours') => void
-    invalidPeriod: boolean
-    fromDate: string
-    toDate: string
-    onFromDateChange: (v: string) => void
-    onToDateChange: (v: string) => void
-    interval: string
-    onIntervalChange: (v: string) => void
+    /** Не нужен при hideBroker — брокер задаётся рынком в BaseConfigPanel. */
+    onBrokerTypeChange?: (v: string) => void
+    pollValue?: number
+    onPollValueChange?: (v: number) => void
+    pollUnit?: 'minutes' | 'hours'
+    onPollUnitChange?: (u: 'minutes' | 'hours') => void
     onConfigDirty: () => void
+    createName?: string
+    onCreateNameChange?: (v: string) => void
+    createTokenId?: number | null
+    onCreateTokenIdChange?: (id: number | null) => void
+    createTokenOptions?: Array<{ value: string; label: string }>
+    onCreateRobot?: () => void
+    creatingRobot?: boolean
+    brokerTypeLocked?: boolean
+    onBrokerTypeChangeBlocked?: () => void
+    isCrypto?: boolean
+    brokerOptions?: Array<{ value: string; label: string }>
+    /** Скрыть выбор брокера (определяется рынком в BaseConfigPanel). */
+    hideBroker?: boolean
+    /** Короткий заголовок без «брокер» (AdvancedPanel). */
+    compactTitle?: boolean
+    /** Скрыть частоту опроса (перенесена в SignalGenerationPanel). */
+    hidePoll?: boolean
 }
 
+/** Broker + poll schedule + create robot (MOEX/crypto extended fields — в T2.3/T2.4). */
 export function TestingRobotParamsCard({
-    robots,
-    robotId,
-    onRobotIdChange,
-    strategyOptions,
-    strategy,
-    onStrategyChange,
     brokerType,
     onBrokerTypeChange,
     pollValue,
     onPollValueChange,
     pollUnit,
     onPollUnitChange,
-    invalidPeriod,
-    fromDate,
-    toDate,
-    onFromDateChange,
-    onToDateChange,
-    interval,
-    onIntervalChange,
     onConfigDirty,
+    createName = '',
+    onCreateNameChange,
+    createTokenId = null,
+    onCreateTokenIdChange,
+    createTokenOptions = [],
+    onCreateRobot,
+    creatingRobot = false,
+    brokerTypeLocked = false,
+    onBrokerTypeChangeBlocked,
+    isCrypto = false,
+    brokerOptions,
+    hideBroker = false,
+    compactTitle = false,
+    hidePoll = false,
 }: TestingRobotParamsCardProps) {
+    const resolvedBrokerOptions =
+        brokerOptions ??
+        (isCrypto
+            ? [{ value: 'bybit', label: brokerTypeLabel('bybit') }]
+            : [
+                  { value: 'tinvest', label: brokerTypeLabel('tinvest') },
+                  { value: 'sandbox', label: brokerTypeLabel('sandbox') },
+              ])
     return (
         <Card className="mb-6 cyber-form-card testing-cyber-card">
             <h3 className="card__section-title pipeline-title">
                 <span className="cyber-bracket">[</span>
-                ПАРАМЕТРЫ РОБОТА
+                {compactTitle ? 'ОПРОС И СОЗДАНИЕ РОБОТА' : 'БРОКЕР И РАСПИСАНИЕ'}
                 <span className="cyber-bracket">]</span>
             </h3>
             <div className="testing-robot-grid">
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Выбор робота</label>
-                    <Select
-                        options={robots.filter(r => r.type === 2).map(r => ({ value: String(r.id), label: r.name }))}
-                        value={robotId != null ? String(robotId) : ''}
-                        onChange={v => onRobotIdChange(v ? Number(v) : null)}
-                    />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Стратегия</label>
-                    <Select
-                        options={strategyOptions}
-                        value={strategy}
-                        onChange={(v) => {
-                            onStrategyChange(String(v || 'grain_seed'))
-                            onConfigDirty()
-                        }}
-                    />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
+                {!hideBroker && (
+                <div className="form-group testing-form-group-flat">
                     <label className="form-label">Брокер</label>
                     <Select
-                        options={[
-                            { value: 'tinvest', label: 'T-Invest' },
-                            { value: 'sandbox', label: 'Sandbox' },
-                        ]}
+                        disabled={brokerTypeLocked}
+                        options={[...resolvedBrokerOptions]}
                         value={brokerType}
-                        onChange={(v) => {
-                            onBrokerTypeChange(String(v || 'tinvest'))
+                        onChange={v => {
+                            if (brokerTypeLocked) {
+                                onBrokerTypeChangeBlocked?.()
+                                return
+                            }
+                            onBrokerTypeChange?.(String(v || 'tinvest'))
                             onConfigDirty()
                         }}
                     />
-                </div>
-                <div className="form-group">
-                    <label className="form-label">Частота опроса</label>
-                    <div className="testing-poll-inline">
-                        <div className="testing-poll-inline__value">
-                            {pollUnit === 'minutes' ? (
-                                <Select
-                                    options={TRADING_POLL_MINUTE_OPTIONS.map(v => ({ value: String(v), label: String(v) }))}
-                                    value={String(pollValue)}
-                                    onChange={v => {
-                                        onPollValueChange(Number(v || 5))
-                                        onConfigDirty()
-                                    }}
-                                />
-                            ) : (
-                                <input
-                                    className="form-input"
-                                    type="number"
-                                    min={1 / 60}
-                                    max={12}
-                                    step={0.1}
-                                    value={pollValue}
-                                    onChange={e => {
-                                        onPollValueChange(Math.max(1 / 60, Math.min(12, Number(e.target.value || 1))))
-                                        onConfigDirty()
-                                    }}
-                                />
-                            )}
-                        </div>
-                        <div className="testing-poll-inline__unit">
-                            <Select
-                                options={[
-                                    { value: 'minutes', label: 'минуты' },
-                                    { value: 'hours', label: 'часы' },
-                                ]}
-                                value={pollUnit}
-                                onChange={v => {
-                                    onPollUnitChange(v === 'hours' ? 'hours' : 'minutes')
-                                    onConfigDirty()
-                                }}
-                            />
-                        </div>
-                    </div>
-                </div>
-                <div
-                    className="testing-robot-grid__period"
-                    style={invalidPeriod ? { border: '1px solid var(--color-down)', borderRadius: 'var(--radius-md)', padding: 6 } : undefined}
-                >
-                    <DateRangePicker
-                        fromValue={fromDate}
-                        toValue={toDate}
-                        onFromChange={(v) => onFromDateChange(clampDateToToday(v))}
-                        onToChange={(v) => onToDateChange(clampDateToToday(v))}
-                        fromLabel="Интервал тестирования: с"
-                        toLabel="по"
-                    />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label">Интервал свечей (сигналы)</label>
-                    <Select
-                        options={SIGNAL_CANDLE_INTERVAL_OPTIONS}
-                        value={interval}
-                        onChange={(v) => {
-                            onIntervalChange(normalizeSignalInterval(v))
-                            onConfigDirty()
-                        }}
-                    />
-                    {normalizeSignalInterval(interval).includes('5_MIN') && (
-                        <p className="form-hint" style={{ marginTop: 6 }}>
-                            В общем кеше MOEX нет шага 5m — для дозагрузки используйте 10m (или 1m); симуляция 5m идёт из legacy кеша.
+                    {brokerTypeLocked && (
+                        <p className="testing-create-robot-hint">
+                            Брокер задаётся при создании робота и не меняется.
                         </p>
                     )}
                 </div>
+                )}
+                {!hidePoll && pollValue != null && onPollValueChange && pollUnit && onPollUnitChange && (
+                <PollFrequencyField
+                    pollValue={pollValue}
+                    onPollValueChange={onPollValueChange}
+                    pollUnit={pollUnit}
+                    onPollUnitChange={onPollUnitChange}
+                    onConfigDirty={onConfigDirty}
+                />
+                )}
+                {onCreateRobot && (
+                    <div className="testing-create-robot-block">
+                        <p className="form-label testing-create-robot-block__title">Создать торгового робота из текущих настроек</p>
+                        <div className="testing-create-robot-grid">
+                            <div className="form-group testing-form-group-flat">
+                                <label className="form-label">Название</label>
+                                <input
+                                    className="form-input"
+                                    type="text"
+                                    placeholder="Например, Grain TQBR v1"
+                                    value={createName}
+                                    onChange={e => onCreateNameChange?.(e.target.value)}
+                                />
+                            </div>
+                            <div className="form-group testing-form-group-flat">
+                                <label className="form-label">Токен</label>
+                                <Select
+                                    options={[
+                                        { value: '', label: '— выберите токен —' },
+                                        ...createTokenOptions,
+                                    ]}
+                                    value={createTokenId != null ? String(createTokenId) : ''}
+                                    onChange={v => onCreateTokenIdChange?.(v ? Number(v) : null)}
+                                />
+                            </div>
+                            <div className="testing-create-robot-grid__action">
+                                <Button
+                                    variant="secondary"
+                                    loading={creatingRobot}
+                                    disabled={creatingRobot || !createName.trim() || !createTokenId}
+                                    onClick={() => onCreateRobot()}
+                                >
+                                    Создать робота
+                                </Button>
+                            </div>
+                        </div>
+                        <p className="testing-create-robot-hint">
+                            Конфиг (стратегия, pipeline, риск, costs, расписание) совпадает с бэктестом. После создания
+                            выберите робота в списке и запустите тест или включите live в настройках.
+                        </p>
+                    </div>
+                )}
             </div>
         </Card>
     )

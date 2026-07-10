@@ -68,14 +68,14 @@ class TokenCreate(TokenBase):
 class TokenUpdate(BaseModel):
     """Обновление токена"""
     token_name: Optional[str] = None
-    is_active: Optional[bool] = None
+    status: Optional[int] = None
 
 
 class TokenInDB(TokenBase):
     """Токен из БД"""
     id: int
     user_id: int
-    is_active: bool
+    status: int
     created_at: datetime
     last_used_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
@@ -89,7 +89,7 @@ class TokenResponse(BaseModel):
     id: int
     token_type: str
     token_name: Optional[str] = None
-    is_active: bool
+    status: int
     created_at: datetime
     last_used_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
@@ -108,7 +108,7 @@ class TokenResponse(BaseModel):
             id=db_token.id,
             token_type=db_token.token_type,
             token_name=db_token.token_name,
-            is_active=db_token.is_active,
+            status=db_token.status,
             created_at=db_token.created_at,
             last_used_at=db_token.last_used_at,
             expires_at=db_token.expires_at,

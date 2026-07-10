@@ -160,6 +160,29 @@ class CandlesQueryResponse(BaseModel):
 
 
 
+class CandleCoverageTickerSummary(BaseModel):
+    ticker: str
+    bucket_count: int
+    min_bucket_start: Optional[datetime] = None
+    max_bucket_start: Optional[datetime] = None
+
+
+class CandleCoverageSummaryResponse(BaseModel):
+    board: str
+    interval: str
+    items: List[CandleCoverageTickerSummary]
+
+
+class TqbrSecurityRow(BaseModel):
+    secid: str
+    shortname: Optional[str] = None
+    isin: Optional[str] = None
+
+
+class TqbrSearchResponse(BaseModel):
+    items: List[TqbrSecurityRow]
+
+
 def _decimal_to_float(d: object) -> float:
 
     if d is None:

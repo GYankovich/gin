@@ -1,34 +1,74 @@
 import React from 'react'
 import { Card } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
+import { RunControlPanel } from '@/pages/testing/refactored/components/run/RunControlPanel'
+import { RunStatusLog } from '@/pages/testing/refactored/components/run/RunStatusLog'
 
 export type TestingBacktestRunSectionProps = {
     running: boolean
     onRunBacktest: () => void
     statusWindow: string[]
+    configDirty: boolean
+    canRunBacktest: boolean
+    hasResult: boolean
+    invalidPeriod: boolean
+    onRefreshHistory?: () => void
+    historyLoading?: boolean
+    /** §9.1: отмена фонового прогона, пока идёт опрос GET …/runs/{run_id} */
+    pollingRunId?: number | null
+    cancellingRun?: boolean
+    onCancelBacktest?: () => void | Promise<void>
+    runProgress?: {
+        percent: number
+        etaLabel: string | null
+        phaseLabel: string | null
+    } | null
+    error?: string | null
+    onBackToSetup?: () => void
+    sticky?: boolean
 }
 
-export function TestingBacktestRunSection({ running, onRunBacktest, statusWindow }: TestingBacktestRunSectionProps) {
+/** Legacy wrapper — composes T3.2 `RunControlPanel` + `RunStatusLog`. */
+export function TestingBacktestRunSection({
+    running,
+    onRunBacktest,
+    statusWindow,
+    configDirty,
+    canRunBacktest,
+    hasResult,
+    invalidPeriod,
+    onRefreshHistory,
+    historyLoading = false,
+    pollingRunId = null,
+    cancellingRun = false,
+    onCancelBacktest,
+    runProgress = null,
+    error = null,
+    onBackToSetup,
+    sticky = true,
+}: TestingBacktestRunSectionProps) {
     return (
         <>
-            <div className="mb-6 testing-actions testing-actions--run">
-                <Button className="pipeline-action-btn pipeline-action-btn--test" onClick={onRunBacktest} loading={running}>
-                    Запустить бэктест
-                </Button>
-            </div>
-
+            <RunControlPanel
+                running={running}
+                hasResult={hasResult}
+                error={error}
+                onRunBacktest={onRunBacktest}
+                configDirty={configDirty}
+                canRunBacktest={canRunBacktest}
+                invalidPeriod={invalidPeriod}
+                onRefreshHistory={onRefreshHistory}
+                historyLoading={historyLoading}
+                pollingRunId={pollingRunId}
+                cancellingRun={cancellingRun}
+                onCancelBacktest={onCancelBacktest}
+                runProgress={runProgress}
+                onBackToSetup={onBackToSetup}
+                statusLogCount={statusWindow.length}
+                sticky={sticky}
+            />
             {statusWindow.length > 0 && (
-                <Card className="mb-6 cyber-form-card testing-cyber-card">
-                    <h3 className="card__section-title pipeline-title">
-                        <span className="cyber-bracket">[</span>
-                        СТАТУС ПОДГОТОВКИ И ТЕСТА
-                        <span className="cyber-bracket">]</span>
-                    </h3>
-                    <div className="form-hint">
-                        {statusWindow.map((s, i) => (
-                            <div key={`${s}-${i}`}>• {s}</div>
-                        ))}
-                    </div>
+                <Card className="mb-6 cyber-form-card testing-cyber-card testing-run-status-card">
+                    <RunStatusLog statusWindow={statusWindow} />
                 </Card>
             )}
         </>

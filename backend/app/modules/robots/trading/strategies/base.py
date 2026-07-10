@@ -15,6 +15,11 @@ class BaseStrategy(ABC):
         self.client = client
         self.params = params
         self.figis = params.get('figis', [])
+        # Последние причины отсутствия сигнала по figi (для Stage5 / live-логов).
+        self.skip_reasons: Dict[str, str] = {}
+
+    def _record_skip_reason(self, figi: str, reason: str) -> None:
+        self.skip_reasons[str(figi)] = reason
 
     @abstractmethod
     async def generate_signals(self, candles_data: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Optional[str]]:

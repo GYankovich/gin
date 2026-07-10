@@ -2,6 +2,7 @@
 ///@ Исходный модуль `frontend/src/components/ui/Select.tsx` — автоматическая разметка для Obsidian Source Scanner.
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 
 export interface SelectOption {
     value: string | number
@@ -35,8 +36,34 @@ export function Select({
 }: SelectProps) {
     const [open, setOpen] = useState(false)
     const [search, setSearch] = useState('')
+    const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+    const [cyberDropdown, setCyberDropdown] = useState(false)
+    const [aboveModal, setAboveModal] = useState(false)
     const containerRef = useRef<HTMLDivElement>(null)
+    const triggerRef = useRef<HTMLDivElement>(null)
+    const dropdownRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
+
+    const updateDropdownPosition = useCallback(() => {
+        const trigger = triggerRef.current
+        if (!trigger) return
+        const rect = trigger.getBoundingClientRect()
+        const gap = 4
+        const maxHeight = 280
+        const spaceBelow = window.innerHeight - rect.bottom - gap
+        const spaceAbove = rect.top - gap
+        const openUp = spaceBelow < 160 && spaceAbove > spaceBelow
+        const height = Math.min(maxHeight, openUp ? spaceAbove : spaceBelow)
+
+        setDropdownStyle({
+            position: 'fixed',
+            left: rect.left,
+            width: rect.width,
+            ...(openUp
+                ? { bottom: window.innerHeight - rect.top + gap, maxHeight: height }
+                : { top: rect.bottom + gap, maxHeight: height }),
+        })
+    }, [])
 
     const selected = options.find(o => String(o.value) === String(value))
 
@@ -70,11 +97,27 @@ export function Select({
     }, [])
 
     useEffect(() => {
+        if (!open) return
+        const el = containerRef.current
+        setCyberDropdown(!!el?.closest('.step-editor-panel, .cyber-select-wrap'))
+        setAboveModal(!!el?.closest('.modal-backdrop, .modal'))
+        updateDropdownPosition()
+        const onLayout = () => updateDropdownPosition()
+        window.addEventListener('resize', onLayout)
+        window.addEventListener('scroll', onLayout, true)
+        return () => {
+            window.removeEventListener('resize', onLayout)
+            window.removeEventListener('scroll', onLayout, true)
+        }
+    }, [open, updateDropdownPosition])
+
+    useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-                setOpen(false)
-                setSearch('')
-            }
+            const target = e.target as Node
+            if (triggerRef.current?.contains(target)) return
+            if (dropdownRef.current?.contains(target)) return
+            setOpen(false)
+            setSearch('')
         }
         document.addEventListener('mousedown', handleClickOutside)
         document.addEventListener('keydown', handleKeyDown)
@@ -90,7 +133,7 @@ export function Select({
             className={`gin-select ${open ? 'gin-select--open' : ''} ${disabled ? 'gin-select--disabled' : ''} gin-select--${size} ${className}`}
             style={style}
         >
-            <div className="gin-select__trigger" onClick={handleToggle}>
+            <div ref={triggerRef} className="gin-select__trigger" onClick={handleToggle}>
                 {selected ? (
                     <span className="gin-select__value">
                         {selected.icon && <span className="gin-select__icon">{selected.icon}</span>}
@@ -106,38 +149,44 @@ export function Select({
                 </span>
             </div>
 
-            {open && (
-                <div className="gin-select__dropdown">
-                    {searchable && options.length > 6 && (
-                        <div className="gin-select__search-wrap">
-                            <input
-                                ref={inputRef}
-                                className="gin-select__search"
-                                type="text"
-                                placeholder="Поиск..."
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                                onClick={e => e.stopPropagation()}
-                            />
-                        </div>
-                    )}
-                    <div className="gin-select__options">
-                        {filtered.length === 0 && (
-                            <div className="gin-select__empty">Нет результатов</div>
-                        )}
-                        {filtered.map(opt => (
-                            <div
-                                key={opt.value}
-                                className={`gin-select__option ${String(opt.value) === String(value) ? 'gin-select__option--active' : ''} ${opt.disabled ? 'gin-select__option--disabled' : ''}`}
-                                onClick={() => handleSelect(opt)}
-                            >
-                                {opt.icon && <span className="gin-select__icon">{opt.icon}</span>}
-                                {opt.label}
+            {open &&
+                createPortal(
+                    <div
+                        ref={dropdownRef}
+                        className={`gin-select__dropdown gin-select__dropdown--portal${cyberDropdown ? ' gin-select__dropdown--cyber' : ''}${aboveModal ? ' gin-select__dropdown--above-modal' : ''}`}
+                        style={dropdownStyle}
+                    >
+                        {searchable && options.length > 6 && (
+                            <div className="gin-select__search-wrap">
+                                <input
+                                    ref={inputRef}
+                                    className="gin-select__search"
+                                    type="text"
+                                    placeholder="Поиск..."
+                                    value={search}
+                                    onChange={e => setSearch(e.target.value)}
+                                    onClick={e => e.stopPropagation()}
+                                />
                             </div>
-                        ))}
-                    </div>
-                </div>
-            )}
+                        )}
+                        <div className="gin-select__options">
+                            {filtered.length === 0 && (
+                                <div className="gin-select__empty">Нет результатов</div>
+                            )}
+                            {filtered.map(opt => (
+                                <div
+                                    key={opt.value}
+                                    className={`gin-select__option ${String(opt.value) === String(value) ? 'gin-select__option--active' : ''} ${opt.disabled ? 'gin-select__option--disabled' : ''}`}
+                                    onClick={() => handleSelect(opt)}
+                                >
+                                    {opt.icon && <span className="gin-select__icon">{opt.icon}</span>}
+                                    {opt.label}
+                                </div>
+                            ))}
+                        </div>
+                    </div>,
+                    document.body,
+                )}
         </div>
     )
 }

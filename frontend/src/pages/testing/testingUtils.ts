@@ -1,4 +1,5 @@
 import type { RobotHistoryBacktestResult } from '@/types/robot'
+import type { TestingMarket } from '@/pages/testing/refactored/types/forms'
 
 export function parseTickers(v: string): string[] {
     return v.split(',').map(x => x.trim().toUpperCase()).filter(Boolean)
@@ -30,6 +31,22 @@ export function toInputDate(value: Date): string {
     const m = String(value.getMonth() + 1).padStart(2, '0')
     const d = String(value.getDate()).padStart(2, '0')
     return `${y}-${m}-${d}`
+}
+
+/** Период по умолчанию: 30 дней назад → вчера. */
+export function defaultBacktestPeriod(): { fromDate: string; toDate: string } {
+    const today = new Date()
+    const to = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    to.setDate(to.getDate() - 1)
+    const from = new Date(to)
+    from.setDate(from.getDate() - 30)
+    return { fromDate: toInputDate(from), toDate: toInputDate(to) }
+}
+
+export function defaultTestName(market: TestingMarket): string {
+    const label = market === 'crypto' ? 'ByBit' : 'MOEX'
+    const d = new Date().toLocaleDateString('ru-RU')
+    return `Бэктест ${label} ${d}`
 }
 
 export function clampDateToToday(v: string): string {

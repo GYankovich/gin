@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
+from app.modules.moex.http_gate import moex_http_acquire
+
 MOEX_HTTP_RETRIES = 3
 MOEX_HTTP_TIMEOUT_SEC = 20
 
@@ -29,8 +31,9 @@ async def _moex_get_json_with_retry(
     last_exc: Optional[Exception] = None
     for attempt in range(1, retries + 1):
         try:
-            async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
-                resp = await client.get(url, params=params)
+            async with moex_http_acquire():
+                async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
+                    resp = await client.get(url, params=params)
             if resp.status_code != 200:
                 raise RuntimeError(f"{context}: MOEX API error {resp.status_code} (попытка {attempt}/{retries})")
             return resp.json()

@@ -7,6 +7,7 @@ Proxies T-Invest price stream to the frontend for a given robot.
 
 import asyncio
 import json
+import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -15,14 +16,47 @@ from sqlalchemy import text
 
 from app.core.database import SessionLocal
 from app.core.config import settings
-from app.core.security import decode_token
+from app.core.security import resolve_session_user_id
 from app.core.logging_config import get_logger
-from app.modules.robots.live_hub import live_event_hub
+from app.modules.robots.service import robot_service
+from app.modules.robots.live_events import subscribe_live_events, unsubscribe_live_events
 from app.modules.robots.trading.brokers.factory import create_broker_facade
 
 logger = get_logger("live_ws")
 
 router = APIRouter()
+
+
+def _normalize_instruments(config: dict) -> list[str]:
+    cfg = config if isinstance(config, dict) else {}
+    broker_type = str(cfg.get("broker_type") or "tinvest").strip().lower()
+    if broker_type == "bybit":
+        raw = cfg.get("allowed_symbols") or cfg.get("instruments") or []
+    else:
+        raw = cfg.get("figis") or cfg.get("allowed_figis") or cfg.get("strategy_params", {}).get("figis") or []
+    return [str(x).strip().upper() for x in list(raw or []) if str(x).strip()]
+
+
+def _build_ws_init_payload(robot_id: int, broker_type: str, instruments: list[str]) -> dict:
+    return {
+        "type": "init",
+        "robot_id": robot_id,
+        "broker_type": broker_type,
+        "instruments": list(instruments),
+        # backward compatibility for old FE clients
+        "figis": list(instruments),
+    }
+
+
+def _normalize_figis(payload: dict) -> list[str]:
+    """Single figi or figis[] from client subscribe/unsubscribe message."""
+    raw_list = payload.get("figis")
+    if isinstance(raw_list, list):
+        return [str(f).strip() for f in raw_list if f and str(f).strip()]
+    figi = payload.get("figi")
+    if figi and str(figi).strip():
+        return [str(figi).strip()]
+    return []
 
 
 def _put_nowait_drop_oldest(queue: asyncio.Queue, item) -> None:
@@ -47,7 +81,7 @@ def _get_robot_data(user_id: int, robot_id: int) -> Optional[dict]:
     try:
         row = db.execute(
             text("""
-                SELECT r.id, r.config, t.token, r.type, r.status
+                SELECT r.id, r.config, t.token, r.type, r.status, t.extra_data, t.token_type
                 FROM {schema}.robots r
                 JOIN {schema}.api_tokens t ON r.token_id = t.id
                 WHERE r.id = :robot_id AND r.user_id = :user_id AND r.status != 0
@@ -62,18 +96,38 @@ def _get_robot_data(user_id: int, robot_id: int) -> Optional[dict]:
             "token": str(row[2]),
             "type": int(row[3]),
             "status": int(row[4]),
+            "token_extra_data": row[5] if isinstance(row[5], dict) else {},
+            "token_type": int(row[6]) if row[6] is not None else None,
         }
     finally:
         db.close()
 
 
 def _authenticate_ws(token_str: str) -> Optional[int]:
-    """Return user_id from bearer token or None."""
-    payload = decode_token(token_str)
-    if not payload:
-        return None
-    sub = payload.get("sub")
-    return int(sub) if sub else None
+    """Return user_id from bearer token or None (session checked in DB, not JWT exp)."""
+    db = SessionLocal()
+    try:
+        return resolve_session_user_id(db, token_str, slide=False)
+    finally:
+        db.close()
+
+
+async def _autofill_figis_from_pipeline(user_id: int, robot_id: int) -> list[str]:
+    """Try to populate allowed_figis from today's DMS universe."""
+    db = SessionLocal()
+    try:
+        result = await robot_service.sync_live_universe_from_pipeline(
+            db,
+            robot_id=robot_id,
+            user_id=user_id,
+            force_refresh_snapshot=False,
+        )
+        return list((result or {}).get("allowed_figis") or [])
+    except Exception as ex:
+        logger.warning("live_ws universe autofill failed robot_id=%s: %s", robot_id, ex)
+        return []
+    finally:
+        db.close()
 
 
 @router.websocket("/ws/live")
@@ -102,26 +156,51 @@ async def live_websocket(
         return
 
     config = robot["config"] if isinstance(robot["config"], dict) else {}
-    figis = (
-        config.get("figis")
-        or config.get("allowed_figis")
-        or config.get("strategy_params", {}).get("figis")
-        or []
+    from app.modules.robots.trading.brokers.routing import (
+        BrokerTokenMismatchError,
+        enforce_broker_for_token,
     )
+    try:
+        broker_type = enforce_broker_for_token(
+            config,
+            token_type=robot.get("token_type"),
+            mutate=True,
+            require_token=True,
+        )
+    except (BrokerTokenMismatchError, ValueError) as exc:
+        await ws.send_json({"type": "error", "message": str(exc)})
+        await ws.close(code=4006)
+        return
+
+    figis = _normalize_instruments(config)
 
     if not figis:
+        figis = await _autofill_figis_from_pipeline(user_id, robot_id)
+
+    if not figis:
+        mode = str(config.get("universe_mode") or "dms_pipeline").strip().lower()
+        if mode == "fixed":
+            hint = "Set fixed_tickers in robot settings and sync universe."
+        elif mode == "tqbr_scan":
+            hint = "Sync universe (TQBR scan) or wait for scheduled refresh."
+        else:
+            hint = "Check DMS pipeline filters or sync universe from Live/Testing."
         await ws.send_json({
             "type": "error",
-            "message": "Robot has no instruments configured. Add FIGIs in robot settings → Instruments tab.",
+            "message": f"Robot has no instruments (allowed_figis empty). {hint}",
         })
         await ws.close(code=4005)
         return
 
-    broker_type = config.get("broker_type", "tinvest")
-    await ws.send_json({"type": "init", "figis": figis, "robot_id": robot_id, "broker_type": broker_type})
-    broker = create_broker_facade(broker_type, robot["token"])
+    await ws.send_json(_build_ws_init_payload(robot_id, broker_type, figis))
+    broker = create_broker_facade(
+        broker_type,
+        robot["token"],
+        token_extra_data=robot.get("token_extra_data"),
+        robot_config=config,
+    )
     queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
-    event_queue = await live_event_hub.subscribe(robot_id)
+    event_queue = await subscribe_live_events(robot_id)
     outbound_queue: asyncio.Queue = asyncio.Queue(maxsize=2000)
     try:
         connected = await broker.connect_websocket(user_id)
@@ -135,17 +214,62 @@ async def live_websocket(
         return
 
     async def relay_prices():
+        last_poll_ts = 0.0
+        last_polled_prices: dict[str, float] = {}
+        last_ws_price_ts: dict[str, float] = {}
+        is_bybit = str(broker_type).strip().lower() == "bybit"
+        poll_interval_sec = 5.0
+        stale_after_sec = 12.0
         while True:
+            now_ts = time.monotonic()
+            should_poll = is_bybit and (now_ts - last_poll_ts >= poll_interval_sec)
+            if should_poll:
+                last_poll_ts = now_ts
+                for figi in figis:
+                    last_ws_ts = last_ws_price_ts.get(figi, 0.0)
+                    # Smart fallback: poll only symbols with stale/missing WS updates.
+                    if last_ws_ts > 0.0 and (now_ts - last_ws_ts) < stale_after_sec:
+                        continue
+                    try:
+                        p = await broker.get_last_price(user_id, figi, force_refresh=True)
+                    except Exception:
+                        p = None
+                    if p is None:
+                        continue
+                    rounded = round(float(p), 6)
+                    if last_polled_prices.get(figi) == rounded:
+                        continue
+                    last_polled_prices[figi] = rounded
+                    _put_nowait_drop_oldest(outbound_queue, {
+                        "type": "price",
+                        "figi": figi,
+                        "price": rounded,
+                        "time": datetime.now(timezone.utc).isoformat(),
+                    })
             try:
-                data = await asyncio.wait_for(queue.get(), timeout=1.0)
+                data = await asyncio.wait_for(queue.get(), timeout=0.5)
             except asyncio.TimeoutError:
                 await asyncio.sleep(0.05)
                 continue
-            if data and data.get("type") == "price":
+            if not data:
+                continue
+            event_type = str(data.get("type") or "").strip().lower()
+            if event_type in {"price", "candle", "candle_closed"}:
+                figi = str(data.get("figi") or "").strip().upper()
+                if figi:
+                    last_ws_price_ts[figi] = time.monotonic()
+                raw_price = data.get("price")
+                if raw_price is None:
+                    candle = data.get("candle") if isinstance(data.get("candle"), dict) else {}
+                    raw_price = candle.get("close")
+                try:
+                    price = float(raw_price)
+                except Exception:
+                    continue
                 _put_nowait_drop_oldest(outbound_queue, {
                     "type": "price",
-                    "figi": data.get("figi"),
-                    "price": round(float(data.get("price", 0.0)), 6),
+                    "figi": figi or data.get("figi"),
+                    "price": round(price, 6),
                     "time": datetime.now(timezone.utc).isoformat(),
                 })
 
@@ -188,21 +312,29 @@ async def live_websocket(
             except Exception:
                 payload = {}
             action = payload.get("action")
-            figi = payload.get("figi")
-            if action == "subscribe" and figi:
-                await broker.subscribe_prices(user_id, [figi], queue)
+            figis_batch = _normalize_figis(payload)
+            if action == "subscribe" and figis_batch:
+                await broker.subscribe_prices(user_id, figis_batch, queue)
+                if len(figis_batch) == 1:
+                    msg = f"Subscribed to {figis_batch[0]}"
+                else:
+                    msg = f"Subscribed to {len(figis_batch)} instruments"
                 _put_nowait_drop_oldest(outbound_queue, {
                     "type": "log",
                     "level": "INFO",
-                    "message": f"Subscribed to {figi}",
+                    "message": msg,
                     "time": datetime.now(timezone.utc).isoformat(),
                 })
-            elif action == "unsubscribe" and figi:
-                await broker.unsubscribe_prices(user_id, [figi], queue)
+            elif action == "unsubscribe" and figis_batch:
+                await broker.unsubscribe_prices(user_id, figis_batch, queue)
+                if len(figis_batch) == 1:
+                    msg = f"Unsubscribed from {figis_batch[0]}"
+                else:
+                    msg = f"Unsubscribed from {len(figis_batch)} instruments"
                 _put_nowait_drop_oldest(outbound_queue, {
                     "type": "log",
                     "level": "INFO",
-                    "message": f"Unsubscribed from {figi}",
+                    "message": msg,
                     "time": datetime.now(timezone.utc).isoformat(),
                 })
     except WebSocketDisconnect:
@@ -216,6 +348,6 @@ async def live_websocket(
             event_task.cancel()
         if writer_task:
             writer_task.cancel()
-        await live_event_hub.unsubscribe(robot_id, event_queue)
+        await unsubscribe_live_events(robot_id, event_queue)
         await broker.close_websocket(user_id, queue=queue)
         await broker.close()

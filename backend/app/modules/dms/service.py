@@ -1,14 +1,25 @@
 import hashlib
 import json
 from datetime import date, datetime, timezone, timedelta, time
-from typing import Any, Dict, Optional, List
+from typing import Any, Callable, Dict, Optional, List
 import httpx
 
 from fastapi import HTTPException, status
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.modules.robots.universe import (
+    UNIVERSE_MODE_FIXED,
+    UNIVERSE_MODE_TQBR,
+    normalize_universe_mode,
+    universe_min_tradable_row,
+    universe_uses_pipeline,
+    universe_whitelist_tickers,
+)
+from app.modules.dms.models import CandleCache
+from app.modules.moex.http_gate import moex_http_acquire
 
 
 class DmsService:
@@ -76,8 +87,9 @@ class DmsService:
         }
         started_at = datetime.now(timezone.utc)
         try:
-            async with httpx.AsyncClient(timeout=20, verify=False) as client:
-                resp = await client.get(url, params=params)
+            async with moex_http_acquire():
+                async with httpx.AsyncClient(timeout=20, verify=False) as client:
+                    resp = await client.get(url, params=params)
         except Exception as e:
             finished_at = datetime.now(timezone.utc)
             self._log_external_api_call(
@@ -146,41 +158,48 @@ class DmsService:
         ticker: str,
         interval_label: str,
         candles: List[Dict[str, Any]],
+        market: str = "moex",
+        source: str = "moex_iss",
     ) -> None:
         if not candles:
             return
-        q = text(
-            f"""
-            INSERT INTO {settings.DB_SCHEMA}.candles_cache
-            (ticker, interval, candle_time, open, high, low, close, volume, updated_at)
-            VALUES
-            (:ticker, :interval, :candle_time, :open, :high, :low, :close, :volume, :updated_at)
-            ON CONFLICT (ticker, interval, candle_time)
-            DO UPDATE SET
-                open = EXCLUDED.open,
-                high = EXCLUDED.high,
-                low = EXCLUDED.low,
-                close = EXCLUDED.close,
-                volume = EXCLUDED.volume,
-                updated_at = EXCLUDED.updated_at
-            """
-        )
+        table = CandleCache.__table__
         now = datetime.now(timezone.utc)
-        for c in candles:
-            db.execute(
-                q,
-                {
-                    "ticker": ticker,
-                    "interval": interval_label,
-                    "candle_time": c.get("candle_time"),
-                    "open": c.get("open"),
-                    "high": c.get("high"),
-                    "low": c.get("low"),
-                    "close": c.get("close"),
-                    "volume": c.get("volume"),
-                    "updated_at": now,
+        rows = [
+            {
+                "market": str(market or "moex").strip().lower(),
+                "instrument_id": ticker,
+                "ticker": ticker,
+                "interval": interval_label,
+                "candle_time": c.get("candle_time"),
+                "open": c.get("open"),
+                "high": c.get("high"),
+                "low": c.get("low"),
+                "close": c.get("close"),
+                "volume": c.get("volume"),
+                "source": source,
+                "updated_at": now,
+            }
+            for c in candles
+        ]
+        # Один round-trip на чанк вместо построчного INSERT.
+        chunk_size = 750
+        for off in range(0, len(rows), chunk_size):
+            batch = rows[off : off + chunk_size]
+            ins = pg_insert(table).values(batch)
+            ins = ins.on_conflict_do_update(
+                index_elements=["market", "instrument_id", "interval", "candle_time"],
+                set_={
+                    "open": ins.excluded.open,
+                    "high": ins.excluded.high,
+                    "low": ins.excluded.low,
+                    "close": ins.excluded.close,
+                    "volume": ins.excluded.volume,
+                    "source": ins.excluded.source,
+                    "updated_at": ins.excluded.updated_at,
                 },
             )
+            db.execute(ins)
 
     #///EPIC Backtesting.ITEM CandleCache.TOPIC Incremental Fetch Strategy [1]
     #/// Гарантирует полноту candles_cache на диапазоне дат без лишних запросов:
@@ -199,6 +218,8 @@ class DmsService:
         refresh_recent_intraday: bool = True,
         min_candles_per_ticker: int = 0,
         user_id: Optional[int] = None,
+        cancel_check: Optional[Callable[[], bool]] = None,
+        on_ticker_processed: Optional[Callable[[int, int, str], None]] = None,
     ) -> Dict[str, int]:
         interval_label = self._interval_code_to_cache_label(interval_code)
         now_utc = datetime.now(timezone.utc)
@@ -228,21 +249,24 @@ class DmsService:
                 except Exception:
                     return None
 
-        for tk in tickers:
+        for ti, tk in enumerate(tickers):
+            if cancel_check and cancel_check():
+                break
             cached_count = int(
                 db.execute(
                     text(
                         f"""
                         SELECT COUNT(*)
                         FROM {settings.DB_SCHEMA}.candles_cache
-                        WHERE ticker=:ticker
+                        WHERE market='moex'
+                          AND instrument_id=:instrument_id
                           AND interval=:interval
                           AND candle_time >= :from_dt
                           AND candle_time < :till_dt
                         """
                     ),
                     {
-                        "ticker": tk,
+                        "instrument_id": tk,
                         "interval": interval_label,
                         "from_dt": datetime.combine(req_from_date, time.min, tzinfo=timezone.utc),
                         "till_dt": datetime.combine(req_till_date + timedelta(days=1), time.min, tzinfo=timezone.utc),
@@ -257,14 +281,15 @@ class DmsService:
                         MIN(candle_time) AS min_ct,
                         MAX(candle_time) AS max_ct
                     FROM {settings.DB_SCHEMA}.candles_cache
-                    WHERE ticker=:ticker
+                    WHERE market='moex'
+                      AND instrument_id=:instrument_id
                       AND interval=:interval
                       AND candle_time >= :from_dt
                       AND candle_time < :till_dt
                     """
                 ),
                 {
-                    "ticker": tk,
+                    "instrument_id": tk,
                     "interval": interval_label,
                     "from_dt": datetime.combine(req_from_date, time.min, tzinfo=timezone.utc),
                     "till_dt": datetime.combine(req_till_date + timedelta(days=1), time.min, tzinfo=timezone.utc),
@@ -291,13 +316,14 @@ class DmsService:
                             f"""
                             SELECT MAX(updated_at)
                             FROM {settings.DB_SCHEMA}.candles_cache
-                            WHERE ticker=:ticker
+                            WHERE market='moex'
+                              AND instrument_id=:instrument_id
                               AND interval=:interval
                               AND candle_time >= :today_from
                             """
                         ),
                         {
-                            "ticker": tk,
+                            "instrument_id": tk,
                             "interval": interval_label,
                             "today_from": datetime.combine(req_till_date, time.min, tzinfo=timezone.utc),
                         },
@@ -330,6 +356,11 @@ class DmsService:
                 stats["fetched_tickers"] += 1
             else:
                 stats["cache_full_hits"] += 1
+            if on_ticker_processed:
+                try:
+                    on_ticker_processed(ti + 1, len(tickers), tk)
+                except Exception:
+                    pass
         db.commit()
         return stats
 
@@ -427,7 +458,13 @@ class DmsService:
             spread_percent = ((ask - bid) / ask) * 100.0
 
         if allowed_figis and ticker not in allowed_figis:
-            return {"accepted": False, "reason": "Not in allowed_figis", "gap_percent": gap_percent, "atr_percent": atr_percent, "spread_percent": spread_percent}
+            return {
+                "accepted": False,
+                "reason": "Не в списке разрешённых инструментов (universe)",
+                "gap_percent": gap_percent,
+                "atr_percent": atr_percent,
+                "spread_percent": spread_percent,
+            }
 
         checks: List[bool] = []
         reasons: List[str] = []
@@ -441,10 +478,23 @@ class DmsService:
             t = str(f.get("type") or "").lower()
             if t == "volume":
                 limit = float(f.get("min") or 0)
-                ok = value_today >= limit
+                hist_avg = self._safe_float(row.get("historical_avg_volume_rub"))
+                vol_value = hist_avg if hist_avg is not None else value_today
+                ok = vol_value >= limit
                 checks.append(ok)
                 if not ok:
-                    reasons.append(f"VALTODAY {value_today:.0f} < {limit:.0f}")
+                    reasons.append(f"VALTODAY {vol_value:.0f} < {limit:.0f}")
+            elif t in ("min_avg_volume", "volume_avg"):
+                limit = float(f.get("min") or 0)
+                hist_avg = self._safe_float(row.get("historical_avg_volume_rub"))
+                if hist_avg is None:
+                    ok = False
+                    reasons.append("historical_avg_volume unavailable")
+                else:
+                    ok = hist_avg >= limit
+                    if not ok:
+                        reasons.append(f"AVG_VOL {hist_avg:.0f} < {limit:.0f}")
+                checks.append(ok)
             elif t == "gap":
                 max_gap = float(f.get("max_percent") or 0)
                 direction = str(f.get("direction") or "BOTH").upper()
@@ -543,17 +593,36 @@ class DmsService:
                 if not ok:
                     reasons.append("MINSTEP ratio too high for commission cover")
             elif t == "turnover":
+                # Оборачиваемость: VALUE / (ISSUESIZE * PREVPRICE) * 100% (VALUE — оборот в руб. из снапшота).
+                # PREVPRICE — prev_price из истории (CLOSE / (1 + TRENDCLSPR/100)) или prev_legal_close_price.
                 min_turnover = float(f.get("min_percent") or 0.0)
-                if volume_lots and issue_size and issue_size > 0:
-                    turnover = (volume_lots / issue_size) * 100.0
-                    ok = turnover >= min_turnover
-                else:
-                    turnover = None
-                    ok = False
+                prev_for_cap = prev_price
+                if prev_for_cap is None or prev_for_cap <= 0:
+                    prev_for_cap = self._safe_float(row.get("prev_legal_close_price"))
+                if (prev_for_cap is None or prev_for_cap <= 0) and isinstance(sec_payload, dict):
+                    prev_for_cap = self._safe_float(sec_payload.get("PREVLEGALCLOSEPRICE"))
+                hist_avg = self._safe_float(row.get("historical_avg_volume_rub"))
+                val_rub = hist_avg if hist_avg is not None else self._safe_float(row.get("value_today"))
+                if val_rub is None:
+                    val_rub = 0.0
+                if (
+                        issue_size is None
+                        or issue_size <= 0
+                        or prev_for_cap is None
+                        or prev_for_cap <= 0
+                        or val_rub <= 0
+                ):
+                    checks.append(True)
+                    continue
+                mcap = issue_size * prev_for_cap
+                if mcap <= 0:
+                    checks.append(True)
+                    continue
+                turnover_pct = (val_rub / mcap) * 100.0
+                ok = turnover_pct >= min_turnover
                 checks.append(ok)
                 if not ok:
-                    turnover_label = f"{turnover:.3f}" if turnover is not None else "N/A"
-                    reasons.append(f"TURNOVER {turnover_label}% < {min_turnover:.3f}%")
+                    reasons.append(f"TURNOVER {turnover_pct:.3f}% < {min_turnover:.3f}%")
             elif t == "gap_retention":
                 min_retention = float(f.get("min_ratio") or 0.0)
                 if open_price and prev_price and prev_price > 0 and last_price:
@@ -605,6 +674,17 @@ class DmsService:
         accepted = all(checks)
         return {"accepted": accepted, "reason": None if accepted else "; ".join(reasons[:2]), "gap_percent": gap_percent, "atr_percent": atr_percent, "spread_percent": spread_percent}
 
+    @staticmethod
+    def _resolve_allowed_tickers_from_config(config: Dict[str, Any]) -> set[str]:
+        """
+        Whitelist-тикеры для pre-filter в pipeline.
+        Только universe_mode=fixed; для dms_pipeline/tqbr_scan — пустой набор (без whitelist).
+        """
+        wl = universe_whitelist_tickers(config)
+        if wl is None:
+            return set()
+        return wl
+
     async def _load_atr_percent_map(
         self,
         db: Session,
@@ -652,24 +732,32 @@ class DmsService:
                 "fetched_candles": 0,
             }
         price_by_ticker = {str(r.get("ticker") or "").upper(): self._safe_float(r.get("last_price")) for r in candidate_rows}
+        if not tickers:
+            return out, cache_stats
+        from_dt = datetime.combine(atr_from_date, time.min, tzinfo=timezone.utc) if atr_from_date else None
+        to_dt = datetime.combine((atr_till_date + timedelta(days=1)), time.min, tzinfo=timezone.utc) if atr_till_date else None
+        d1_stmt = text(
+            f"""
+            SELECT instrument_id, high, low, close
+            FROM {settings.DB_SCHEMA}.candles_cache
+            WHERE market = 'moex'
+              AND interval = 'D1'
+              AND instrument_id IN :tickers
+              AND (:from_dt IS NULL OR candle_time >= :from_dt)
+              AND (:to_dt IS NULL OR candle_time < :to_dt)
+            ORDER BY ticker ASC, candle_time ASC
+            """
+        ).bindparams(bindparam("tickers", expanding=True))
+        rows_db_all = db.execute(
+            d1_stmt,
+            {"tickers": list(tickers), "from_dt": from_dt, "to_dt": to_dt},
+        ).fetchall()
+        by_ticker: Dict[str, List[Any]] = {}
+        for r in rows_db_all:
+            tk = str(r[0]).upper()
+            by_ticker.setdefault(tk, []).append((r[1], r[2], r[3]))
         for ticker in tickers:
-            rows_db = db.execute(
-                text(
-                    f"""
-                    SELECT high, low, close
-                    FROM {settings.DB_SCHEMA}.candles_cache
-                    WHERE ticker=:ticker AND interval='D1'
-                      AND (:from_dt IS NULL OR candle_time >= :from_dt)
-                      AND (:to_dt IS NULL OR candle_time < :to_dt)
-                    ORDER BY candle_time ASC
-                    """
-                ),
-                {
-                    "ticker": ticker,
-                    "from_dt": datetime.combine(atr_from_date, time.min, tzinfo=timezone.utc) if atr_from_date else None,
-                    "to_dt": datetime.combine((atr_till_date + timedelta(days=1)), time.min, tzinfo=timezone.utc) if atr_till_date else None,
-                },
-            ).fetchall()
+            rows_db = by_ticker.get(ticker, [])
             last_price = price_by_ticker.get(ticker)
             if not last_price or last_price <= 0 or len(rows_db) < 2:
                 continue
@@ -739,8 +827,9 @@ class DmsService:
             params["securities.start"] = start
             params["marketdata.start"] = start
             started_at = datetime.now(timezone.utc)
-            async with httpx.AsyncClient(timeout=20, verify=False) as client:
-                resp = await client.get(url, params=params)
+            async with moex_http_acquire():
+                async with httpx.AsyncClient(timeout=20, verify=False) as client:
+                    resp = await client.get(url, params=params)
             finished_at = datetime.now(timezone.utc)
             payload: Dict[str, Any] = {}
             try:
@@ -1086,6 +1175,7 @@ class DmsService:
         robot_id: int,
         board: str = "TQBR",
         force_refresh_snapshot: bool = False,
+        force_recompute_universe: bool = False,
     ) -> Dict[str, Any]:
         if user_id is None:
             robot = db.execute(
@@ -1129,16 +1219,29 @@ class DmsService:
             {"robot_id": robot_id, "trade_date": today},
         ).first()
 
-        if existing and not force_refresh_snapshot:
+        if existing and not force_refresh_snapshot and not force_recompute_universe:
             return {
                 "robot_id": robot_id,
                 "board": board,
                 "trade_date": today,
                 "snapshot_id": int(existing[0]) if existing[0] is not None else 0,
                 "initialized": False,
+                "recomputed": False,
                 "analyzer_written_rows": 0,
                 "message": "Уже инициализировано за сегодня",
             }
+
+        if force_recompute_universe:
+            db.execute(
+                text(
+                    f"""
+                    DELETE FROM {settings.DB_SCHEMA}.daily_universe
+                    WHERE robot_id = :robot_id AND trade_date = :trade_date
+                    """
+                ),
+                {"robot_id": robot_id, "trade_date": today},
+            )
+            db.commit()
 
         snap = db.execute(
             text(
@@ -1153,7 +1256,7 @@ class DmsService:
             {"board": board},
         ).first()
         snapshot_id: Optional[int] = None
-        if not force_refresh_snapshot and snap:
+        if not force_refresh_snapshot and not force_recompute_universe and snap:
             snap_id = int(snap[0])
             snap_time = snap[1]
             if snap_time and snap_time.astimezone(timezone.utc).date() == today:
@@ -1174,13 +1277,19 @@ class DmsService:
                 )
             snapshot_id = int(created["snapshot_id"])
 
-        written = await self._apply_analyzer(db, robot_id=robot_id, snapshot_id=snapshot_id)
+        written = await self._apply_analyzer(
+            db,
+            robot_id=robot_id,
+            snapshot_id=snapshot_id,
+            force_recompute=force_recompute_universe,
+        )
         return {
             "robot_id": robot_id,
             "board": board,
             "trade_date": today,
             "snapshot_id": int(snapshot_id),
             "initialized": written > 0,
+            "recomputed": bool(force_recompute_universe and written > 0),
             "analyzer_written_rows": written,
             "message": None if written > 0 else "Уже инициализировано за сегодня",
         }
@@ -1240,22 +1349,30 @@ class DmsService:
             "deleted_snapshots": len(deleted_snapshots),
         }
 
-    async def _apply_analyzer(self, db: Session, robot_id: int, snapshot_id: int) -> int:
+    async def _apply_analyzer(
+        self,
+        db: Session,
+        robot_id: int,
+        snapshot_id: int,
+        *,
+        force_recompute: bool = False,
+    ) -> int:
         today = datetime.now(timezone.utc).date()
-        already_initialized = db.execute(
-            text(
-                f"""
-                SELECT 1
-                FROM {settings.DB_SCHEMA}.daily_universe
-                WHERE robot_id = :robot_id
-                  AND trade_date = :trade_date
-                LIMIT 1
-                """
-            ),
-            {"robot_id": robot_id, "trade_date": today},
-        ).first()
-        if already_initialized:
-            return 0
+        if not force_recompute:
+            already_initialized = db.execute(
+                text(
+                    f"""
+                    SELECT 1
+                    FROM {settings.DB_SCHEMA}.daily_universe
+                    WHERE robot_id = :robot_id
+                      AND trade_date = :trade_date
+                    LIMIT 1
+                    """
+                ),
+                {"robot_id": robot_id, "trade_date": today},
+            ).first()
+            if already_initialized:
+                return 0
 
         robot_row = db.execute(
             text(f"SELECT config FROM {settings.DB_SCHEMA}.robots WHERE id=:robot_id"),
@@ -1275,16 +1392,24 @@ class DmsService:
             {"robot_id": robot_id},
         ).first()
         schedule = {"start_time": schedule_row[0], "end_time": schedule_row[1], "weekdays": schedule_row[2]} if schedule_row else None
-        pipeline = dict(config.get("pipeline") or {})
+        from app.modules.robots.config.migration import effective_pipeline_from_config, ensure_config_v2
+
+        config = ensure_config_v2(config)
+        universe_mode = normalize_universe_mode(config)
+        pipeline = effective_pipeline_from_config(config)
         pipeline_mode = "ANY" if str(pipeline.get("mode") or "").upper() == "ANY" else "ALL"
-        optimize_order = bool(pipeline.get("optimize_order", True))
-        filters = list(pipeline.get("filters") or [])
-        allowed_figis = {str(x).upper() for x in (config.get("allowed_figis") or []) if x}
+        optimize_order = bool(dict(config.get("pipeline") or {}).get("optimize_order", True))
+        filters = (
+            list(pipeline.get("filters") or [])
+            if universe_uses_pipeline(config) or universe_whitelist_tickers(config) is not None
+            else []
+        )
+        allowed_figis = self._resolve_allowed_tickers_from_config(config)
 
         rows = db.execute(
             text(
                 f"""
-                SELECT ticker, last_price, open_price, high_price, low_price, prev_price, value_today, volume_lots, security_status, trading_status, num_trades, min_step, issue_size, spread, bid, ask
+                SELECT ticker, last_price, open_price, high_price, low_price, prev_price, value_today, volume_lots, security_status, trading_status, num_trades, min_step, issue_size, spread, bid, ask, prev_legal_close_price
                 FROM {settings.DB_SCHEMA}.market_snapshot_data
                 WHERE snapshot_id = :snapshot_id
                 """
@@ -1309,9 +1434,16 @@ class DmsService:
                 "spread": float(r[13]) if r[13] is not None else None,
                 "bid": float(r[14]) if r[14] is not None else None,
                 "ask": float(r[15]) if r[15] is not None else None,
+                "prev_legal_close_price": float(r[16]) if r[16] is not None else None,
             }
             for r in rows
         ]
+        if universe_mode == UNIVERSE_MODE_FIXED and allowed_figis:
+            mapped_rows = [r for r in mapped_rows if r.get("ticker") in allowed_figis]
+        elif allowed_figis:
+            mapped_rows = [r for r in mapped_rows if r.get("ticker") in allowed_figis]
+        elif universe_mode == UNIVERSE_MODE_TQBR:
+            mapped_rows = [r for r in mapped_rows if universe_min_tradable_row(r)]
         atr_filter_enabled = any(str((f or {}).get("type") or "").lower() == "atr" and (f or {}).get("enabled", True) is not False for f in filters)
         fast_filters = [f for f in filters if str((f or {}).get("type") or "").lower() != "atr"]
         pre_candidates: List[Dict[str, Any]] = []
@@ -1777,6 +1909,34 @@ class DmsService:
             "items": items,
         }
 
+    async def preview_pipeline_setup(
+        self,
+        db: Session,
+        user_id: int,
+        board: str,
+        filters: List[Dict[str, Any]],
+        mode: str,
+        universe_mode: str,
+        fixed_tickers: List[str],
+        warmup_candles: bool = False,
+    ) -> Dict[str, Any]:
+        """Preview pipeline для ad-hoc /testing (без robot_id)."""
+        synthetic_config = {
+            "universe_mode": normalize_universe_mode(universe_mode),
+            "allowed_figis": [str(t).strip().upper() for t in (fixed_tickers or []) if str(t).strip()],
+            "pipeline": {"mode": mode, "filters": filters, "optimize_order": True},
+        }
+        return await self.preview_pipeline(
+            db=db,
+            user_id=user_id,
+            robot_id=0,
+            board=board,
+            filters=filters,
+            mode=mode,
+            warmup_candles=warmup_candles,
+            config_override=synthetic_config,
+        )
+
     async def preview_pipeline(
         self,
         db: Session,
@@ -1785,16 +1945,22 @@ class DmsService:
         board: str,
         filters: List[Dict[str, Any]],
         mode: str,
+        warmup_candles: bool = True,
+        config_override: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        robot = db.execute(
-            text(f"SELECT id, config FROM {settings.DB_SCHEMA}.robots WHERE id=:robot_id AND user_id=:user_id AND status != 0"),
-            {"robot_id": robot_id, "user_id": user_id},
-        ).first()
-        if not robot:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Робот не найден")
+        if config_override is not None:
+            robot_config = dict(config_override)
+        else:
+            robot = db.execute(
+                text(f"SELECT id, config FROM {settings.DB_SCHEMA}.robots WHERE id=:robot_id AND user_id=:user_id AND status != 0"),
+                {"robot_id": robot_id, "user_id": user_id},
+            ).first()
+            if not robot:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Робот не найден")
+            robot_config = dict(robot[1] or {}) if len(robot) > 1 else {}
 
-        robot_config = dict(robot[1] or {}) if len(robot) > 1 else {}
-        allowed_figis = {str(x).upper() for x in (robot_config.get("allowed_figis") or []) if x}
+        allowed_figis = self._resolve_allowed_tickers_from_config(robot_config)
+        universe_mode = normalize_universe_mode(robot_config)
         pipeline = dict(robot_config.get("pipeline") or {})
         optimize_order = bool(pipeline.get("optimize_order", True))
 
@@ -1835,7 +2001,7 @@ class DmsService:
         rows = db.execute(
             text(
                 f"""
-                SELECT ticker, last_price, open_price, high_price, low_price, prev_price, value_today, volume_lots, security_status, trading_status, num_trades, min_step, issue_size, spread, bid, ask
+                SELECT ticker, last_price, open_price, high_price, low_price, prev_price, value_today, volume_lots, security_status, trading_status, num_trades, min_step, issue_size, spread, bid, ask, prev_legal_close_price
                 FROM {settings.DB_SCHEMA}.market_snapshot_data
                 WHERE snapshot_id=:snapshot_id
                 ORDER BY ticker
@@ -1861,9 +2027,14 @@ class DmsService:
                 "spread": float(r[13]) if r[13] is not None else None,
                 "bid": float(r[14]) if r[14] is not None else None,
                 "ask": float(r[15]) if r[15] is not None else None,
+                "prev_legal_close_price": float(r[16]) if r[16] is not None else None,
             }
             for r in rows
         ]
+        if universe_mode == UNIVERSE_MODE_FIXED and allowed_figis:
+            mapped_rows = [r for r in mapped_rows if str(r.get("ticker") or "").upper() in allowed_figis]
+        elif universe_mode == UNIVERSE_MODE_TQBR:
+            mapped_rows = [r for r in mapped_rows if universe_min_tradable_row({**r, "ticker": str(r.get("ticker") or "").upper()})]
         pipeline_mode = "ANY" if str(mode or "").upper() == "ANY" else "ALL"
         atr_filter_enabled = any(str((f or {}).get("type") or "").lower() == "atr" and (f or {}).get("enabled", True) is not False for f in filters)
         fast_filters = [f for f in filters if str((f or {}).get("type") or "").lower() != "atr"]
@@ -1905,7 +2076,7 @@ class DmsService:
                     "spread_percent": res.get("spread_percent"),
                 }
             )
-        if accepted_tickers:
+        if warmup_candles and accepted_tickers:
             await self._ensure_candles_cached_for_tickers(
                 db,
                 board=board,

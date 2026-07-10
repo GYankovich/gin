@@ -9,7 +9,7 @@
 @media (max-width: 1279px) {
     .main-content {
         padding: var(--space-4);
-        padding-top: calc(var(--navbar-h) + var(--space-4));
+        padding-top: 50px;
     }
 
     .grid-2col {
@@ -29,17 +29,29 @@
     }
 
     .nav-link {
-        padding: var(--space-2);
+        padding: 0 var(--space-2);
         font-size: var(--text-xs);
     }
 
-    .robots-unified-layout {
+    .robots-unified-layout,
+    .robots-workspace {
         grid-template-columns: 1fr;
     }
 
-    .robots-unified-layout__sidebar {
+    .robots-unified-layout__sidebar,
+    .robots-workspace__sidebar,
+    .robots-workspace__context {
         position: static;
         top: auto;
+    }
+
+    .pipeline-visualizer__track {
+        flex-wrap: nowrap;
+    }
+
+    .robots-workspace__main {
+        max-height: calc(100vh - var(--navbar-h) - var(--space-3) - 72px);
+        top: calc(var(--navbar-h) + var(--space-3));
     }
 }
 
@@ -51,12 +63,15 @@
 
     .main-content {
         padding: var(--space-3);
-        padding-top: calc(var(--navbar-h) + var(--space-3));
+        padding-top: 50px;
         padding-bottom: 72px;
     }
 
     /* Hide desktop nav links, show mobile tab bar */
     .navbar__links {
+        display: none;
+    }
+    .navbar__brand-tag {
         display: none;
     }
 
@@ -138,8 +153,8 @@
     .robots-unified-layout {
         gap: var(--space-3);
     }
-    .robots-list-item__actions {
-        flex-wrap: wrap;
+    .toast-container {
+        bottom: calc(72px + var(--space-3));
     }
 
     /* Data table: horizontal scroll */
@@ -199,7 +214,7 @@
         width: 100%;
         justify-content: flex-start;
     }
-    .portfolio-toggle {
+    .dashboard-settings-toggle-field {
         font-size: var(--text-xs);
     }
     .portfolio-crosshair-main {
@@ -262,6 +277,75 @@
         display: none;
     }
     .portfolio-stats-grid.dashboard-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .dashboard-layout {
+        gap: var(--space-5);
+        padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    }
+    .dashboard-currency-grid {
+        grid-template-columns: 1fr;
+    }
+    .dashboard-dist-row__main {
+        flex-wrap: wrap;
+    }
+    .dashboard-dist-row__figures {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    .dashboard-hero {
+        min-height: 120px;
+        margin: calc(var(--navbar-h) + var(--space-1) - 50px) 0 var(--space-4);
+        padding: var(--space-4);
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .dashboard-hero__title {
+        letter-spacing: 0.08em;
+    }
+    .dashboard-hero__actions {
+        align-self: flex-start;
+    }
+    .dashboard-sticky-strip {
+        display: flex;
+        gap: var(--space-2);
+        overflow-x: auto;
+        position: sticky;
+        top: calc(var(--navbar-h) + 4px);
+        z-index: 40;
+        padding: var(--space-2);
+        margin: 0 calc(var(--space-2) * -1) var(--space-3);
+        background: color-mix(in srgb, var(--bg-page) 88%, transparent);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+        -webkit-overflow-scrolling: touch;
+    }
+    .dashboard-sticky-chip {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: baseline;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: var(--radius-full);
+        border: 1px solid color-mix(in srgb, var(--neon-cyan) 30%, var(--border-subtle));
+        background: var(--bg-card);
+        font-size: var(--text-xs);
+        white-space: nowrap;
+    }
+    .dashboard-sticky-chip__cur {
+        font-family: var(--font-cyber);
+        letter-spacing: 0.08em;
+        color: var(--neon-cyan);
+    }
+    .dashboard-sticky-chip__val {
+        color: var(--text-primary);
+        font-weight: 600;
+    }
+    .dashboard-totals-card .portfolio-stats-grid.dashboard-summary-grid .portfolio-stat-tile__value {
+        font-size: var(--text-sm);
+    }
+    .dashboard-account-card .portfolio-stats-grid.dashboard-summary-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 

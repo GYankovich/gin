@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.modules.market_data import repository as repo
 from app.modules.market_data.candle_format import api_candle_to_db_tuple, db_row_to_api_candle
+from app.modules.moex.http_gate import moex_http_acquire
 from app.modules.tinvest.methods.instruments import InstrumentsClient
 from app.modules.tinvest.token_service import token_service
 
@@ -38,8 +39,9 @@ async def _moex_get_json_with_retry(
     last_exc: Optional[Exception] = None
     for attempt in range(1, retries + 1):
         try:
-            async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
-                resp = await client.get(url, params=params)
+            async with moex_http_acquire():
+                async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
+                    resp = await client.get(url, params=params)
             if resp.status_code != 200:
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,

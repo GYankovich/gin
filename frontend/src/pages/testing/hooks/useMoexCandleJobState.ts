@@ -3,6 +3,7 @@ import { api } from '@/services/api'
 import {
     marketService,
     type CandleLoadJobStatus,
+    type CandleCoverageSummaryResponse,
     type MoexCacheInterval,
 } from '@/services/marketService'
 import type { Robot } from '@/types/robot'
@@ -35,6 +36,29 @@ export function useMoexCandleJobState(opts: {
     const [moexJobError, setMoexJobError] = useState<string | null>(null)
     const [moexPreviewLoading, setMoexPreviewLoading] = useState(false)
     const [moexPreview, setMoexPreview] = useState<{ bars: number; gaps: number } | null>(null)
+    const [moexCoverage, setMoexCoverage] = useState<CandleCoverageSummaryResponse | null>(null)
+    const [autoTickersCache, setAutoTickersCache] = useState<string[]>([])
+    const [tqbrSuggestSecids, setTqbrSuggestSecids] = useState<string[]>([])
+
+    useEffect(() => {
+        let cancelled = false
+        void (async () => {
+            try {
+                const { items } = await marketService.listTqbrSecuritiesBulk(15_000)
+                if (cancelled) return
+                const ids = items
+                    .map(row => String(row.secid || '').trim().toUpperCase())
+                    .filter(Boolean)
+                    .sort()
+                setTqbrSuggestSecids(ids)
+            } catch {
+                if (!cancelled) setTqbrSuggestSecids([])
+            }
+        })()
+        return () => {
+            cancelled = true
+        }
+    }, [])
 
     useEffect(() => {
         if (!moexJobId) return
@@ -66,7 +90,10 @@ export function useMoexCandleJobState(opts: {
     }, [moexJobId])
 
     const suggestedMoexForSignal = useMemo(() => suggestedMoexIntervalForSignal(signalInterval), [signalInterval])
-    const moexIntervalMismatch = moexInterval !== suggestedMoexForSignal
+
+    useEffect(() => {
+        setMoexInterval(suggestedMoexForSignal)
+    }, [suggestedMoexForSignal])
 
     const resolveMoexTickersAuto = useCallback(async (): Promise<string[]> => {
         if (!selectedRobot) {
@@ -77,6 +104,7 @@ export function useMoexCandleJobState(opts: {
             board: moexBoard.trim().toUpperCase() || 'TQBR',
             filters: pipelinePayload,
             mode: pipelineMode,
+            warmup_candles: false,
         })
         const sample = Array.isArray(data?.sample) ? data.sample : []
         const acc = new Set<string>()
@@ -101,6 +129,7 @@ export function useMoexCandleJobState(opts: {
         setMoexJobSubmitting(true)
         setMoexJobError(null)
         setMoexPreview(null)
+        setMoexCoverage(null)
         try {
             if (!fromDate || !toDate) {
                 toast.show('Выберите период тестирования (блок параметров робота ниже)', 'error', 4500)
@@ -112,6 +141,7 @@ export function useMoexCandleJobState(opts: {
                 const r = await resolveMoexTickersForJob()
                 tickers = r.tickers
                 usedAuto = r.auto
+                if (r.auto) setAutoTickersCache(r.tickers)
             } catch (e: unknown) {
                 if (fmtErr(e).includes('NO_ROBOT') || (e as Error)?.message === 'NO_ROBOT') {
                     toast.show('Для автоподбора выберите робота в блоке «Параметры робота»', 'error', 5000)
@@ -176,35 +206,28 @@ export function useMoexCandleJobState(opts: {
         setMoexJobStatus(null)
         setMoexJobError(null)
         setMoexPreview(null)
+        setMoexCoverage(null)
+        setAutoTickersCache([])
     }, [])
 
     const previewMoexCache = useCallback(async () => {
         setMoexPreviewLoading(true)
         setMoexPreview(null)
+        setMoexCoverage(null)
         setMoexJobError(null)
         try {
             if (!fromDate || !toDate) {
                 toast.show('Выберите период тестирования', 'error', 4000)
                 return
             }
-            let tickers: string[] = []
-            let usedAuto = false
-            try {
-                const r = await resolveMoexTickersForJob()
-                tickers = r.tickers
-                usedAuto = r.auto
-            } catch (e: unknown) {
-                if (fmtErr(e).includes('NO_ROBOT') || (e as Error)?.message === 'NO_ROBOT') {
-                    toast.show('Для автоподбора выберите робота в блоке «Параметры робота»', 'error', 5000)
-                    return
-                }
-                throw e
-            }
+            const manual = parseTickers(moexTickers)
+            const tickers = manual.length ? manual : autoTickersCache
+            const usedAuto = !manual.length
             if (!tickers.length) {
                 toast.show(
                     usedAuto
-                        ? 'Автоподбор не вернул бумаг — скорректируйте фильтры или введите тикеры вручную.'
-                        : 'Укажите тикеры или очистите поле для автоподбора по роботу',
+                        ? 'Нет тикеров для проверки: сначала запустите загрузку (автоподбор) или введите тикеры вручную.'
+                        : 'Укажите тикеры вручную для проверки кеша',
                     'error',
                     5000,
                 )
@@ -220,6 +243,18 @@ export function useMoexCandleJobState(opts: {
                 to: toIso,
             })
             setMoexPreview({ bars: data.candles.length, gaps: data.gaps?.length ?? 0 })
+            try {
+                const cov = await marketService.getCandlesCoverageSummary({
+                    tickers,
+                    board: moexBoard.trim().toUpperCase() || 'TQBR',
+                    interval: moexInterval,
+                    from: fromIso,
+                    to: toIso,
+                })
+                setMoexCoverage(cov)
+            } catch {
+                setMoexCoverage(null)
+            }
             if (data.gaps?.length) {
                 toast.show(
                     `В кеше есть пробелы (${data.gaps.length}) — запустите загрузку MOEX${usedAuto ? ` (${tickers.length} тикеров, автоподбор)` : ''}`,
@@ -236,15 +271,12 @@ export function useMoexCandleJobState(opts: {
         } catch (e: unknown) {
             const m = fmtErr(e)
             setMoexJobError(m)
+            setMoexCoverage(null)
             toast.show(m, 'error', 5000)
         } finally {
             setMoexPreviewLoading(false)
         }
-    }, [moexTickers, moexBoard, moexInterval, fromDate, toDate, toast, resolveMoexTickersForJob])
-
-    const alignMoexIntervalToSignal = useCallback(() => {
-        setMoexInterval(suggestedMoexForSignal)
-    }, [suggestedMoexForSignal])
+    }, [moexTickers, autoTickersCache, moexBoard, moexInterval, fromDate, toDate, toast])
 
     return {
         moexTickers,
@@ -259,9 +291,9 @@ export function useMoexCandleJobState(opts: {
         moexJobSubmitting,
         moexPreviewLoading,
         moexPreview,
+        moexCoverage,
         suggestedMoexForSignal,
-        moexIntervalMismatch,
-        alignMoexIntervalToSignal,
+        tqbrSuggestSecids,
         startMoexCandleLoad,
         previewMoexCache,
         clearMoexCandleJob,

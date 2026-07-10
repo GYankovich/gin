@@ -1,37 +1,124 @@
-import React from 'react'
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Card } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
-import { Select } from '@/components/ui/Select'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { MOEX_CACHE_INTERVALS, type MoexCacheInterval } from '@/services/marketService'
-import { parseTickers } from '@/pages/testing/testingUtils'
+import { TestingSectionState } from '@/pages/testing/TestingSectionState'
 import type { MoexCandleJobState } from '@/pages/testing/hooks/useMoexCandleJobState'
 
 type Props = {
     moex: MoexCandleJobState
 }
 
+/** Показываем не больше этого числа строк в выпадающем списке. */
+const TQBR_VISIBLE_OPTIONS = 15
+
+function filterTqbrSecids(all: string[], queryUpper: string, cap: number): string[] {
+    if (!queryUpper) return all.slice(0, cap)
+    const starts: string[] = []
+    const includes: string[] = []
+    for (const s of all) {
+        if (s.startsWith(queryUpper)) {
+            starts.push(s)
+            if (starts.length >= cap) return starts
+        }
+    }
+    for (const s of all) {
+        if (!s.startsWith(queryUpper) && s.includes(queryUpper)) {
+            includes.push(s)
+            if (starts.length + includes.length >= cap) break
+        }
+    }
+    return [...starts, ...includes].slice(0, cap)
+}
+
+function lastTickerToken(raw: string): string {
+    const parts = raw.split(',')
+    return (parts[parts.length - 1] ?? '').trim()
+}
+
+function valueAfterBulkPick(raw: string, picked: string[]): string {
+    if (picked.length === 0) return raw
+    const merged = picked.join(', ')
+    const lastComma = raw.lastIndexOf(',')
+    if (lastComma === -1) return merged
+    const head = raw.slice(0, lastComma + 1)
+    const spacer = raw[lastComma + 1] === ' ' ? ' ' : ' '
+    return `${head}${spacer}${merged}`
+}
+
 export function TestingMoexCacheCard({ moex }: Props) {
     const {
         moexTickers,
         setMoexTickers,
-        moexBoard,
-        setMoexBoard,
-        moexInterval,
-        setMoexInterval,
         moexJobId,
         moexJobStatus,
         moexJobError,
-        moexJobSubmitting,
-        moexPreviewLoading,
-        moexPreview,
-        suggestedMoexForSignal,
-        moexIntervalMismatch,
-        alignMoexIntervalToSignal,
+        moexCoverage,
+        tqbrSuggestSecids,
         startMoexCandleLoad,
-        previewMoexCache,
         clearMoexCandleJob,
     } = moex
+    const listboxId = useId().replace(/:/g, '')
+    const wrapRef = useRef<HTMLDivElement>(null)
+    const [open, setOpen] = useState(false)
+    const [bulkSelected, setBulkSelected] = useState<Set<string>>(() => new Set())
+
+    const token = useMemo(() => lastTickerToken(moexTickers).toUpperCase(), [moexTickers])
+    const filtered = useMemo(
+        () => filterTqbrSecids(tqbrSuggestSecids, token, TQBR_VISIBLE_OPTIONS),
+        [tqbrSuggestSecids, token],
+    )
+
+    const close = useCallback(() => setOpen(false), [])
+
+    useEffect(() => {
+        if (!open) setBulkSelected(new Set())
+    }, [open])
+
+    useEffect(() => {
+        if (!open) return
+        setBulkSelected(new Set())
+    }, [open, token, tqbrSuggestSecids])
+
+    useEffect(() => {
+        const onDocMouseDown = (e: MouseEvent) => {
+            if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) close()
+        }
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') close()
+        }
+        document.addEventListener('mousedown', onDocMouseDown)
+        document.addEventListener('keydown', onKey)
+        return () => {
+            document.removeEventListener('mousedown', onDocMouseDown)
+            document.removeEventListener('keydown', onKey)
+        }
+    }, [close])
+
+    const toggleBulk = useCallback((secid: string) => {
+        setBulkSelected(prev => {
+            const next = new Set(prev)
+            if (next.has(secid)) next.delete(secid)
+            else next.add(secid)
+            return next
+        })
+    }, [])
+
+    const selectAllVisible = useCallback(() => {
+        setBulkSelected(new Set(filtered))
+    }, [filtered])
+
+    const applyBulk = useCallback(() => {
+        if (bulkSelected.size === 0) return
+        const ordered = filtered.filter(s => bulkSelected.has(s))
+        const rest = [...bulkSelected].filter(s => !ordered.includes(s))
+        const picks = [...new Set([...ordered, ...rest].map(s => s.toUpperCase()))]
+        setMoexTickers(valueAfterBulkPick(moexTickers, picks))
+        close()
+    }, [bulkSelected, close, filtered, moexTickers, setMoexTickers])
+
+    const hasJobProgress = Boolean(moexJobId || moexJobStatus)
+    const isJobRunning = moexJobStatus?.status === 'queued' || moexJobStatus?.status === 'running'
+    const updatedAtText = moexJobStatus?.updated_at ? new Date(moexJobStatus.updated_at).toLocaleString('ru-RU') : null
 
     return (
         <Card className="mb-6 cyber-form-card testing-cyber-card testing-moex-cache-card">
@@ -40,86 +127,150 @@ export function TestingMoexCacheCard({ moex }: Props) {
                 ОБЩИЙ КЕШ СВЕЧЕЙ MOEX
                 <span className="cyber-bracket">]</span>
             </h3>
-            <p className="form-hint" style={{ marginBottom: 'var(--space-3)' }}>
-                Фоновая дозагрузка в общую таблицу (ARCH-01): те же даты «Интервал тестирования», что и для бэктеста ниже.
-                Идентификатор — только тикер, без FIGI.
-            </p>
-            {!parseTickers(moexTickers).length && (
-                <div
-                    className="form-hint"
-                    style={{
-                        marginBottom: 'var(--space-3)',
-                        padding: 'var(--space-3)',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1px solid var(--color-accent, #6cf)',
-                        background: 'color-mix(in srgb, var(--color-accent, #6cf) 12%, transparent)',
-                    }}
-                    role="status"
-                >
-                    <strong>Режим: автоподбор бумаг.</strong> Поле тикеров пустое — список инструментов строится по конвейеру DMS и
-                    снимку рынка для <strong>выбранного робота</strong> (как в «Проверить кеш» / превью pipeline). Нужен робот в блоке
-                    «Параметры робота»; учитываются фильтры и режим ALL/ANY на этой странице.
-                </div>
-            )}
-            <div className="form-row" style={{ flexWrap: 'wrap', gap: 'var(--space-3)' }}>
-                <div className="form-group" style={{ flex: '1 1 220px', marginBottom: 0 }}>
-                    <label className="form-label">Тикеры (необязательно)</label>
-                    <input
-                        className="form-input"
-                        value={moexTickers}
-                        onChange={(e) => setMoexTickers(e.target.value)}
-                        placeholder="Пусто = автоподбор по DMS; иначе SBER, GAZP…"
-                    />
-                </div>
-                <div className="form-group" style={{ width: 120, marginBottom: 0 }}>
-                    <label className="form-label">Доска</label>
-                    <input className="form-input" value={moexBoard} onChange={(e) => setMoexBoard(e.target.value.toUpperCase())} />
-                </div>
-                <div className="form-group" style={{ width: 100, marginBottom: 0 }}>
-                    <label className="form-label">Интервал</label>
-                    <Select
-                        options={MOEX_CACHE_INTERVALS.map((v) => ({ value: v, label: v }))}
-                        value={moexInterval}
-                        onChange={(v) => setMoexInterval((v as MoexCacheInterval) || '10m')}
-                    />
+            <div className="form-row testing-moex-form-row">
+                <div className="form-group testing-moex-form-row__tickers">
+                    <label className="form-label" htmlFor={`testing-moex-tqbr-${listboxId}`}>
+                        Тикеры
+                    </label>
+                    <div
+                        ref={wrapRef}
+                        className={`gin-select gin-select--md testing-moex-tqbr-combobox ${open ? 'gin-select--open' : ''}`}
+                    >
+                        <input
+                            id={`testing-moex-tqbr-${listboxId}`}
+                            className="gin-select__trigger"
+                            value={moexTickers}
+                            onChange={e => setMoexTickers(e.target.value)}
+                            onFocus={() => {
+                                if (tqbrSuggestSecids.length > 0) setOpen(true)
+                            }}
+                            onKeyDown={e => {
+                                if (e.key === 'Escape') close()
+                            }}
+                            placeholder="SBER, GAZP… Подсказки TQBR (до 15 строк, чекбоксы + Добавить)"
+                            autoComplete="off"
+                            role="combobox"
+                            aria-autocomplete="list"
+                            aria-expanded={open}
+                            aria-controls={open ? `testing-moex-tqbr-list-${listboxId}` : undefined}
+                        />
+                        {open && tqbrSuggestSecids.length > 0 && (
+                            <div
+                                id={`testing-moex-tqbr-list-${listboxId}`}
+                                className="gin-select__dropdown"
+                                role="group"
+                                aria-label="Подсказки TQBR"
+                            >
+                                <div className="gin-select__options">
+                                    {filtered.length === 0 && (
+                                        <div className="gin-select__empty">
+                                            {token ? 'Нет совпадений в TQBR' : 'Справочник пуст'}
+                                        </div>
+                                    )}
+                                    {filtered.map(secid => (
+                                        <label
+                                            key={secid}
+                                            className="gin-select__option testing-moex-tqbr-option"
+                                            onMouseDown={e => e.preventDefault()}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={bulkSelected.has(secid)}
+                                                onChange={() => toggleBulk(secid)}
+                                                aria-label={`Выбрать ${secid}`}
+                                            />
+                                            <span className="testing-moex-tqbr-option__text">{secid}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                                {filtered.length > 0 && (
+                                    <div className="testing-moex-tqbr-dropdown-footer">
+                                        <button
+                                            type="button"
+                                            className="btn btn--ghost btn--sm"
+                                            onMouseDown={e => e.preventDefault()}
+                                            onClick={selectAllVisible}
+                                        >
+                                            Выбрать все ({filtered.length})
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn btn--primary btn--sm"
+                                            disabled={bulkSelected.size === 0}
+                                            onMouseDown={e => e.preventDefault()}
+                                            onClick={applyBulk}
+                                        >
+                                            Добавить выбранные ({bulkSelected.size})
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
-            {moexIntervalMismatch && (
-                <div className="form-hint color-down" style={{ marginBottom: 'var(--space-3)' }}>
-                    Интервал кеша MOEX ({moexInterval}) не совпадает с рекомендуемым под выбранный интервал сигналов ({suggestedMoexForSignal}).
-                    Бэктест сначала читает общий кеш (ARCH-01) с тем же шагом, что и job.{' '}
-                    <Button size="sm" variant="ghost" type="button" onClick={alignMoexIntervalToSignal}>
-                        Подставить {suggestedMoexForSignal}
-                    </Button>
+            {moexCoverage && moexCoverage.items.length > 0 && (
+                <div className="testing-moex-coverage testing-form-hint-top-lg" role="region" aria-label="Сводка покрытия shared_market_candles">
+                    <div className="form-hint testing-form-hint-bottom-sm">
+                        Сводка покрытия (БД): доска {moexCoverage.board}, интервал {moexCoverage.interval}
+                    </div>
+                    <div className="testing-moex-coverage-table-wrap">
+                        <table className="testing-moex-coverage-table">
+                            <thead>
+                                <tr>
+                                    <th>Тикер</th>
+                                    <th>Баров</th>
+                                    <th>От</th>
+                                    <th>До</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {moexCoverage.items.map(row => (
+                                    <tr key={row.ticker}>
+                                        <td>{row.ticker}</td>
+                                        <td>{row.bucket_count}</td>
+                                        <td>{row.min_bucket_start ? new Date(row.min_bucket_start).toLocaleString('ru-RU') : '—'}</td>
+                                        <td>{row.max_bucket_start ? new Date(row.max_bucket_start).toLocaleString('ru-RU') : '—'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
-            <div className="testing-moex-cache-actions">
-                <Button loading={moexJobSubmitting} onClick={startMoexCandleLoad}>
-                    Запустить загрузку (job)
-                </Button>
-                <Button variant="secondary" loading={moexPreviewLoading} onClick={previewMoexCache}>
-                    Проверить кеш (GET candles)
-                </Button>
-                {(moexJobId || moexJobStatus || moexJobError) && (
-                    <Button variant="ghost" onClick={clearMoexCandleJob}>
-                        Сбросить статус job
-                    </Button>
-                )}
-            </div>
-            {moexPreview && (
-                <div className="form-hint testing-moex-preview" style={{ marginTop: 'var(--space-3)' }}>
-                    Снимок кеша: баров в ответе — {moexPreview.bars}, записей о пробелах (gaps) — {moexPreview.gaps}.
-                </div>
+            {moexJobError && hasJobProgress && (
+                <TestingSectionState
+                    title="MOEX CACHE JOB"
+                    message={`Job продолжается с ошибкой: ${moexJobError}`}
+                    variant="partial"
+                    actionLabel="Повторить загрузку"
+                    onAction={startMoexCandleLoad}
+                    compact
+                />
             )}
-            {moexJobError && (
-                <div className="form-hint color-down" style={{ marginTop: 'var(--space-2)' }}>
-                    {moexJobError}
-                </div>
+            {moexJobError && !hasJobProgress && (
+                <TestingSectionState
+                    title="MOEX CACHE JOB"
+                    message={moexJobError}
+                    variant="error"
+                    actionLabel="Повторить загрузку"
+                    onAction={startMoexCandleLoad}
+                    compact
+                />
             )}
             {moexJobId && (
-                <div className="testing-moex-job-panel" style={{ marginTop: 'var(--space-4)' }}>
-                    <div className="form-hint" style={{ marginBottom: 8 }}>
-                        Job ID: <code style={{ wordBreak: 'break-all' }}>{moexJobId}</code>
+                <div className="testing-moex-job-panel testing-form-hint-top-lg">
+                    <div className="form-hint testing-form-hint-bottom-sm testing-moex-job-id-row">
+                        <span>
+                            Job ID: <code className="testing-break-word">{moexJobId}</code>
+                        </span>
+                        <button
+                            type="button"
+                            className="btn btn--ghost btn--sm pipeline-action-btn pipeline-action-btn--reset"
+                            onClick={clearMoexCandleJob}
+                        >
+                            Сбросить статус job
+                        </button>
                     </div>
                     {!moexJobStatus && !moexJobError && <Skeleton height="12px" count={3} />}
                     {moexJobStatus && (
@@ -138,6 +289,9 @@ export function TestingMoexCacheCard({ moex }: Props) {
                                         ? ` · ETA ~${Math.max(0, Math.ceil(moexJobStatus.eta_seconds))} с`
                                         : ''}
                                 </span>
+                                {updatedAtText && (
+                                    <span className="form-hint testing-moex-job-meta__updated">Обновлено: {updatedAtText}</span>
+                                )}
                             </div>
                             <div className="testing-moex-job-progress" aria-hidden>
                                 <div
@@ -148,10 +302,15 @@ export function TestingMoexCacheCard({ moex }: Props) {
                                 />
                             </div>
                             {moexJobStatus.message && (
-                                <div className="form-hint" style={{ marginTop: 8 }}>{moexJobStatus.message}</div>
+                                <div className="form-hint testing-form-hint-top-sm">{moexJobStatus.message}</div>
+                            )}
+                            {isJobRunning && (
+                                <div className="form-hint testing-form-hint-top-sm testing-moex-job-progress-hint">
+                                    Загрузка выполняется дольше 1.5 сек — прогресс обновляется автоматически.
+                                </div>
                             )}
                             {moexJobStatus.error && (
-                                <div className="form-hint color-down" style={{ marginTop: 8 }}>{moexJobStatus.error}</div>
+                                <div className="form-hint color-down testing-form-hint-top-sm">{moexJobStatus.error}</div>
                             )}
                         </>
                     )}

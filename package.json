@@ -15,6 +15,10 @@
     "vite": "^5.4.21"
   },
   "dependencies": {
+    "@fortawesome/fontawesome-svg-core": "^7.2.0",
+    "@fortawesome/free-regular-svg-icons": "^7.2.0",
+    "@fortawesome/free-solid-svg-icons": "^7.2.0",
+    "@fortawesome/react-fontawesome": "^3.3.1",
     "@vitejs/plugin-react": "^4.7.0",
     "axios": "^1.14.0",
     "chart.js": "^4.5.1",

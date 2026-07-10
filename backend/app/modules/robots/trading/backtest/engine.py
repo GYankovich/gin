@@ -1,15 +1,35 @@
 """
 Бэктестинг стратегий на исторических свечах (без реальных сделок).
+
+DEPRECATED для prod (BRD-ARCH-04 этап 3): используйте `TradingOrchestrator.run_backtest_replay`.
+Модуль оставлен для unit-тестов grain_seed и постепенного вывода монолита.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+import warnings
+from dataclasses import dataclass
+from datetime import datetime, time, timezone
+import asyncio
+import bisect
+import time as time_mod
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+
+from app.modules.robots.trading.grain_seed_orchestrator import (
+    compute_effective_free_funds,
+    parse_force_close_time,
+)
 
 from app.modules.robots.trading.costs import (
     TradingCosts,
     resolve_robot_cost_rates,
+)
+from app.modules.robots.trading.backtest.types import (
+    BacktestResult,
+    _bar_in_trading_session,
+    _candle_time_iso,
+    _iso_to_msk_time_of_day,
+    _session_time_from_risk,
+    candle_time_iso,
 )
 from .broker_emulator import BrokerEmulator
 from .virtual_portfolio import VirtualPortfolio
@@ -38,15 +58,6 @@ def _low_price(candle: Dict[str, Any]) -> float:
     return float(int(lp.get("units", 0) or 0)) + float(int(lp.get("nano", 0) or 0)) / 1e9
 
 
-def _candle_time_iso(candle: Dict[str, Any]) -> str:
-    t = candle.get("time")
-    if isinstance(t, str):
-        return t
-    if isinstance(t, dict):
-        return str(t.get("seconds", ""))
-    return ""
-
-
 @dataclass
 class _Position:
     figi: str
@@ -63,144 +74,6 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return float(value)
     except Exception:
         return default
-
-
-def _true_range(curr: Dict[str, Any], prev_close: Optional[float]) -> float:
-    high = _close_price({"close": curr.get("high") or {}})
-    low = _close_price({"close": curr.get("low") or {}})
-    if high <= 0 and low <= 0:
-        # fallback for malformed candles
-        close = _close_price(curr)
-        high = close
-        low = close
-    if prev_close is None or prev_close <= 0:
-        return max(0.0, high - low)
-    return max(high - low, abs(high - prev_close), abs(low - prev_close))
-
-
-def _atr_percent(series: List[Dict[str, Any]], idx: int, period: int) -> Optional[float]:
-    if idx <= 0:
-        return None
-    from_i = max(1, idx - max(1, period) + 1)
-    trs: List[float] = []
-    for j in range(from_i, idx + 1):
-        prev_close = _close_price(series[j - 1]) if j - 1 >= 0 else None
-        tr = _true_range(series[j], prev_close)
-        if tr > 0:
-            trs.append(tr)
-    if not trs:
-        return None
-    close = _close_price(series[idx])
-    if close <= 0:
-        return None
-    atr = sum(trs) / float(len(trs))
-    return (atr / close) * 100.0
-
-
-def _vwap(series: List[Dict[str, Any]], idx: int, lookback: int) -> Optional[float]:
-    if idx < 0:
-        return None
-    start = max(0, idx - max(1, lookback) + 1)
-    num = 0.0
-    den = 0.0
-    for j in range(start, idx + 1):
-        c = _close_price(series[j])
-        v = _safe_float(series[j].get("volume"), 0.0)
-        if c <= 0 or v <= 0:
-            continue
-        num += c * v
-        den += v
-    if den <= 0:
-        return None
-    return num / den
-
-
-def _entry_checks(
-    *,
-    side: str,
-    series: List[Dict[str, Any]],
-    idx: int,
-    strategy_params: Dict[str, Any],
-) -> Tuple[bool, str]:
-    if side != "BUY":
-        return True, "ok"
-    price = _close_price(series[idx])
-    if price <= 0:
-        return False, "invalid_price"
-
-    # 1) VWAP check (default enabled)
-    use_vwap = bool(strategy_params.get("use_vwap_filter", True))
-    if use_vwap:
-        vwap_window = int(_safe_float(strategy_params.get("vwap_window", 20), 20))
-        max_dev_pct = _safe_float(strategy_params.get("vwap_max_deviation_percent", 3.0), 3.0)
-        vwap_val = _vwap(series, idx, vwap_window)
-        if vwap_val is None:
-            return False, "vwap_unavailable"
-        dev_pct = abs(price - vwap_val) / vwap_val * 100.0 if vwap_val > 0 else 0.0
-        if dev_pct > max_dev_pct:
-            return False, f"vwap_deviation>{max_dev_pct}"
-
-    # 2) Local minimum bounce check (default enabled)
-    use_bounce = bool(strategy_params.get("use_local_min_bounce", True))
-    if use_bounce:
-        bounce_window = int(_safe_float(strategy_params.get("local_min_window", 12), 12))
-        if idx < 1:
-            return False, "not_enough_candles_for_bounce"
-        from_i = max(0, idx - bounce_window)
-        local_min = min(_close_price(series[j]) for j in range(from_i, idx))
-        prev_close = _close_price(series[idx - 1])
-        if prev_close > local_min:
-            return False, "no_local_min_touch"
-        if price <= prev_close:
-            return False, "no_bounce_after_local_min"
-
-    # 3) Green candle check (default enabled)
-    use_green = bool(strategy_params.get("require_green_candle", True))
-    if use_green:
-        open_px = _close_price({"close": series[idx].get("open") or {}})
-        if open_px > 0 and price <= open_px:
-            return False, "not_green_candle"
-
-    # 4) Volume check (default enabled)
-    use_volume = bool(strategy_params.get("use_volume_filter", True))
-    if use_volume:
-        vol_window = int(_safe_float(strategy_params.get("volume_window", 20), 20))
-        vol_mult = _safe_float(strategy_params.get("volume_min_multiplier", 1.0), 1.0)
-        start = max(0, idx - vol_window)
-        vols = [_safe_float(series[j].get("volume"), 0.0) for j in range(start, idx)]
-        cur_vol = _safe_float(series[idx].get("volume"), 0.0)
-        if not vols:
-            return False, "volume_baseline_unavailable"
-        avg_vol = sum(vols) / float(len(vols))
-        if avg_vol <= 0:
-            return False, "volume_baseline_zero"
-        if cur_vol < avg_vol * vol_mult:
-            return False, f"volume<{vol_mult}x_avg"
-
-    # 5) ATR on 5m check (default enabled)
-    use_atr = bool(strategy_params.get("use_atr5_filter", True))
-    if use_atr:
-        atr_period = int(_safe_float(strategy_params.get("atr5_period", 14), 14))
-        atr_min_pct = _safe_float(strategy_params.get("atr5_min_percent", 0.1), 0.1)
-        atr_pct = _atr_percent(series, idx, atr_period)
-        if atr_pct is None:
-            return False, "atr5_unavailable"
-        if atr_pct < atr_min_pct:
-            return False, f"atr5<{atr_min_pct}%"
-
-    return True, "ok"
-
-
-@dataclass
-class BacktestResult:
-    initial_capital: float
-    final_equity: float
-    total_return_percent: float
-    max_drawdown_percent: Optional[float]
-    trades: List[Dict[str, Any]] = field(default_factory=list)
-    equity_curve: List[Dict[str, Any]] = field(default_factory=list)
-    signals: List[Dict[str, Any]] = field(default_factory=list)
-    daily_positions: List[Dict[str, Any]] = field(default_factory=list)
 
 
 def _merge_cost_rates(
@@ -222,6 +95,78 @@ def _merge_cost_rates(
     return r, {"broker_commission_rate": br, "ndfl_rate": tx}
 
 
+def _enrich_risk_from_strategy_params(risk: Dict[str, Any], sp: Dict[str, Any]) -> Dict[str, Any]:
+    """Поля риска, которые в UI лежат в strategy_params, но нужны движку (ТЗ / GrainSeed)."""
+    out = dict(risk)
+    if out.get("risk_per_trade_pct") is None and sp.get("risk_per_trade_pct") is not None:
+        out["risk_per_trade_pct"] = float(sp["risk_per_trade_pct"])
+    return out
+
+
+def _series_prefix_tail_for_bar(
+        *,
+        series: List[Dict[str, Any]],
+        times: List[str],
+        bar_time: str,
+        warmup: int,
+        tail_keep: int,
+) -> Optional[List[Dict[str, Any]]]:
+    """Префикс ряда до bar_time (включительно), с обрезкой слева для O(1) по длине ряда на бар.
+
+    Индикаторы стратегии опираются на хвост; длина tail_keep >= warmup + запас под MA/BB/ATR.
+    """
+    if not series or not times or len(series) != len(times):
+        return None
+    hi = bisect.bisect_right(times, bar_time)
+    if hi <= 0:
+        return None
+    seq_full = series[:hi]
+    if len(seq_full) < warmup:
+        return None
+    if len(seq_full) > tail_keep:
+        return seq_full[-tail_keep:]
+    return seq_full
+
+
+def _close_at_or_before(series: List[Dict[str, Any]], times: List[str], bar_time: str) -> float:
+    if not series or not times or len(series) != len(times):
+        return 0.0
+    hi = bisect.bisect_right(times, bar_time)
+    if hi <= 0:
+        return 0.0
+    return _close_price(series[hi - 1])
+
+
+def _risk_budget_max_quantity(
+        *,
+        portfolio_value: float,
+        entry_price: float,
+        risk_per_trade_pct: float,
+        stop_loss_pct: float,
+) -> Optional[int]:
+    if portfolio_value <= 0 or entry_price <= 0 or risk_per_trade_pct <= 0 or stop_loss_pct <= 0:
+        return None
+    max_loss_rub = portfolio_value * (risk_per_trade_pct / 100.0)
+    loss_per_unit = entry_price * (stop_loss_pct / 100.0)
+    if loss_per_unit <= 0:
+        return None
+    q = int(max_loss_rub // loss_per_unit)
+    return q if q > 0 else None
+
+
+def _run_generate_signals_blocking(strategy: Any, snap: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Optional[str]]:
+    """Pandas/стратегия в worker-thread — не блокирует event loop FastAPI."""
+    loop = asyncio.new_event_loop()
+    try:
+        asyncio.set_event_loop(loop)
+        return loop.run_until_complete(strategy.generate_signals(snap))
+    finally:
+        try:
+            loop.close()
+        except Exception:
+            pass
+
+
 #///EPIC Backtesting.ITEM SimulationEngine.TOPIC Intraday Loop [1]
 #/// Ядро симуляции: строит внутридневной цикл по bar_time, запрашивает сигналы стратегии,
 #/// выполняет виртуальные сделки через broker/sim_executor, обновляет equity/drawdown
@@ -238,10 +183,18 @@ async def run_backtest_simulation(
         allowed_figis_by_date: Optional[Dict[str, List[str]]] = None,
         execution_model: str = "NEXT_BAR_OPEN",
         slippage_pct: float = 0.0,
+        cancel_check: Optional[Callable[[], Awaitable[bool]]] = None,
+        cancel_check_sync: Optional[Callable[[], bool]] = None,
+        progress_callback_sync: Optional[Callable[[int, int], None]] = None,
 ) -> BacktestResult:
     """
     Прогон стратегии по уже загруженным свечам (одна long-позиция на FIGI, BUY/SELL).
     """
+    warnings.warn(
+        "run_backtest_simulation is deprecated; use TradingOrchestrator.run_backtest_replay",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     figis: List[str] = list(candles_by_figi.keys())
     if not figis:
         raise ValueError("Нет свечей")
@@ -250,6 +203,7 @@ async def run_backtest_simulation(
     sp["figis"] = figis
 
     risk, cost_kw = _merge_cost_rates(risk_params, cost_override, robot_config_for_cost_defaults)
+    risk = _enrich_risk_from_strategy_params(risk, sp)
 
     lengths = [len(candles_by_figi[f]) for f in figis]
     if not lengths or max(lengths) < 3:
@@ -295,7 +249,70 @@ async def run_backtest_simulation(
             day = t[:10]
             candles_by_day.setdefault(day, {}).setdefault(f, []).append(c)
 
+    times_by_figi: Dict[str, List[str]] = {
+        f: [_candle_time_iso(c) for c in full_series_by_figi[f]]
+        for f in figis
+    }
+    tail_keep = max(warmup + 200, int(sp.get("sim_indicator_tail", 960) or 960))
+
+    consecutive_loss_days = 0
+    cooling_no_new_entries = False
+    last_cancel_poll_mono = 0.0
+    equity_sample_stride = max(1, int(sp.get("equity_curve_sample_stride", 6) or 6))
+
+    session_start_pre = _session_time_from_risk(risk.get("trading_hours_start"), "10:00")
+    session_end_pre = _session_time_from_risk(risk.get("trading_hours_end"), "18:45")
+    bars_total = 0
+    for _day in sorted(candles_by_day.keys()):
+        _dm = candles_by_day.get(_day) or {}
+        _figs = sorted(_dm.keys())
+        if not _figs:
+            continue
+        _times = sorted(
+            {(_candle_time_iso(c) or "") for _ff in _figs for c in _dm.get(_ff, []) if _candle_time_iso(c)}
+        )
+        _times = [bt for bt in _times if _bar_in_trading_session(bt, session_start_pre, session_end_pre)]
+        bars_total += len(_times)
+    bars_processed = 0
+    if progress_callback_sync is not None and bars_total > 0:
+        try:
+            progress_callback_sync(0, bars_total)
+        except Exception:
+            pass
+
     for day in sorted(candles_by_day.keys()):
+        if cancel_check_sync is not None and cancel_check_sync():
+            final_equity = equity_curve[-1]["equity"] if equity_curve else float(initial_capital)
+            ret_pct = (final_equity / float(initial_capital) - 1.0) * 100.0 if initial_capital else 0.0
+            return BacktestResult(
+                initial_capital=float(initial_capital),
+                final_equity=float(final_equity),
+                total_return_percent=round(ret_pct, 4),
+                max_drawdown_percent=round(max_dd_pct, 4) if max_dd_pct is not None else None,
+                trades=trades,
+                equity_curve=equity_curve,
+                signals=signals,
+                daily_positions=daily_positions,
+                cancelled=True,
+            )
+        if cancel_check is not None:
+            try:
+                if await cancel_check():
+                    final_equity = equity_curve[-1]["equity"] if equity_curve else float(initial_capital)
+                    ret_pct = (final_equity / float(initial_capital) - 1.0) * 100.0 if initial_capital else 0.0
+                    return BacktestResult(
+                        initial_capital=float(initial_capital),
+                        final_equity=float(final_equity),
+                        total_return_percent=round(ret_pct, 4),
+                        max_drawdown_percent=round(max_dd_pct, 4) if max_dd_pct is not None else None,
+                        trades=trades,
+                        equity_curve=equity_curve,
+                        signals=signals,
+                        daily_positions=daily_positions,
+                        cancelled=True,
+                    )
+            except Exception:
+                pass
         day_map = candles_by_day.get(day) or {}
         day_figis = sorted(day_map.keys())
         if not day_figis:
@@ -303,24 +320,191 @@ async def run_backtest_simulation(
         day_times = sorted({(_candle_time_iso(c) or "") for ff in day_figis for c in day_map.get(ff, []) if _candle_time_iso(c)})
         if not day_times:
             continue
+        session_start = _session_time_from_risk(risk.get("trading_hours_start"), "10:00")
+        session_end = _session_time_from_risk(risk.get("trading_hours_end"), "18:45")
+        day_times = [bt for bt in day_times if _bar_in_trading_session(bt, session_start, session_end)]
+        if not day_times:
+            continue
         allowed_today = allowed_map.get(day) if day in allowed_map else None
 
-        for bar_time in day_times:
+        reserve_pct = float(sp.get("free_funds_reserve_pct", 50.0) or 0.0)
+        streak_limit = int(sp.get("day_loss_streak_limit", 3) or 3)
+        broker_type = str((config or {}).get("broker_type") or "tinvest").strip().lower()
+        flatten_default = False if broker_type == "bybit" else True
+        force_flatten = (
+            bool(sp.get("force_market_flatten", flatten_default))
+            and bool(str(sp.get("force_close_time_msk") or "").strip())
+        )
+        risk_pt = float(risk.get("risk_per_trade_pct") or 0.0)
+        stop_pct = float(risk.get("stop_loss_percent") or 0.0)
+        tp_pct = float(risk.get("take_profit_percent") or 0.0)
+        max_daily_loss = float(risk.get("max_daily_loss") or 0.0)
+        pause_entries_today = False
+        if cooling_no_new_entries:
+            cooling_no_new_entries = False
+            pause_entries_today = True
+        day_start_equity: Optional[float] = None
+        day_block_new_buys = False
+
+        for i_bt, bar_time in enumerate(day_times):
+            if cancel_check_sync is not None and cancel_check_sync():
+                final_equity = equity_curve[-1]["equity"] if equity_curve else float(initial_capital)
+                ret_pct = (final_equity / float(initial_capital) - 1.0) * 100.0 if initial_capital else 0.0
+                return BacktestResult(
+                    initial_capital=float(initial_capital),
+                    final_equity=float(final_equity),
+                    total_return_percent=round(ret_pct, 4),
+                    max_drawdown_percent=round(max_dd_pct, 4) if max_dd_pct is not None else None,
+                    trades=trades,
+                    equity_curve=equity_curve,
+                    signals=signals,
+                    daily_positions=daily_positions,
+                    cancelled=True,
+                )
+            if cancel_check is not None:
+                try:
+                    if await cancel_check():
+                        final_equity = equity_curve[-1]["equity"] if equity_curve else float(initial_capital)
+                        ret_pct = (final_equity / float(initial_capital) - 1.0) * 100.0 if initial_capital else 0.0
+                        return BacktestResult(
+                            initial_capital=float(initial_capital),
+                            final_equity=float(final_equity),
+                            total_return_percent=round(ret_pct, 4),
+                            max_drawdown_percent=round(max_dd_pct, 4) if max_dd_pct is not None else None,
+                            trades=trades,
+                            equity_curve=equity_curve,
+                            signals=signals,
+                            daily_positions=daily_positions,
+                            cancelled=True,
+                        )
+                except Exception:
+                    pass
             snap: Dict[str, List[Dict[str, Any]]] = {}
             for ff in day_figis:
-                seq = [x for x in full_series_by_figi.get(ff, []) if _candle_time_iso(x) <= bar_time]
-                if len(seq) >= warmup:
+                seq = _series_prefix_tail_for_bar(
+                    series=full_series_by_figi.get(ff, []),
+                    times=times_by_figi.get(ff, []),
+                    bar_time=bar_time,
+                    warmup=warmup,
+                    tail_keep=tail_keep,
+                )
+                if seq is not None:
                     snap[ff] = seq
             if not snap:
                 continue
-            raw_signals = await strategy.generate_signals(snap)
 
             portfolio_value = cash
             for figi, pos in positions.items():
-                seq_pos = [x for x in full_series_by_figi.get(figi, []) if _candle_time_iso(x) <= bar_time]
-                if seq_pos:
-                    portfolio_value += pos.quantity * _close_price(seq_pos[-1])
+                pxv = _close_at_or_before(
+                    full_series_by_figi.get(figi, []),
+                    times_by_figi.get(figi, []),
+                    bar_time,
+                )
+                if pxv > 0:
+                    portfolio_value += pos.quantity * pxv
             equity_pre = portfolio_value
+            if day_start_equity is None:
+                day_start_equity = equity_pre
+            if max_daily_loss > 0 and day_start_equity is not None:
+                if (day_start_equity - equity_pre) >= max_daily_loss:
+                    day_block_new_buys = True
+
+            if stop_pct > 0 and tp_pct > 0:
+                for figi_ps in list(positions.keys()):
+                    pos_sl = positions.get(figi_ps)
+                    if not pos_sl:
+                        continue
+                    s_sl = full_series_by_figi.get(figi_ps, [])
+                    t_sl = times_by_figi.get(figi_ps, [])
+                    hi_sl = bisect.bisect_right(t_sl, bar_time)
+                    if hi_sl <= 0 or _candle_time_iso(s_sl[hi_sl - 1]) != bar_time:
+                        continue
+                    cur_sl = s_sl[hi_sl - 1]
+                    lo = _low_price(cur_sl)
+                    hi = _high_price(cur_sl)
+                    ep = pos_sl.entry_price
+                    sl_px = ep * (1.0 - stop_pct / 100.0)
+                    tp_px = ep * (1.0 + tp_pct / 100.0)
+                    exit_px: Optional[float] = None
+                    exit_reason = ""
+                    if lo <= sl_px:
+                        exit_px = sl_px
+                        exit_reason = "stop_loss"
+                    elif hi >= tp_px:
+                        exit_px = tp_px
+                        exit_reason = "take_profit"
+                    if exit_px is None or exit_px <= 0:
+                        continue
+                    positions.pop(figi_ps, None)
+                    tco = TradingCosts(pos_sl.entry_price, pos_sl.quantity, is_buy=False, **cost_kw)
+                    acto = tco.calculate_actual_profit(exit_px)
+                    cash += exit_px * pos_sl.quantity - acto["commission_sell"] - acto["tax"]
+                    trades.append({
+                        "id": len(trades) + 1,
+                        "figi": figi_ps,
+                        "side": "sell",
+                        "bar_time": bar_time,
+                        "price": round(exit_px, 6),
+                        "quantity": pos_sl.quantity,
+                        "commission": round(acto["commission_buy"] + acto["commission_sell"], 4),
+                        "pnl_net": round(acto["net_profit"], 4),
+                    })
+                    signals.append({
+                        "id": len(signals) + 1,
+                        "figi": figi_ps,
+                        "signal_type": "sell",
+                        "bar_time": bar_time,
+                        "price": round(exit_px, 6),
+                        "was_executed": 1,
+                        "reason": exit_reason,
+                    })
+
+            trailing_stop_pct = _safe_float(sp.get("trailing_stop_percent", 0.0), 0.0)
+            if trailing_stop_pct > 0:
+                for figi in list(positions.keys()):
+                    pos = positions.get(figi)
+                    if not pos:
+                        continue
+                    px = _close_at_or_before(
+                        full_series_by_figi.get(figi, []),
+                        times_by_figi.get(figi, []),
+                        bar_time,
+                    )
+                    if px <= 0:
+                        continue
+                    if pos.peak_price <= 0:
+                        pos.peak_price = max(pos.entry_price, px)
+                    pos.peak_price = max(pos.peak_price, px)
+                    stop_px = pos.peak_price * (1.0 - trailing_stop_pct / 100.0)
+                    if px <= stop_px:
+                        tc = TradingCosts(pos.entry_price, pos.quantity, is_buy=False, **cost_kw)
+                        act = tc.calculate_actual_profit(px)
+                        cash += px * pos.quantity - act["commission_sell"] - act["tax"]
+                        trades.append({
+                            "id": len(trades) + 1,
+                            "figi": figi,
+                            "side": "sell",
+                            "bar_time": bar_time,
+                            "price": round(px, 6),
+                            "quantity": pos.quantity,
+                            "commission": round(act["commission_buy"] + act["commission_sell"], 4),
+                            "pnl_net": round(act["net_profit"], 4),
+                        })
+                        signals.append({
+                            "id": len(signals) + 1,
+                            "figi": figi,
+                            "signal_type": "sell",
+                            "bar_time": bar_time,
+                            "price": round(px, 6),
+                            "was_executed": 1,
+                            "reason": "trailing_stop_executed",
+                        })
+                        positions.pop(figi, None)
+
+            if cancel_check_sync is not None and cancel_check_sync():
+                raw_signals = {}
+            else:
+                raw_signals = await asyncio.to_thread(_run_generate_signals_blocking, strategy, snap)
             open_figis = set(positions.keys())
 
             for figi in day_figis:
@@ -364,19 +548,27 @@ async def run_backtest_simulation(
                 })
 
                 if side == "BUY" and figi not in open_figis:
+                    if pause_entries_today or day_block_new_buys:
+                        signals[-1]["reason"] = "blocked_pause_day_or_daily_loss_cap"
+                        continue
                     if allowed_today is not None and figi.upper() not in allowed_today:
                         signals[-1]["reason"] = "not_in_daily_candidates"
                         continue
-                    ok, reason = _entry_checks(side="BUY", series=seq, idx=idx_local, strategy_params=sp)
-                    if not ok:
-                        signals[-1]["reason"] = reason
-                        continue
+                    eff_cash = compute_effective_free_funds(cash, reserve_pct)
+                    rb_cap = _risk_budget_max_quantity(
+                        portfolio_value=equity_pre,
+                        entry_price=price,
+                        risk_per_trade_pct=risk_pt,
+                        stop_loss_pct=stop_pct,
+                    )
                     qty, cash_after_buy, comm = executor.execute_buy(
                         cash=cash,
                         price=price,
                         risk_params=risk,
                         portfolio_value=equity_pre,
                         cost_kw=cost_kw,
+                        free_funds_for_sizing=eff_cash,
+                        risk_budget_max_quantity=rb_cap,
                     )
                     if qty <= 0:
                         signals[-1]["reason"] = "rejected_position_size"
@@ -417,54 +609,18 @@ async def run_backtest_simulation(
                 else:
                     signals[-1]["reason"] = "ignored_signal_state"
 
-            trailing_stop_pct = _safe_float(sp.get("trailing_stop_percent", 0.0), 0.0)
-            if trailing_stop_pct > 0:
-                for figi in list(positions.keys()):
-                    pos = positions.get(figi)
-                    if not pos:
-                        continue
-                    seq_pos = [x for x in full_series_by_figi.get(figi, []) if _candle_time_iso(x) <= bar_time]
-                    if not seq_pos:
-                        continue
-                    px = _close_price(seq_pos[-1])
-                    if px <= 0:
-                        continue
-                    if pos.peak_price <= 0:
-                        pos.peak_price = max(pos.entry_price, px)
-                    pos.peak_price = max(pos.peak_price, px)
-                    stop_px = pos.peak_price * (1.0 - trailing_stop_pct / 100.0)
-                    if px <= stop_px:
-                        tc = TradingCosts(pos.entry_price, pos.quantity, is_buy=False, **cost_kw)
-                        act = tc.calculate_actual_profit(px)
-                        cash += px * pos.quantity - act["commission_sell"] - act["tax"]
-                        trades.append({
-                            "id": len(trades) + 1,
-                            "figi": figi,
-                            "side": "sell",
-                            "bar_time": bar_time,
-                            "price": round(px, 6),
-                            "quantity": pos.quantity,
-                            "commission": round(act["commission_buy"] + act["commission_sell"], 4),
-                            "pnl_net": round(act["net_profit"], 4),
-                        })
-                        signals.append({
-                            "id": len(signals) + 1,
-                            "figi": figi,
-                            "signal_type": "sell",
-                            "bar_time": bar_time,
-                            "price": round(px, 6),
-                            "was_executed": 1,
-                            "reason": "trailing_stop_executed",
-                        })
-                        positions.pop(figi, None)
-
             price_by_figi: Dict[str, float] = {}
             for figi, _pos in positions.items():
-                seq_pos = [x for x in full_series_by_figi.get(figi, []) if _candle_time_iso(x) <= bar_time]
-                if seq_pos:
-                    price_by_figi[figi] = _close_price(seq_pos[-1])
+                px_m = _close_at_or_before(
+                    full_series_by_figi.get(figi, []),
+                    times_by_figi.get(figi, []),
+                    bar_time,
+                )
+                if px_m > 0:
+                    price_by_figi[figi] = px_m
             mark_equity = portfolio.mark_to_market(cash=cash, positions=positions, price_by_figi=price_by_figi)
-            equity_curve.append({"time": bar_time, "equity": round(mark_equity, 2)})
+            if i_bt % equity_sample_stride == 0 or i_bt == len(day_times) - 1:
+                equity_curve.append({"time": bar_time, "equity": round(mark_equity, 2)})
             if mark_equity > peak_equity:
                 peak_equity = mark_equity
             if peak_equity > 0:
@@ -472,12 +628,81 @@ async def run_backtest_simulation(
                 if max_dd_pct is None or dd > max_dd_pct:
                     max_dd_pct = dd
 
+            await asyncio.sleep(0)
+            bars_processed += 1
+            if progress_callback_sync is not None and bars_total > 0:
+                if bars_processed % 24 == 0 or bars_processed >= bars_total:
+                    try:
+                        progress_callback_sync(bars_processed, bars_total)
+                    except Exception:
+                        pass
+
         last_bar_time = day_times[-1] if day_times else ""
+        if force_flatten and positions and last_bar_time:
+            for figi_fc in list(positions.keys()):
+                pos_fc = positions.get(figi_fc)
+                if not pos_fc:
+                    continue
+                px_fc = _close_at_or_before(
+                    full_series_by_figi.get(figi_fc, []),
+                    times_by_figi.get(figi_fc, []),
+                    last_bar_time,
+                )
+                if px_fc <= 0:
+                    continue
+                positions.pop(figi_fc, None)
+                tcf = TradingCosts(pos_fc.entry_price, pos_fc.quantity, is_buy=False, **cost_kw)
+                actf = tcf.calculate_actual_profit(px_fc)
+                cash += px_fc * pos_fc.quantity - actf["commission_sell"] - actf["tax"]
+                trades.append({
+                    "id": len(trades) + 1,
+                    "figi": figi_fc,
+                    "side": "sell",
+                    "bar_time": last_bar_time,
+                    "price": round(px_fc, 6),
+                    "quantity": pos_fc.quantity,
+                    "commission": round(actf["commission_buy"] + actf["commission_sell"], 4),
+                    "pnl_net": round(actf["net_profit"], 4),
+                })
+                signals.append({
+                    "id": len(signals) + 1,
+                    "figi": figi_fc,
+                    "signal_type": "sell",
+                    "bar_time": last_bar_time,
+                    "price": round(px_fc, 6),
+                    "was_executed": 1,
+                    "reason": "force_market_flatten_eod",
+                })
+
+        if day_start_equity is not None:
+            feod = float(cash)
+            for figi_e, pos_e in positions.items():
+                px_e = _close_at_or_before(
+                    full_series_by_figi.get(figi_e, []),
+                    times_by_figi.get(figi_e, []),
+                    last_bar_time,
+                )
+                if px_e > 0:
+                    feod += pos_e.quantity * px_e
+            had_trades_today = any(str(t.get("bar_time") or "").startswith(day) for t in trades)
+            if had_trades_today:
+                if feod < day_start_equity:
+                    consecutive_loss_days += 1
+                else:
+                    consecutive_loss_days = 0
+                if streak_limit > 0 and consecutive_loss_days >= streak_limit:
+                    cooling_no_new_entries = True
+                    consecutive_loss_days = 0
+
         price_by_figi_eod: Dict[str, float] = {}
         for figi, _pos in positions.items():
-            seq_pos = [x for x in full_series_by_figi.get(figi, []) if _candle_time_iso(x) <= last_bar_time]
-            if seq_pos:
-                price_by_figi_eod[figi] = _close_price(seq_pos[-1])
+            px_eod = _close_at_or_before(
+                full_series_by_figi.get(figi, []),
+                times_by_figi.get(figi, []),
+                last_bar_time,
+            )
+            if px_eod > 0:
+                price_by_figi_eod[figi] = px_eod
         daily_positions.extend(
             portfolio.end_of_day_positions(
                 trade_date=day,
@@ -485,6 +710,12 @@ async def run_backtest_simulation(
                 price_by_figi=price_by_figi_eod,
             )
         )
+
+    if progress_callback_sync is not None and bars_total > 0:
+        try:
+            progress_callback_sync(bars_total, bars_total)
+        except Exception:
+            pass
 
     final_equity = equity_curve[-1]["equity"] if equity_curve else float(initial_capital)
     ret_pct = (final_equity / float(initial_capital) - 1.0) * 100.0 if initial_capital else 0.0
@@ -498,6 +729,7 @@ async def run_backtest_simulation(
         equity_curve=equity_curve,
         signals=signals,
         daily_positions=daily_positions,
+        cancelled=False,
     )
 
 

@@ -44,7 +44,7 @@ def build_accounts_summary_query(
     conditions = []
 
     if not include_inactive:
-        conditions.append("pa.account_status != 'closed'")
+        conditions.append("UPPER(pa.account_status) = 'OPEN'")
 
     if min_total_value is not None:
         conditions.append("ps.total_amount_portfolio >= :min_total_value")

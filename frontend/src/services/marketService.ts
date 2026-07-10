@@ -8,6 +8,31 @@ import type { RobotHistoryBacktestResult } from '@/types/robot'
 export const MOEX_CACHE_INTERVALS = ['1m', '10m', '1h', '1d', '1w', '1M'] as const
 export type MoexCacheInterval = (typeof MOEX_CACHE_INTERVALS)[number]
 
+/** §9.5 GET /v1/market-data/candles/coverage-summary */
+export interface CandleCoverageTickerSummary {
+    ticker: string
+    bucket_count: number
+    min_bucket_start: string | null
+    max_bucket_start: string | null
+}
+
+export interface CandleCoverageSummaryResponse {
+    board: string
+    interval: string
+    items: CandleCoverageTickerSummary[]
+}
+
+/** §9.5 GET /v1/market-data/tqbr-securities */
+export interface TqbrSecurityRow {
+    secid: string
+    shortname?: string | null
+    isin?: string | null
+}
+
+export interface TqbrSearchResponse {
+    items: TqbrSecurityRow[]
+}
+
 export interface CandleLoadJobCreateResponse {
     job_id: string
     status: string
@@ -161,6 +186,43 @@ export const marketService = {
             to: params.to,
         })
         const { data } = await api.get<CandlesQueryResponse>(`/v1/market-data/candles?${qs}`)
+        return data
+    },
+
+    /** §9.5: сводка покрытия shared_market_candles без дозагрузки MOEX. */
+    async getCandlesCoverageSummary(params: {
+        tickers: string[]
+        board?: string
+        interval: MoexCacheInterval | string
+        from: string
+        to: string
+    }): Promise<CandleCoverageSummaryResponse> {
+        const qs = serializeCandlesQuery({
+            tickers: params.tickers,
+            board: params.board ?? 'TQBR',
+            interval: params.interval,
+            from: params.from,
+            to: params.to,
+        })
+        const { data } = await api.get<CandleCoverageSummaryResponse>(
+            `/v1/market-data/candles/coverage-summary?${qs}`,
+        )
+        return data
+    },
+
+    /** §9.5: поиск SECID TQBR по префиксу (справочник в БД). */
+    async searchTqbrSecurities(q: string, limit = 50): Promise<TqbrSearchResponse> {
+        const { data } = await api.get<TqbrSearchResponse>('/v1/market-data/tqbr-securities', {
+            params: { q, limit },
+        })
+        return data
+    },
+
+    /** Полный срез справочника TQBR одним запросом (до limit строк). Раньше UI делал 36× prefix-поиск. */
+    async listTqbrSecuritiesBulk(limit = 12_000): Promise<TqbrSearchResponse> {
+        const { data } = await api.get<TqbrSearchResponse>('/v1/market-data/tqbr-securities/bulk', {
+            params: { limit },
+        })
         return data
     },
 

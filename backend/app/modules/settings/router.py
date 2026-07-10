@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+﻿from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 import logging
@@ -16,23 +16,26 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/apikey", tags=["API Keys"])
 
 
-
 @router.post("/create", response_model=schemas.ApiKeyResponse)
 async def create_api_key(
         key_data: schemas.ApiKeyCreate,
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """
-    Создание нового API ключа
-    """
+    """Создание нового API ключа."""
     try:
-        key = service.api_key_service.create_key(
+        key = await service.api_key_service.create_key(
             db=db,
             user_id=current_user.id,
             token=key_data.token,
             key_type=key_data.key_type,
-            name=key_data.name
+            name=key_data.name,
+            refresh_interval_minutes=int(key_data.refresh_interval_minutes or 60),
+            extra_data={
+                "token_secret": key_data.token_secret,
+                "testnet": key_data.testnet,
+                "account_type": key_data.account_type,
+            },
         )
         return key
     except ValueError as e:
@@ -81,9 +84,7 @@ async def get_api_keys(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """
-    Получение списка API ключей пользователя
-    """
+    """Получение списка API ключей пользователя."""
     keys, total = service.api_key_service.get_user_keys(
         db=db,
         user_id=current_user.id,
@@ -100,15 +101,75 @@ async def get_api_keys(
     )
 
 
+@router.post("/test", response_model=schemas.ApiKeyTestResponse)
+async def test_api_key(
+        payload: schemas.ApiKeyTestRequest,
+):
+    """Проверка валидности ключа без сохранения."""
+    result = await service.api_key_service.test_key(
+        token=payload.token,
+        key_type=payload.key_type,
+        token_secret=payload.token_secret,
+        testnet=bool(payload.testnet),
+        account_type=str(payload.account_type or "UNIFIED"),
+    )
+    return schemas.ApiKeyTestResponse(**result)
+
+
+@router.post("/test-stored/{key_id}", response_model=schemas.ApiKeyTestResponse)
+async def test_stored_api_key(
+        key_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    """Проверка сохранённого API ключа пользователя."""
+    result = await service.api_key_service.test_stored_key(db, key_id, current_user.id)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
+    return schemas.ApiKeyTestResponse(**result)
+
+
+@router.post("/reveal/{key_id}", response_model=schemas.ApiKeyRevealResponse)
+async def reveal_api_key(
+        key_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    """Получение полного значения токена (только владелец)."""
+    revealed = service.api_key_service.reveal_key_token(db, key_id, current_user.id)
+    if revealed is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
+    return schemas.ApiKeyRevealResponse(**revealed)
+
+
+@router.post("/update/{key_id}", response_model=schemas.ApiKeyResponse)
+async def update_api_key(
+        key_id: int,
+        key_data: schemas.ApiKeyUpdate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    """Обновление названия / статуса / интервала обновления ключа."""
+    updated = service.api_key_service.update_key(
+        db=db,
+        key_id=key_id,
+        user_id=current_user.id,
+        name=key_data.name,
+        status=key_data.status,
+        refresh_interval_minutes=key_data.refresh_interval_minutes,
+    )
+    if updated is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
+    return updated
+
+
 @router.post("/delete/{key_id}", status_code=status.HTTP_200_OK)
 async def delete_api_key(
         key_id: int,
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    """
-    Деактивация API ключа
-    """
+    """Деактивация API ключа."""
     success = service.api_key_service.deactivate_key(db, key_id, current_user.id)
     if not success:
         raise HTTPException(

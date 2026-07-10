@@ -43,13 +43,17 @@ class TradePersistenceMixin:
         signal_ids = []
 
         for signal in signals:
+            indicators = dict(signal.get("indicators") or {})
+            if signal.get("target_price") is not None:
+                indicators["target_price"] = signal.get("target_price")
+            indicators_json = safe_json_dumps(indicators) if indicators else None
             query = f"""
                 INSERT INTO {schema}.robot_signals
-                (robot_id, figi, signal_type, signal_strength, price_at_signal, 
-                 was_executed, created_at)
+                (robot_id, figi, signal_type, signal_strength, price_at_signal,
+                 indicators, was_executed, created_at)
                 VALUES
-                (:robot_id, :figi, :signal_type, :signal_strength, :price, 
-                 0, :now)
+                (:robot_id, :figi, :signal_type, :signal_strength, :price,
+                 CAST(:indicators AS jsonb), 0, :now)
                 RETURNING id
             """
 
@@ -62,6 +66,7 @@ class TradePersistenceMixin:
                         "signal_type": signal["signal"].lower(),
                         "signal_strength": signal.get("strength", 100),
                         "price": signal["price"],
+                        "indicators": indicators_json,
                         "now": datetime.now(timezone.utc)
                     }
                 ).first()
@@ -77,6 +82,14 @@ class TradePersistenceMixin:
 
         if signal_ids:
             db.commit()
+            try:
+                from app.modules.robots.live_events import notify_robot_live_event, uses_postgres_live_events
+                if uses_postgres_live_events():
+                    for sid in signal_ids:
+                        notify_robot_live_event(db, robot_id, "signal", sid)
+                    db.commit()
+            except Exception:
+                pass
 
         return signal_ids
 
@@ -179,7 +192,9 @@ class TradePersistenceMixin:
             status: str,
             executed_price: Optional[float] = None,
             filled_quantity: Optional[int] = None,
-            commission: Optional[float] = None
+            commission: Optional[float] = None,
+            *,
+            closing: bool = False,
     ) -> bool:
         """
         Обновляет статус сделки в БД
@@ -192,13 +207,15 @@ class TradePersistenceMixin:
             executed_price: Цена исполнения (если есть)
             filled_quantity: Исполненное количество (если есть)
             commission: Комиссия (если есть)
+            closing: True for exit fills — mark closed; entry fills stay open
 
         Returns:
             True если обновление успешно
         """
-        # Определяем статус для БД
+        # Entry FILL = open position; exit FILL (closing=True) = closed.
+        fill_status = "closed" if closing else "open"
         status_mapping = {
-            "EXECUTION_REPORT_STATUS_FILL": "closed",
+            "EXECUTION_REPORT_STATUS_FILL": fill_status,
             "EXECUTION_REPORT_STATUS_PARTIALLYFILL": "partial",
             "EXECUTION_REPORT_STATUS_CANCELLED": "cancelled",
             "EXECUTION_REPORT_STATUS_REJECTED": "rejected",
@@ -259,23 +276,38 @@ class TradePersistenceMixin:
             INSERT INTO {schema}.robot_order_events
             (robot_id, trade_id, order_id, status, event_type, payload, created_at)
             VALUES
-            (:robot_id, :trade_id, :order_id, :status, :event_type, :payload, :now)
+            (:robot_id, :trade_id, :order_id, :status, :event_type, CAST(:payload AS jsonb), :now)
             RETURNING id
         """
-        row = db.execute(
-            text(q),
-            {
-                "robot_id": robot_id,
-                "trade_id": trade_id,
-                "order_id": order_id,
-                "status": status,
-                "event_type": event_type,
-                "payload": payload,
-                "now": datetime.now(timezone.utc),
-            }
-        ).first()
-        db.commit()
-        return row[0] if row else None
+        payload_json = safe_json_dumps(payload) if payload is not None else None
+        try:
+            row = db.execute(
+                text(q),
+                {
+                    "robot_id": robot_id,
+                    "trade_id": trade_id,
+                    "order_id": order_id,
+                    "status": status,
+                    "event_type": event_type,
+                    "payload": payload_json,
+                    "now": datetime.now(timezone.utc),
+                }
+            ).first()
+            db.commit()
+            event_id = row[0] if row else None
+            if event_id is not None:
+                try:
+                    from app.modules.robots.live_events import notify_robot_live_event, uses_postgres_live_events
+                    if uses_postgres_live_events():
+                        ws_type = "skipped" if str(status).strip().lower() == "skipped" else "order"
+                        notify_robot_live_event(db, robot_id, ws_type, int(event_id))
+                        db.commit()
+                except Exception:
+                    pass
+            return event_id
+        except Exception:
+            db.rollback()
+            raise
 
     async def save_decision(
             self,
@@ -297,26 +329,31 @@ class TradePersistenceMixin:
             INSERT INTO {schema}.robot_decisions
             (robot_id, execution_log_id, cycle_id, figi, stage, decision_type, decision, reason_code, payload, created_at)
             VALUES
-            (:robot_id, :execution_log_id, :cycle_id, :figi, :stage, :decision_type, :decision, :reason_code, :payload, :now)
+            (:robot_id, :execution_log_id, :cycle_id, :figi, :stage, :decision_type, :decision, :reason_code, CAST(:payload AS jsonb), :now)
             RETURNING id
         """
-        row = db.execute(
-            text(q),
-            {
-                "robot_id": robot_id,
-                "execution_log_id": execution_log_id,
-                "cycle_id": cycle_id,
-                "figi": figi,
-                "stage": stage,
-                "decision_type": decision_type,
-                "decision": decision,
-                "reason_code": reason_code,
-                "payload": payload,
-                "now": datetime.now(timezone.utc),
-            }
-        ).first()
-        db.commit()
-        return row[0] if row else None
+        payload_json = safe_json_dumps(payload) if payload is not None else None
+        try:
+            row = db.execute(
+                text(q),
+                {
+                    "robot_id": robot_id,
+                    "execution_log_id": execution_log_id,
+                    "cycle_id": cycle_id,
+                    "figi": figi,
+                    "stage": stage,
+                    "decision_type": decision_type,
+                    "decision": decision,
+                    "reason_code": reason_code,
+                    "payload": payload_json,
+                    "now": datetime.now(timezone.utc),
+                }
+            ).first()
+            db.commit()
+            return row[0] if row else None
+        except Exception:
+            db.rollback()
+            raise
 
     async def create_run_cycle(
             self,
@@ -332,20 +369,25 @@ class TradePersistenceMixin:
             INSERT INTO {schema}.robot_run_cycles
             (robot_id, execution_log_id, status, started_at, context)
             VALUES
-            (:robot_id, :execution_log_id, 'running', :started_at, :context)
+            (:robot_id, :execution_log_id, 'running', :started_at, CAST(:context AS jsonb))
             RETURNING id
         """
-        row = db.execute(
-            text(q),
-            {
-                "robot_id": robot_id,
-                "execution_log_id": execution_log_id,
-                "started_at": datetime.now(timezone.utc),
-                "context": context,
-            }
-        ).first()
-        db.commit()
-        return row[0] if row else None
+        context_json = safe_json_dumps(context) if context is not None else None
+        try:
+            row = db.execute(
+                text(q),
+                {
+                    "robot_id": robot_id,
+                    "execution_log_id": execution_log_id,
+                    "started_at": datetime.now(timezone.utc),
+                    "context": context_json,
+                }
+            ).first()
+            db.commit()
+            return row[0] if row else None
+        except Exception:
+            db.rollback()
+            raise
 
     async def complete_run_cycle(
             self,
@@ -361,19 +403,24 @@ class TradePersistenceMixin:
             UPDATE {schema}.robot_run_cycles
             SET status = :status,
                 finished_at = :finished_at,
-                context = COALESCE(:context, context)
+                context = COALESCE(CAST(:context AS jsonb), context)
             WHERE id = :cycle_id
         """
-        db.execute(
-            text(q),
-            {
-                "cycle_id": cycle_id,
-                "status": status,
-                "finished_at": datetime.now(timezone.utc),
-                "context": context,
-            }
-        )
-        db.commit()
+        context_json = safe_json_dumps(context) if context is not None else None
+        try:
+            db.execute(
+                text(q),
+                {
+                    "cycle_id": cycle_id,
+                    "status": status,
+                    "finished_at": datetime.now(timezone.utc),
+                    "context": context_json,
+                }
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
 
     async def _update_trade_entry_price(
             self,
@@ -390,7 +437,7 @@ class TradePersistenceMixin:
                 quantity = :quantity,
                 total_amount = :total_amount,
                 status = 'open'
-            WHERE order_id = :order_id AND status IN ('pending', 'partial')
+            WHERE order_id = :order_id AND status IN ('pending', 'partial', 'open')
         """
 
         db.execute(
@@ -409,17 +456,25 @@ class PriceParsingMixin:
     """Миксин для парсинга цен из T-Invest формата (units/nano)"""
 
     @staticmethod
-    def parse_price(price_data: dict) -> Optional[float]:
+    def parse_price(price_data) -> Optional[float]:
         """
-        Парсит цену из формата T-Invest API
-
-        Args:
-            price_data: Словарь с полями units и nano
+        Парсит цену: T-Invest Quotation `{units, nano}` или число (ByBit float).
 
         Returns:
             Цена в виде float или None
         """
-        if not price_data:
+        if price_data is None:
+            return None
+        if isinstance(price_data, (int, float)):
+            v = float(price_data)
+            return v if v > 0 else None
+        if isinstance(price_data, str):
+            try:
+                v = float(price_data)
+                return v if v > 0 else None
+            except (TypeError, ValueError):
+                return None
+        if not isinstance(price_data, dict):
             return None
 
         units = price_data.get("units", 0)
@@ -431,7 +486,8 @@ class PriceParsingMixin:
         except (TypeError, ValueError):
             return None
 
-        return units + nano / 1e9
+        v = units + nano / 1e9
+        return v if v > 0 else None
 
     @staticmethod
     def parse_money_value(money_value: dict) -> Optional[Dict[str, Any]]:

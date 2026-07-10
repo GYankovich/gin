@@ -14,6 +14,11 @@ interface ChartProps {
 export function Chart({ height = 360, className = '', onReady }: ChartProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const chartRef = useRef<IChartApi | null>(null)
+    const onReadyRef = useRef(onReady)
+
+    useEffect(() => {
+        onReadyRef.current = onReady
+    }, [onReady])
 
     useEffect(() => {
         if (!containerRef.current) return
@@ -72,7 +77,7 @@ export function Chart({ height = 360, className = '', onReady }: ChartProps) {
         } as DeepPartial<ChartOptions>)
 
         chartRef.current = chart
-        onReady?.(chart, containerRef.current)
+        onReadyRef.current?.(chart, containerRef.current)
 
         const ro = new ResizeObserver(() => {
             if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth })
@@ -82,8 +87,9 @@ export function Chart({ height = 360, className = '', onReady }: ChartProps) {
         return () => {
             ro.disconnect()
             chart.remove()
+            chartRef.current = null
         }
-    }, [height, onReady])
+    }, [height])
 
     return <div ref={containerRef} className={`chart-container ${className}`} />
 }

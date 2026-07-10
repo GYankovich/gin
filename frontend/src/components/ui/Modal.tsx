@@ -8,10 +8,11 @@ interface ModalProps {
     onClose: () => void
     title?: string
     width?: string
+    className?: string
     children: React.ReactNode
 }
 
-export function Modal({ open, onClose, title, width = '560px', children }: ModalProps) {
+export function Modal({ open, onClose, title, width = '560px', className = '', children }: ModalProps) {
     const onKeyDown = useCallback((e: KeyboardEvent) => {
         if (e.key === 'Escape') onClose()
     }, [onClose])
@@ -30,8 +31,12 @@ export function Modal({ open, onClose, title, width = '560px', children }: Modal
     if (!open) return null
 
     return (
-        <div className="modal-backdrop" onClick={onClose}>
-            <div className="modal" style={{ maxWidth: width }} onClick={(e) => e.stopPropagation()}>
+        <div className={`modal-backdrop ${className ? `${className}-backdrop` : ''}`.trim()} onClick={onClose}>
+            <div
+                className={`modal ${className}`.trim()}
+                style={{ maxWidth: width }}
+                onClick={(e) => e.stopPropagation()}
+            >
                 {title && (
                     <div className="modal__header">
                         <h2 className="modal__title">{title}</h2>

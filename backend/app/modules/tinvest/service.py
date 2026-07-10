@@ -14,8 +14,10 @@ from fastapi import HTTPException, status
 # Импортируем из methods
 from app.modules.tinvest.methods import (
     create_tbank_client,
+    TBankAuthError,
     TBANK_GET_OPERATIONS_BY_CURSOR_ENDPOINT,
 )
+from app.core.config import settings
 from .token_service import token_service
 from . import queries, utils
 
@@ -32,6 +34,7 @@ class TInvestService:
 
     def __init__(self):
         self.db: Optional[Session] = None
+        self._api_tokens_has_status_column_cache: Optional[bool] = None
 
     def _write_external_api_log(
             self,
@@ -77,18 +80,115 @@ class TInvestService:
         result = self.db.execute(text(query), params)
         return result.first() if fetch_one else result
 
+    def _api_tokens_has_status_column(self, db: Session) -> bool:
+        if self._api_tokens_has_status_column_cache is not None:
+            return self._api_tokens_has_status_column_cache
+        row = db.execute(
+            text(
+                """
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = :schema
+                  AND table_name = 'api_tokens'
+                  AND column_name = 'status'
+                LIMIT 1
+                """
+            ),
+            {"schema": settings.DB_SCHEMA},
+        ).first()
+        self._api_tokens_has_status_column_cache = bool(row)
+        return self._api_tokens_has_status_column_cache
+
+    def _expire_token_and_disable_robots(
+        self,
+        db: Session,
+        *,
+        token_id: int,
+        user_id: int,
+        error_message: str,
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        params = {
+            "token_id": int(token_id),
+            "user_id": int(user_id),
+            "now": now,
+            "error_message": str(error_message or "")[:500],
+        }
+        if self._api_tokens_has_status_column(db):
+            db.execute(
+                text(
+                    f"""
+                    UPDATE {settings.DB_SCHEMA}.api_tokens
+                    SET status = 3, updated_at = :now
+                    WHERE id = :token_id AND user_id = :user_id
+                    """
+                ),
+                params,
+            )
+        db.execute(
+            text(
+                f"""
+                UPDATE {settings.DB_SCHEMA}.robots
+                SET status = 2,
+                    last_error = :error_message,
+                    last_error_at = :now,
+                    usermod = :user_id,
+                    date_modification = :now
+                WHERE token_id = :token_id
+                  AND user_id = :user_id
+                  AND status != 0
+                """
+            ),
+            params,
+        )
+        db.commit()
+
     async def get_user_token(self, db: Session, user_id: int) -> Optional[str]:
         """
         Получение активного токена пользователя
         """
         return await token_service.get_user_token(db, user_id)
 
-    async def get_accounts(self, token: str) -> List[dict]:
+    async def get_accounts(
+            self,
+            token: str,
+            *,
+            db: Optional[Session] = None,
+            token_id: Optional[int] = None,
+            user_id: Optional[int] = None,
+    ) -> List[dict]:
         """
         Получение списка счетов пользователя
         """
         client = create_tbank_client(token)
-        accounts = await client.get_accounts()
+        try:
+            accounts = await client.get_accounts()
+        except TBankAuthError as e:
+            if db is not None and token_id is not None and user_id is not None:
+                try:
+                    self._expire_token_and_disable_robots(
+                        db,
+                        token_id=int(token_id),
+                        user_id=int(user_id),
+                        error_message=str(e),
+                    )
+                    logger.warning(
+                        "Token expired -> deactivated token_id=%s and disabled robots for user_id=%s",
+                        token_id,
+                        user_id,
+                    )
+                except Exception as deact_exc:
+                    logger.error(
+                        "Failed to deactivate expired token token_id=%s user_id=%s: %s",
+                        token_id,
+                        user_id,
+                        deact_exc,
+                        exc_info=True,
+                    )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(e),
+            )
 
         result = []
         for acc in accounts:
@@ -97,8 +197,8 @@ class TInvestService:
                 "type": utils.safe_str(acc.get("type", "")).replace("ACCOUNT_TYPE_", ""),
                 "name": utils.safe_str(acc.get("name", "")),
                 "status": utils.safe_str(acc.get("status", "")).replace("ACCOUNT_STATUS_", ""),
-                "opened_date": acc.get("openedDate"),
-                "closed_date": acc.get("closedDate"),
+                "opened_date": utils.parse_api_timestamp(acc.get("openedDate")),
+                "closed_date": utils.parse_api_timestamp(acc.get("closedDate")),
                 "access_level": utils.safe_str(acc.get("accessLevel", "")).replace("ACCOUNT_ACCESS_LEVEL_", "")
             })
 
@@ -107,7 +207,11 @@ class TInvestService:
     async def get_portfolio_data(
             self,
             token: str,
-            account_id: Optional[str] = None
+            account_id: Optional[str] = None,
+            *,
+            db: Optional[Session] = None,
+            token_id: Optional[int] = None,
+            user_id: Optional[int] = None,
     ) -> dict:
         """
         Получение данных портфеля
@@ -116,7 +220,12 @@ class TInvestService:
             client = create_tbank_client(token)
 
             # Получаем список счетов
-            accounts = await self.get_accounts(token)
+            accounts = await self.get_accounts(
+                token,
+                db=db,
+                token_id=token_id,
+                user_id=user_id,
+            )
 
             if not accounts:
                 logger.warning("No accounts found for user")
@@ -173,6 +282,32 @@ class TInvestService:
 
         except HTTPException:
             raise
+        except TBankAuthError as e:
+            if db is not None and token_id is not None and user_id is not None:
+                try:
+                    self._expire_token_and_disable_robots(
+                        db,
+                        token_id=int(token_id),
+                        user_id=int(user_id),
+                        error_message=str(e),
+                    )
+                    logger.warning(
+                        "Token expired -> deactivated token_id=%s and disabled robots for user_id=%s",
+                        token_id,
+                        user_id,
+                    )
+                except Exception as deact_exc:
+                    logger.error(
+                        "Failed to deactivate expired token token_id=%s user_id=%s: %s",
+                        token_id,
+                        user_id,
+                        deact_exc,
+                        exc_info=True,
+                    )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(e),
+            )
         except Exception as e:
             logger.error(f"Error in get_portfolio_data: {e}", exc_info=True)
             raise HTTPException(
@@ -206,6 +341,8 @@ class TInvestService:
             if not result:
                 # Создаем новую запись счета
                 insert_account = queries.build_create_account_query()
+                opened_date = utils.parse_api_timestamp(account_data.get("opened_date"))
+                closed_date = utils.parse_api_timestamp(account_data.get("closed_date"))
                 account = self._execute(
                     insert_account,
                     {
@@ -214,7 +351,7 @@ class TInvestService:
                         "account_type": account_data.get("type", ""),
                         "account_name": account_data.get("name", ""),
                         "account_status": account_data.get("status", ""),
-                        "opened_date": account_data.get("opened_date"),
+                        "opened_date": opened_date,
                     },
                     fetch_one=True
                 )
@@ -230,6 +367,8 @@ class TInvestService:
                         "db_account_id": db_account_id,
                         "account_name": account_data.get("name", ""),
                         "account_status": account_data.get("status", ""),
+                        "opened_date": utils.parse_api_timestamp(account_data.get("opened_date")),
+                        "closed_date": utils.parse_api_timestamp(account_data.get("closed_date")),
                         "now": datetime.now(timezone.utc)
                     }
                 )
@@ -244,15 +383,15 @@ class TInvestService:
                     "account_id": db_account_id,
                     "snapshot_date": datetime.utcnow(),
                     "total_amount_portfolio": utils.safe_float(portfolio["total_amount_portfolio"].get("decimal") if portfolio["total_amount_portfolio"] else None),
-                    "total_amount_shares": utils.safe_float(portfolio.get("total_amount_shares", {}).get("decimal")),
-                    "total_amount_bonds": utils.safe_float(portfolio.get("total_amount_bonds", {}).get("decimal")),
-                    "total_amount_etf": utils.safe_float(portfolio.get("total_amount_etf", {}).get("decimal")),
-                    "total_amount_currencies": utils.safe_float(portfolio.get("total_amount_currencies", {}).get("decimal")),
-                    "total_amount_futures": utils.safe_float(portfolio.get("total_amount_futures", {}).get("decimal")),
-                    "total_amount_options": utils.safe_float(portfolio.get("total_amount_options", {}).get("decimal")),
-                    "expected_yield": utils.safe_float(portfolio.get("expected_yield", {}).get("decimal")),
-                    "daily_yield": utils.safe_float(portfolio.get("daily_yield", {}).get("decimal")),
-                    "daily_yield_relative": utils.safe_float(portfolio.get("daily_yield_relative", {}).get("decimal")),
+                    "total_amount_shares": utils.safe_float((portfolio.get("total_amount_shares") or {}).get("decimal")),
+                    "total_amount_bonds": utils.safe_float((portfolio.get("total_amount_bonds") or {}).get("decimal")),
+                    "total_amount_etf": utils.safe_float((portfolio.get("total_amount_etf") or {}).get("decimal")),
+                    "total_amount_currencies": utils.safe_float((portfolio.get("total_amount_currencies") or {}).get("decimal")),
+                    "total_amount_futures": utils.safe_float((portfolio.get("total_amount_futures") or {}).get("decimal")),
+                    "total_amount_options": utils.safe_float((portfolio.get("total_amount_options") or {}).get("decimal")),
+                    "expected_yield": utils.safe_float((portfolio.get("expected_yield") or {}).get("decimal")),
+                    "daily_yield": utils.safe_float((portfolio.get("daily_yield") or {}).get("decimal")),
+                    "daily_yield_relative": utils.safe_float((portfolio.get("daily_yield_relative") or {}).get("decimal")),
                     "currency": portfolio["total_amount_portfolio"]["currency"] if portfolio["total_amount_portfolio"] else "RUB"
                 },
                 fetch_one=True
@@ -307,7 +446,12 @@ class TInvestService:
         active_token_id = active_token.get("id")
 
         # Получаем все счета
-        accounts = await self.get_accounts(token)
+        accounts = await self.get_accounts(
+            token,
+            db=db,
+            token_id=active_token_id,
+            user_id=user_id,
+        )
 
         if not accounts:
             raise HTTPException(
@@ -461,6 +605,7 @@ class TInvestService:
             to_dt: datetime,
             state: str = "OPERATION_STATE_UNSPECIFIED",
             token_id: Optional[int] = None,
+            max_pages: int = 500,
     ) -> Dict[str, Any]:
         self.db = db
         token = None
@@ -501,7 +646,11 @@ class TInvestService:
         payload: Dict[str, Any] = {}
         try:
             payload = await client.get_operations_all_pages(
-                external_account_id, from_dt, to_dt, state=state
+                external_account_id,
+                from_dt,
+                to_dt,
+                state=state,
+                max_pages=max_pages,
             )
             api_finished = datetime.now(timezone.utc)
             page_bodies = payload.pop("pages", [])
@@ -547,6 +696,50 @@ class TInvestService:
             raise
 
         operations = payload.get("operations", []) or []
+        logger.info(
+            "Operations sync: account=%s items=%s pages=%s, writing to DB...",
+            external_account_id,
+            len(operations),
+            payload.get("pageCount"),
+        )
+
+        write_result = self.sync_account_operations_from_items(
+            db=db,
+            user_id=user_id,
+            external_account_id=external_account_id,
+            from_dt=from_dt,
+            to_dt=to_dt,
+            operations=operations,
+            token_id=effective_token_id,
+            pages_fetched=int(payload.get("pageCount") or 0),
+            raw_items_from_api=int(payload.get("rawItemCount") or len(operations)),
+        )
+        return write_result
+
+    def sync_account_operations_from_items(
+            self,
+            db: Session,
+            user_id: int,
+            external_account_id: str,
+            from_dt: datetime,
+            to_dt: datetime,
+            operations: List[Dict[str, Any]],
+            *,
+            token_id: Optional[int] = None,
+            pages_fetched: int = 0,
+            raw_items_from_api: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Broker-neutral persist of operations already fetched by a facade."""
+        self.db = db
+        account_row = self._execute(
+            queries.build_get_account_row_by_external_id_query(),
+            {"external_account_id": external_account_id, "user_id": user_id},
+            fetch_one=True,
+        )
+        if not account_row:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Счет не найден")
+        account_db_id = account_row[0]
+        external_account_id = account_row[1]
 
         # Важно: operation_id у брокера может меняться со временем.
         # Поэтому после успешного получения ответа полностью перезаписываем диапазон.
@@ -559,7 +752,9 @@ class TInvestService:
         saved = 0
         seen_operation_ids: set[str] = set()
         duplicate_operation_ids_skipped = 0
-        for op in operations:
+        for idx, op in enumerate(operations, start=1):
+            if idx % 500 == 0:
+                logger.info("Operations sync: upserted %s/%s", idx, len(operations))
             op_id = str(op.get("id") or "").strip()
             if not op_id:
                 continue
@@ -590,10 +785,18 @@ class TInvestService:
                     "operation_date": datetime.fromisoformat(str(op.get("date")).replace("Z", "+00:00")) if op.get("date") else from_dt,
                     "quantity": float(op.get("quantity") or 0),
                     "quantity_rest": float(op.get("quantityRest") or 0),
-                    "price": self._parse_money_decimal(price),
-                    "price_currency": (price.get("currency") or op.get("currency") or "RUB").upper(),
-                    "payment": self._parse_money_decimal(payment),
-                    "payment_currency": (payment.get("currency") or op.get("currency") or "RUB").upper(),
+                    "price": self._parse_money_decimal(price) if isinstance(price, dict) else float(price or 0),
+                    "price_currency": (
+                        (price.get("currency") if isinstance(price, dict) else None)
+                        or op.get("currency")
+                        or "RUB"
+                    ).upper(),
+                    "payment": self._parse_money_decimal(payment) if isinstance(payment, dict) else float(payment or 0),
+                    "payment_currency": (
+                        (payment.get("currency") if isinstance(payment, dict) else None)
+                        or op.get("currency")
+                        or "RUB"
+                    ).upper(),
                     "commission": None,
                     "commission_currency": None,
                     "status": op.get("state") or "OPERATION_STATE_UNSPECIFIED",
@@ -608,20 +811,20 @@ class TInvestService:
             {
                 "account_id": account_db_id,
                 "now": datetime.now(timezone.utc),
-                "token_id": effective_token_id,
+                "token_id": token_id,
             },
         )
         db.commit()
         return {
             "account_id": account_db_id,
             "external_account_id": external_account_id,
-            "token_id": effective_token_id,
+            "token_id": token_id,
             "from": from_dt.isoformat(),
             "to": to_dt.isoformat(),
             "saved_operations": saved,
             "total_received": len(operations),
-            "pages_fetched": payload.get("pageCount", 0),
-            "raw_items_from_api": payload.get("rawItemCount", len(operations)),
+            "pages_fetched": pages_fetched,
+            "raw_items_from_api": raw_items_from_api if raw_items_from_api is not None else len(operations),
             "duplicate_operation_ids_skipped": duplicate_operation_ids_skipped,
         }
 

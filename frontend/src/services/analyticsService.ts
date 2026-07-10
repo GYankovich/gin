@@ -14,8 +14,10 @@ import type {
 import type { RobotMetricsResponse, UserRobotsTradingOverview } from '@/types/robot'
 
 export const analyticsService = {
-    async getSummary(): Promise<OverallSummary> {
-        const { data } = await api.get<OverallSummary>('/analytics/summary')
+    async getSummary(includeInactive = false): Promise<OverallSummary> {
+        const { data } = await api.get<OverallSummary>('/analytics/summary', {
+            params: includeInactive ? { include_inactive: true } : undefined,
+        })
         return data
     },
 

@@ -5,9 +5,10 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 
-from app.core.database import SessionLocal
+from app.core.database import SessionLocal, try_dispose_pool_on_connectivity_error
 from app.core.config import settings
 from app.core.logging_config import get_logger
+from app.core.scheduler_utils import scheduler_startup_delay
 from app.modules.dms.service import dms_service
 from sqlalchemy import text
 
@@ -22,6 +23,7 @@ class DmsScheduler:
         self._last_cleanup_day: Optional[str] = None
 
     async def _run_loop(self):
+        await scheduler_startup_delay("dms")
         system_log.info("DMS scheduler started, interval=%ss", self.interval_seconds)
         while self.running:
             cycle_start = datetime.now(timezone.utc)
@@ -73,6 +75,7 @@ class DmsScheduler:
                 break
             except Exception as e:
                 system_log.error("DMS scheduler cycle error: %s", e)
+                try_dispose_pool_on_connectivity_error(e)
             finally:
                 db.close()
 

@@ -782,7 +782,7 @@ class AnalyticsService:
             SELECT
                 COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_INPUT' THEN payment ELSE 0 END), 0)
                 -
-                COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_OUTPUT' THEN payment ELSE 0 END), 0)
+                COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_OUTPUT' THEN ABS(payment) ELSE 0 END), 0)
             FROM ganaly.portfolio_operations
             WHERE account_id = :account_id
         """
@@ -834,7 +834,7 @@ class AnalyticsService:
             SELECT
                 COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_INPUT' THEN payment ELSE 0 END), 0)
                 -
-                COALESCE(abs(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_OUTPUT' THEN payment ELSE 0 END)), 0)
+                COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_OUTPUT' THEN ABS(payment) ELSE 0 END), 0)
             FROM ganaly.portfolio_operations
             WHERE account_id = :account_id
               AND operation_date < :from_date

@@ -152,5 +152,5 @@ def build_get_token_query() -> str:
     return """
            SELECT id, token, user_id
            FROM {schema}.api_tokens
-           WHERE id = :token_id AND is_active = 1 \
+           WHERE id = :token_id AND status = 1 \
            """

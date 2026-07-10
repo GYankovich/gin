@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import InterfaceError, OperationalError, SQLAlchemyError
 from contextlib import contextmanager
 from typing import Generator
 import logging
@@ -94,8 +94,8 @@ def receive_checkout(dbapi_connection, connection_record, connection_proxy):
 engine = create_engine(
     settings.DATABASE_URL,
     echo=False,
-    pool_size=5,
-    max_overflow=10,
+    pool_size=int(settings.DB_POOL_SIZE),
+    max_overflow=int(settings.DB_MAX_OVERFLOW),
     pool_pre_ping=True,  # ВАЖНО: проверяет соединение перед использованием
     pool_recycle=3600,   # Пересоздавать соединения через 1 час (предотвращает таймауты)
     pool_timeout=30,     # Таймаут ожидания соединения из пула
@@ -110,6 +110,51 @@ SessionLocal = sessionmaker(
 
 # Базовый класс для моделей
 Base = declarative_base()
+
+
+def looks_like_connectivity_error(exc: BaseException) -> bool:
+    """
+    True для обрыва TCP/маршрута/DNS к PostgreSQL (и похожих), чтобы сбросить пул соединений.
+    Не использовать для «логических» ошибок SQL.
+    """
+    if isinstance(exc, (OperationalError, InterfaceError)):
+        return True
+    cur: BaseException | None = exc
+    seen: set[int] = set()
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        msg = str(cur).lower()
+        if any(
+            token in msg
+            for token in (
+                "network is unreachable",
+                "connection refused",
+                "could not connect to server",
+                "connection timed out",
+                "timeout expired",
+                "connection reset",
+                "server closed the connection",
+                "lost connection to",
+                "no route to host",
+            )
+        ):
+            return True
+        cur = cur.__cause__ or getattr(cur, "orig", None)
+    return False
+
+
+def try_dispose_pool_on_connectivity_error(exc: BaseException) -> None:
+    """
+    После длительного обрыва сети к БД в пуле могут остаться мёртвые сокеты; dispose()
+    закрывает все соединения — следующий checkout откроет новые (когда маршрут снова доступен).
+    """
+    if not looks_like_connectivity_error(exc):
+        return
+    try:
+        logger.warning("SQLAlchemy pool dispose after DB connectivity error: %s", exc)
+        engine.dispose()
+    except Exception as sub:  # noqa: BLE001
+        logger.warning("engine.dispose after connectivity error failed: %s", sub)
 
 
 # ============================================================
@@ -131,6 +176,7 @@ def get_db() -> Generator[Session, None, None]:
         except SQLAlchemyError as rb_err:
             # Соединение могло быть уже разорвано (например, после сетевой ошибки во время запроса).
             logger.warning(f"Database rollback failed: {rb_err}")
+        try_dispose_pool_on_connectivity_error(e)
         raise
     finally:
         db.close()
@@ -148,7 +194,11 @@ def get_db_context():
         yield db
     except Exception as e:
         logger.error(f"Database context error: {str(e)}")
-        db.rollback()
+        try:
+            db.rollback()
+        except SQLAlchemyError:
+            pass
+        try_dispose_pool_on_connectivity_error(e)
         raise
     finally:
         db.close()

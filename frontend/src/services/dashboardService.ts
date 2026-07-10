@@ -6,7 +6,7 @@ import type { DashboardDataResponse } from '@/types/api'
 
 export type DashboardSortColumn =
     | 'account_name'
-    | 'total_value'
+    | 'value'
     | 'own_funds'
     | 'day_over_day_delta'
     | 'last_account_sync'
@@ -16,11 +16,21 @@ export interface DashboardSortItem {
     sortType: 'asc' | 'desc'
 }
 
+export interface DashboardVisibilityItem {
+    account_id: number
+    hidden: boolean
+}
+
 export const dashboardService = {
     async fetchData(sort?: DashboardSortItem[]): Promise<DashboardDataResponse> {
         const { data } = await api.post<DashboardDataResponse>('/dashboard/data', {
             sort: sort ?? [{ columnName: 'account_name', sortType: 'asc' }],
         })
+        return data
+    },
+
+    async updateVisibility(accounts: DashboardVisibilityItem[]): Promise<{ updated: number }> {
+        const { data } = await api.post<{ updated: number }>('/dashboard/visibility', { accounts })
         return data
     },
 }

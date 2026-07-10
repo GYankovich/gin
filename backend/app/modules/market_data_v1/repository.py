@@ -307,6 +307,27 @@ def fail_job(db: Session, job_id: UUID, error: str) -> None:
     )
 
 
+def fail_stale_running_jobs(db: Session, *, stale_seconds: int) -> int:
+    """Пометить зависшие running candle_load_jobs как failed (нет progress дольше stale_seconds)."""
+    if stale_seconds <= 0:
+        return 0
+    row = db.execute(
+        text(f"""
+            UPDATE {_schema()}.candle_load_jobs
+            SET status = 'failed',
+                error = COALESCE(error, 'stale running job timeout'),
+                message = 'failed (stale timeout)',
+                finished_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE status = 'running'
+              AND COALESCE(updated_at, started_at, created_at)
+                  < (CURRENT_TIMESTAMP - make_interval(secs => :stale_seconds))
+        """),
+        {"stale_seconds": int(stale_seconds)},
+    )
+    return int(row.rowcount or 0)
+
+
 def list_candles(
         db: Session,
         *,

@@ -9,14 +9,18 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.core.database import SessionLocal
+from app.core.config import settings
+from app.core.database import SessionLocal, try_dispose_pool_on_connectivity_error
 from app.core.logging_config import get_logger
+from app.core.scheduler_utils import scheduler_startup_delay
 from app.modules.market_data_v1 import repository
 from app.modules.market_data_v1 import gaps as gap_util
 from app.modules.market_data_v1.intervals import moex_interval_code
 from app.modules.market_data_v1.moex_fetch import fetch_moex_candles_range
 
 system_log = get_logger("market_data_v1.scheduler")
+STALE_RUNNING_TIMEOUT_SECONDS = 20 * 60
+_last_stale_sweep_monotonic: float = 0.0
 
 
 def _utc(dt: datetime) -> datetime:
@@ -155,9 +159,27 @@ async def run_one_queued_job() -> bool:
     Забирает один `queued` job, исполняет до конца или `failed`.
     Возвращает True, если job был взят в работу (включая завершение с ошибкой по тикеру).
     """
+    global _last_stale_sweep_monotonic
     db = SessionLocal()
     job: Optional[Dict[str, Any]] = None
     try:
+        now_m = time.monotonic()
+        sweep_iv = float(settings.CANDLE_LOAD_SCHEDULER_STALE_SWEEP_INTERVAL_SECONDS)
+        stale_failed = 0
+        if _last_stale_sweep_monotonic == 0.0 or (now_m - _last_stale_sweep_monotonic) >= sweep_iv:
+            stale_failed = repository.fail_stale_running_jobs(
+                db,
+                stale_seconds=STALE_RUNNING_TIMEOUT_SECONDS,
+            )
+            _last_stale_sweep_monotonic = time.monotonic()
+            if stale_failed:
+                system_log.warning(
+                    "candle jobs stale timeout: failed %s running jobs older than %ss",
+                    stale_failed,
+                    STALE_RUNNING_TIMEOUT_SECONDS,
+                )
+                db.commit()
+
         job = repository.claim_next_queued_job(db)
         if not job:
             db.rollback()
@@ -165,6 +187,7 @@ async def run_one_queued_job() -> bool:
         db.commit()
     except Exception as e:
         system_log.error("claim candle job failed: %s", e)
+        try_dispose_pool_on_connectivity_error(e)
         db.rollback()
         return False
     finally:
@@ -178,6 +201,7 @@ async def run_one_queued_job() -> bool:
         await process_claimed_job(db2, job)
     except Exception as e:
         system_log.exception("process candle job %s: %s", job.get("id"), e)
+        try_dispose_pool_on_connectivity_error(e)
         try:
             repository.fail_job(db2, job["id"], str(e))
             db2.commit()
@@ -193,9 +217,10 @@ class CandleLoadScheduler:
     def __init__(self) -> None:
         self.running = False
         self.task: Optional[asyncio.Task] = None
-        self.poll_seconds = 2.0
+        self.poll_seconds = 20.0
 
     async def _loop(self) -> None:
+        await scheduler_startup_delay("candle_load")
         system_log.info("candle_load scheduler started, poll=%ss", self.poll_seconds)
         while self.running:
             try:
@@ -206,6 +231,7 @@ class CandleLoadScheduler:
                 break
             except Exception as e:
                 system_log.error("candle_load scheduler cycle: %s", e)
+                try_dispose_pool_on_connectivity_error(e)
                 await asyncio.sleep(self.poll_seconds)
         system_log.info("candle_load scheduler stopped")
 
@@ -213,6 +239,7 @@ class CandleLoadScheduler:
         if self.running:
             return
         self.running = True
+        self.poll_seconds = float(settings.CANDLE_LOAD_SCHEDULER_POLL_SECONDS)
         self.task = asyncio.create_task(self._loop())
 
     async def stop(self) -> None:

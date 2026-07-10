@@ -13,6 +13,22 @@ from app.core.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+CANDLE_INTERVAL_TO_WS: Dict[str, str] = {
+    "CANDLE_INTERVAL_1_MIN": "SUBSCRIPTION_INTERVAL_ONE_MINUTE",
+    "CANDLE_INTERVAL_2_MIN": "SUBSCRIPTION_INTERVAL_2_MIN",
+    "CANDLE_INTERVAL_3_MIN": "SUBSCRIPTION_INTERVAL_3_MIN",
+    "CANDLE_INTERVAL_5_MIN": "SUBSCRIPTION_INTERVAL_FIVE_MINUTES",
+    "CANDLE_INTERVAL_10_MIN": "SUBSCRIPTION_INTERVAL_TEN_MINUTES",
+    "CANDLE_INTERVAL_15_MIN": "SUBSCRIPTION_INTERVAL_FIFTEEN_MINUTES",
+    "CANDLE_INTERVAL_30_MIN": "SUBSCRIPTION_INTERVAL_30_MIN",
+    "CANDLE_INTERVAL_HOUR": "SUBSCRIPTION_INTERVAL_ONE_HOUR",
+    "CANDLE_INTERVAL_2_HOUR": "SUBSCRIPTION_INTERVAL_2_HOUR",
+    "CANDLE_INTERVAL_4_HOUR": "SUBSCRIPTION_INTERVAL_4_HOUR",
+    "CANDLE_INTERVAL_DAY": "SUBSCRIPTION_INTERVAL_ONE_DAY",
+    "CANDLE_INTERVAL_WEEK": "SUBSCRIPTION_INTERVAL_WEEK",
+    "CANDLE_INTERVAL_MONTH": "SUBSCRIPTION_INTERVAL_MONTH",
+}
+
 
 class PriceStreamManager:
     """Менеджер WebSocket для получения цен в реальном времени"""
@@ -26,6 +42,7 @@ class PriceStreamManager:
 
         # Подписки и колбэки
         self._subscribed_figis: set = set()
+        self._subscribed_candle_figis: Dict[str, str] = {}
         self._callbacks: Dict[str, List[Callable]] = {}
 
         # Кэш последних цен
@@ -102,33 +119,69 @@ class PriceStreamManager:
             self.connected = False
             await self.connect()
             await self.websocket.send(json.dumps(subscribe_msg))
-
-        try:
-            response = await asyncio.wait_for(self.websocket.recv(), timeout=10)
-            response_data = json.loads(response)
-
-            if "subscribeLastPriceResponse" in response_data:
-                subs = response_data["subscribeLastPriceResponse"].get("lastPriceSubscriptions", [])
-                for sub in subs:
-                    figi = sub.get("figi")
-                    status = sub.get("subscriptionStatus", "UNKNOWN")
-                    result[figi] = status
-                    if status == "SUBSCRIPTION_STATUS_SUCCESS":
-                        self._subscribed_figis.add(figi)
-                        logger.info(f"✅ Subscribed to {figi}")
-                    else:
-                        logger.warning(f"❌ Failed to subscribe to {figi}: {status}")
-
-        except asyncio.TimeoutError:
-            logger.error("Timeout waiting for subscription response")
-            for figi in new_figis:
-                result[figi] = "TIMEOUT"
-        except Exception as e:
-            logger.error(f"Error during subscription: {e}")
-            for figi in new_figis:
-                result[figi] = f"ERROR: {e}"
+        # В глобальном менеджере уже есть фоновый receiver_loop с websocket.recv().
+        # Здесь не читаем recv(), чтобы не создавать конкурентный доступ к одному WS-сокету.
+        for figi in new_figis:
+            self._subscribed_figis.add(figi)
+            result[figi] = "SUBSCRIBE_SENT"
+            logger.info("Subscribe sent for %s", figi)
 
         return result
+
+    async def subscribe_candles(self, figis: List[str], interval: str) -> Dict[str, str]:
+        """Подписка на поток свечей T-Bank MarketDataStream."""
+        result: Dict[str, str] = {}
+        if not self.connected or not self.websocket:
+            await self.connect()
+
+        ws_interval = CANDLE_INTERVAL_TO_WS.get(interval)
+        if not ws_interval:
+            return {f: f"UNSUPPORTED_INTERVAL:{interval}" for f in figis}
+
+        new_figis = [
+            f for f in figis
+            if f not in self._subscribed_candle_figis or self._subscribed_candle_figis.get(f) != interval
+        ]
+        if not new_figis:
+            return {f: "ALREADY_SUBSCRIBED" for f in figis}
+
+        instruments = [{"figi": figi, "interval": ws_interval} for figi in new_figis]
+        subscribe_msg = {
+            "subscribeCandlesRequest": {
+                "subscriptionAction": "SUBSCRIPTION_ACTION_SUBSCRIBE",
+                "instruments": instruments,
+            }
+        }
+
+        logger.info("Subscribing candles %s figis interval=%s", len(new_figis), interval)
+        try:
+            await self.websocket.send(json.dumps(subscribe_msg))
+        except Exception as e:
+            logger.warning("Candle subscribe send failed, reconnecting: %s", e)
+            self.connected = False
+            await self.connect()
+            await self.websocket.send(json.dumps(subscribe_msg))
+        # В глобальном менеджере recv() делает только receiver_loop.
+        # Отмечаем подписку как отправленную и ждём реальные candle-ивенты в потоке.
+        for figi in new_figis:
+            self._subscribed_candle_figis[figi] = interval
+            result[figi] = "SUBSCRIBE_SENT"
+            logger.info("Candle subscribe sent figi=%s interval=%s", figi, interval)
+
+        return result
+
+    @staticmethod
+    def ws_candle_to_api_dict(candle_data: dict) -> dict:
+        """Нормализует WS-свечу в формат REST/strategy."""
+        return {
+            "time": candle_data.get("time"),
+            "open": candle_data.get("open"),
+            "high": candle_data.get("high"),
+            "low": candle_data.get("low"),
+            "close": candle_data.get("close"),
+            "volume": int(candle_data.get("volume", 0) or 0),
+            "isComplete": bool(candle_data.get("isComplete", False)),
+        }
 
     def on_price(self, figi: str, callback: Callable):
         """Регистрирует колбэк на обновление цены"""
@@ -215,7 +268,10 @@ class PriceStreamManager:
         if self.websocket:
             try:
                 await self.websocket.close()
-            except:
+            except Exception:
                 pass
+        self.websocket = None
         self.connected = False
+        self._subscribed_figis.clear()
+        self._subscribed_candle_figis.clear()
         logger.info("WebSocket closed")

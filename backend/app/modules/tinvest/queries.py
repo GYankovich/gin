@@ -15,7 +15,7 @@ def build_get_user_token_query() -> str:
                  WHERE table_name = 'TOKEN' AND column_name = 'TYPE' AND string_value = 'tinvest'
                  LIMIT 1
              )
-             AND is_active = 1
+             AND status = 1
            ORDER BY created_at DESC
                LIMIT 1 \
            """
@@ -25,7 +25,7 @@ def build_get_user_tokens_query(active_only: bool = True) -> str:
     """
     Запрос списка токенов пользователя (тип tinvest из справочника).
     """
-    active_clause = " AND is_active = 1" if active_only else ""
+    active_clause = " AND status = 1" if active_only else ""
     return f"""
                  SELECT
                      id,
@@ -33,7 +33,7 @@ def build_get_user_tokens_query(active_only: bool = True) -> str:
                      token_type,
                      token,
                      name,
-                     is_active,
+                     status,
                      created_at,
                      updated_at,
                      last_used_at,
@@ -59,11 +59,12 @@ def build_get_token_by_id_query() -> str:
                token_type,
                token,
                name,
-               is_active,
+               status,
                created_at,
                updated_at,
                last_used_at,
-               expires_at
+               expires_at,
+               extra_data
            FROM ganaly.api_tokens
            WHERE id = :token_id AND user_id = :user_id \
            """
@@ -73,7 +74,7 @@ def build_check_token_exists_query() -> str:
     """Проверка существования токена"""
     return """
            SELECT id FROM ganaly.api_tokens
-           WHERE user_id = :user_id AND token = :token AND is_active = 1 \
+           WHERE user_id = :user_id AND token = :token AND status = 1 \
            """
 
 
@@ -81,11 +82,11 @@ def build_create_token_query() -> str:
     """Создание нового токена"""
     return """
            INSERT INTO ganaly.api_tokens
-               (user_id, token_type, token, name, is_active, created_at)
+               (user_id, token_type, token, name, status, created_at)
            VALUES
                (:user_id, :token_type, :token, :token_name, 1, :created_at)
                RETURNING
-            id, user_id, token_type, token, token_name, is_active, created_at \
+            id, user_id, token_type, token, token_name, status, created_at \
            """
 
 
@@ -98,12 +99,12 @@ def build_update_token_query(fields: List[str]) -> tuple[str, Dict[str, Any]]:
                  SET {updates}, updated_at = :now
                  WHERE id = :token_id AND user_id = :user_id
                      RETURNING
-                     id, user_id, token_type, token, token_name, is_active, created_at, updated_at, last_used_at, expires_at \
+                    id, user_id, token_type, token, token_name, status, created_at, updated_at, last_used_at, expires_at \
                  """
 
     field_mapping = {
         "token_name": "token_name = :token_name",
-        "is_active": "is_active = :is_active"
+        "status": "status = :status"
     }
 
     updates = [field_mapping[f] for f in fields if f in field_mapping]
@@ -160,11 +161,13 @@ def build_create_account_query() -> str:
 
 
 def build_update_account_query() -> str:
-    """Обновление счета"""
+    """Обновление счета (opened_date заполняется, если в БД ещё NULL)."""
     return """
            UPDATE ganaly.portfolio_accounts
            SET account_name = :account_name,
                account_status = :account_status,
+               opened_date = COALESCE(opened_date, :opened_date),
+               closed_date = COALESCE(closed_date, :closed_date),
                updated_at = :now
            WHERE id = :db_account_id \
            """

@@ -160,12 +160,26 @@ class MarketSnapshotData(Base):
 class CandleCache(Base):
     __tablename__ = "candles_cache"
     __table_args__ = (
-        UniqueConstraint("ticker", "interval", "candle_time", name="uq_candles_cache_ticker_interval_time"),
-        Index("idx_candles_ticker_interval_time", "ticker", "interval", "candle_time"),
+        UniqueConstraint(
+            "market",
+            "instrument_id",
+            "interval",
+            "candle_time",
+            name="uq_candles_cache_market_instrument_interval_time",
+        ),
+        Index(
+            "idx_candles_market_instrument_interval_time",
+            "market",
+            "instrument_id",
+            "interval",
+            "candle_time",
+        ),
         {"schema": SCHEMA},
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
+    market = Column(String(16), nullable=False, default="moex")
+    instrument_id = Column(String(64), nullable=False)
     ticker = Column(String(20), nullable=False)
     interval = Column(String(10), nullable=False)
     candle_time = Column(DateTime(timezone=True), nullable=False)
@@ -174,6 +188,7 @@ class CandleCache(Base):
     low = Column(Numeric(12, 4), nullable=True)
     close = Column(Numeric(12, 4), nullable=True)
     volume = Column(BigInteger, nullable=True)
+    source = Column(String(32), nullable=False, default="legacy_moex")
     updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
 
@@ -200,4 +215,27 @@ class DailyUniverse(Base):
     atr_value = Column(Numeric(12, 4), nullable=True)
     gap_percent = Column(Numeric(6, 3), nullable=True)
     applied_filters = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class CryptoUniverseDaily(Base):
+    __tablename__ = "crypto_universe_daily"
+    __table_args__ = (
+        UniqueConstraint("robot_id", "trade_date", "symbol", name="uq_crypto_universe_daily_robot_date_symbol"),
+        Index("idx_crypto_universe_daily_robot_date", "robot_id", "trade_date"),
+        Index("idx_crypto_universe_daily_result", "filter_result"),
+        {"schema": SCHEMA},
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    trade_date = Column(Date, nullable=False)
+    symbol = Column(String(32), nullable=False)
+    source = Column(String(30), nullable=False, default="crypto_screening")
+    filter_result = Column(String(20), nullable=True)
+    reject_reason = Column(Text, nullable=True)
+    turnover_24h = Column(Numeric(20, 4), nullable=True)
+    last_price = Column(Numeric(20, 8), nullable=True)
+    spread_percent = Column(Numeric(10, 6), nullable=True)
+    meta_payload = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)

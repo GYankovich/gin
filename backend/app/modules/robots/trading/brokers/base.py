@@ -18,6 +18,11 @@ class BrokerFacade(ABC):
     def cache_namespace(self) -> str:
         raise NotImplementedError
 
+    @property
+    @abstractmethod
+    def auth_token(self) -> str:
+        raise NotImplementedError
+
     @abstractmethod
     async def get_accounts(self) -> List[Dict[str, Any]]:
         raise NotImplementedError
@@ -25,6 +30,21 @@ class BrokerFacade(ABC):
     @abstractmethod
     async def get_portfolio(self, account_id: str) -> Dict[str, Any]:
         raise NotImplementedError
+
+    async def get_operations(
+        self,
+        account_id: str,
+        from_dt: datetime,
+        to_dt: datetime,
+        *,
+        max_pages: int = 10,
+    ) -> List[Dict[str, Any]]:
+        """Broker operations in T-Invest-compatible shape for portfolio_operations upsert.
+
+        Default: no operations (stubs / brokers without history).
+        """
+        _ = (account_id, from_dt, to_dt, max_pages)
+        return []
 
     @abstractmethod
     async def get_free_funds(self, account_id: str) -> float:
@@ -78,7 +98,7 @@ class BrokerFacade(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def subscribe_prices(self, user_id: int, figis: List[str], queue) -> Dict[str, str]:
+    async def subscribe_prices(self, user_id: int, figis: List[str], queue, candle_interval: Optional[str] = None) -> Dict[str, str]:
         raise NotImplementedError
 
     @abstractmethod
@@ -92,6 +112,9 @@ class BrokerFacade(ABC):
     @abstractmethod
     async def close_websocket(self, user_id: int, queue=None) -> None:
         raise NotImplementedError
+
+    async def force_resubscribe_websocket(self, user_id: int) -> bool:
+        return False
 
     @abstractmethod
     async def close(self) -> None:

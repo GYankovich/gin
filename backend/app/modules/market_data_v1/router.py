@@ -17,6 +17,8 @@ from app.modules.market_data_v1.schemas import (
     CandleLoadJobCreateResponse,
     CandleLoadJobStatus,
     CandlesQueryResponse,
+    CandleCoverageSummaryResponse,
+    TqbrSearchResponse,
 )
 
 router = APIRouter(prefix="/v1/market-data", tags=["market-data-v1"])
@@ -69,3 +71,50 @@ def get_candles(
         from_ts=from_,
         to_ts=to,
     )
+
+
+@router.get("/candles/coverage-summary", response_model=CandleCoverageSummaryResponse)
+def get_candles_coverage_summary(
+        tickers: List[str] = Query(..., description="Тикеры TQBR"),
+        board: str = Query(default="TQBR"),
+        interval: str = Query(...),
+        from_: datetime = Query(..., alias="from"),
+        to: datetime = Query(...),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    _ = current_user
+    return service.coverage_summary(
+        db,
+        tickers=tickers,
+        board=board.strip().upper() or "TQBR",
+        interval=interval,
+        from_ts=from_,
+        to_ts=to,
+    )
+
+
+@router.get("/tqbr-securities/bulk", response_model=TqbrSearchResponse)
+def list_tqbr_securities_bulk(
+        limit: int = Query(
+            default=12_000,
+            ge=1,
+            le=20_000,
+            description="Максимум строк из tqbr_securities (полный список для UI)",
+        ),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    _ = current_user
+    return service.list_tqbr_bulk(db, limit=limit)
+
+
+@router.get("/tqbr-securities", response_model=TqbrSearchResponse)
+def search_tqbr_securities(
+        q: str = Query(..., min_length=1, description="Префикс SECID"),
+        limit: int = Query(default=50, ge=1, le=200),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    _ = current_user
+    return service.search_tqbr(db, prefix=q, limit=limit)

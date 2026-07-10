@@ -88,6 +88,31 @@ def fetch_candles_range(
     }).fetchall()
 
 
+def count_candles_in_range(
+        db: Session,
+        schema: str,
+        figi: str,
+        interval: str,
+        from_dt: datetime,
+        to_dt: datetime,
+) -> int:
+    sql = text(f"""
+        SELECT COUNT(*)::bigint
+        FROM {schema}.market_candles
+        WHERE figi = :figi
+          AND candle_interval = :interval
+          AND candle_time >= :from_dt
+          AND candle_time <= :to_dt
+    """)
+    row = db.execute(sql, {
+        "figi": figi,
+        "interval": interval,
+        "from_dt": from_dt,
+        "to_dt": to_dt,
+    }).scalar()
+    return int(row or 0)
+
+
 def fetch_coverage_bounds(
         db: Session,
         schema: str,

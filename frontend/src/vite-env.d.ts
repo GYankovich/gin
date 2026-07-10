@@ -5,6 +5,10 @@
 
 interface ImportMetaEnv {
     readonly VITE_API_BASE: string
+    /** @deprecated T6.1 — refactored UI is default; use `VITE_TESTING_LEGACY=true` to force legacy. */
+    readonly VITE_TESTING_REFACTOR?: string
+    /** T6.1 — when `true`, `/testing` uses legacy `useTestingPage` controller. */
+    readonly VITE_TESTING_LEGACY?: string
 }
 
 interface ImportMeta {

@@ -73,19 +73,12 @@ export function buildPipelineFiltersPayload(filters: PipelineFilter[]) {
     }))
 }
 
-/** Нормализация enum интервала свечей (T-Invest стиль) для API. */
+import { normalizeStrategyInterval } from '@/pages/testing/strategyIntervals'
+import { moexTestingPipelineFromPreset } from '@/modules/robots/config/universeFilterPresets'
+
+/** Нормализация enum интервала свечей для MOEX (T-Invest). Для crypto — normalizeStrategyInterval(..., 'crypto'). */
 export function normalizeSignalInterval(value: string | null | undefined): string {
-    const v = String(value || '').toUpperCase()
-    if (!v) return 'CANDLE_INTERVAL_10_MIN'
-    if (v.includes('5_MIN')) return 'CANDLE_INTERVAL_5_MIN'
-    if (v.includes('1_MIN')) return 'CANDLE_INTERVAL_1_MIN'
-    if (v.includes('10_MIN')) return 'CANDLE_INTERVAL_10_MIN'
-    if (v.includes('HOUR') || v.includes('60')) return 'CANDLE_INTERVAL_HOUR'
-    if (v.includes('WEEK') || v.includes('INTERVAL_7')) return 'CANDLE_INTERVAL_WEEK'
-    if (v.includes('MONTH') || v.includes('INTERVAL_31')) return 'CANDLE_INTERVAL_MONTH'
-    if (v.includes('QUARTER') || v.includes('INTERVAL_4')) return 'CANDLE_INTERVAL_QUARTER'
-    if (v.includes('DAY') || v.includes('24')) return 'CANDLE_INTERVAL_DAY'
-    return 'CANDLE_INTERVAL_10_MIN'
+    return normalizeStrategyInterval(value, 'moex')
 }
 
 /**
@@ -94,13 +87,21 @@ export function normalizeSignalInterval(value: string | null | undefined): strin
  */
 export function suggestedMoexIntervalForSignal(signalInterval: string): MoexCacheInterval {
     const v = String(signalInterval || '').toUpperCase()
-    if (v.includes('1_MIN') && !v.includes('10_MIN')) return '1m'
-    if (v.includes('5_MIN')) return '10m'
-    if (v.includes('10_MIN')) return '10m'
+    if (v.includes('1_MIN') && !v.includes('10_MIN') && !v.includes('15_MIN') && !v.includes('30_MIN')) {
+        return '1m'
+    }
+    if (v.includes('5_MIN') || v.includes('2_MIN') || v.includes('3_MIN')) return '10m'
+    if (v.includes('10_MIN') || v.includes('15_MIN')) return '10m'
+    if (v.includes('30_MIN')) return '10m'
+    if (v.includes('2_HOUR') || v.includes('4_HOUR')) return '1h'
     if (v.includes('HOUR') || v.includes('60')) return '1h'
     if (v.includes('DAY') || v.includes('24')) return '1d'
-    if (v.includes('WEEK') || v.includes('INTERVAL_7')) return '1w'
-    if (v.includes('MONTH') || v.includes('INTERVAL_31')) return '1M'
-    if (v.includes('QUARTER') || v.includes('INTERVAL_4')) return '1M'
+    if (v.includes('WEEK')) return '1w'
+    if (v.includes('MONTH')) return '1M'
     return '10m'
+}
+
+/** Стартовый конвейер для grain_seed на странице «Тестирование» — пресет «Умеренная». */
+export function createDefaultTestingPipelineFilters(): PipelineFilter[] {
+    return moexTestingPipelineFromPreset('moderate').filters
 }

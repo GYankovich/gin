@@ -1,11 +1,12 @@
 #///EPIC Modules.ITEM Module.TOPIC BackendAppModulesTinvestMethodsInstruments [1]
 #/// Исходный модуль `backend/app/modules/tinvest/methods/instruments.py` — автоматическая разметка для Obsidian Source Scanner.
 
-import httpx
 import logging
 import uuid
 from typing import List, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+from app.modules.tinvest.http_client import post_with_transport_recovery
 logger = logging.getLogger(__name__)
 
 
@@ -23,20 +24,26 @@ class InstrumentsClient:
     async def _request(self, endpoint: str, data: dict = None) -> dict:
         """Базовый POST-запрос к API Т-Банка"""
         url = f"{self.BASE_URL}/{endpoint}"
-        # async with httpx.AsyncClient() as client:
-        async with httpx.AsyncClient(verify=False, timeout=30) as client:
-            try:
-                response = await client.post(url, json=data, headers=self.headers, timeout=30)
-                if response.status_code != 200:
-                    error_text = response.text
-                    logger.error(f"API error {response.status_code}: {error_text}")
-                    raise Exception(f"API error: {error_text}")
-                return response.json()
-            except httpx.TimeoutException:
-                raise Exception("Timeout connecting to T-Bank API")
-            except Exception as e:
-                logger.error(f"Request failed: {e}")
-                raise
+        try:
+            response = await post_with_transport_recovery(
+                url,
+                headers=self.headers,
+                json=data,
+                timeout=30.0,
+                token=self.token,
+            )
+        except Exception as e:
+            raise Exception(f"Network error connecting to T-Bank API: {e}") from e
+        if response.status_code != 200:
+            error_text = (response.text or "").strip()
+            if not error_text:
+                try:
+                    error_text = str(response.json())
+                except Exception:
+                    error_text = f"<empty body>, status={response.status_code}"
+            logger.error("T-Bank API error %s: %s", response.status_code, error_text)
+            raise Exception(f"API error [{response.status_code}]: {error_text}")
+        return response.json()
 
     async def get_shares(self) -> List[Dict]:
         """Получить список акций"""
@@ -64,23 +71,99 @@ class InstrumentsClient:
 
     async def get_candles(self, figi: str, from_date: datetime, to_date: datetime, interval: str = "CANDLE_INTERVAL_DAY") -> List[Dict]:
         """Получить свечи по инструменту"""
-        # Форматируем даты в ISO 8601 с Z (UTC)
+        from_u = self._as_utc(from_date)
+        to_u = self._as_utc(to_date)
+        if from_u >= to_u:
+            return []
+        return await self._get_candles_chunked(figi, from_u, to_u, interval)
+
+    @staticmethod
+    def _as_utc(dt: datetime) -> datetime:
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
+    async def _get_candles_once(self, figi: str, from_date: datetime, to_date: datetime, interval: str) -> List[Dict]:
         from_str = from_date.strftime("%Y-%m-%dT%H:%M:%SZ")
         to_str = to_date.strftime("%Y-%m-%dT%H:%M:%SZ")
-
         data = {
             "figi": figi,
             "from": from_str,
             "to": to_str,
-            "interval": interval
+            "interval": interval,
         }
-        logger.debug(f"Requesting candles for {figi} from {from_str} to {to_str}")
-
+        logger.debug("Requesting candles for %s from %s to %s", figi, from_str, to_str)
         result = await self._request(
             "tinkoff.public.invest.api.contract.v1.MarketDataService/GetCandles",
-            data
+            data,
         )
         return result.get("candles", [])
+
+    @staticmethod
+    def _is_range_too_large_error(error: Exception) -> bool:
+        message = str(error).lower()
+        return ("30014" in message) or ("maximum request period" in message)
+
+    @staticmethod
+    def _is_bad_request_error(error: Exception) -> bool:
+        return '"code":4' in str(error).replace(" ", "").lower()
+
+    async def _get_candles_chunked(
+        self,
+        figi: str,
+        from_date: datetime,
+        to_date: datetime,
+        interval: str,
+        depth: int = 0,
+    ) -> List[Dict]:
+        """
+        Для ошибки 30014 (слишком большой период) автоматически дробит диапазон.
+        """
+        if depth > 24:
+            logger.warning(
+                "Candle chunk recursion depth exceeded for figi=%s interval=%s range=%s..%s",
+                figi, interval, from_date.isoformat(), to_date.isoformat(),
+            )
+            return []
+        try:
+            return await self._get_candles_once(figi, from_date, to_date, interval)
+        except Exception as e:
+            is_too_large = self._is_range_too_large_error(e)
+            is_bad_request = self._is_bad_request_error(e)
+            if not is_too_large and not is_bad_request:
+                raise
+            if (to_date - from_date) <= timedelta(minutes=1):
+                if is_bad_request:
+                    logger.warning(
+                        "Skipping tiny bad candle chunk figi=%s interval=%s range=%s..%s error=%s",
+                        figi, interval, from_date.isoformat(), to_date.isoformat(), e,
+                    )
+                    return []
+                raise
+
+            middle = from_date + (to_date - from_date) / 2
+            if middle <= from_date or middle >= to_date:
+                if is_bad_request:
+                    logger.warning(
+                        "Skipping invalid candle chunk split figi=%s interval=%s range=%s..%s error=%s",
+                        figi, interval, from_date.isoformat(), to_date.isoformat(), e,
+                    )
+                    return []
+                raise
+
+            left = await self._get_candles_chunked(figi, from_date, middle, interval, depth + 1)
+            right = await self._get_candles_chunked(figi, middle, to_date, interval, depth + 1)
+            merged = left + right
+
+            # На границе диапазонов свеча может повториться — убираем дубли по времени.
+            dedup: Dict[str, Dict] = {}
+            for candle in merged:
+                key = str(candle.get("time") or "")
+                if key:
+                    dedup[key] = candle
+            if dedup:
+                return [dedup[k] for k in sorted(dedup.keys())]
+            return merged
 
     async def post_order(self, figi: str, quantity: int, price: float, direction: str, account_id: str) -> Dict:
         """Выставить лимитную заявку"""

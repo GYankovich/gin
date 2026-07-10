@@ -34,7 +34,9 @@ async def get_portfolio(
     try:
         logger.info(f"Getting portfolio for user {current_user.id}")
 
-        token = await tinvest_service.get_user_token(db, current_user.id)
+        active_token = await token_service.get_active_token(db, current_user.id)
+        token = (active_token or {}).get("token")
+        token_id = (active_token or {}).get("id")
         if not token:
             logger.warning(f"No T-Invest token found for user {current_user.id}")
             raise HTTPException(
@@ -47,7 +49,13 @@ async def get_portfolio(
             )
 
         logger.info(f"Token found for user {current_user.id}, length: {len(token)}")
-        portfolio_data = await tinvest_service.get_portfolio_data(token, account_id)
+        portfolio_data = await tinvest_service.get_portfolio_data(
+            token,
+            account_id,
+            db=db,
+            token_id=token_id,
+            user_id=current_user.id,
+        )
 
         logger.info(f"Portfolio data retrieved successfully for user {current_user.id}")
         return portfolio_data
@@ -75,14 +83,21 @@ async def get_accounts(
     Получение списка счетов пользователя из T-Invest API
     """
     try:
-        token = await tinvest_service.get_user_token(db, current_user.id)
+        active_token = await token_service.get_active_token(db, current_user.id)
+        token = (active_token or {}).get("token")
+        token_id = (active_token or {}).get("id")
         if not token:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Токен T-Invest не найден"
             )
 
-        accounts = await tinvest_service.get_accounts(token)
+        accounts = await tinvest_service.get_accounts(
+            token,
+            db=db,
+            token_id=token_id,
+            user_id=current_user.id,
+        )
         return accounts
 
     except HTTPException:
@@ -248,7 +263,7 @@ async def get_tokens(
                 id=token["id"],
                 token_type=token["token_type"],
                 token_name=token["token_name"],
-                is_active=token["is_active"],
+                status=token["status"],
                 created_at=token["created_at"],
                 last_used_at=token["last_used_at"],
                 expires_at=token["expires_at"],
@@ -290,7 +305,7 @@ async def get_token(
             id=token["id"],
             token_type=token["token_type"],
             token_name=token["token_name"],
-            is_active=token["is_active"],
+            status=token["status"],
             created_at=token["created_at"],
             last_used_at=token["last_used_at"],
             expires_at=token["expires_at"],
@@ -323,7 +338,7 @@ async def create_token(
             id=token["id"],
             token_type=token["token_type"],
             token_name=token["token_name"],
-            is_active=token["is_active"],
+            status=token["status"],
             created_at=token["created_at"],
             last_used_at=token["last_used_at"],
             expires_at=token["expires_at"],
@@ -363,7 +378,7 @@ async def update_token(
             id=token["id"],
             token_type=token["token_type"],
             token_name=token["token_name"],
-            is_active=token["is_active"],
+            status=token["status"],
             created_at=token["created_at"],
             last_used_at=token["last_used_at"],
             expires_at=token["expires_at"],

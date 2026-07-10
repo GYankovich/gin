@@ -67,6 +67,17 @@ Use when the template skill above is missing or for alignment with current code:
 3. **Wait for user to choose** or request changes
 4. **After approval** → implement
 
+## Входящая передача: страница `/testing` (бэктест)
+
+Когда в задаче фигурирует вкладка **«Тестирование»** / **`/testing`** / history-backtest:
+
+1. Прочитать **`docs/BRD-ARCH-02-unified-backtest-testing-spec.md`** (шапка — версия): **§4.0–4.3** (форма), затем **§10** (порядок работ и ограничения).
+2. Прочитать **`docs/ui/TESTING-UX-REFACTOR-SPEC.md`**, включая **§7.4** (пресет риска без робота = defaults `GrainSeedRisk` в `backend/app/modules/robots/schemas.py`).
+3. Контракт HTTP и схемы — **§9.1–9.5** того же BRD и **`GET /api/openapi.json`** после поднятого backend.
+4. Кодовая точка входа: `frontend/src/pages/testing/`, `frontend/src/pages/TestingPage.tsx`, хуки и сервисы, указанные в UI-спеке §2.1.
+
+**Не менять** форму тела запросов и пути эндпоинтов без согласования с backend (см. **§10** BRD).
+
 ## Handoff Protocol
 
 After implementation:

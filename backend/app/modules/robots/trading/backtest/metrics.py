@@ -5,14 +5,21 @@ from __future__ import annotations
 
 import math
 from datetime import date, datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+from app.modules.robots.trading.costs import annualization_days_for_broker
 
 
 class BacktestMetricsCalculator:
     """Calculate aggregate metrics from simulation artifacts."""
 
     @staticmethod
-    def calculate(*, res: Any) -> Dict[str, Any]:
+    def calculate(
+        *,
+        res: Any,
+        broker_type: Optional[str] = None,
+        calendar_days_cnt: Optional[int] = None,
+    ) -> Dict[str, Any]:
         winning = [t for t in res.trades if t.get("pnl_net") is not None and float(t.get("pnl_net") or 0) > 0]
         closed = [t for t in res.trades if t.get("pnl_net") is not None]
         avg_pnl = (sum(float(t.get("pnl_net") or 0) for t in closed) / len(closed)) if closed else None
@@ -20,7 +27,13 @@ class BacktestMetricsCalculator:
         gross_profit_val = sum(float(t.get("pnl_net") or 0) for t in winning)
         gross_loss_val = abs(sum(float(t.get("pnl_net") or 0) for t in closed if float(t.get("pnl_net") or 0) < 0))
         net_profit_val = float(res.final_equity or 0) - float(res.initial_capital or 0)
-        total_commission_val = sum(float(t.get("commission") or 0) for t in res.trades)
+        fee_summary = dict(getattr(res, "fee_summary", None) or {})
+        total_commission_val = float(
+            fee_summary.get("total_commission")
+            if fee_summary.get("total_commission") is not None
+            else sum(float(t.get("commission") or 0) for t in res.trades)
+        )
+        total_funding_val = float(fee_summary.get("total_funding") or 0)
         loss_trades_count = len([t for t in closed if float(t.get("pnl_net") or 0) < 0])
         profit_factor_val = (gross_profit_val / gross_loss_val) if gross_loss_val > 0 else None
         avg_win_val = (gross_profit_val / len(winning)) if winning else None
@@ -50,9 +63,11 @@ class BacktestMetricsCalculator:
             if prev > 0:
                 daily_returns.append((cur / prev) - 1.0)
         trading_days_cnt = len(sorted_equity_days)
+        ann_days = annualization_days_for_broker(broker_type)
+        calendar_cnt = int(calendar_days_cnt) if calendar_days_cnt is not None else trading_days_cnt
         annualized_return_val = None
         if trading_days_cnt > 0 and res.initial_capital > 0 and res.final_equity > 0:
-            years = trading_days_cnt / 252.0
+            years = trading_days_cnt / float(ann_days)
             if years > 0:
                 annualized_return_val = ((res.final_equity / res.initial_capital) ** (1.0 / years) - 1.0) * 100.0
         volatility_annual_val = None
@@ -64,9 +79,9 @@ class BacktestMetricsCalculator:
             std_r = math.sqrt(var_r)
             downside = [x for x in daily_returns if x < 0]
             downside_std = math.sqrt(sum((x - 0.0) ** 2 for x in downside) / len(downside)) if downside else 0.0
-            volatility_annual_val = std_r * math.sqrt(252.0) * 100.0
-            sharpe_val = (mean_r / std_r * math.sqrt(252.0)) if std_r > 0 else None
-            sortino_val = (mean_r / downside_std * math.sqrt(252.0)) if downside_std > 0 else None
+            volatility_annual_val = std_r * math.sqrt(float(ann_days)) * 100.0
+            sharpe_val = (mean_r / std_r * math.sqrt(float(ann_days))) if std_r > 0 else None
+            sortino_val = (mean_r / downside_std * math.sqrt(float(ann_days))) if downside_std > 0 else None
         calmar_val = None
         if res.max_drawdown_percent and float(res.max_drawdown_percent or 0) > 0 and annualized_return_val is not None:
             calmar_val = annualized_return_val / float(res.max_drawdown_percent)
@@ -91,11 +106,15 @@ class BacktestMetricsCalculator:
             "gross_loss_val": gross_loss_val,
             "net_profit_val": net_profit_val,
             "total_commission_val": total_commission_val,
+            "total_funding_val": total_funding_val,
+            "fee_summary": fee_summary,
             "profit_factor_val": profit_factor_val,
             "avg_win_val": avg_win_val,
             "avg_loss_val": avg_loss_val,
             "equity_by_day": equity_by_day,
             "trading_days_cnt": trading_days_cnt,
+            "calendar_days_cnt": calendar_cnt,
+            "annualization_days": ann_days,
             "annualized_return_val": annualized_return_val,
             "volatility_annual_val": volatility_annual_val,
             "sharpe_val": sharpe_val,

@@ -3,6 +3,7 @@
 
 # app/modules/tinvest/token_service.py
 from typing import Optional, List, Tuple
+import json
 import logging
 from datetime import datetime, timezone
 
@@ -33,17 +34,24 @@ class TokenService:
         if not row:
             return {}
 
+        extra = row[10] if len(row) > 10 else None
+        if isinstance(extra, str):
+            try:
+                extra = json.loads(extra)
+            except Exception:
+                extra = None
         return {
             "id": utils.safe_int(row[0]),
             "user_id": utils.safe_int(row[1]) if len(row) > 1 else None,
             "token_type": utils.safe_str(row[2]) if len(row) > 2 else "",
             "token": utils.safe_str(row[3]) if len(row) > 3 else "",
             "token_name": utils.safe_str(row[4], None) if len(row) > 4 else None,
-            "is_active": utils.safe_bool(row[5]) if len(row) > 5 else True,
+            "status": utils.safe_int(row[5]) if len(row) > 5 and row[5] is not None else 1,
             "created_at": row[6] if len(row) > 6 else None,
             "updated_at": row[7] if len(row) > 7 else None,
             "last_used_at": row[8] if len(row) > 8 else None,
             "expires_at": row[9] if len(row) > 9 else None,
+            "extra_data": extra if isinstance(extra, dict) else None,
         }
 
     async def get_user_token(self, db: Session, user_id: int) -> Optional[str]:
@@ -218,9 +226,9 @@ class TokenService:
             fields_to_update.append("token_name")
             params["token_name"] = token_data.token_name
 
-        if token_data.is_active is not None:
-            fields_to_update.append("is_active")
-            params["is_active"] = 1 if token_data.is_active else 0
+        if token_data.status is not None:
+            fields_to_update.append("status")
+            params["status"] = int(token_data.status)
 
         if not fields_to_update:
             # Ничего не обновляем, возвращаем текущий токен

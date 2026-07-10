@@ -5,8 +5,36 @@
 """
 Специфичные для T-Invest утилиты парсинга
 """
-from typing import Optional, Dict, Any
+from datetime import datetime, timezone
+from typing import Any, Optional, Dict
+
 from app.modules.robots.common.utils import safe_int, safe_str, safe_float, safe_bool, mask_token
+
+
+def parse_api_timestamp(value: Any) -> Optional[datetime]:
+    """Парсит Timestamp из T-Invest API (ISO-строка или {seconds,nanos})."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+    if isinstance(value, str):
+        s = value.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    if isinstance(value, dict):
+        sec = value.get("seconds")
+        if sec is None:
+            return None
+        dt = datetime.fromtimestamp(int(sec), tz=timezone.utc)
+        nanos = int(value.get("nanos") or 0)
+        if nanos:
+            dt = dt.replace(microsecond=min(nanos // 1000, 999999))
+        return dt
+    return None
 
 
 def parse_money_value(money_value: dict) -> Optional[dict]:

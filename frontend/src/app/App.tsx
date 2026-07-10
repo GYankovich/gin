@@ -45,6 +45,7 @@ export function App() {
                         <Route path="analytics" element={<AnalyticsPage />} />
                         <Route path="settings" element={<SettingsPage />} />
                         <Route path="testing" element={<TestingPage />} />
+                        <Route path="testing-v2" element={<Navigate to="/testing" replace />} />
                         <Route path="live" element={<LivePage />} />
                     </Route>
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />

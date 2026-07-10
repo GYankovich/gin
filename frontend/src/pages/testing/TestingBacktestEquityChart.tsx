@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Chart, type IChartApi, type ISeriesApi, type Time } from '@/components/ui/Chart'
 import { LineSeries } from 'lightweight-charts'
@@ -21,6 +21,19 @@ type Props = {
     setChartLegend: React.Dispatch<React.SetStateAction<{ time: string; equity?: number; price?: number }>>
 }
 
+function useAnalysisChartHeight(): number {
+    const [height, setHeight] = useState(440)
+    useEffect(() => {
+        const update = () => {
+            setHeight(Math.min(560, Math.max(400, Math.round(window.innerHeight * 0.46))))
+        }
+        update()
+        window.addEventListener('resize', update)
+        return () => window.removeEventListener('resize', update)
+    }, [])
+    return height
+}
+
 export function TestingBacktestEquityChart({
     result,
     fromDate,
@@ -30,6 +43,8 @@ export function TestingBacktestEquityChart({
     chartLegend,
     setChartLegend,
 }: Props) {
+    const chartHeight = useAnalysisChartHeight()
+
     const onChartReady = useCallback(
         (chart: IChartApi, containerEl?: HTMLDivElement | null) => {
             if (!result?.equity_curve?.length) return
@@ -193,7 +208,7 @@ export function TestingBacktestEquityChart({
     )
 
     return (
-        <Card className="mb-6 cyber-form-card testing-cyber-card">
+        <Card className="mb-6 cyber-form-card testing-cyber-card testing-equity-chart">
             <h3 className="card__section-title pipeline-title">
                 <span className="cyber-bracket">[</span>
                 КРИВАЯ КАПИТАЛА И ЦЕНА АКТИВА
@@ -213,7 +228,8 @@ export function TestingBacktestEquityChart({
                 )}
             </div>
             <Chart
-                height={320}
+                height={chartHeight}
+                className="testing-equity-chart__canvas"
                 onReady={onChartReady}
                 key={`bt-${result.final_equity}-${result.equity_curve.length}-${priceCurve.length}`}
             />

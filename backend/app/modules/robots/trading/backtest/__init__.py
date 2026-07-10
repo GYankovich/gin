@@ -1,6 +1,7 @@
 #///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingBacktestInit [1]
 #/// Исходный модуль `backend/app/modules/robots/trading/backtest/__init__.py` — автоматическая разметка для Obsidian Source Scanner.
 
+# Prod backtest: trading.runtime.orchestrator.TradingOrchestrator (не engine.py).
 from .engine import run_robot_backtest, run_backtest_simulation
 from .broker_emulator import BrokerEmulator
 from .dms_emulator import DmsEmulator

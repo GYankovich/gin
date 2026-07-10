@@ -5,7 +5,13 @@ from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from typing import Union, List, Dict, Any
+import logging
+
+from app.core.database import looks_like_connectivity_error, try_dispose_pool_on_connectivity_error
+
+logger = logging.getLogger(__name__)
 
 
 def format_validation_error(errors: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -100,4 +106,42 @@ async def validation_exception_handler(
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content=formatted_error
+    )
+
+
+async def database_exception_handler(request: Request, exc: SQLAlchemyError) -> JSONResponse:
+    """
+    Возвращает контролируемый ответ при недоступности PostgreSQL вместо ASGI traceback.
+
+    Важно для auth dependencies: Session создаётся лениво, поэтому сетевой timeout может
+    случиться уже внутри `get_current_user`, до входа в endpoint handler.
+    """
+    if looks_like_connectivity_error(exc):
+        try_dispose_pool_on_connectivity_error(exc)
+        logger.warning(
+            "Database connectivity error path=%s method=%s: %s",
+            request.url.path,
+            request.method,
+            exc,
+        )
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "code": "database_unavailable",
+                "description": "Database is temporarily unavailable. Please retry shortly.",
+            },
+            headers={"Retry-After": "5"},
+        )
+
+    logger.exception(
+        "Unhandled database error path=%s method=%s",
+        request.url.path,
+        request.method,
+    )
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "code": "database_error",
+            "description": "Internal database error",
+        },
     )

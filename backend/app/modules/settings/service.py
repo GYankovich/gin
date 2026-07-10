@@ -7,8 +7,11 @@ from typing import Optional, List, Tuple, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import logging
+import json
 
 from . import queries
+from app.modules.bybit.http_client import BybitApiError, BybitHttpClient
+from app.modules.tinvest.methods import create_tbank_client
 
 logger = logging.getLogger(__name__)
 
@@ -78,45 +81,57 @@ class ApiKeyService:
         if not row:
             return {}
 
-        # Ожидаемая структура row:
-        # 0: id
-        # 1: name (из api_tokens)
-        # 2: token_type
-        # 3: is_active
-        # 4: created_at
-        # 5: token
-        # 6: refresh_interval_minutes
-        # 7: type_name (из словаря)
-        # 8: type_description (из словаря)
+        # Two shapes:
+        # - legacy (create/update RETURNING): [id, name, token_type, status, created_at, refresh_interval_minutes, token, extra_data] -> 0..7
+        # - list (/apikey/data): [id, name, token_type, status, created_at, token, refresh_interval_minutes, extra_data, type_name, type_description, last_used_at, status_name, status_description] -> 0..12
+        is_list_shape = len(row) >= 12
 
-        # Формируем объект token_type
+        status_val = self._safe_int(row[3]) if len(row) > 3 else 0
+        created_at_val = self._safe_datetime(row[4]) if len(row) > 4 else None
+
         token_type_info = {
             "type": self._safe_int(row[2]) if len(row) > 2 else 0,
-            "typeName": self._safe_str(row[7]) if len(row) > 7 and row[7] is not None else "",
-            "typeDesc": self._safe_str(row[8]) if len(row) > 8 and row[8] is not None else ""
+            "typeName": self._safe_str(row[8], "") if is_list_shape and len(row) > 8 and row[8] is not None else "",
+            "typeDesc": self._safe_str(row[9], "") if is_list_shape and len(row) > 9 and row[9] is not None else "",
         }
+        # broker_type — перевод TOKEN.TYPE из dictionary (d.name as type_name).
+        broker_type = token_type_info["typeName"] or None
 
-        result = {
+        token_value_idx = 5 if is_list_shape else 6
+        token_value = row[token_value_idx] if len(row) > token_value_idx else None
+
+        result: dict = {
             "id": self._safe_int(row[0]),
             "name": self._safe_str(row[1], None) if len(row) > 1 else None,
-            "token_type": token_type_info,  # теперь это объект
-            "is_active": self._safe_bool(row[3]) if len(row) > 3 else True,
-            "created_at": self._safe_datetime(row[4]) if len(row) > 4 else None,
+            "token_type": token_type_info,
+            "broker_type": broker_type,
+            "status": status_val,
+            "created_at": created_at_val,
+            "masked_token": self._mask_token(token_value),
         }
 
-        # Токен для маскирования (индекс 5)
-        token_value = None
-        if len(row) > 5:
-            token_value = row[5]
-            if include_token:
-                result["token"] = self._safe_str(token_value) if token_value is not None else None
+        if include_token and token_value is not None:
+            result["token"] = self._safe_str(token_value)
 
-        # Маскируем токен
-        result["masked_token"] = self._mask_token(token_value)
+        if len(row) > (6 if is_list_shape else 5):
+            result["refresh_interval_minutes"] = self._safe_int(row[6 if is_list_shape else 5], 60)
 
-        # Добавляем refresh_interval_minutes (индекс 6)
-        if len(row) > 6:
-            result["refresh_interval_minutes"] = self._safe_int(row[6], 60)
+        extra_idx = 7 if is_list_shape else 7
+        if len(row) > extra_idx and isinstance(row[extra_idx], dict):
+            result["extra_data"] = row[extra_idx]
+        else:
+            result["extra_data"] = None
+
+        if is_list_shape:
+            result["last_used_at"] = self._safe_datetime(row[10])
+            result["status_name"] = self._safe_str(row[11], None)
+            result["status_description"] = self._safe_str(row[12], None)
+
+            # Небольшой бэкап на случай отсутствия словарных записей.
+            if result.get("status") == 3 and not result.get("status_name"):
+                result["status_name"] = "Истекший"
+            if result.get("status") == 3 and not result.get("status_description"):
+                result["status_description"] = "Токен истек"
 
         return result
 
@@ -132,11 +147,12 @@ class ApiKeyService:
             "name": self._safe_str(row[1], None),
             "key_type": self._safe_str(row[2]),
             "token": self._safe_str(token_value) if token_value is not None else None,
-            "is_active": self._safe_bool(row[4]) if len(row) > 4 else True,
+            "status": self._safe_int(row[4]) if len(row) > 4 else 1,
             "created_at": self._safe_datetime(row[5]) if len(row) > 5 else None,
             "updated_at": self._safe_datetime(row[6]) if len(row) > 6 else None,
             "expires_at": self._safe_datetime(row[7]) if len(row) > 7 else None,
             "last_used_at": self._safe_datetime(row[8]) if len(row) > 8 else None,
+            "extra_data": row[9] if len(row) > 9 and isinstance(row[9], dict) else None,
         }
 
         result["masked_token"] = self._mask_token(token_value)
@@ -151,14 +167,15 @@ class ApiKeyService:
         result = self._execute(query, {"token": token}, fetch_one=True)
         return result is not None
 
-    def create_key(
+    async def create_key(
             self,
             db: Session,
             user_id: int,
             token: str,
             key_type: str,
             name: Optional[str] = None,
-            refresh_interval_minutes: int = 60
+            refresh_interval_minutes: int = 60,
+            extra_data: Optional[Dict[str, Any]] = None,
     ) -> dict:
         """
         Создание нового API ключа
@@ -181,6 +198,22 @@ class ApiKeyService:
             if existing_token:
                 logger.info(f"Token already exists for user {user_id}")
                 raise ValueError("apikey_exists:Токен уже существует")
+
+            # Валидация ключа на стороне внешнего API перед сохранением.
+            if key_type is not None:
+                extra_payload = extra_data if isinstance(extra_data, dict) else {}
+                test = await self.test_key(
+                    token=token,
+                    key_type=key_type,
+                    token_secret=extra_payload.get("token_secret"),
+                    testnet=False,
+                    account_type=str(extra_payload.get("account_type") or "UNIFIED"),
+                )
+                if not bool(test.get("is_valid")):
+                    raise ValueError(f"create_failed:{test.get('message') or 'Ключ не прошел проверку'}")
+                if key_type is not None and str(key_type).strip().lower() in {"2", "bybit"}:
+                    extra_data = dict(extra_payload)
+                    extra_data["testnet"] = False
 
             # # Опционально: деактивация старого ключа того же типа
             # if key_type == "tinvest":
@@ -208,7 +241,8 @@ class ApiKeyService:
                     "key_type": key_type,
                     "name": name,
                     "created_at": now,
-                    "refresh_interval_minutes": refresh_interval_minutes
+                    "refresh_interval_minutes": refresh_interval_minutes,
+                    "extra_data": json.dumps(extra_data or {}, ensure_ascii=False),
                 },
                 fetch_one=True
             )
@@ -311,7 +345,7 @@ class ApiKeyService:
             key_id: int,
             user_id: int,
             name: Optional[str] = None,
-            is_active: Optional[bool] = None,
+            status: Optional[int] = None,
             refresh_interval_minutes: Optional[int] = None
     ) -> Optional[dict]:
         """
@@ -334,8 +368,8 @@ class ApiKeyService:
         fields_to_update = []
         if name is not None:
             fields_to_update.append("name")
-        if is_active is not None:
-            fields_to_update.append("is_active")
+        if status is not None:
+            fields_to_update.append("status")
         if refresh_interval_minutes is not None:
             fields_to_update.append("refresh_interval_minutes")
 
@@ -353,8 +387,8 @@ class ApiKeyService:
 
         if name is not None:
             params["name"] = name
-        if is_active is not None:
-            params["is_active"] = 1 if is_active else 0
+        if status is not None:
+            params["status"] = int(status)
         if refresh_interval_minutes is not None:
             params["refresh_interval_minutes"] = refresh_interval_minutes
 
@@ -422,7 +456,7 @@ class ApiKeyService:
             "user_id": self._safe_int(result[1]),
             "token_type": self._safe_str(result[2]),
             "name": self._safe_str(result[3], None),
-            "is_active": self._safe_bool(result[4]),
+            "status": self._safe_int(result[4]),
             "refresh_interval_minutes": self._safe_int(result[5], 60),
         }
 
@@ -502,6 +536,113 @@ class ApiKeyService:
         affected = result.rowcount
         logger.info(f"Deactivated {affected} tokens for user {user_id} of type {token_type}")
         return affected
+
+    async def test_key(
+            self,
+            *,
+            token: str,
+            key_type: str,
+            token_secret: Optional[str] = None,
+            testnet: bool = False,
+            account_type: str = "UNIFIED",
+    ) -> Dict[str, Any]:
+        kt = str(key_type or "").strip().lower()
+        if kt in {"tinvest", "1"}:
+            try:
+                client = create_tbank_client(token)
+                accounts = await client.get_accounts()
+                return {
+                    "is_valid": bool(accounts),
+                    "message": f"Токен валиден. Счетов: {len(accounts)}" if accounts else "Токен валиден, но счета не найдены",
+                    "accounts_count": len(accounts),
+                    "first_account": (accounts[0].get("id") if accounts else None),
+                }
+            except Exception as e:
+                return {
+                    "is_valid": False,
+                    "message": f"T-Invest validation error: {e}",
+                    "accounts_count": 0,
+                    "first_account": None,
+                }
+
+        if kt in {"bybit", "2"}:
+            return await self._validate_bybit_credentials(
+                token=token,
+                token_secret=token_secret,
+                testnet=testnet,
+            )
+
+        return {
+            "is_valid": False,
+            "message": f"Неподдерживаемый тип ключа: {key_type}",
+            "accounts_count": 0,
+            "first_account": None,
+        }
+
+    async def _validate_bybit_credentials(
+            self,
+            *,
+            token: str,
+            token_secret: Optional[str],
+            testnet: bool = False,
+    ) -> Dict[str, Any]:
+        del testnet
+        if not token_secret:
+            return {
+                "is_valid": False,
+                "message": "Для ByBit проверки требуется API secret",
+                "accounts_count": 0,
+                "first_account": None,
+                "testnet": False,
+            }
+
+        client = BybitHttpClient(
+            testnet=False,
+            api_key=token,
+            api_secret=token_secret,
+        )
+        try:
+            await client.query_api()
+            return {
+                "is_valid": True,
+                "message": "ByBit ключ валиден (mainnet)",
+                "accounts_count": 1,
+                "first_account": "mainnet",
+                "testnet": False,
+            }
+        except BybitApiError as e:
+            return {
+                "is_valid": False,
+                "message": f"ByBit validation error: {e}. Проверьте API Key/Secret mainnet.",
+                "accounts_count": 0,
+                "first_account": None,
+                "testnet": False,
+            }
+        finally:
+            await client.close()
+
+    async def test_stored_key(self, db: Session, key_id: int, user_id: int) -> Optional[Dict[str, Any]]:
+        detail = self.get_key_by_id(db, key_id, user_id)
+        if not detail:
+            return None
+        extra = detail.get("extra_data") if isinstance(detail.get("extra_data"), dict) else {}
+        return await self.test_key(
+            token=str(detail.get("token") or ""),
+            key_type=str(detail.get("key_type") or ""),
+            token_secret=extra.get("token_secret"),
+            testnet=False,
+            account_type=str(extra.get("account_type") or "UNIFIED"),
+        )
+
+    def reveal_key_token(self, db: Session, key_id: int, user_id: int) -> Optional[Dict[str, str]]:
+        detail = self.get_key_by_id(db, key_id, user_id)
+        if not detail:
+            return None
+        token = str(detail.get("token") or "")
+        return {
+            "token": token,
+            "masked_token": self._mask_token(token),
+        }
 
 
 # Создаем экземпляр сервиса
