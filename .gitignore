@@ -6,8 +6,15 @@ __pycache__/
 .venv/
 venv/
 .env
+.env.*
+!.env.example
 *.db
 logs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+*.egg-info/
 
 # IDE
 .idea/
@@ -17,6 +24,10 @@ logs/
 node_modules/
 dist/
 npm-debug.log*
+scanner-output/
+tools/get-comments/
+get-pip.py
+*.zip
 
 # System
 .DS_Store
