@@ -1,3 +1,6 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesAuthSchemas [1]
+#/// Исходный модуль `backend/app/modules/auth/schemas.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, Field, EmailStr
@@ -12,6 +15,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_at: datetime
+    user: Optional["UserOut"] = None
 
 class UserOut(BaseModel):
     """Схема для публичных данных пользователя"""

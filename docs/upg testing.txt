@@ -1,0 +1,639 @@
+Отлично! Давай создадим полную базу правил анализа для генерации рекомендаций. Это будет ядро всей системы — набор четких условий, которые превращают сырые метрики в конкретные советы по улучшению стратегии.
+
+🧠 ПОЛНАЯ БАЗА ПРАВИЛ АНАЛИЗА
+1. РИСК-МЕНЕДЖМЕНТ (Самый приоритетный блок)
+1.1. Слишком большая максимальная просадка
+Условие	Рекомендация	Ожидаемый эффект
+maxDrawdown > 25%	Уменьшить max_position_percent на 30-40%	Снижение DD на 30-40%
+maxDrawdown > 25%	Уменьшить max_position_rub на 30-40%	Снижение DD на 30-40%
+maxDrawdown > 25%	Увеличить stop_loss_percent на 20% (если частые стопы)	Снижение количества стопов
+maxDrawdown > 30%	Критично: Снизить max_position_percent до 5%	Жесткое ограничение риска
+1.2. Частое срабатывание стоп-лосса
+Условие	Рекомендация	Ожидаемый эффект
+stopLossHitRate > 40% и winRate < 50%	Увеличить stop_loss_percent на 30-40%	Снижение стопов на 25-35%
+stopLossHitRate > 40% и winRate < 50%	Уменьшить max_position_percent на 20%	Снижение убытков при стопах
+stopLossHitRate > 40% и avgLossPerTrade > avgProfitPerTrade * 0.7	Увеличить stop_loss_percent на 20% и уменьшить max_position_percent на 20%	Комплексное решение
+1.3. Частое срабатывание тейк-профита (слишком рано)
+Условие	Рекомендация	Ожидаемый эффект
+takeProfitHitRate > 60% и avgProfitPerTrade < 2%	Увеличить take_profit_percent на 30-50%	Рост средней прибыли на сделку
+takeProfitHitRate > 60% и profitFactor < 1.8	Увеличить take_profit_percent на 30-50%	Рост фактора прибыли
+1.4. Превышение дневного лимита убытка
+Условие	Рекомендация	Ожидаемый эффект
+maxDailyLoss > risk.maxDailyLoss * 0.9	Уменьшить max_daily_loss на 20-30%	Более жесткий контроль дневных потерь
+maxDailyLoss > risk.maxDailyLoss * 0.9 и maxDrawdown > 20%	Уменьшить max_position_percent на 20-30%	Снижение риска в целом
+1.5. Низкий фактор прибыли
+Условие	Рекомендация	Ожидаемый эффект
+profitFactor < 1.5	Увеличить take_profit_percent на 20-30%	Рост средней прибыли
+profitFactor < 1.5 и winRate > 55%	Увеличить take_profit_percent на 30-50%	Стратегия часто побеждает, но мало зарабатывает
+profitFactor < 1.5 и winRate < 45%	Уменьшить stop_loss_percent на 20-30%	Слишком много убыточных сделок
+1.6. Дисбаланс между прибылью и убытком
+Условие	Рекомендация	Ожидаемый эффект
+avgProfitPerTrade < avgLossPerTrade * 1.2	Увеличить take_profit_percent на 30-50%	Улучшить соотношение риск/прибыль
+avgProfitPerTrade < avgLossPerTrade * 1.2	Уменьшить stop_loss_percent на 20-30%	Улучшить соотношение риск/прибыль
+1.7. Максимальная позиция слишком велика
+Условие	Рекомендация	Ожидаемый эффект
+maxPositionUsed > 80% от max_position_rub	Увеличить max_position_rub на 20-30%	Снижение ограничений
+maxPositionUsed > 80% от max_position_rub и maxDrawdown > 20%	Уменьшить max_position_rub на 20-30%	Снижение риска
+2. ПРОИЗВОДИТЕЛЬНОСТЬ СТРАТЕГИИ
+2.1. Слишком мало сделок
+Условие	Рекомендация	Ожидаемый эффект
+totalTrades < 10 за весь период	Смягчить фильтры отбора (объем, спред)	Увеличение сделок на 50-100%
+totalTrades < 10 за весь период	Уменьшить порог входа (отклонение от MA, RSI)	Увеличение сделок на 30-50%
+totalTrades < 10 за весь период	Уменьшить max_hold_candles	Более частая фиксация прибыли
+2.2. Слишком много сделок
+Условие	Рекомендация	Ожидаемый эффект
+totalTrades > 200 за короткий период (до 3 мес)	Увеличить порог входа (отклонение от MA, RSI)	Снижение сделок на 30-40%
+totalTrades > 200 за короткий период	Ужесточить фильтры отбора (объем, спред)	Снижение сделок на 20-30%
+totalTrades > 200 и totalCommission > totalReturn * 0.15	Увеличить take_profit_percent на 30-50%	Снижение частоты сделок
+2.3. Низкий win rate
+Условие	Рекомендация	Ожидаемый эффект
+winRate < 40%	Увеличить порог входа (отклонение от MA, RSI)	Увеличение win rate на 5-10%
+winRate < 40%	Увеличить take_profit_percent на 30-50%	Более качественные входы
+winRate < 40% и maxDrawdown > 20%	Уменьшить max_position_percent на 30-40%	Снижение риска при низком win rate
+2.4. Низкий Sharpe ratio
+Условие	Рекомендация	Ожидаемый эффект
+sharpeRatio < 1.0	Уменьшить max_position_percent на 20-30%	Снижение волатильности
+sharpeRatio < 1.0 и maxDrawdown > 20%	Увеличить stop_loss_percent на 20-30%	Снижение просадок
+sharpeRatio < 1.0 и totalTrades > 100	Увеличить порог входа (отклонение от MA)	Более качественные сигналы
+2.5. Низкая доходность
+Условие	Рекомендация	Ожидаемый эффект
+totalReturn < 10% за год	Смягчить фильтры отбора (объем, спред)	Увеличение сделок на 30-50%
+totalReturn < 10% за год	Уменьшить порог входа (отклонение от MA)	Увеличение сделок на 20-30%
+totalReturn < 10% за год	Увеличить max_position_percent на 20-30%	Увеличение экспозиции
+3. ИСПОЛНЕНИЕ (Комиссии, проскальзывание)
+3.1. Комиссия съедает прибыль
+Условие	Рекомендация	Ожидаемый эффект
+totalCommission > totalReturn * 0.2	Увеличить take_profit_percent на 30-50%	Компенсация комиссии
+totalCommission > totalReturn * 0.2	Уменьшить частоту сделок (увеличить порог входа)	Снижение комиссии на 20-30%
+totalCommission > totalReturn * 0.3	Критично: Увеличить take_profit_percent на 50-100%	Жесткая компенсация
+3.2. Проскальзывание критично
+Условие	Рекомендация	Ожидаемый эффект
+totalSlippage > totalReturn * 0.15	Уменьшить slippage_pct в настройках	Снижение издержек
+totalSlippage > totalReturn * 0.15	Переключить backtestExecution на limit_maker	Снижение проскальзывания
+totalSlippage > totalReturn * 0.25	Критично: Уменьшить slippage_pct и увеличить take_profit_percent	Комплексное решение
+3.3. Лаг исполнения ухудшает результат
+Условие	Рекомендация	Ожидаемый эффект
+avgFillPriceDeviation > 0.1% и latency_sec > 5	Уменьшить latency_sec на 50%	Улучшение цены входа
+avgFillPriceDeviation > 0.1%	Переключить backtestExecution на limit_maker	Снижение влияния лага
+4. UNIVERSE (Отбор инструментов)
+4.1. Слишком узкий universe
+Условие	Рекомендация	Ожидаемый эффект
+avgUniverseSize < 5 и instrumentsTraded < 3	Смягчить фильтры (объем, спред, ATR)	Увеличение universe на 50-100%
+avgUniverseSize < 5	Снизить min_volume_24h_usd на 30-40%	Увеличение universe на 30-50%
+avgUniverseSize < 5	Снизить max_spread_bps на 30-40%	Увеличение universe на 20-30%
+4.2. Слишком широкий universe (неэффективно)
+Условие	Рекомендация	Ожидаемый эффект
+avgUniverseSize > 30 и instrumentsTraded < 5	Ужесточить фильтры (объем, спред, ATR)	Сужение universe на 40-60%
+avgUniverseSize > 30 и instrumentsTraded < 5	Увеличить min_volume_24h_usd на 30-50%	Сужение universe на 20-30%
+4.3. Мало инструментов в сделках
+Условие	Рекомендация	Ожидаемый эффект
+instrumentsTraded < avgUniverseSize * 0.3	Смягчить пороги входа (отклонение от MA)	Увеличение сигналов на 30-50%
+instrumentsTraded < avgUniverseSize * 0.3	Уменьшить max_hold_candles	Более частая смена позиций
+4.4. Высокая концентрация на 1-2 инструментах
+Условие	Рекомендация	Ожидаемый эффект
+instrumentsTraded < 3 и totalTrades > 50	Уменьшить max_position_percent на 30-40%	Снижение концентрации
+instrumentsTraded < 3 и maxDrawdown > 20%	Смягчить фильтры отбора	Диверсификация
+5. СПЕЦИФИЧНЫЕ ДЛЯ MOEX
+5.1. Гэпы слишком часто мешают
+Условие	Рекомендация	Ожидаемый эффект
+avgGapImpact > 0.5%	Увеличить gap_filter_pct на 30-50%	Снижение влияния гэпов
+avgGapImpact > 1%	Увеличить gap_filter_pct на 50-100%	Жесткая фильтрация гэпов
+5.2. Слишком большая комиссия (MOEX)
+Условие	Рекомендация	Ожидаемый эффект
+totalCommission > totalReturn * 0.2	Увеличить take_profit_percent на 30-50%	Компенсация комиссии
+totalCommission > totalReturn * 0.2	Уменьшить max_position_percent на 20-30%	Меньше сделок = меньше комиссии
+5.3. Налог съедает прибыль
+Условие	Рекомендация	Ожидаемый эффект
+ndflAmount > totalReturn * 0.1	Увеличить take_profit_percent на 20-30%	Компенсация налога
+ndflAmount > totalReturn * 0.15	Увеличить take_profit_percent на 30-50%	Жесткая компенсация
+5.4. Сессия слишком узкая
+Условие	Рекомендация	Ожидаемый эффект
+tradingHoursUsed < 50% от доступного времени	Расширить trading_hours_start/end	Увеличение возможностей входа
+tradingHoursUsed < 30% и totalTrades < 10	Расширить trading_hours_start/end на 1-2 часа	Увеличение сделок на 30-50%
+5.5. Дни недели неэффективны
+Условие	Рекомендация	Ожидаемый эффект
+avgReturnByDay[day] < 0 для конкретного дня	Исключить этот день из allowed_weekdays	Снижение убыточных дней
+avgReturnByDay[day] > 0 для всех дней	Включить все дни (если не включены)	Увеличение доходности
+6. СПЕЦИФИЧНЫЕ ДЛЯ BYBIT
+6.1. Funding съедает прибыль (perp-ы)
+Условие	Рекомендация	Ожидаемый эффект
+totalFundingCost > totalReturn * 0.1	Уменьшить время удержания позиций	Снижение funding на 30-50%
+totalFundingCost > totalReturn * 0.1	Выбрать режим fundingMode = 'average'	Усреднение funding
+totalFundingCost > totalReturn * 0.2	Критично: Переключиться на spot-торговлю	Исключение funding
+6.2. Узкий universe крипто
+Условие	Рекомендация	Ожидаемый эффект
+avgUniverseSize < 5	Снизить crypto_min_volume_24h_usd на 30-40%	Увеличение universe на 30-50%
+avgUniverseSize < 5	Снизить crypto_max_spread_bps на 30-40%	Увеличение universe на 20-30%
+avgUniverseSize < 5	Расширить диапазон crypto_min_funding_rate / crypto_max_funding_rate	Увеличение universe на 20-30%
+6.3. Исполнение на ByBit нереалистично
+Условие	Рекомендация	Ожидаемый эффект
+totalSlippage > totalReturn * 0.15	Переключить backtestExecution на market_taker	Реалистичное исполнение
+totalSlippage > totalReturn * 0.15	Уменьшить slippage_pct на 30-40%	Снижение издержек
+totalCommission > totalReturn * 0.2	Переключить backtestFeeModel на maker_taker	Реалистичные комиссии
+6.4. Плечо не используется
+Условие	Рекомендация	Ожидаемый эффект
+leverageUsed < 1.0 и totalReturn < 20%	Увеличить плечо до 2-3x	Увеличение доходности
+leverageUsed < 1.0 и maxDrawdown < 10%	Увеличить плечо до 2x	Увеличение доходности при низком риске
+leverageUsed > 3.0 и maxDrawdown > 30%	Уменьшить плечо до 1x	Снижение риска
+7. ОБЩИЕ (Для обоих рынков)
+7.1. Дисбаланс Long/Short
+Условие	Рекомендация	Ожидаемый эффект
+longTrades > shortTrades * 2 и avgProfitLong < avgProfitShort	Уменьшить долю long-сигналов	Улучшение баланса
+shortTrades > longTrades * 2 и avgProfitShort < avgProfitLong	Уменьшить долю short-сигналов	Улучшение баланса
+7.2. Сезонность (временные паттерны)
+Условие	Рекомендация	Ожидаемый эффект
+avgReturnByHour[hour] < 0 для конкретного часа	Исключить этот час из торговли	Снижение убыточных часов
+avgReturnByHour[hour] > 0 для конкретного часа	Увеличить экспозицию в эти часы	Увеличение доходности
+7.3. Корелляция с рынком
+Условие	Рекомендация	Ожидаемый эффект
+beta > 1.2 и maxDrawdown > 25%	Уменьшить max_position_percent на 20-30%	Снижение рыночного риска
+beta < 0.5 и totalReturn < 10%	Увеличить max_position_percent на 20-30%	Увеличение экспозиции
+📋 ФОРМАТ ХРАНЕНИЯ ПРАВИЛ
+typescript
+interface AnalysisRule {
+  id: string;
+  category: 'risk' | 'performance' | 'execution' | 'universe' | 'market_specific';
+  condition: RuleCondition;
+  recommendations: RecommendationTemplate[];
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  description: string;
+}
+
+interface RuleCondition {
+  field: keyof BacktestMetrics;
+  operator: '>' | '<' | '>=' | '<=' | '==';
+  value: number | string;
+  and?: RuleCondition[];
+  or?: RuleCondition[];
+}
+
+interface RecommendationTemplate {
+  field: string;          // Поле для изменения
+  operation: 'increase' | 'decrease' | 'set' | 'toggle' | 'suggest';
+  value: number | string | ((metrics: BacktestMetrics) => number | string);
+  reasoning: string;
+  expectedImpact: string;
+  riskLevel: 'low' | 'medium' | 'high';
+  confidenceBonus?: number; // Дополнительный бонус к confidence
+}
+🚀 ПРИМЕР ПРАВИЛА (Полный)
+typescript
+{
+  id: 'risk-high-drawdown-001',
+  category: 'risk',
+  description: 'Слишком высокая максимальная просадка',
+  condition: {
+    field: 'maxDrawdown',
+    operator: '>',
+    value: 25
+  },
+  priority: 'high',
+  recommendations: [
+    {
+      field: 'max_position_percent',
+      operation: 'decrease',
+      value: 0.35, // Уменьшить на 35%
+      reasoning: 'Просадка {maxDrawdown}% превышает комфортный порог 25%. Снижение доли позиции на 35% уменьшит теоретическую просадку до {newDrawdown}%.',
+      expectedImpact: 'Снижение max_drawdown с {maxDrawdown}% до ~{newDrawdown}%, уменьшение total_return с {totalReturn}% до ~{newReturn}%.',
+      riskLevel: 'low',
+      confidenceBonus: 10
+    },
+    {
+      field: 'max_position_rub',
+      operation: 'decrease',
+      value: 0.35,
+      reasoning: 'Альтернативный вариант: уменьшить абсолютный лимит позиции на 35%.',
+      expectedImpact: 'Аналогично снижению доли позиции.',
+      riskLevel: 'low'
+    }
+  ]
+}
+
+📊 ПРИОРИТЕТЫ ВЫВОДА РЕКОМЕНДАЦИЙ
+Рекомендации выводятся в следующем порядке:
+
+Приоритет	Категория	Примеры
+🔴 Critical	Риск, безопасность	Превышение лимитов, критическая просадка
+🟠 High	Риск, исполнение	Частые стопы, высокая комиссия
+🟡 Medium	Производительность	Низкий win rate, мало сделок
+🟢 Low	Тонкая настройка	Сезонность, корреляция
+💡 КАК ЭТО ВЫГЛЯДИТ В ИНТЕРФЕЙСЕ
+text
+┌─────────────────────────────────────────────────────────────────┐
+│  📊 Рекомендации по результатам бэктеста                        │
+├─────────────────────────────────────────────────────────────────┤
+│  🔴 Критично: Просадка 28% превышает лимит 20%                 │
+│  ├─ Поле: Макс. доля позиции (%)                               │
+│  ├─ Сейчас: 10.0% → Рекомендуем: 6.5%                         │
+│  ├─ Ожидаемый эффект: -30% к просадке, -5% к доходности       │
+│  └─ [Применить]  [Отклонить]                                   │
+├─────────────────────────────────────────────────────────────────┤
+│  🟠 Высокий: 42% сделок закрыты по стоп-лоссу                  │
+│  ├─ Поле: Стоп-лосс (%)                                        │
+│  ├─ Сейчас: 2.0% → Рекомендуем: 2.8%                          │
+│  ├─ Ожидаемый эффект: -35% к стопам, +8% к win rate           │
+│  └─ [Применить]  [Отклонить]                                   │
+├─────────────────────────────────────────────────────────────────┤
+│  🟡 Средний: Мало сделок (7 за период)                         │
+│  ├─ Поле: Min volume 24h (USD)                                 │
+│  ├─ Сейчас: 50 000 000 → Рекомендуем: 30 000 000              │
+│  ├─ Ожидаемый эффект: +70% к числу сделок, -3% к доходности   │
+│  └─ [Применить]  [Отклонить]                                   │
+├─────────────────────────────────────────────────────────────────┤
+│  🟢 Низкий: Сезонность — вторники убыточны                    │
+│  ├─ Поле: Дни недели                                           │
+│  ├─ Сейчас: пн,вт,ср,чт,пт → Рекомендуем: пн,ср,чт,пт         │
+│  ├─ Ожидаемый эффект: +2% к доходности, -3% к сделкам         │
+│  └─ [Применить]  [Отклонить]                                   │
+└─────────────────────────────────────────────────────────────────┘
+
+
+
+
+Процесс автоматического перебора ключевых параметров стратегии с целью найти комбинацию, дающую наилучший результат по заданному критерию (доходность, просадка, Sharpe ratio и т.д.).
+
+1. Основные параметры (все стратегии)
+Параметр	Диапазон	Шаг	Описание
+stop_loss_percent	0.5 — 5.0	0.5	Стоп-лосс, %
+take_profit_percent	1.0 — 8.0	0.5	Тейк-профит, %
+max_position_percent	2 — 20	2	Макс. доля позиции, %
+max_daily_loss	1 — 10	1	Макс. дневной убыток, %
+slippage_pct	0.01 — 0.5	0.05	Проскальзывание, %
+2.2. Параметры стратегии (зависят от стратегии)
+Reversion to MA (Возврат к MA)
+Параметр	Диапазон	Шаг	Описание
+ma_period	5 — 50	5	Период MA
+deviation_pct	0.5 — 5.0	0.5	Отклонение от MA, %
+rsi_period	5 — 30	5	Период RSI
+rsi_overbought	60 — 90	5	RSI перекупленность
+rsi_oversold	10 — 40	5	RSI перепроданность
+max_hold_candles	5 — 30	5	Макс. удержание, свечей
+Grain Seed (По зёрнышку)
+Параметр	Диапазон	Шаг	Описание
+ma_fast_period	3 — 20	2	MA fast
+ma_slow_period	10 — 50	5	MA slow
+bb_period	10 — 30	5	Период Bollinger
+bb_stddev	1.5 — 3.0	0.5	Отклонение Bollinger
+gap_filter_pct	1.0 — 5.0	0.5	Фильтр гэпа, %
+atr_min_pct	0.5 — 3.0	0.5	Мин. ATR, %
+min_profit_target_pct	0.2 — 1.0	0.1	Мин. цель прибыли, %
+Momentum Breakout (Пробой)
+Параметр	Диапазон	Шаг	Описание
+lookback_days	5 — 30	5	Период оглядки, дней
+hold_candles	5 — 30	5	Удержание, свечей
+volume_multiplier	1.0 — 3.0	0.5	Множитель объёма
+2.3. Параметры universe
+Параметр	Диапазон	Шаг	Описание
+min_volume (MOEX)	10M — 200M	10M	Мин. объём, ₽
+min_volume_usd (ByBit)	5M — 100M	5M	Мин. объём, USD
+max_spread_bps	5 — 50	5	Макс. спред, bps
+min_atr_pct	0.5 — 3.0	0.5	Мин. ATR, %
+max_atr_pct	5 — 20	5	Макс. ATR, %
+3. АЛГОРИТМ ОПТИМИЗАЦИИ
+3.1. Стратегия оптимизации
+Используем комбинированный подход:
+
+Грубый перебор (Grid Search) — быстрый прогон по широкой сетке для выявления перспективных зон.
+
+Уточняющий перебор (Fine-Tuning) — детальный перебор в найденных зонах.
+
+Итеративное улучшение — повторение шагов 1-2 с сужением диапазонов.
+
+3.2. Этапы оптимизации
+typescript
+interface OptimizationResult {
+  config: TradingRobotConfig;
+  metrics: BacktestMetrics;
+  score: number;
+  rank: number;
+}
+
+async function runOptimization(
+  baseConfig: TradingRobotConfig,
+  optimizationGoal: OptimizationGoal,
+  maxIterations: number = 50
+): Promise<OptimizationResult[]> {
+  
+  // Шаг 1: Определить параметры для оптимизации
+  const params = identifyOptimizableParams(baseConfig);
+  
+  // Шаг 2: Сгенерировать сетку (Grid)
+  const grid = generateGrid(params, optimizationGoal);
+  
+  // Шаг 3: Запустить бэктесты (параллельно)
+  const results = await runBacktestsInParallel(grid, maxIterations);
+  
+  // Шаг 4: Оценить результаты
+  const scoredResults = results.map(r => ({
+    ...r,
+    score: calculateScore(r.metrics, optimizationGoal)
+  }));
+  
+  // Шаг 5: Отсортировать по убыванию score
+  scoredResults.sort((a, b) => b.score - a.score);
+  
+  return scoredResults;
+}
+3.3. Генерация сетки значений
+typescript
+function generateGrid(params: OptimizableParam[], goal: OptimizationGoal): TradingRobotConfig[] {
+  // Для каждого параметра генерируем список значений
+  const paramValues: Record<string, any[]> = {};
+  
+  for (const param of params) {
+    const values: any[] = [];
+    
+    // Если параметр уже имеет "горячую" зону (из предыдущих оптимизаций)
+    if (param.hotZone) {
+      // Густая сетка в горячей зоне
+      for (let v = param.hotZone.start; v <= param.hotZone.end; v += param.hotZone.step) {
+        values.push(v);
+      }
+    } else {
+      // Редкая сетка по всему диапазону (грубый перебор)
+      for (let v = param.min; v <= param.max; v += param.step * 2) {
+        values.push(v);
+      }
+    }
+    
+    paramValues[param.field] = values;
+  }
+  
+  // Генерируем комбинации (Cartesian product)
+  const combinations = cartesianProduct(paramValues);
+  
+  // Ограничиваем количество комбинаций (чтобы не упала производительность)
+  const maxCombinations = goal === 'speed' ? 20 : 50;
+  const sampledCombinations = sampleCombinations(combinations, maxCombinations);
+  
+  return sampledCombinations.map(combo => applyParamsToConfig(baseConfig, combo));
+}
+3.4. Оценка результата (Scoring)
+typescript
+function calculateScore(metrics: BacktestMetrics, goal: OptimizationGoal): number {
+  let score = 0;
+  
+  switch (goal.type) {
+    case 'max_return':
+      // Максимальная доходность
+      score = metrics.totalReturn * 0.6 
+            - metrics.maxDrawdown * 0.25 
+            + metrics.sharpeRatio * 0.15;
+      break;
+      
+    case 'min_drawdown':
+      // Минимальная просадка
+      score = -metrics.maxDrawdown * 0.5 
+            + metrics.totalReturn * 0.3 
+            + metrics.sharpeRatio * 0.2;
+      break;
+      
+    case 'max_sharpe':
+      // Максимальный Sharpe ratio
+      score = metrics.sharpeRatio * 0.6 
+            - metrics.maxDrawdown * 0.2 
+            + metrics.totalReturn * 0.2;
+      break;
+      
+    case 'balanced':
+      // Сбалансированный (по умолчанию)
+      score = metrics.totalReturn * 0.35 
+            - metrics.maxDrawdown * 0.30 
+            + metrics.sharpeRatio * 0.20 
+            + metrics.winRate * 0.15;
+      break;
+      
+    case 'custom':
+      // Пользовательский (с весами)
+      score = metrics.totalReturn * goal.weights.return
+            - metrics.maxDrawdown * goal.weights.drawdown
+            + metrics.sharpeRatio * goal.weights.sharpe
+            + metrics.winRate * goal.weights.winRate
+            - metrics.totalTrades * goal.weights.trades;
+      break;
+  }
+  
+  // Штраф за слишком малое количество сделок
+  if (metrics.totalTrades < 10) {
+    score *= 0.5;
+  }
+  
+  // Штраф за слишком высокую просадку
+  if (metrics.maxDrawdown > 30) {
+    score *= 0.7;
+  }
+  
+  // Бонус за стабильность (низкий standard deviation)
+  if (metrics.stdDev < 0.2) {
+    score *= 1.1;
+  }
+  
+  return score;
+}
+3.5. Итеративное улучшение (Adaptive Optimization)
+typescript
+async function adaptiveOptimization(
+  baseConfig: TradingRobotConfig,
+  goal: OptimizationGoal,
+  maxIterations: number = 50
+): Promise<OptimizationResult[]> {
+  
+  let currentBest: OptimizationResult | null = null;
+  let allResults: OptimizationResult[] = [];
+  let searchSpace = getInitialSearchSpace(baseConfig);
+  
+  for (let iteration = 0; iteration < 5; iteration++) {
+    // 1. Сгенерировать сетку в текущем поисковом пространстве
+    const grid = generateGrid(searchSpace, goal);
+    
+    // 2. Запустить бэктесты
+    const results = await runBacktestsInParallel(grid, maxIterations);
+    allResults = [...allResults, ...results];
+    
+    // 3. Найти лучший результат
+    const best = results.reduce((a, b) => a.score > b.score ? a : b);
+    
+    // 4. Обновить поисковое пространство (сузить вокруг лучшего)
+    searchSpace = narrowSearchSpace(searchSpace, best.config);
+    
+    // 5. Сохранить лучший результат
+    if (!currentBest || best.score > currentBest.score) {
+      currentBest = best;
+    }
+    
+    // 6. Если улучшение меньше 1% — остановиться
+    if (iteration > 0 && (currentBest.score - prevBest.score) / prevBest.score < 0.01) {
+      break;
+    }
+    
+    prevBest = currentBest;
+  }
+  
+  // Сортировка всех результатов
+  allResults.sort((a, b) => b.score - a.score);
+  
+  return allResults;
+}
+3.6. Сужение поискового пространства
+typescript
+function narrowSearchSpace(
+  currentSpace: SearchSpace,
+  bestConfig: TradingRobotConfig
+): SearchSpace {
+  const newSpace: SearchSpace = {};
+  
+  for (const [param, range] of Object.entries(currentSpace)) {
+    const bestValue = getParamValue(bestConfig, param);
+    const halfWidth = (range.max - range.min) * 0.3; // Сужаем на 30%
+    
+    newSpace[param] = {
+      min: Math.max(range.min, bestValue - halfWidth),
+      max: Math.min(range.max, bestValue + halfWidth),
+      step: range.step * 0.5, // Уменьшаем шаг
+    };
+  }
+  
+  return newSpace;
+}
+4. ТИПЫ ОПТИМИЗАЦИИ
+4.1. Быстрая оптимизация (Speed)
+Цель: Найти хороший вариант за минимальное время.
+
+Итерации: 1 (только грубый перебор).
+
+Комбинаций: 10-20.
+
+Использование: Предварительная оценка, "примерка" стратегии.
+
+4.2. Полная оптимизация (Full)
+Цель: Найти лучший возможный вариант.
+
+Итерации: 3-5 (адаптивное сужение).
+
+Комбинаций: 30-50.
+
+Использование: Финальный прогон перед запуском в live.
+
+4.3. Авто-оптимизация по расписанию (Scheduled)
+Цель: Автоматически переоптимизировать стратегию.
+
+Итерации: 2-3.
+
+Комбинаций: 20-30.
+
+Использование: Еженедельная/ежемесячная переоптимизация (робот адаптируется к рынку).
+
+5. ВИЗУАЛИЗАЦИЯ РЕЗУЛЬТАТОВ
+5.1. Таблица результатов
+text
+┌──────────────────────────────────────────────────────────────────────┐
+│  📊 Результаты оптимизации                                         │
+├──────────────────────────────────────────────────────────────────────┤
+│  # │ Доходность │ Просадка │ Sharpe │ Win Rate │ Сделки │ Score │
+│  ───┼────────────┼──────────┼────────┼──────────┼────────┼───────┤
+│  1  │   34.2%    │  12.4%   │  1.84  │   58%    │   42   │  89.2 │ ← Лучший
+│  2  │   28.7%    │  11.2%   │  1.72  │   62%    │   38   │  85.4 │
+│  3  │   38.1%    │  18.9%   │  1.56  │   51%    │   51   │  81.7 │
+│  4  │   22.4%    │   8.7%   │  1.65  │   67%    │   29   │  79.8 │
+│  5  │   41.5%    │  24.3%   │  1.28  │   46%    │   63   │  74.3 │
+└──────────────────────────────────────────────────────────────────────┘
+5.2. График "Доходность vs Просадка"
+text
+  Доходность
+      ↑
+  45% │    ● (41.5%, 24.3%)
+  40% │    ●
+  35% │  ● (34.2%, 12.4%)  ← Лучший баланс
+  30% │    ●
+  25% │  ●
+  20% │  ●
+      └────────────────────────→ Просадка
+          5%   10%   15%   20%   25%
+5.3. Детали лучшего варианта
+text
+┌──────────────────────────────────────────────────────────────────────┐
+│  🏆 Лучший вариант (Score: 89.2)                                  │
+├──────────────────────────────────────────────────────────────────────┤
+│  📈 Метрики:                                                       │
+│  ├─ Доходность: 34.2%                                             │
+│  ├─ Просадка: 12.4%                                               │
+│  ├─ Sharpe ratio: 1.84                                            │
+│  ├─ Win rate: 58%                                                 │
+│  └─ Сделок: 42                                                    │
+├──────────────────────────────────────────────────────────────────────┤
+│  ⚙️ Параметры:                                                    │
+│  ├─ Стоп-лосс: 2.5%                                               │
+│  ├─ Тейк-профит: 4.0%                                             │
+│  ├─ Макс. доля позиции: 8%                                        │
+│  ├─ Период MA: 20                                                 │
+│  └─ Отклонение: 2.5%                                              │
+├──────────────────────────────────────────────────────────────────────┤
+│  [Применить эти параметры]  [Запустить бэктест]  [Сохранить пресет]│
+└──────────────────────────────────────────────────────────────────────┘
+6. ОГРАНИЧЕНИЯ И ЗАЩИТА
+6.1. Защита от переоптимизации (Overfitting)
+typescript
+function checkOverfitting(results: OptimizationResult[]): boolean {
+  // 1. Проверка на "слишком хороший" результат
+  const best = results[0];
+  const secondBest = results[1];
+  
+  // Если лучший результат сильно отличается от второго (> 20%)
+  if (best.score > secondBest.score * 1.2) {
+    return true; // Подозрение на переоптимизацию
+  }
+  
+  // 2. Проверка на количество сделок
+  if (best.metrics.totalTrades < 20) {
+    return true; // Слишком мало сделок — результат нестабилен
+  }
+  
+  // 3. Проверка на Sharpe ratio
+  if (best.metrics.sharpeRatio > 2.5) {
+    return true; // Слишком высокий Sharpe — подозрительно
+  }
+  
+  return false;
+}
+6.2. Защита от "идеального" результата
+typescript
+function validateResult(metrics: BacktestMetrics): ValidationResult {
+  const issues: string[] = [];
+  
+  // 1. Проверка на "слишком" высокую доходность
+  if (metrics.totalReturn > 100) {
+    issues.push('Доходность > 100% — возможна ошибка в данных или переоптимизация');
+  }
+  
+  // 2. Проверка на "слишком" высокий Win Rate
+  if (metrics.winRate > 80) {
+    issues.push('Win Rate > 80% — результат нереалистичен');
+  }
+  
+  // 3. Проверка на "слишком" высокий Sharpe
+  if (metrics.sharpeRatio > 3.0) {
+    issues.push('Sharpe ratio > 3.0 — результат нереалистичен');
+  }
+  
+  // 4. Проверка на "слишком" низкую просадку при высокой доходности
+  if (metrics.totalReturn > 30 && metrics.maxDrawdown < 5) {
+    issues.push('Доходность > 30% при просадке < 5% — подозрительно');
+  }
+  
+  return {
+    isValid: issues.length === 0,
+    issues
+  };
+}
+
+6. ПРИМЕР РАБОТЫ (Сквозной сценарий)
+Трейдер открывает страницу тестирования.
+Настраивает базовую конфигурацию (рынок, период, стратегия).
+Нажимает "Запустить бэктест" — получает результаты.
+Видит, что доходность 22%, просадка 18% — недоволен.
+Нажимает "Оптимизировать" → выбирает цель "Макс. доходность".
+Система запускает 50 бэктестов параллельно (2-3 минуты).
+Находит лучший вариант: доходность 34%, просадка 12%.
+Применяет параметры нового варианта.
+Запускает бэктест с новыми параметрами.
+Результат: доходность 34%, просадка 12% — трейдер доволен.

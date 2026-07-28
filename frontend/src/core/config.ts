@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Core.TOPIC FrontendSrcCoreConfig [1]
+///@ Исходный модуль `frontend/src/core/config.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 export const config = {
     api: {
         base: '/api',
@@ -13,6 +16,6 @@ export const config = {
         login: '/login',
         analytics: '/analytics',
         settings: '/settings',
-        trading: '/trading'
+        // trading: '/trading'
     }
 };

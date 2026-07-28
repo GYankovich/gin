@@ -1,6 +1,9 @@
 """
 Модели для модуля авторизации
 """
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesAuthModels [1]
+#/// Исходный модуль `backend/app/modules/auth/models.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from datetime import datetime
 from sqlalchemy import (
     BigInteger, Boolean, Column, DateTime,
@@ -24,27 +27,31 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
-    # Relationships - используем строки с полным путем
+    # Relationships - используем строки с именами классов (без полных путей)
     emails = relationship("UserEmail", back_populates="user", cascade="all, delete-orphan")
     phones = relationship("UserPhone", back_populates="user", cascade="all, delete-orphan")
     tokens = relationship("UserToken", back_populates="user", cascade="all, delete-orphan")
-    tinvest_settings = relationship("TInvestSettings", back_populates="user", cascade="all, delete-orphan")
-    trading_robots = relationship("TradingRobot", back_populates="user", cascade="all, delete-orphan")
 
-    # ВАЖНО: Используем строку с полным именем класса
+    # Убираем дублирующуюся связь tinvest_settings (она конфликтует с api_tokens)
+    # Используем только одну связь с токенами
     api_tokens = relationship(
-        "ApiToken",  # Полный путь к классу
+        "ApiToken",
         back_populates="user",
-        cascade="all, delete-orphan",
-        overlaps="api_tokens"
+        cascade="all, delete-orphan"
     )
 
     portfolio_accounts = relationship(
-        "PortfolioAccount",  # Полный путь
+        "PortfolioAccount",
         back_populates="user",
-        cascade="all, delete-orphan",
-        overlaps="portfolio_accounts"
+        cascade="all, delete-orphan"
     )
+
+    trading_robots = relationship(
+        "Robot",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
 
 class UserEmail(Base):
     __tablename__ = "user_email"
@@ -102,17 +109,3 @@ class AppConfig(Base):
     key = Column(String(128), primary_key=True)
     value = Column(String(512), nullable=False)
     description = Column(String(1024), nullable=True)
-
-class TInvestSettings(Base):
-    __tablename__ = "tinvest_settings"
-    __table_args__ = {"schema": SCHEMA}
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.user.id", ondelete="CASCADE"), nullable=False)
-    api_token = Column(Text, nullable=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-
-    # Используем строку для обратной связи
-    user = relationship("User", back_populates="tinvest_settings")
-
-from app.modules.tinvest.models import ApiToken

@@ -5,6 +5,9 @@ Revises:
 Create Date: 2024-01-01 00:00:00.000000
 
 """
+#///EPIC Platform.ITEM Migrations.TOPIC AlembicVersions0001InitSchema [1]
+#/// Исходный модуль `alembic/versions/0001_init_schema.py` — автоматическая разметка для Obsidian Source Scanner.
+
 from alembic import op
 import sqlalchemy as sa
 from datetime import datetime

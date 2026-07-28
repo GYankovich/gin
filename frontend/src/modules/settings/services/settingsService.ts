@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Modules.TOPIC FrontendSrcModulesSettingsServicesSettingsservice [1]
+///@ Исходный модуль `frontend/src/modules/settings/services/settingsService.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { apiFetch } from '../../../core/api';
 import type { TInvestSettingsOut, TInvestSettingsIn } from '../types';
 

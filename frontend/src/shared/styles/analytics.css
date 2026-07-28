@@ -1,0 +1,171 @@
+/* =====================================================
+   Analytics View Styles
+   ===================================================== */
+
+.av-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: var(--space-xl) var(--space-lg);
+}
+
+.av-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 320px;
+    text-align: center;
+    padding: var(--space-2xl);
+}
+
+/* Header */
+.av-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-xl);
+    flex-wrap: wrap;
+    gap: var(--space-md);
+}
+
+.av-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.av-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+/* Select */
+.av-select {
+    appearance: none;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    padding: 0.55rem 2rem 0.55rem 0.85rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    outline: none;
+    transition: border-color var(--transition-fast);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+}
+
+.av-select:focus {
+    border-color: var(--accent);
+}
+
+.av-select-sm {
+    padding: 0.35rem 1.6rem 0.35rem 0.6rem;
+    font-size: 0.8rem;
+}
+
+/* Distribution bars */
+.av-dist-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+.av-dist-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.av-dist-bar-wrap {
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    min-width: 80px;
+}
+
+.av-dist-bar {
+    height: 100%;
+    background: var(--accent-gradient);
+    border-radius: 4px;
+    transition: width 0.6s ease;
+}
+
+.av-dist-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    min-width: 80px;
+}
+
+.av-dist-value {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    text-align: right;
+    min-width: 100px;
+}
+
+.av-dist-pct {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-align: right;
+    min-width: 50px;
+}
+
+/* Robot analytics table */
+.ra-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.ra-table th {
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.ra-table td {
+    padding: 0.55rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+.ra-table tbody tr:hover {
+    background: var(--bg-card-hover);
+}
+
+.ra-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .av-page {
+        padding: var(--space-md);
+    }
+
+    .av-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .av-dist-row {
+        grid-template-columns: 1fr auto auto;
+    }
+
+    .av-dist-bar-wrap {
+        display: none;
+    }
+}

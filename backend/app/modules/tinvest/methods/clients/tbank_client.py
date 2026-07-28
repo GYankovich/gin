@@ -1,9 +1,49 @@
+#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesTinvestMethodsClientsTbankClient [1]
+#/// Исходный модуль `backend/app/modules/tinvest/methods/clients/tbank_client.py` — автоматическая разметка для Obsidian Source Scanner.
+
 import httpx
 import logging
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
+from app.modules.tinvest.http_client import is_transport_error, post_with_transport_recovery
+
 logger = logging.getLogger(__name__)
+
+TBANK_GET_OPERATIONS_BY_CURSOR_ENDPOINT = (
+    "tinkoff.public.invest.api.contract.v1.OperationsService/GetOperationsByCursor"
+)
+
+
+class TBankAuthError(Exception):
+    """Raised when T-Bank API token is invalid/expired (HTTP 401)."""
+
+
+def _normalize_operation_for_upsert(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    GetOperationsByCursor возвращает OperationItem (items): часть полей и вложенность
+    отличаются от GetOperations (operations) — приводим к виду, который ждёт sync в БД.
+    """
+    op = dict(raw) if isinstance(raw, dict) else {}
+    ty = op.get("type")
+    if op.get("operationType") is None and isinstance(ty, str) and ty.startswith("OPERATION_TYPE_"):
+        op["operationType"] = ty
+
+    if op.get("trades") is None:
+        ti = op.get("tradesInfo") or op.get("trades_info")
+        op["trades"] = (ti.get("trades") if isinstance(ti, dict) else None) or []
+
+    if isinstance(ty, str) and ty.startswith("OPERATION_TYPE_"):
+        human = op.get("name") or op.get("description")
+        if human:
+            op["type"] = human
+
+    if not op.get("currency"):
+        pay = op.get("payment")
+        if isinstance(pay, dict) and pay.get("currency"):
+            op["currency"] = pay["currency"]
+
+    return op
 
 
 class TBankClient:
@@ -22,7 +62,9 @@ class TBankClient:
     async def _make_request(
             self,
             endpoint: str,
-            data: Optional[Dict] = None
+            data: Optional[Dict] = None,
+            *,
+            timeout: float = 30.0,
     ) -> Dict[str, Any]:
         """
         Базовый метод для выполнения POST-запросов к API
@@ -33,44 +75,50 @@ class TBankClient:
         logger.debug(f"Request data: {data}")
 
         try:
-            # ВАЖНО: добавляем verify=False для отключения проверки SSL
-            async with httpx.AsyncClient(timeout=30.0, verify=False) as client:
-                response = await client.post(
-                    url,
-                    headers=self.headers,
-                    json=data
-                )
+            response = await post_with_transport_recovery(
+                url,
+                headers=self.headers,
+                json=data,
+                timeout=timeout,
+                token=self.token,
+            )
 
-                logger.info(f"Response status: {response.status_code}")
-                logger.debug(f"Response headers: {dict(response.headers)}")
+            logger.info(f"Response status: {response.status_code}")
+            logger.debug(f"Response headers: {dict(response.headers)}")
 
-                if response.status_code == 401:
-                    error_text = await response.text() if response.text else "No error message"
-                    logger.error(f"Unauthorized (401): {error_text}")
-                    raise Exception(f"Неверный токен или токен истек. Получите новый токен в личном кабинете Т-Банка.")
+            def _response_text(resp: Any) -> str:
+                text_attr = getattr(resp, "text", "")
+                if callable(text_attr):
+                    return str(text_attr() or "No error message")
+                return str(text_attr or "No error message")
 
-                if response.status_code == 403:
-                    error_text = await response.text() if response.text else "No error message"
-                    logger.error(f"Forbidden (403): {error_text}")
-                    raise Exception(f"Нет доступа к API. Проверьте права токена.")
+            if response.status_code == 401:
+                error_text = _response_text(response)
+                logger.error(f"Unauthorized (401): {error_text}")
+                raise TBankAuthError("Неверный токен или токен истек. Получите новый токен в личном кабинете Т-Банка.")
 
-                if response.status_code == 429:
-                    logger.error("Rate limit exceeded (429)")
-                    raise Exception("Слишком много запросов. Превышен лимит API. Попробуйте позже.")
+            if response.status_code == 403:
+                error_text = _response_text(response)
+                logger.error(f"Forbidden (403): {error_text}")
+                raise Exception("Нет доступа к API. Проверьте права токена.")
 
-                if response.status_code >= 500:
-                    error_text = await response.text() if response.text else "No error message"
-                    logger.error(f"Server error ({response.status_code}): {error_text}")
-                    raise Exception(f"Ошибка на стороне Т-Банка. Попробуйте позже.")
+            if response.status_code == 429:
+                logger.error("Rate limit exceeded (429)")
+                raise Exception("Слишком много запросов. Превышен лимит API. Попробуйте позже.")
 
-                if response.status_code >= 400:
-                    error_text = await response.text() if response.text else "No error message"
-                    logger.error(f"Client error ({response.status_code}): {error_text}")
-                    raise Exception(f"Ошибка запроса: {error_text[:200]}")
+            if response.status_code >= 500:
+                error_text = _response_text(response)
+                logger.error(f"Server error ({response.status_code}): {error_text}")
+                raise Exception("Ошибка на стороне Т-Банка. Попробуйте позже.")
 
-                response_json = response.json() if response.text else {}
-                logger.debug(f"Response JSON: {response_json}")
-                return response_json
+            if response.status_code >= 400:
+                error_text = _response_text(response)
+                logger.error(f"Client error ({response.status_code}): {error_text}")
+                raise Exception(f"Ошибка запроса: {error_text[:200]}")
+
+            response_json = response.json() if response.text else {}
+            logger.debug(f"Response JSON: {response_json}")
+            return response_json
 
         except httpx.TimeoutException:
             logger.error("Timeout exception")
@@ -79,6 +127,9 @@ class TBankClient:
             logger.error(f"Network error: {e}")
             raise Exception(f"Сетевая ошибка при подключении к T-Bank API: {str(e)}")
         except Exception as e:
+            if is_transport_error(e):
+                logger.error("Transport error after retries: %s", e)
+                raise Exception(f"Сетевая ошибка при подключении к T-Bank API: {str(e)}") from e
             logger.error(f"Request error: {e}", exc_info=True)
             raise
 
@@ -119,6 +170,123 @@ class TBankClient:
         except Exception as e:
             logger.error(f"Failed to get portfolio for account {account_id}: {e}")
             raise
+
+    async def get_operations(
+            self,
+            account_id: str,
+            from_dt: datetime,
+            to_dt: datetime,
+            state: str = "OPERATION_STATE_UNSPECIFIED",
+    ) -> Dict[str, Any]:
+        """
+        Получение операций по счету.
+        POST /tinkoff.public.invest.api.contract.v1.OperationsService/GetOperations
+        """
+        try:
+            data = {
+                "accountId": account_id,
+                "from": from_dt.isoformat().replace("+00:00", "Z"),
+                "to": to_dt.isoformat().replace("+00:00", "Z"),
+                "state": state,
+            }
+            result = await self._make_request(
+                "tinkoff.public.invest.api.contract.v1.OperationsService/GetOperations",
+                data,
+            )
+            logger.info(f"Successfully retrieved operations for account {account_id}")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to get operations for account {account_id}: {e}")
+            raise
+
+    async def get_operations_all_pages(
+            self,
+            account_id: str,
+            from_dt: datetime,
+            to_dt: datetime,
+            state: str = "OPERATION_STATE_UNSPECIFIED",
+            page_limit: int = 1000,
+            max_pages: int = 500,
+    ) -> Dict[str, Any]:
+        """
+        Все операции за период через GetOperationsByCursor (лимит до 1000 на страницу).
+        GetOperations без курсора отдаёт ограниченный набор (типично ~150).
+        """
+        page_limit = max(1, min(page_limit, 1000))
+        raw_items: List[Dict[str, Any]] = []
+        page_responses: List[Dict[str, Any]] = []
+        cursor: Optional[str] = None
+        pages = 0
+        max_pages = max(1, min(int(max_pages), 500))
+
+        while pages < max_pages:
+            data: Dict[str, Any] = {
+                "accountId": account_id,
+                "from": from_dt.isoformat().replace("+00:00", "Z"),
+                "to": to_dt.isoformat().replace("+00:00", "Z"),
+                "state": state,
+                "limit": page_limit,
+            }
+            if cursor:
+                data["cursor"] = cursor
+
+            logger.info(
+                "GetOperationsByCursor page %s for account %s",
+                pages + 1,
+                account_id,
+            )
+            result = await self._make_request(
+                TBANK_GET_OPERATIONS_BY_CURSOR_ENDPOINT,
+                data,
+                timeout=60.0,
+            )
+            pages += 1
+            page_responses.append(result)
+
+            batch = result.get("items") or result.get("operations") or []
+            raw_items.extend(batch)
+
+            next_cursor = result.get("nextCursor") or result.get("next_cursor") or None
+            if isinstance(next_cursor, str) and not next_cursor.strip():
+                next_cursor = None
+
+            has_next_raw = result.get("hasNext", result.get("has_next"))
+            if has_next_raw is None:
+                has_next = bool(next_cursor)
+            else:
+                has_next = bool(has_next_raw)
+
+            if not next_cursor:
+                if has_next:
+                    logger.warning(
+                        "GetOperationsByCursor: hasNext=true, но nextCursor пуст — остановка пагинации"
+                    )
+                break
+            if not has_next:
+                break
+            cursor = next_cursor
+
+        if pages >= max_pages:
+            logger.warning(
+                "get_operations_all_pages: достигнут лимит %s страниц для счёта %s",
+                max_pages,
+                account_id,
+            )
+
+        operations = [_normalize_operation_for_upsert(item) for item in raw_items]
+        logger.info(
+            "Retrieved %s operations for account %s in %s page(s)",
+            len(operations),
+            account_id,
+            pages,
+        )
+        return {
+            "operations": operations,
+            "nextCursor": None,
+            "pageCount": pages,
+            "rawItemCount": len(raw_items),
+            "pages": page_responses,
+        }
 
 
 # ВАЖНО: эта функция должна быть на одном уровне с классом, а не внутри него

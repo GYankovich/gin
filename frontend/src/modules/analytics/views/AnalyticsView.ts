@@ -1,48 +1,58 @@
+///@EPIC Frontend.ITEM Modules.TOPIC FrontendSrcModulesAnalyticsViewsAnalyticsview [1]
+///@ Исходный модуль `frontend/src/modules/analytics/views/AnalyticsView.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { analyticsService } from '../services/analyticsService';
 import { router } from '../../../core/router';
 import { store } from '../../../core/store';
 import { apiFetch } from '../../../core/api';
-import Chart from 'chart.js/auto';
-import type { OverallSummary, AccountDetail, AccountSummary, HistoryItem } from '../types';
+import { createChart, AreaSeries, IChartApi, ISeriesApi, Time } from 'lightweight-charts';
+import type { OverallSummary, AccountDetail, AccountSummary } from '../types';
 
 export class AnalyticsView {
-    private container: HTMLElement;
+    private container!: HTMLElement;
     private summary: OverallSummary | null = null;
     private accounts: AccountSummary[] = [];
     private selectedAccountId: number | null = null;
     private accountDetail: AccountDetail | null = null;
-    private loading: boolean = false;
-    private loadingDetail: boolean = false;
-    private refreshing: boolean = false;
+    private loading = false;
+    private loadingDetail = false;
+    private refreshing = false;
     private error: string | null = null;
-    private historyDays: number = 30;
-    private chart: Chart | null = null;
-    private distributionChart: Chart | null = null;
-    private initialLoadStarted: boolean = false;
+    private historyDays = 30;
 
-    constructor(container?: HTMLElement) {
+    private lwChart: IChartApi | null = null;
+    private areaSeries: ISeriesApi<'Area'> | null = null as any;
+    private resizeObserver: ResizeObserver | null = null;
+    private initialLoadStarted = false;
+
+    render(container?: HTMLElement): void {
         if (container) this.container = container;
-        console.log('📊 AnalyticsView created');
+        if (!this.container) return;
+
+        if (!this.initialLoadStarted && !this.summary && !this.loading && !this.error) {
+            this.initialLoadStarted = true;
+            this.loadSummary();
+        }
+
+        this.container.innerHTML = this.getTemplate();
+        this.attachEvents();
+
+        if (this.accountDetail) {
+            requestAnimationFrame(() => this.renderLWChart());
+        }
     }
 
-    setContainer(container: HTMLElement): void {
-        this.container = container;
-    }
+    /* ---- data ---- */
 
     private async loadSummary(): Promise<void> {
-        // Если уже загружаемся или данные уже есть - выходим
         if (this.loading || this.summary) return;
-
         try {
             this.loading = true;
             this.error = null;
             this.render();
 
-            console.log('📡 Loading analytics summary...');
             this.summary = await analyticsService.getOverallSummary();
             this.accounts = this.summary.accounts;
-
-            // Сбрасываем loading ПОСЛЕ получения данных, НО перед загрузкой деталей
             this.loading = false;
             this.render();
 
@@ -51,7 +61,6 @@ export class AnalyticsView {
                 await this.loadAccountDetail(this.selectedAccountId);
             }
         } catch (err: any) {
-            console.error('❌ Failed to load summary:', err);
             this.error = err.message || 'Не удалось загрузить данные';
             this.loading = false;
             this.render();
@@ -63,38 +72,9 @@ export class AnalyticsView {
             this.loadingDetail = true;
             this.error = null;
             this.render();
-
-            console.log(`📡 Loading account detail for ID: ${accountId}`);
             this.accountDetail = await analyticsService.getAccountDetail(accountId);
-
-            // После загрузки деталей, если период не 30, перезагружаем историю с нужным периодом
-            if (this.historyDays !== 30) {
-                await this.loadHistoryForSelectedAccount();
-            }
+            if (this.historyDays !== 30) await this.loadHistory();
         } catch (err: any) {
-            console.error('❌ Failed to load account detail:', err);
-            this.error = err.message || 'Не удалось загрузить детали портфеля';
-        } finally {
-            this.loadingDetail = false;
-            this.render(); // Важно: перерендериваем после загрузки деталей
-        }
-    }
-
-    private async loadAccountDetail(accountId: number): Promise<void> {
-        try {
-            this.loadingDetail = true;
-            this.error = null;
-            this.render();
-
-            console.log(`📡 Loading account detail for ID: ${accountId}`);
-            this.accountDetail = await analyticsService.getAccountDetail(accountId);
-
-            // После загрузки деталей, если период не 30, перезагружаем историю с нужным периодом
-            if (this.historyDays !== 30) {
-                await this.loadHistoryForSelectedAccount();
-            }
-        } catch (err: any) {
-            console.error('❌ Failed to load account detail:', err);
             this.error = err.message || 'Не удалось загрузить детали портфеля';
         } finally {
             this.loadingDetail = false;
@@ -102,43 +82,26 @@ export class AnalyticsView {
         }
     }
 
-    private async loadHistoryForSelectedAccount(): Promise<void> {
+    private async loadHistory(): Promise<void> {
         if (!this.selectedAccountId || !this.accountDetail) return;
-
         try {
-            console.log(`📡 Loading history for account ${this.selectedAccountId}, days: ${this.historyDays}`);
-            const historyData = await analyticsService.getAccountHistory(this.selectedAccountId, this.historyDays);
-            this.accountDetail.history = historyData.history;
-            this.renderCharts();
-        } catch (err: any) {
-            console.error('❌ Failed to load history:', err);
-        }
-    }
-
-    private async handleAccountChange(accountId: number): Promise<void> {
-        this.selectedAccountId = accountId;
-        this.accountDetail = null; // Сбрасываем детали при смене счета
-        await this.loadAccountDetail(accountId);
+            const d = await analyticsService.getAccountHistory(this.selectedAccountId, this.historyDays);
+            this.accountDetail.history = d.history;
+            this.renderLWChart();
+        } catch {}
     }
 
     private async handleRefreshAll(): Promise<void> {
         try {
             this.refreshing = true;
-            this.error = null;
             this.render();
-
-            console.log('🔄 Refreshing all portfolios...');
             await apiFetch('/portfolio/refresh-all', { method: 'POST' });
-
-            // Сбрасываем флаг, чтобы загрузить свежие данные
             this.summary = null;
             this.accounts = [];
             this.accountDetail = null;
             this.initialLoadStarted = false;
-
             await this.loadSummary();
         } catch (err: any) {
-            console.error('❌ Failed to refresh:', err);
             this.error = err.message || 'Ошибка при обновлении';
         } finally {
             this.refreshing = false;
@@ -146,329 +109,264 @@ export class AnalyticsView {
         }
     }
 
-    private async handleDaysChange(days: number): Promise<void> {
-        this.historyDays = days;
-        await this.loadHistoryForSelectedAccount();
-    }
+    /* ---- chart ---- */
 
-    private renderCharts(): void {
-        if (!this.accountDetail) return;
+    private renderLWChart(): void {
+        if (!this.accountDetail?.history?.length) return;
+        const wrapper = document.getElementById('lw-chart-wrapper');
+        if (!wrapper) return;
 
-        // Даём время DOM обновиться
-        setTimeout(() => {
-            // График истории стоимости
-            const historyCtx = document.getElementById('history-chart') as HTMLCanvasElement;
-            if (historyCtx && this.accountDetail!.history.length > 0) {
-                if (this.chart) this.chart.destroy();
+        this.destroyChart();
 
-                const dates = this.accountDetail!.history.map(h => new Date(h.date).toLocaleDateString());
-                const values = this.accountDetail!.history.map(h => h.total_value);
+        const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
 
-                this.chart = new Chart(historyCtx, {
-                    type: 'line',
-                    data: {
-                        labels: dates,
-                        datasets: [{
-                            label: 'Стоимость портфеля',
-                            data: values,
-                            borderColor: 'rgb(249, 115, 22)',
-                            backgroundColor: 'rgba(249, 115, 22, 0.1)',
-                            tension: 0.1,
-                            fill: true
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                callbacks: {
-                                    label: (context) => {
-                                        let value = context.raw as number;
-                                        return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB' }).format(value);
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            y: {
-                                ticks: {
-                                    callback: (value) => new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', notation: 'compact' }).format(value as number)
-                                }
-                            }
-                        }
-                    }
-                });
+        this.lwChart = createChart(wrapper, {
+            width: wrapper.clientWidth,
+            height: 320,
+            layout: {
+                background: { color: 'transparent' },
+                textColor: isDark ? '#94a3b8' : '#64748b',
+                fontFamily: 'Inter, sans-serif',
+            },
+            grid: {
+                vertLines: { color: isDark ? '#1e293b' : '#e2e8f0' },
+                horzLines: { color: isDark ? '#1e293b' : '#e2e8f0' },
+            },
+            rightPriceScale: {
+                borderColor: isDark ? '#1e293b' : '#e2e8f0',
+            },
+            timeScale: {
+                borderColor: isDark ? '#1e293b' : '#e2e8f0',
+                timeVisible: false,
+            },
+            crosshair: {
+                horzLine: { color: '#f97316', labelBackgroundColor: '#f97316' },
+                vertLine: { color: '#f97316', labelBackgroundColor: '#f97316' },
+            },
+        });
+
+        this.areaSeries = this.lwChart.addSeries(AreaSeries, {
+            topColor: 'rgba(249, 115, 22, 0.28)',
+            bottomColor: 'rgba(249, 115, 22, 0.02)',
+            lineColor: '#f97316',
+            lineWidth: 2,
+        });
+
+        // Дедупликация: берём последний снапшот за каждый день
+        const byDay = new Map<string, number>();
+        for (const h of this.accountDetail.history) {
+            const day = String(h.date).split('T')[0];
+            byDay.set(day, h.total_value);
+        }
+        const data = Array.from(byDay.entries())
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([time, value]) => ({ time: time as Time, value }));
+
+        if (data.length === 0) return;
+        this.areaSeries.setData(data);
+        this.lwChart.timeScale().fitContent();
+
+        this.resizeObserver = new ResizeObserver(entries => {
+            if (this.lwChart && entries[0]) {
+                this.lwChart.applyOptions({ width: entries[0].contentRect.width });
             }
-
-            // Круговая диаграмма распределения
-            const distCtx = document.getElementById('distribution-chart') as HTMLCanvasElement;
-            if (distCtx && this.accountDetail!.distribution.length > 0) {
-                if (this.distributionChart) this.distributionChart.destroy();
-
-                const labels = this.accountDetail!.distribution.map(d => {
-                    const map: Record<string, string> = {
-                        'share': 'Акции',
-                        'bond': 'Облигации',
-                        'etf': 'Фонды',
-                        'currency': 'Валюта',
-                        'future': 'Фьючерсы',
-                        'option': 'Опционы'
-                    };
-                    return map[d.instrument_type] || d.instrument_type;
-                });
-                const data = this.accountDetail!.distribution.map(d => d.value);
-                const percentages = this.accountDetail!.distribution.map(d => d.percentage);
-
-                this.distributionChart = new Chart(distCtx, {
-                    type: 'doughnut',
-                    data: {
-                        labels,
-                        datasets: [{
-                            data,
-                            backgroundColor: [
-                                'rgba(249, 115, 22, 0.8)',
-                                'rgba(16, 185, 129, 0.8)',
-                                'rgba(59, 130, 246, 0.8)',
-                                'rgba(139, 92, 246, 0.8)',
-                                'rgba(236, 72, 153, 0.8)',
-                                'rgba(245, 158, 11, 0.8)'
-                            ]
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { position: 'bottom' },
-                            tooltip: {
-                                callbacks: {
-                                    label: (context) => {
-                                        const label = context.label || '';
-                                        const value = context.raw as number;
-                                        const percentage = percentages[context.dataIndex] * 100;
-                                        return `${label}: ${new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB' }).format(value)} (${percentage.toFixed(1)}%)`;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-        }, 0);
+        });
+        this.resizeObserver.observe(wrapper);
     }
 
-    private formatMoney(value: number, currency: string = 'RUB'): string {
-        return new Intl.NumberFormat('ru-RU', { style: 'currency', currency }).format(value);
+    private destroyChart(): void {
+        this.resizeObserver?.disconnect();
+        this.resizeObserver = null;
+        if (this.lwChart) {
+            this.lwChart.remove();
+            this.lwChart = null;
+            this.areaSeries = null;
+        }
     }
 
-    private formatPercent(value: number): string {
-        return `${(value * 100).toFixed(2)}%`;
+    /* ---- helpers ---- */
+
+    private fmt(value: number, currency = 'RUB'): string {
+        return new Intl.NumberFormat('ru-RU', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
     }
+
+    private pct(value: number | null): string {
+        if (value == null) return '—';
+        return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(2)}%`;
+    }
+
+    private signClass(v: number | null | undefined): string {
+        if (v == null) return '';
+        return v >= 0 ? 'text-success' : 'text-danger';
+    }
+
+    /* ---- template ---- */
 
     private getTemplate(): string {
-        // Проверяем авторизацию
-        console.log('🎨 Rendering template with state:', {
-            loading: this.loading,
-            loadingDetail: this.loadingDetail,
-            summary: !!this.summary,
-            accountsCount: this.accounts.length,
-            error: this.error
-        });
-        const authToken = store.getState().token;
-        if (!authToken) {
-            return `
-        <div class="analytics-container">
-          <div class="no-auth-state">
+        const token = store.getState().token;
+        if (!token) return this.tplNoAuth();
+        if (this.loading) return this.tplLoading();
+        if (this.error) return this.tplError();
+        if (!this.summary || !this.accounts.length) return this.tplEmpty();
+        return this.tplMain();
+    }
+
+    private tplNoAuth = () => `
+        <div class="av-center">
             <p>Необходимо авторизоваться</p>
-            <button class="button button-primary" id="go-to-login">Перейти к входу</button>
-          </div>
-        </div>
-      `;
-        }
+            <button class="btn btn-primary" id="go-to-login">Перейти к входу</button>
+        </div>`;
 
-        if (this.loading) {
-            return `
-        <div class="analytics-container">
-          <div class="loading-state">
-            <div class="loading-spinner"></div>
-            <p>Загрузка данных...</p>
-          </div>
-        </div>
-      `;
-        }
+    private tplLoading = () => `
+        <div class="av-center">
+            <div class="skeleton-pulse" style="width:60px;height:60px;border-radius:50%;margin:0 auto 16px"></div>
+            <p style="color:var(--text-muted)">Загрузка данных...</p>
+        </div>`;
 
-        if (this.error) {
-            return `
-        <div class="analytics-container">
-          <div class="error-state">
-            <p class="error-message">${this.error}</p>
-            <button class="button button-primary" id="retry-load">Повторить</button>
-            <button class="button button-secondary" id="refresh-all">Обновить всё</button>
-          </div>
-        </div>
-      `;
-        }
+    private tplError = () => `
+        <div class="av-center">
+            <p style="color:var(--color-danger);margin-bottom:12px">${this.error}</p>
+            <button class="btn btn-primary" id="retry-load">Повторить</button>
+        </div>`;
 
-        if (!this.summary || this.accounts.length === 0) {
-            return `
-        <div class="analytics-container">
-          <div class="empty-state">
-            <p>Нет данных по портфелям. Нажмите "Обновить всё", чтобы загрузить данные из Т-Инвестиций.</p>
-            <button class="button button-primary" id="refresh-all" ${this.refreshing ? 'disabled' : ''}>
-              <span class="refresh-icon">🔄</span>
-              ${this.refreshing ? 'Обновление...' : 'Обновить всё'}
+    private tplEmpty = () => `
+        <div class="av-center">
+            <p style="color:var(--text-muted);margin-bottom:12px">Нет данных по портфелям.</p>
+            <button class="btn btn-primary" id="refresh-all" ${this.refreshing ? 'disabled' : ''}>
+                ${this.refreshing ? 'Обновление...' : 'Обновить всё'}
             </button>
-          </div>
-        </div>
-      `;
-        }
+        </div>`;
 
-        const selectedAccount = this.accounts.find(a => a.id === this.selectedAccountId);
-        const accountDetail = this.accountDetail;
-        const lastSnapshot = accountDetail?.last_snapshot;
+    private tplMain(): string {
+        const s = this.summary!;
+        const snap = this.accountDetail?.last_snapshot;
+        const dist = this.accountDetail?.distribution || [];
+        const totalDist = dist.reduce((acc, d) => acc + d.value, 0);
 
         return `
-      <div class="analytics-container">
-        <div class="analytics-header">
-          <h1>Аналитика портфелей</h1>
-          <div class="header-controls">
-            <select id="account-select" class="account-select">
-              ${this.accounts.map(a => `
-                <option value="${a.id}" ${a.id === this.selectedAccountId ? 'selected' : ''}>
-                  ${a.name || a.account_id}
-                </option>
-              `).join('')}
-            </select>
-            <button class="button button-primary" id="refresh-all" ${this.refreshing ? 'disabled' : ''}>
-              <span class="refresh-icon">🔄</span>
-              ${this.refreshing ? 'Обновление...' : 'Обновить всё'}
-            </button>
-          </div>
-        </div>
-
-        <!-- Общая сводка -->
-        <div class="summary-cards">
-          <div class="summary-card">
-            <div class="summary-label">Всего портфелей</div>
-            <div class="summary-value">${this.summary.accounts_count}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">Общая стоимость</div>
-            <div class="summary-value">${this.formatMoney(this.summary.total_value)}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">Общая доходность</div>
-            <div class="summary-value ${this.summary.total_expected_yield && this.summary.total_expected_yield >= 0 ? 'positive' : 'negative'}">
-              ${this.summary.total_expected_yield ? this.formatPercent(this.summary.total_expected_yield) : '—'}
-            </div>
-          </div>
-        </div>
-
-        ${this.loadingDetail ? `
-          <div class="loading-state">
-            <div class="loading-spinner"></div>
-            <p>Загрузка деталей портфеля...</p>
-          </div>
-        ` : ''}
-
-        ${accountDetail ? `
-          <div class="portfolio-detail">
-            <h2>${selectedAccount?.name || selectedAccount?.account_id || 'Портфель'}</h2>
-            ${lastSnapshot ? `
-              <div class="snapshot-info">
-                <div class="snapshot-date">Последнее обновление: ${new Date(lastSnapshot.date).toLocaleString()}</div>
-                <div class="snapshot-stats">
-                  <div class="stat-item">
-                    <span class="stat-label">Общая стоимость</span>
-                    <span class="stat-value">${this.formatMoney(lastSnapshot.total_value)}</span>
-                  </div>
-                  <div class="stat-item">
-                    <span class="stat-label">Акции</span>
-                    <span class="stat-value">${this.formatMoney(lastSnapshot.shares_value)}</span>
-                  </div>
-                  <div class="stat-item">
-                    <span class="stat-label">Облигации</span>
-                    <span class="stat-value">${this.formatMoney(lastSnapshot.bonds_value)}</span>
-                  </div>
-                  <div class="stat-item">
-                    <span class="stat-label">Фонды</span>
-                    <span class="stat-value">${this.formatMoney(lastSnapshot.etf_value)}</span>
-                  </div>
-                  <div class="stat-item">
-                    <span class="stat-label">Валюта</span>
-                    <span class="stat-value">${this.formatMoney(lastSnapshot.currencies_value)}</span>
-                  </div>
+        <div class="av-page">
+            <!-- Header -->
+            <div class="av-header">
+                <h1 class="av-title">Аналитика</h1>
+                <div class="av-controls">
+                    <select id="account-select" class="av-select">
+                        ${this.accounts.map(a => `
+                            <option value="${a.id}" ${a.id === this.selectedAccountId ? 'selected' : ''}>
+                                ${a.name || a.account_id}
+                            </option>
+                        `).join('')}
+                    </select>
+                    <button class="btn btn-ghost" id="refresh-all" ${this.refreshing ? 'disabled' : ''}>
+                        ${this.refreshing ? '...' : '\u21BB Обновить'}
+                    </button>
                 </div>
-              </div>
-            ` : ''}
-
-            <div class="chart-header">
-              <h3>История стоимости</h3>
-              <select id="days-select" class="days-select">
-                <option value="7" ${this.historyDays === 7 ? 'selected' : ''}>7 дней</option>
-                <option value="30" ${this.historyDays === 30 ? 'selected' : ''}>30 дней</option>
-                <option value="90" ${this.historyDays === 90 ? 'selected' : ''}>3 месяца</option>
-                <option value="365" ${this.historyDays === 365 ? 'selected' : ''}>год</option>
-              </select>
-            </div>
-            <div class="chart-container">
-              <canvas id="history-chart"></canvas>
             </div>
 
-            ${accountDetail.distribution.length > 0 ? `
-              <h3>Распределение активов</h3>
-              <div class="chart-container small">
-                <canvas id="distribution-chart"></canvas>
-              </div>
+            <!-- KPI tiles -->
+            <div class="kpi-grid">
+                <div class="kpi-tile">
+                    <span class="kpi-label">Портфелей</span>
+                    <span class="kpi-value">${s.accounts_count}</span>
+                </div>
+                <div class="kpi-tile">
+                    <span class="kpi-label">Общая стоимость</span>
+                    <span class="kpi-value">${this.fmt(s.total_value)}</span>
+                </div>
+                <div class="kpi-tile">
+                    <span class="kpi-label">Дневная доходность</span>
+                    <span class="kpi-value ${this.signClass(s.total_daily_yield)}">
+                        ${s.total_daily_yield != null ? this.fmt(s.total_daily_yield) : '—'}
+                    </span>
+                </div>
+                <div class="kpi-tile">
+                    <span class="kpi-label">Ожидаемая доходность</span>
+                    <span class="kpi-value ${this.signClass(s.total_expected_yield)}">
+                        ${this.pct(s.total_expected_yield)}
+                    </span>
+                </div>
+            </div>
+
+            ${this.loadingDetail ? `
+                <div class="av-center" style="padding:2rem 0">
+                    <div class="skeleton-pulse" style="width:40px;height:40px;border-radius:50%;margin:0 auto 12px"></div>
+                    <p style="color:var(--text-muted)">Загрузка деталей...</p>
+                </div>
             ` : ''}
-          </div>
-        ` : ''}
-      </div>
-    `;
+
+            ${this.accountDetail ? `
+                <!-- Snapshot KPIs -->
+                ${snap ? `
+                <div class="kpi-grid" style="margin-top:var(--space-lg)">
+                    <div class="kpi-tile"><span class="kpi-label">Акции</span><span class="kpi-value">${this.fmt(snap.shares_value)}</span></div>
+                    <div class="kpi-tile"><span class="kpi-label">Облигации</span><span class="kpi-value">${this.fmt(snap.bonds_value)}</span></div>
+                    <div class="kpi-tile"><span class="kpi-label">Фонды</span><span class="kpi-value">${this.fmt(snap.etf_value)}</span></div>
+                    <div class="kpi-tile"><span class="kpi-label">Валюта</span><span class="kpi-value">${this.fmt(snap.currencies_value)}</span></div>
+                </div>
+                ` : ''}
+
+                <!-- Chart -->
+                <div class="card" style="margin-top:var(--space-lg);padding:var(--space-lg)">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md)">
+                        <h3 style="margin:0;font-size:1rem;color:var(--text-primary)">История стоимости</h3>
+                        <select id="days-select" class="av-select av-select-sm">
+                            <option value="7" ${this.historyDays === 7 ? 'selected' : ''}>7д</option>
+                            <option value="30" ${this.historyDays === 30 ? 'selected' : ''}>30д</option>
+                            <option value="90" ${this.historyDays === 90 ? 'selected' : ''}>3м</option>
+                            <option value="365" ${this.historyDays === 365 ? 'selected' : ''}>1г</option>
+                        </select>
+                    </div>
+                    <div id="lw-chart-wrapper" style="width:100%;height:320px"></div>
+                </div>
+
+                <!-- Distribution -->
+                ${dist.length > 0 ? `
+                <div class="card" style="margin-top:var(--space-lg);padding:var(--space-lg)">
+                    <h3 style="margin:0 0 var(--space-md);font-size:1rem;color:var(--text-primary)">Распределение активов</h3>
+                    <div class="av-dist-list">
+                        ${dist.map(d => {
+                            const pct = totalDist > 0 ? (d.value / totalDist * 100) : 0;
+                            const typeNames: Record<string, string> = { share: 'Акции', bond: 'Облигации', etf: 'Фонды', currency: 'Валюта', future: 'Фьючерсы', option: 'Опционы' };
+                            const name = typeNames[d.instrument_type] || d.instrument_type;
+                            return `
+                            <div class="av-dist-row">
+                                <div class="av-dist-bar-wrap">
+                                    <div class="av-dist-bar" style="width:${pct}%"></div>
+                                </div>
+                                <span class="av-dist-label">${name}</span>
+                                <span class="av-dist-value">${this.fmt(d.value)}</span>
+                                <span class="av-dist-pct">${pct.toFixed(1)}%</span>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>
+                ` : ''}
+            ` : ''}
+        </div>`;
     }
+
+    /* ---- events ---- */
 
     private attachEvents(): void {
-        const accountSelect = document.getElementById('account-select') as HTMLSelectElement;
-        accountSelect?.addEventListener('change', (e) => {
+        document.getElementById('account-select')?.addEventListener('change', (e) => {
             const id = parseInt((e.target as HTMLSelectElement).value);
-            this.handleAccountChange(id);
+            this.selectedAccountId = id;
+            this.accountDetail = null;
+            this.loadAccountDetail(id);
         });
-
-        const refreshBtn = document.getElementById('refresh-all');
-        refreshBtn?.addEventListener('click', () => this.handleRefreshAll());
-
-        const daysSelect = document.getElementById('days-select') as HTMLSelectElement;
-        daysSelect?.addEventListener('change', (e) => {
-            const days = parseInt((e.target as HTMLSelectElement).value);
-            this.handleDaysChange(days);
+        document.getElementById('refresh-all')?.addEventListener('click', () => this.handleRefreshAll());
+        document.getElementById('days-select')?.addEventListener('change', (e) => {
+            this.historyDays = parseInt((e.target as HTMLSelectElement).value);
+            this.loadHistory();
         });
-
-        const retryBtn = document.getElementById('retry-load');
-        retryBtn?.addEventListener('click', () => this.loadSummary());
-
-        const loginBtn = document.getElementById('go-to-login');
-        loginBtn?.addEventListener('click', () => router.navigate('/login'));
+        document.getElementById('retry-load')?.addEventListener('click', () => {
+            this.summary = null;
+            this.initialLoadStarted = false;
+            this.loadSummary();
+        });
+        document.getElementById('go-to-login')?.addEventListener('click', () => router.navigate('/login'));
     }
 
-    render(container?: HTMLElement): void {
-        if (container) this.container = container;
-        if (!this.container) return;
-
-        // Загружаем данные только если ещё не начали и нет данных
-        if (!this.initialLoadStarted && !this.summary && !this.loading && !this.error) {
-            this.initialLoadStarted = true;
-            this.loadSummary();
-        }
-
-        // Рендерим соответствующий шаблон
-        this.container.innerHTML = this.getTemplate();
-        this.attachEvents();
-
-        // Рисуем графики после того, как DOM обновился
-        if (this.accountDetail) {
-            this.renderCharts();
-        }
+    destroy(): void {
+        this.destroyChart();
     }
 }

@@ -1,8 +1,17 @@
-from datetime import datetime, timezone
-from typing import Optional, List, Tuple
+# app/modules/apikey/service.py
+#///EPIC Platform.ITEM Settings.TOPIC API Key Service Logic [1]
+#/// Бизнес-логика API-ключей: SQL-операции CRUD, проверки уникальности/статуса,
+#/// аудит изменений и формирование ответов для settings endpoints.
+from datetime import datetime, timezone, timedelta
+from typing import Optional, List, Tuple, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import logging
+import json
+
+from . import queries
+from app.modules.bybit.http_client import BybitApiError, BybitHttpClient
+from app.modules.tinvest.methods import create_tbank_client
 
 logger = logging.getLogger(__name__)
 
@@ -10,82 +19,221 @@ logger = logging.getLogger(__name__)
 class ApiKeyService:
     """Сервис для работы с API ключами"""
 
+    def __init__(self):
+        self.db: Optional[Session] = None
+
+    def _execute(self, query: str, params: Dict[str, Any], fetch_one: bool = False):
+        """Утилита для выполнения запросов"""
+        result = self.db.execute(text(query), params)
+        return result.first() if fetch_one else result
+
     @staticmethod
-    def check_existing_token(db: Session, token: str) -> bool:
+    def _safe_str(value, default: str = '') -> str:
+        """Безопасное преобразование в строку"""
+        if value is None:
+            return default
+        return str(value)
+
+    @staticmethod
+    def _safe_int(value, default: int = 0) -> int:
+        """Безопасное преобразование в int"""
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _safe_bool(value, default: bool = False) -> bool:
+        """Безопасное преобразование в bool"""
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int):
+            return value == 1
+        return bool(value)
+
+    @staticmethod
+    def _safe_datetime(value, default: Optional[datetime] = None) -> Optional[datetime]:
+        """Безопасное преобразование в datetime"""
+        return value if value is not None else default
+
+    @staticmethod
+    def _mask_token(token: Any) -> str:
+        """Маскирует токен для безопасного отображения"""
+        if token is None:
+            return ""
+
+        if not isinstance(token, str):
+            try:
+                token = str(token)
+            except:
+                return "***"
+
+        if len(token) > 20:
+            return token[:6] + "*" * 10 + token[-4:]
+        return "*" * min(20, len(token))
+
+    def _row_to_api_key_response(self, row, include_token: bool = False) -> dict:
+        """Преобразует строку результата в ответ API"""
+        if not row:
+            return {}
+
+        # Two shapes:
+        # - legacy (create/update RETURNING): [id, name, token_type, status, created_at, refresh_interval_minutes, token, extra_data] -> 0..7
+        # - list (/apikey/data): [id, name, token_type, status, created_at, token, refresh_interval_minutes, extra_data, type_name, type_description, last_used_at, status_name, status_description] -> 0..12
+        is_list_shape = len(row) >= 12
+
+        status_val = self._safe_int(row[3]) if len(row) > 3 else 0
+        created_at_val = self._safe_datetime(row[4]) if len(row) > 4 else None
+
+        token_type_info = {
+            "type": self._safe_int(row[2]) if len(row) > 2 else 0,
+            "typeName": self._safe_str(row[8], "") if is_list_shape and len(row) > 8 and row[8] is not None else "",
+            "typeDesc": self._safe_str(row[9], "") if is_list_shape and len(row) > 9 and row[9] is not None else "",
+        }
+        # broker_type — перевод TOKEN.TYPE из dictionary (d.name as type_name).
+        broker_type = token_type_info["typeName"] or None
+
+        token_value_idx = 5 if is_list_shape else 6
+        token_value = row[token_value_idx] if len(row) > token_value_idx else None
+
+        result: dict = {
+            "id": self._safe_int(row[0]),
+            "name": self._safe_str(row[1], None) if len(row) > 1 else None,
+            "token_type": token_type_info,
+            "broker_type": broker_type,
+            "status": status_val,
+            "created_at": created_at_val,
+            "masked_token": self._mask_token(token_value),
+        }
+
+        if include_token and token_value is not None:
+            result["token"] = self._safe_str(token_value)
+
+        if len(row) > (6 if is_list_shape else 5):
+            result["refresh_interval_minutes"] = self._safe_int(row[6 if is_list_shape else 5], 60)
+
+        extra_idx = 7 if is_list_shape else 7
+        if len(row) > extra_idx and isinstance(row[extra_idx], dict):
+            result["extra_data"] = row[extra_idx]
+        else:
+            result["extra_data"] = None
+
+        if is_list_shape:
+            result["last_used_at"] = self._safe_datetime(row[10])
+            result["status_name"] = self._safe_str(row[11], None)
+            result["status_description"] = self._safe_str(row[12], None)
+
+            # Небольшой бэкап на случай отсутствия словарных записей.
+            if result.get("status") == 3 and not result.get("status_name"):
+                result["status_name"] = "Истекший"
+            if result.get("status") == 3 and not result.get("status_description"):
+                result["status_description"] = "Токен истек"
+
+        return result
+
+    def _row_to_key_detail(self, row) -> dict:
+        """Преобразует строку в детальную информацию о ключе"""
+        if not row:
+            return {}
+
+        token_value = row[3] if len(row) > 3 else None
+
+        result = {
+            "id": self._safe_int(row[0]),
+            "name": self._safe_str(row[1], None),
+            "key_type": self._safe_str(row[2]),
+            "token": self._safe_str(token_value) if token_value is not None else None,
+            "status": self._safe_int(row[4]) if len(row) > 4 else 1,
+            "created_at": self._safe_datetime(row[5]) if len(row) > 5 else None,
+            "updated_at": self._safe_datetime(row[6]) if len(row) > 6 else None,
+            "expires_at": self._safe_datetime(row[7]) if len(row) > 7 else None,
+            "last_used_at": self._safe_datetime(row[8]) if len(row) > 8 else None,
+            "extra_data": row[9] if len(row) > 9 and isinstance(row[9], dict) else None,
+        }
+
+        result["masked_token"] = self._mask_token(token_value)
+        return result
+
+    def check_existing_token(self, db: Session, token: str) -> bool:
         """
         Проверяет, существует ли уже активный токен с таким значением
         """
-        query = text("""
-                     SELECT id FROM ganaly.api_tokens
-                     WHERE token = :token AND is_active = 1
-                         LIMIT 1
-                     """)
-
-        result = db.execute(query, {"token": token}).first()
+        self.db = db
+        query = queries.build_check_existing_token_query()
+        result = self._execute(query, {"token": token}, fetch_one=True)
         return result is not None
 
-    @staticmethod
-    def create_key(db: Session, user_id: int, token: str, key_type: str, name: Optional[str] = None) -> dict:
+    async def create_key(
+            self,
+            db: Session,
+            user_id: int,
+            token: str,
+            key_type: str,
+            name: Optional[str] = None,
+            refresh_interval_minutes: int = 60,
+            extra_data: Optional[Dict[str, Any]] = None,
+    ) -> dict:
         """
         Создание нового API ключа
         """
+        self.db = db
         now = datetime.now(timezone.utc)
 
         try:
             # Проверяем, существует ли уже такой токен у пользователя
-            check_token_query = text("""
-                                     SELECT id, name, token_type, is_active, created_at
-                                     FROM ganaly.api_tokens
-                                     WHERE user_id = :user_id
-                                       AND token = :token
-                                       AND is_active = 1
-                                     """)
-
-            existing_token = db.execute(
-                check_token_query,
+            check_query = queries.build_check_existing_token_by_user_query()
+            existing_token = self._execute(
+                check_query,
                 {
                     "user_id": user_id,
-                    "token": token,
-                    "key_type": key_type
-                }
-            ).first()
+                    "token": token
+                },
+                fetch_one=True
+            )
 
             if existing_token:
                 logger.info(f"Token already exists for user {user_id}")
                 raise ValueError("apikey_exists:Токен уже существует")
 
-            # # Проверяем, нет ли уже активного ключа такого типа
+            # Валидация ключа на стороне внешнего API перед сохранением.
+            if key_type is not None:
+                extra_payload = extra_data if isinstance(extra_data, dict) else {}
+                test = await self.test_key(
+                    token=token,
+                    key_type=key_type,
+                    token_secret=extra_payload.get("token_secret"),
+                    testnet=False,
+                    account_type=str(extra_payload.get("account_type") or "UNIFIED"),
+                )
+                if not bool(test.get("is_valid")):
+                    raise ValueError(f"create_failed:{test.get('message') or 'Ключ не прошел проверку'}")
+                if key_type is not None and str(key_type).strip().lower() in {"2", "bybit"}:
+                    extra_data = dict(extra_payload)
+                    extra_data["testnet"] = False
+
+            # # Опционально: деактивация старого ключа того же типа
             # if key_type == "tinvest":
-            #     check_query = text("""
-            #                        SELECT id FROM ganaly.api_tokens
-            #                        WHERE user_id = :user_id
-            #                          AND token_type = :key_type
-            #                          AND is_active = 1
-            #                        """)
-            #
-            #     existing_active = db.execute(
-            #         check_query,
-            #         {"user_id": user_id, "key_type": key_type}
-            #     ).first()
+            #     check_active_query = queries.build_check_active_key_by_type_query()
+            #     existing_active = self._execute(
+            #         check_active_query,
+            #         {"user_id": user_id, "key_type": key_type},
+            #         fetch_one=True
+            #     )
             #
             #     if existing_active:
-            #         deactivate_query = text("""
-            #                                 UPDATE ganaly.api_tokens
-            #                                 SET is_active = 0, updated_at = :now
-            #                                 WHERE id = :old_id
-            #                                 """)
-            #         db.execute(deactivate_query, {"old_id": existing_active[0], "now": now})
+            #         deactivate_query = queries.build_deactivate_old_key_query()
+            #         self._execute(
+            #             deactivate_query,
+            #             {"old_id": existing_active[0], "now": now}
+            #         )
 
             # Создаем новый ключ
-            insert_query = text("""
-                                INSERT INTO ganaly.api_tokens
-                                    (user_id, token, token_type, name, is_active, created_at, refresh_interval_minutes)
-                                VALUES
-                                    (:user_id, :token, :key_type, :name, 1, :created_at, :refresh_interval_minutes)
-                                    RETURNING id, name, token_type, is_active, created_at, refresh_interval_minutes
-                                """)
-
-            result = db.execute(
+            insert_query = queries.build_create_api_key_query()
+            result = self._execute(
                 insert_query,
                 {
                     "user_id": user_id,
@@ -93,27 +241,23 @@ class ApiKeyService:
                     "key_type": key_type,
                     "name": name,
                     "created_at": now,
-                    "refresh_interval_minutes": refresh_interval_minutes
-                }
-            ).first()
+                    "refresh_interval_minutes": refresh_interval_minutes,
+                    "extra_data": json.dumps(extra_data or {}, ensure_ascii=False),
+                },
+                fetch_one=True
+            )
 
             if not result:
                 raise ValueError("create_failed:Не удалось создать ключ")
 
             db.commit()
 
-            masked_token = token[:6] + "*" * 10 + token[-4:] if len(token) > 20 else "*" * 20
-
             logger.info(f"Created new {key_type} key for user {user_id} with id {result[0]}")
 
-            return {
-                "id": result[0],
-                "name": result[1],
-                "key_type": result[2],
-                "is_active": bool(result[3]),
-                "created_at": result[4],
-                "masked_token": masked_token
-            }
+            # Преобразуем результат в ответ
+            response = self._row_to_api_key_response(result, include_token=False)
+            return response
+
         except ValueError as e:
             db.rollback()
             raise
@@ -122,285 +266,384 @@ class ApiKeyService:
             logger.error(f"Error creating API key: {str(e)}")
             raise ValueError(f"create_error:Ошибка при создании ключа: {str(e)}")
 
-    @staticmethod
     def get_user_keys(
+            self,
             db: Session,
             user_id: int,
             key_type: Optional[str] = None,
-            include_inactive: bool = False,
             limit: int = 50,
             offset: int = 0
     ) -> Tuple[List[dict], int]:
         """
         Получение списка ключей пользователя с пагинацией
         """
-        # Базовый запрос для подсчета общего количества
-        count_query = """
-                      SELECT COUNT(*)
-                      FROM ganaly.api_tokens
-                      WHERE user_id = :user_id \
-                      """
-        params = {"user_id": user_id}
+        self.db = db
 
+        # Подсчет общего количества
+        count_query, count_params = queries.build_count_user_keys_query(
+            key_type=key_type
+        )
+
+        # Исправляем подстановку параметров
+        count_params_fixed = {}
+        for k, v in count_params.items():
+            if v == ":user_id":
+                count_params_fixed["user_id"] = user_id
+            else:
+                count_params_fixed[k] = v
+
+        total = self._execute(
+            count_query,
+            count_params_fixed
+        ).scalar()
+
+        if total == 0:
+            return [], 0
+
+        # Получение данных
+        data_query, data_params = queries.build_get_user_keys_query(
+            key_type=key_type,
+            limit=limit,
+            offset=offset
+        )
+
+        # Подставляем параметры
+        params = {
+            "user_id": user_id,
+            "limit": limit,
+            "offset": offset
+        }
         if key_type:
-            count_query += " AND token_type = :key_type"
             params["key_type"] = key_type
 
-        if not include_inactive:
-            count_query += " AND is_active = 1"
+        results = self._execute(data_query, params).fetchall()
 
-        total = db.execute(text(count_query), params).scalar()
-
-        # Запрос для получения данных
-        data_query = """
-                     SELECT
-                         id,
-                         name,
-                         token_type,
-                         is_active,
-                         created_at,
-                         token
-                     FROM ganaly.api_tokens
-                     WHERE user_id = :user_id \
-                     """
-
-        if key_type:
-            data_query += " AND token_type = :key_type"
-
-        if not include_inactive:
-            data_query += " AND is_active = 1"
-
-        data_query += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
-
-        params.update({"limit": limit, "offset": offset})
-
-        results = db.execute(text(data_query), params).fetchall()
-
-        keys = []
-        for row in results:
-            token = row[5]
-            masked_token = token[:6] + "*" * 10 + token[-4:] if len(token) > 20 else "*" * 20
-
-            keys.append({
-                "id": row[0],
-                "name": row[1],
-                "key_type": row[2],
-                "is_active": bool(row[3]),
-                "created_at": row[4],
-                "masked_token": masked_token
-            })
+        keys = [self._row_to_api_key_response(row, include_token=False) for row in results]
 
         return keys, total
 
-    @staticmethod
-    def get_key_by_id(db: Session, key_id: int, user_id: int) -> Optional[dict]:
+    def get_key_by_id(self, db: Session, key_id: int, user_id: int) -> Optional[dict]:
         """
         Получение ключа по ID с проверкой принадлежности пользователю
         """
-        query = text("""
-                     SELECT
-                         id,
-                         name,
-                         token_type,
-                         token,
-                         is_active,
-                         created_at,
-                         updated_at,
-                         expires_at,
-                         last_used_at
-                     FROM ganaly.api_tokens
-                     WHERE id = :key_id AND user_id = :user_id
-                     """)
-
-        result = db.execute(query, {"key_id": key_id, "user_id": user_id}).first()
+        self.db = db
+        query = queries.build_get_key_by_id_query()
+        result = self._execute(
+            query,
+            {"key_id": key_id, "user_id": user_id},
+            fetch_one=True
+        )
 
         if not result:
             return None
 
-        token = result[3]
-        masked_token = token[:6] + "*" * 10 + token[-4:] if len(token) > 20 else "*" * 20
+        return self._row_to_key_detail(result)
 
-        return {
-            "id": result[0],
-            "name": result[1],
-            "key_type": result[2],
-            "token": token,
-            "is_active": bool(result[4]),
-            "created_at": result[5],
-            "updated_at": result[6],
-            "expires_at": result[7],
-            "last_used_at": result[8],
-            "masked_token": masked_token
-        }
-
-    @staticmethod
     def update_key(
+            self,
             db: Session,
             key_id: int,
             user_id: int,
             name: Optional[str] = None,
-            is_active: Optional[bool] = None
+            status: Optional[int] = None,
+            refresh_interval_minutes: Optional[int] = None
     ) -> Optional[dict]:
         """
         Обновление информации о ключе
         """
-        check_query = text("""
-                           SELECT id FROM ganaly.api_tokens
-                           WHERE id = :key_id AND user_id = :user_id
-                           """)
+        self.db = db
 
-        exists = db.execute(check_query, {"key_id": key_id, "user_id": user_id}).first()
+        # Проверяем, что ключ принадлежит пользователю
+        check_query = queries.build_check_key_ownership_query()
+        exists = self._execute(
+            check_query,
+            {"key_id": key_id, "user_id": user_id},
+            fetch_one=True
+        )
 
         if not exists:
             return None
 
-        updates = []
-        params = {"key_id": key_id, "user_id": user_id, "now": datetime.now(timezone.utc)}
+        # Определяем, какие поля обновляем
+        fields_to_update = []
+        if name is not None:
+            fields_to_update.append("name")
+        if status is not None:
+            fields_to_update.append("status")
+        if refresh_interval_minutes is not None:
+            fields_to_update.append("refresh_interval_minutes")
+
+        if not fields_to_update:
+            return self.get_key_by_id(db, key_id, user_id)
+
+        # Строим запрос обновления
+        update_query, _ = queries.build_update_key_query(fields_to_update)
+
+        params = {
+            "key_id": key_id,
+            "user_id": user_id,
+            "now": datetime.now(timezone.utc)
+        }
 
         if name is not None:
-            updates.append("name = :name")
             params["name"] = name
+        if status is not None:
+            params["status"] = int(status)
+        if refresh_interval_minutes is not None:
+            params["refresh_interval_minutes"] = refresh_interval_minutes
 
-        if is_active is not None:
-            updates.append("is_active = :is_active")
-            params["is_active"] = 1 if is_active else 0
-
-        if not updates:
-            return ApiKeyService.get_key_by_id(db, key_id, user_id)
-
-        updates.append("updated_at = :now")
-        update_query = f"""
-            UPDATE ganaly.api_tokens
-            SET {', '.join(updates)}
-            WHERE id = :key_id AND user_id = :user_id
-            RETURNING id, name, token_type, is_active, created_at, token
-        """
-
-        result = db.execute(text(update_query), params).first()
+        result = self._execute(update_query, params, fetch_one=True)
 
         if not result:
             return None
 
-        token = result[5]
-        masked_token = token[:6] + "*" * 10 + token[-4:] if len(token) > 20 else "*" * 20
+        # Преобразуем результат в ответ
+        response = self._row_to_api_key_response(result, include_token=False)
+        return response
 
-        return {
-            "id": result[0],
-            "name": result[1],
-            "key_type": result[2],
-            "is_active": bool(result[3]),
-            "created_at": result[4],
-            "masked_token": masked_token
-        }
-
-    @staticmethod
-    def deactivate_key(db: Session, key_id: int, user_id: int) -> bool:
+    def deactivate_key(self, db: Session, key_id: int, user_id: int) -> bool:
         """
         Деактивация ключа (мягкое удаление)
         """
-        query = text("""
-                     UPDATE ganaly.api_tokens
-                     SET is_active = 0, updated_at = :now
-                     WHERE id = :key_id AND user_id = :user_id AND is_active = 1
-                         RETURNING id
-                     """)
+        self.db = db
+        query = queries.build_deactivate_key_query()
 
-        result = db.execute(
+        result = self._execute(
             query,
             {
                 "key_id": key_id,
                 "user_id": user_id,
                 "now": datetime.now(timezone.utc)
-            }
-        ).first()
+            },
+            fetch_one=True
+        )
 
         if result:
             db.commit()
+            logger.info(f"Key {key_id} deactivated by user {user_id}")
             return True
+
+        logger.warning(f"Failed to deactivate key {key_id} for user {user_id}")
         return False
 
-    @staticmethod
-    def update_last_used(db: Session, key_id: int) -> None:
+    def update_last_used(self, db: Session, key_id: int) -> None:
         """
         Обновление времени последнего использования ключа
         """
-        query = text("""
-                     UPDATE ganaly.api_tokens
-                     SET last_used_at = :now
-                     WHERE id = :key_id
-                     """)
+        self.db = db
+        query = queries.build_update_last_used_query()
 
-        db.execute(query, {"key_id": key_id, "now": datetime.now(timezone.utc)})
+        self._execute(
+            query,
+            {"key_id": key_id, "now": datetime.now(timezone.utc)}
+        )
         db.commit()
 
+    def get_token_by_value(self, db: Session, token: str) -> Optional[dict]:
+        """
+        Получение информации о токене по его значению
+        """
+        self.db = db
+        query = queries.build_get_token_by_value_query()
 
-@staticmethod
-def update_key(
-        db: Session,
-        key_id: int,
-        user_id: int,
-        name: Optional[str] = None,
-        is_active: Optional[bool] = None,
-        refresh_interval_minutes: Optional[int] = None
-) -> Optional[dict]:
-    """
-    Обновление информации о ключе, включая интервал обновления
-    """
-    # Проверяем, что ключ принадлежит пользователю
-    check_query = text("""
-                       SELECT id FROM ganaly.api_tokens
-                       WHERE id = :key_id AND user_id = :user_id
-                       """)
+        result = self._execute(query, {"token": token}, fetch_one=True)
 
-    exists = db.execute(check_query, {"key_id": key_id, "user_id": user_id}).first()
+        if not result:
+            return None
 
-    if not exists:
-        return None
+        return {
+            "id": self._safe_int(result[0]),
+            "user_id": self._safe_int(result[1]),
+            "token_type": self._safe_str(result[2]),
+            "name": self._safe_str(result[3], None),
+            "status": self._safe_int(result[4]),
+            "refresh_interval_minutes": self._safe_int(result[5], 60),
+        }
 
-    # Строим запрос обновления динамически
-    updates = []
-    params = {"key_id": key_id, "user_id": user_id, "now": datetime.now(timezone.utc)}
+    def get_tokens_by_type(self, db: Session, token_type: str) -> List[dict]:
+        """
+        Получение всех активных токенов определенного типа
+        """
+        self.db = db
+        query = queries.build_get_tokens_by_type_query()
 
-    if name is not None:
-        updates.append("name = :name")
-        params["name"] = name
+        results = self._execute(query, {"token_type": token_type}).fetchall()
 
-    if is_active is not None:
-        updates.append("is_active = :is_active")
-        params["is_active"] = 1 if is_active else 0
+        tokens = []
+        for row in results:
+            tokens.append({
+                "id": self._safe_int(row[0]),
+                "user_id": self._safe_int(row[1]),
+                "token": self._safe_str(row[2]),
+                "name": self._safe_str(row[3], None),
+                "refresh_interval_minutes": self._safe_int(row[4], 60),
+                "last_used_at": self._safe_datetime(row[5]),
+            })
 
-    if refresh_interval_minutes is not None:
-        updates.append("refresh_interval_minutes = :refresh_interval_minutes")
-        params["refresh_interval_minutes"] = refresh_interval_minutes
+        return tokens
 
-    if not updates:
-        return ApiKeyService.get_key_by_id(db, key_id, user_id)
+    def get_expiring_tokens(self, db: Session, days: int = 7) -> List[dict]:
+        """
+        Получение токенов, срок действия которых истекает
+        """
+        self.db = db
+        query, params = queries.build_get_expiring_tokens_query(days)
 
-    updates.append("updated_at = :now")
-    update_query = f"""
-        UPDATE ganaly.api_tokens
-        SET {', '.join(updates)}
-        WHERE id = :key_id AND user_id = :user_id
-        RETURNING id, name, token_type, is_active, created_at, refresh_interval_minutes, token
-    """
+        expiry_threshold = datetime.now(timezone.utc).replace(
+            hour=23, minute=59, second=59
+        ) + timedelta(days=days)
 
-    result = db.execute(text(update_query), params).first()
+        results = self._execute(
+            query,
+            {"expiry_threshold": expiry_threshold}
+        ).fetchall()
 
-    if not result:
-        return None
+        tokens = []
+        for row in results:
+            tokens.append({
+                "id": self._safe_int(row[0]),
+                "user_id": self._safe_int(row[1]),
+                "token_type": self._safe_str(row[2]),
+                "name": self._safe_str(row[3], None),
+                "expires_at": self._safe_datetime(row[4]),
+            })
 
-    token = result[6]
-    masked_token = token[:6] + "*" * 10 + token[-4:] if len(token) > 20 else "*" * 20
+        return tokens
 
-    return {
-        "id": result[0],
-        "name": result[1],
-        "key_type": result[2],
-        "is_active": bool(result[3]),
-        "created_at": result[4],
-        "refresh_interval_minutes": result[5],
-        "masked_token": masked_token
-    }
+    def bulk_deactivate_tokens(
+            self,
+            db: Session,
+            user_id: int,
+            token_type: str
+    ) -> int:
+        """
+        Массовая деактивация токенов пользователя определенного типа
+        Возвращает количество деактивированных токенов
+        """
+        self.db = db
+        query = queries.build_bulk_deactivate_tokens_query()
+
+        result = self._execute(
+            query,
+            {
+                "user_id": user_id,
+                "token_type": token_type,
+                "now": datetime.now(timezone.utc)
+            }
+        )
+
+        db.commit()
+        affected = result.rowcount
+        logger.info(f"Deactivated {affected} tokens for user {user_id} of type {token_type}")
+        return affected
+
+    async def test_key(
+            self,
+            *,
+            token: str,
+            key_type: str,
+            token_secret: Optional[str] = None,
+            testnet: bool = False,
+            account_type: str = "UNIFIED",
+    ) -> Dict[str, Any]:
+        kt = str(key_type or "").strip().lower()
+        if kt in {"tinvest", "1"}:
+            try:
+                client = create_tbank_client(token)
+                accounts = await client.get_accounts()
+                return {
+                    "is_valid": bool(accounts),
+                    "message": f"Токен валиден. Счетов: {len(accounts)}" if accounts else "Токен валиден, но счета не найдены",
+                    "accounts_count": len(accounts),
+                    "first_account": (accounts[0].get("id") if accounts else None),
+                }
+            except Exception as e:
+                return {
+                    "is_valid": False,
+                    "message": f"T-Invest validation error: {e}",
+                    "accounts_count": 0,
+                    "first_account": None,
+                }
+
+        if kt in {"bybit", "2"}:
+            return await self._validate_bybit_credentials(
+                token=token,
+                token_secret=token_secret,
+                testnet=testnet,
+            )
+
+        return {
+            "is_valid": False,
+            "message": f"Неподдерживаемый тип ключа: {key_type}",
+            "accounts_count": 0,
+            "first_account": None,
+        }
+
+    async def _validate_bybit_credentials(
+            self,
+            *,
+            token: str,
+            token_secret: Optional[str],
+            testnet: bool = False,
+    ) -> Dict[str, Any]:
+        del testnet
+        if not token_secret:
+            return {
+                "is_valid": False,
+                "message": "Для ByBit проверки требуется API secret",
+                "accounts_count": 0,
+                "first_account": None,
+                "testnet": False,
+            }
+
+        client = BybitHttpClient(
+            testnet=False,
+            api_key=token,
+            api_secret=token_secret,
+        )
+        try:
+            await client.query_api()
+            return {
+                "is_valid": True,
+                "message": "ByBit ключ валиден (mainnet)",
+                "accounts_count": 1,
+                "first_account": "mainnet",
+                "testnet": False,
+            }
+        except BybitApiError as e:
+            return {
+                "is_valid": False,
+                "message": f"ByBit validation error: {e}. Проверьте API Key/Secret mainnet.",
+                "accounts_count": 0,
+                "first_account": None,
+                "testnet": False,
+            }
+        finally:
+            await client.close()
+
+    async def test_stored_key(self, db: Session, key_id: int, user_id: int) -> Optional[Dict[str, Any]]:
+        detail = self.get_key_by_id(db, key_id, user_id)
+        if not detail:
+            return None
+        extra = detail.get("extra_data") if isinstance(detail.get("extra_data"), dict) else {}
+        return await self.test_key(
+            token=str(detail.get("token") or ""),
+            key_type=str(detail.get("key_type") or ""),
+            token_secret=extra.get("token_secret"),
+            testnet=False,
+            account_type=str(extra.get("account_type") or "UNIFIED"),
+        )
+
+    def reveal_key_token(self, db: Session, key_id: int, user_id: int) -> Optional[Dict[str, str]]:
+        detail = self.get_key_by_id(db, key_id, user_id)
+        if not detail:
+            return None
+        token = str(detail.get("token") or "")
+        return {
+            "token": token,
+            "masked_token": self._mask_token(token),
+        }
+
 
 # Создаем экземпляр сервиса
 api_key_service = ApiKeyService()

@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Shared.TOPIC FrontendSrcSharedComponentsNavbar [1]
+///@ Исходный модуль `frontend/src/shared/components/Navbar.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 import { store } from '../../core/store';
 import { router } from '../../core/router';
 import { themeManager, Theme } from '../../core/theme';
@@ -37,12 +40,13 @@ export class Navbar {
         return user.login.slice(0, 2).toUpperCase() || 'U';
     }
 
+    private getActiveClass(path: string): string {
+        return window.location.pathname === path ? 'nav-link-active' : '';
+    }
+
     private renderTemplate(): string {
         const initials = this.getInitials();
         const isDark = this.currentTheme === 'dark';
-        const isAnalyticsActive = window.location.pathname === '/analytics';
-        const isTradingActive = window.location.pathname === '/trading';
-        const isSettingsActive = window.location.pathname === '/settings';
 
         return `
       <div class="navbar">
@@ -54,17 +58,17 @@ export class Navbar {
           ` : ''}
           
           <div class="nav-items">
-            <div class="logo-minimal">
+            <div class="logo-minimal" id="logo-home">
               <span class="logo-g">G</span>
               <span class="logo-in">IN</span>
             </div>
             
             ${!this.isMobile ? `
-              <button class="nav-link ${isAnalyticsActive ? 'nav-link-active' : ''}" id="nav-analytics">
+              <button class="nav-link ${this.getActiveClass('/analytics')}" id="nav-analytics">
                 Аналитика
               </button>
-              <button class="nav-link ${isTradingActive ? 'nav-link-active' : ''}" id="nav-trading">
-                Торговля
+              <button class="nav-link ${this.getActiveClass('/robots')}" id="nav-robots">
+                Роботы
               </button>
             ` : ''}
           </div>
@@ -81,10 +85,15 @@ export class Navbar {
                 <span class="dropdown-icon">⚙️</span>
                 Настройки
               </div>
+              <div class="dropdown-item" id="dropdown-robots">
+                <span class="dropdown-icon">🤖</span>
+                Роботы
+              </div>
               <div class="dropdown-item" id="dropdown-theme">
                 <span class="dropdown-icon">${isDark ? '☀️' : '🌙'}</span>
                 ${isDark ? 'Светлая тема' : 'Темная тема'}
               </div>
+              <div class="dropdown-divider"></div>
               <div class="dropdown-item" id="dropdown-logout">
                 <span class="dropdown-icon">🚪</span>
                 Выход
@@ -104,13 +113,13 @@ export class Navbar {
             <button class="mobile-menu-close" id="mobile-menu-close">✕</button>
           </div>
           <div class="mobile-menu-items">
-            <button class="mobile-menu-item ${isAnalyticsActive ? 'active' : ''}" id="mobile-analytics">
+            <button class="mobile-menu-item ${this.getActiveClass('/analytics')}" id="mobile-analytics">
               <span class="menu-item-icon">📊</span>
               Аналитика
             </button>
-            <button class="mobile-menu-item ${isTradingActive ? 'active' : ''}" id="mobile-trading">
+            <button class="mobile-menu-item ${this.getActiveClass('/robots')}" id="mobile-robots">
               <span class="menu-item-icon">🤖</span>
-              Торговля
+              Роботы
             </button>
           </div>
         </div>
@@ -183,6 +192,17 @@ export class Navbar {
 
     private attachEvents(): void {
         setTimeout(() => {
+            // Логотип - переход на главную
+            const logo = document.getElementById('logo-home');
+            if (logo) {
+                const newLogo = logo.cloneNode(true) as HTMLElement;
+                logo.parentNode?.replaceChild(newLogo, logo);
+                newLogo.addEventListener('click', () => {
+                    router.navigate('/analytics');
+                });
+                newLogo.style.cursor = 'pointer';
+            }
+
             // Аватар
             const avatarWrapper = document.getElementById('avatar-wrapper');
             if (avatarWrapper) {
@@ -201,13 +221,13 @@ export class Navbar {
                 });
             }
 
-            // Торговля (десктоп)
-            const tradingBtn = document.getElementById('nav-trading');
-            if (tradingBtn) {
-                const newBtn = tradingBtn.cloneNode(true) as HTMLElement;
-                tradingBtn.parentNode?.replaceChild(newBtn, tradingBtn);
+            // Роботы (десктоп)
+            const robotsBtn = document.getElementById('nav-robots');
+            if (robotsBtn) {
+                const newBtn = robotsBtn.cloneNode(true) as HTMLElement;
+                robotsBtn.parentNode?.replaceChild(newBtn, robotsBtn);
                 newBtn.addEventListener('click', () => {
-                    router.navigate('/trading');
+                    router.navigate('/robots');
                 });
             }
 
@@ -241,12 +261,12 @@ export class Navbar {
                 });
             }
 
-            const mobileTrading = document.getElementById('mobile-trading');
-            if (mobileTrading) {
-                const newMobileTrading = mobileTrading.cloneNode(true) as HTMLElement;
-                mobileTrading.parentNode?.replaceChild(newMobileTrading, mobileTrading);
-                newMobileTrading.addEventListener('click', () => {
-                    router.navigate('/trading');
+            const mobileRobots = document.getElementById('mobile-robots');
+            if (mobileRobots) {
+                const newMobileRobots = mobileRobots.cloneNode(true) as HTMLElement;
+                mobileRobots.parentNode?.replaceChild(newMobileRobots, mobileRobots);
+                newMobileRobots.addEventListener('click', () => {
+                    router.navigate('/robots');
                     this.closeMobileMenu();
                 });
             }
@@ -259,6 +279,16 @@ export class Navbar {
                 newSettings.addEventListener('click', () => {
                     this.dropdownOpen = false;
                     router.navigate('/settings');
+                });
+            }
+
+            const robotsItem = document.getElementById('dropdown-robots');
+            if (robotsItem) {
+                const newRobots = robotsItem.cloneNode(true) as HTMLElement;
+                robotsItem.parentNode?.replaceChild(newRobots, robotsItem);
+                newRobots.addEventListener('click', () => {
+                    this.dropdownOpen = false;
+                    router.navigate('/robots');
                 });
             }
 
@@ -287,7 +317,8 @@ export class Navbar {
 
     private checkAuth(): void {
         const token = store.getState().token;
-        if (!token && window.location.pathname !== '/login') {
+        const publicPaths = ['/login'];
+        if (!token && !publicPaths.includes(window.location.pathname)) {
             router.navigate('/login');
         }
     }
@@ -297,6 +328,10 @@ export class Navbar {
 
         if (!this.container) {
             console.error('❌ Navbar: container is undefined');
+            return;
+        }
+        if (window.location.pathname === '/login') {
+            this.container.innerHTML = '';
             return;
         }
 

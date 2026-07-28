@@ -1,3 +1,6 @@
+///@EPIC Frontend.ITEM Core.TOPIC FrontendSrcCoreTheme [1]
+///@ Исходный модуль `frontend/src/core/theme.ts` — автоматическая разметка для Obsidian Source Scanner.
+
 export type Theme = 'light' | 'dark';
 
 class ThemeManager {

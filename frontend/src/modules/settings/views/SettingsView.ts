@@ -1,20 +1,24 @@
+///@EPIC Frontend.ITEM Modules.TOPIC FrontendSrcModulesSettingsViewsSettingsview [1]
+///@ Исходный модуль `frontend/src/modules/settings/views/SettingsView.ts` — автоматическая разметка для Obsidian Source Scanner.
+
+// frontend/src/modules/settings/views/SettingsView.ts
+
 import { apiKeyService } from '../services/apiKeyService';
 import { router } from '../../../core/router';
 import { store } from '../../../core/store';
 import { themeManager, Theme } from '../../../core/theme';
+import { CreateTokenModal } from '../components/CreateTokenModal';
 import type { ApiKey } from '../types';
+// Импортируем общие стили модальных окон
+import '../../../shared/styles/modal.css';
 
 export class SettingsView {
     private container: HTMLElement;
     private keys: ApiKey[] = [];
     private message: { text: string; type: 'success' | 'error' | 'info' } | null = null;
-    private modalError: string | null = null;
     private isLoading: boolean = true;
-    private isSaving: boolean = false;
-    private showAddModal: boolean = false;
     private currentTheme: Theme;
     private isMobile: boolean = window.innerWidth <= 768;
-    private showTokenInModal: boolean = false;
 
     constructor(container: HTMLElement) {
         this.container = container;
@@ -46,13 +50,14 @@ export class SettingsView {
             }
 
             const response = await apiKeyService.getKeys({
-                include_inactive: true,
                 limit: 100
             });
 
             this.keys = response.keys.sort((a, b) =>
                 new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
             );
+
+            console.log('✅ Loaded keys:', this.keys);
 
         } catch (error: any) {
             console.error('❌ Failed to load settings:', error);
@@ -75,50 +80,15 @@ export class SettingsView {
         }
     }
 
-    private async handleAddKey(token: string, name: string, refreshInterval: number): Promise<void> {
-        this.modalError = null;
+    private async handleAddToken(data: { name: string; token: string; tokenType: number }): Promise<void> {
+        await apiKeyService.createKey({
+            token: data.token,
+            key_type: data.tokenType.toString(),
+            name: data.name
+        });
 
-        if (!token.trim()) {
-            this.modalError = 'Введите токен';
-            this.render();
-            return;
-        }
-
-        if (!token.startsWith('t.')) {
-            this.modalError = 'Токен должен начинаться с t.';
-            this.render();
-            return;
-        }
-
-        if (refreshInterval < 5 || refreshInterval > 1440) {
-            this.modalError = 'Интервал обновления должен быть от 5 до 1440 минут';
-            this.render();
-            return;
-        }
-
-        this.isSaving = true;
-        this.render();
-
-        try {
-            await apiKeyService.createKey({
-                token,
-                key_type: 'tinvest',
-                name: name.trim() || null,
-                refresh_interval_minutes: refreshInterval
-            });
-
-            this.showMessage('success', 'Токен успешно добавлен');
-            this.showAddModal = false;
-            this.modalError = null;
-            await this.loadData();
-
-        } catch (error: any) {
-            this.modalError = error.message || 'Ошибка при добавлении токена';
-            this.render();
-        } finally {
-            this.isSaving = false;
-            this.render();
-        }
+        this.showMessage('success', 'Токен успешно добавлен');
+        await this.loadData();
     }
 
     private async handleDeleteKey(keyId: number): Promise<void> {
@@ -135,6 +105,26 @@ export class SettingsView {
         }
     }
 
+    private openAddTokenModal(): void {
+        const modalContainer = document.createElement('div');
+        document.body.appendChild(modalContainer);
+
+        const modal = new CreateTokenModal(
+            modalContainer,
+            () => {
+                // onClose
+                modalContainer.remove();
+            },
+            async (data) => {
+                // onSuccess
+                await this.handleAddToken(data);
+                modalContainer.remove();
+            }
+        );
+
+        modal.loadData();
+    }
+
     private formatDate(dateStr?: string | null): string {
         if (!dateStr) return 'никогда';
         return new Date(dateStr).toLocaleString('ru-RU', {
@@ -146,77 +136,10 @@ export class SettingsView {
         });
     }
 
-    private renderAddModal(): string {
-        if (!this.showAddModal) return '';
-
-        return `
-      <div class="modal-overlay" id="modal-overlay">
-        <div class="modal-container">
-          <div class="modal-header">
-            <h3>Добавить новый токен</h3>
-            <button class="modal-close" id="modal-close">✕</button>
-          </div>
-          
-          <div class="modal-content">
-            <div class="form-group">
-              <label class="form-label">Название токена (опционально)</label>
-              <input 
-                type="text" 
-                id="new-token-name" 
-                class="form-input" 
-                placeholder="Например: Основной токен"
-                autocomplete="off"
-              />
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Токен доступа</label>
-              <div class="token-input-wrapper">
-                <input 
-                  type="${this.showTokenInModal ? 'text' : 'password'}" 
-                  id="new-token-value" 
-                  class="form-input" 
-                  placeholder="t.xxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                  autocomplete="off"
-                />
-                <button class="token-visibility-toggle" id="toggle-new-token" type="button">
-                  <span class="eye-icon">${this.showTokenInModal ? '👁️‍🗨️' : '👁️'}</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Частота обновления портфеля (минуты)</label>
-              <input 
-                type="number" 
-                id="refresh-interval" 
-                class="form-input" 
-                placeholder="60"
-                min="5"
-                max="1440"
-                value="60"
-                autocomplete="off"
-              />
-              <span class="input-hint">От 5 до 1440 минут (от 5 минут до 24 часов)</span>
-            </div>
-
-            ${this.modalError ? `
-              <div class="modal-error">
-                <span class="error-icon">⚠️</span>
-                <span>${this.modalError}</span>
-              </div>
-            ` : ''}
-
-            <div class="modal-actions">
-              <button class="modal-button cancel" id="modal-cancel">Отмена</button>
-              <button class="modal-button save" id="modal-save" ${this.isSaving ? 'disabled' : ''}>
-                ${this.isSaving ? 'Добавление...' : 'Добавить'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
+    // Проверяем, является ли токен T-Invest
+    private isTInvestKey(key: ApiKey): boolean {
+        return key.token_type?.typeName === 'Т-Инвестиции' ||
+            key.token_type?.typeDesc?.toLowerCase().includes('t-invest');
     }
 
     private renderMobileKeyCard(key: ApiKey): string {
@@ -224,8 +147,8 @@ export class SettingsView {
             <div class="mobile-key-card" data-key-id="${key.id}">
                 <div class="mobile-key-header">
                     <div class="key-title">
-                        <span class="key-name">${key.name || 'Без названия'}</span>
-                        <span class="key-type-badge">${key.key_type}</span>
+                        <span class="key-name">${this.escapeHtml(key.name || 'Без названия')}</span>
+                        <span class="key-type-badge">${this.escapeHtml(key.token_type?.typeName || 'API Key')}</span>
                     </div>
                     <button class="mobile-delete-btn" data-key-id="${key.id}" title="Удалить токен">
                         🗑️
@@ -234,15 +157,11 @@ export class SettingsView {
                 <div class="mobile-key-content">
                     <div class="mobile-key-row">
                         <span class="detail-label">Токен:</span>
-                        <span class="token-masked">${key.masked_token}</span>
+                        <span class="token-masked">${this.escapeHtml(key.masked_token)}</span>
                     </div>
                     <div class="mobile-key-row">
-                        <span class="detail-label">Последнее использование:</span>
-                        <span class="detail-value">${this.formatDate(key.last_used_at)}</span>
-                    </div>
-                    <div class="mobile-key-row">
-                        <span class="detail-label">Частота обновления:</span>
-                        <span class="detail-value">${key.refresh_interval_minutes || 60} мин</span>
+                        <span class="detail-label">Создан:</span>
+                        <span class="detail-value">${this.formatDate(key.created_at)}</span>
                     </div>
                 </div>
             </div>
@@ -265,7 +184,8 @@ export class SettingsView {
             return;
         }
 
-        const tinvestKeys = this.keys.filter(k => k.key_type === 'tinvest');
+        // Фильтруем только T-Invest токены
+        const tinvestKeys = this.keys.filter(key => this.isTInvestKey(key));
 
         target.innerHTML = `
       <div class="settings-container">
@@ -307,7 +227,7 @@ export class SettingsView {
                 <div class="keys-table-header">
                   <div class="col-name">Название</div>
                   <div class="col-token">Токен</div>
-                  <div class="col-last-used">Последнее использование</div>
+                  <div class="col-last-used">Создан</div>
                   <div class="col-actions"></div>
                 </div>
                 
@@ -320,15 +240,14 @@ export class SettingsView {
                       onmouseleave="this.classList.remove('hover')"
                     >
                       <div class="col-name">
-                        <span class="key-name">${key.name || '—'}</span>
+                        <span class="key-name">${this.escapeHtml(key.name || '—')}</span>
                       </div>
                       <div class="col-token">
-                        <span class="token-masked">${key.masked_token}</span>
+                        <span class="token-masked">${this.escapeHtml(key.masked_token)}</span>
                       </div>
                       <div class="col-last-used">
-                        <span class="last-used">${this.formatDate(key.last_used_at)}</span>
+                        <span class="last-used">${this.formatDate(key.created_at)}</span>
                       </div>
-                      <div class="col-interval">${key.refresh_interval_minutes || 60} мин</div>
                       <div class="col-actions">
                         <button class="delete-btn" data-key-id="${key.id}" title="Удалить токен">
                           🗑️
@@ -351,12 +270,10 @@ export class SettingsView {
             <span class="message-icon">
               ${this.message.type === 'success' ? '✓' : this.message.type === 'error' ? '⚠️' : 'ℹ️'}
             </span>
-            <span>${this.message.text}</span>
+            <span>${this.escapeHtml(this.message.text)}</span>
           </div>
         ` : ''}
       </div>
-
-      ${this.renderAddModal()}
     `;
 
         this.attachEvents();
@@ -365,52 +282,7 @@ export class SettingsView {
     private attachEvents(): void {
         const addButton = document.getElementById('add-key-btn');
         addButton?.addEventListener('click', () => {
-            this.showAddModal = true;
-            this.modalError = null;
-            this.showTokenInModal = false;
-            this.render();
-
-            setTimeout(() => {
-                const newNameInput = document.getElementById('new-token-name') as HTMLInputElement;
-                const newTokenInput = document.getElementById('new-token-value') as HTMLInputElement;
-                if (newNameInput) newNameInput.value = '';
-                if (newTokenInput) newTokenInput.value = '';
-            }, 0);
-        });
-
-        const modalOverlay = document.getElementById('modal-overlay');
-        const modalClose = document.getElementById('modal-close');
-        const modalCancel = document.getElementById('modal-cancel');
-        const modalSave = document.getElementById('modal-save');
-        const toggleVisibility = document.getElementById('toggle-new-token');
-
-        const closeModal = () => {
-            this.showAddModal = false;
-            this.modalError = null;
-            this.showTokenInModal = false;
-            this.render();
-        };
-
-        modalOverlay?.addEventListener('click', (e) => {
-            if (e.target === modalOverlay) closeModal();
-        });
-
-        modalClose?.addEventListener('click', closeModal);
-        modalCancel?.addEventListener('click', closeModal);
-
-        if (toggleVisibility) {
-            toggleVisibility.addEventListener('click', () => {
-                this.showTokenInModal = !this.showTokenInModal;
-                this.render();
-            });
-        }
-
-        modalSave?.addEventListener('click', async () => {
-            const nameInput = document.getElementById('new-token-name') as HTMLInputElement;
-            const tokenInput = document.getElementById('new-token-value') as HTMLInputElement;
-            const intervalInput = document.getElementById('refresh-interval') as HTMLInputElement;
-            const refreshInterval = intervalInput ? parseInt(intervalInput.value) || 60 : 60;
-            await this.handleAddKey(tokenInput.value, nameInput.value, refreshInterval);
+            this.openAddTokenModal();
         });
 
         document.querySelectorAll('.delete-btn, .mobile-delete-btn').forEach(btn => {
@@ -420,5 +292,11 @@ export class SettingsView {
                 if (keyId) this.handleDeleteKey(parseInt(keyId));
             });
         });
+    }
+
+    private escapeHtml(str: string): string {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
 }
