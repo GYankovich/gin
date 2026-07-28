@@ -200,6 +200,37 @@ def _direction_from_side(side: str) -> str:
     return "buy"
 
 
+def normalize_order_reason(
+    reason: Optional[str] = None,
+    *,
+    intent_source: Optional[str] = None,
+    source: Optional[str] = None,
+) -> Optional[str]:
+    """Normalize create/exit reason for portfolio_orders.reason (max 64 chars)."""
+    raw = str(reason or "").strip()
+    if raw:
+        key = raw.lower().replace(" ", "_").replace("-", "_")
+        # grain_seed_force_flatten → flatten
+        if key in {"grain_seed_force_flatten", "force_flatten"}:
+            return "flatten"
+        return key[:64]
+    intent = str(intent_source or "").strip().lower()
+    intent_map = {
+        "entry": "entry",
+        "exit_strategy": "exit_strategy",
+        "exit_sl_tp": "exit_sl_tp",
+        "flatten": "flatten",
+    }
+    if intent in intent_map:
+        return intent_map[intent]
+    src = str(source or "").strip().lower()
+    if src == SOURCE_MANUAL:
+        return "manual"
+    if src == SOURCE_EXTERNAL:
+        return "external"
+    return None
+
+
 def insert_pending_order(
     db: Session,
     *,
@@ -211,6 +242,7 @@ def insert_pending_order(
     price: Optional[float] = None,
     robot_id: Optional[int] = None,
     order_kind: str = "limit",
+    reason: Optional[str] = None,
     commit: bool = True,
 ) -> Optional[int]:
     """Insert a local pending row with temporary order_id; returns portfolio_orders.id."""
@@ -220,17 +252,18 @@ def insert_pending_order(
     if src not in VALID_SOURCES:
         src = SOURCE_EXTERNAL
     extra = _merge_extra(None, source=src, robot_id=robot_id, preserve_source=False)
+    reason_norm = normalize_order_reason(reason, source=src)
     try:
         row = db.execute(
             text(
                 f"""
                 INSERT INTO {settings.DB_SCHEMA}.portfolio_orders
                 (account_id, order_id, figi, order_type, order_direction, order_date,
-                 lots_requested, lots_executed, price, execution_price, status,
+                 lots_requested, lots_executed, price, execution_price, status, reason,
                  extra_data, created_at)
                 VALUES
                 (:account_id, :order_id, :figi, :order_type, :order_direction, :order_date,
-                 :lots_requested, :lots_executed, :price, :execution_price, :status,
+                 :lots_requested, :lots_executed, :price, :execution_price, :status, :reason,
                  CAST(:extra_data AS jsonb), :now)
                 RETURNING id
                 """
@@ -247,6 +280,7 @@ def insert_pending_order(
                 "price": float(price) if price is not None else None,
                 "execution_price": None,
                 "status": STATUS_PENDING,
+                "reason": reason_norm,
                 "extra_data": json.dumps(extra, ensure_ascii=False),
                 "now": now,
             },
@@ -325,7 +359,7 @@ def find_order_by_broker_id(
         row = db.execute(
             text(
                 f"""
-                SELECT id, status, extra_data, order_direction
+                SELECT id, status, extra_data, order_direction, reason
                 FROM {settings.DB_SCHEMA}.portfolio_orders
                 WHERE account_id = :account_id AND order_id = :order_id
                 LIMIT 1
@@ -347,6 +381,7 @@ def find_order_by_broker_id(
             "extra_data": extra or {},
             "source": str((extra or {}).get("source") or SOURCE_EXTERNAL),
             "side": str(row[3] or "buy"),
+            "reason": str(row[4]).strip() if len(row) > 4 and row[4] else None,
         }
     except Exception:
         try:
@@ -372,6 +407,8 @@ def upsert_broker_order(
     robot_id: Optional[int] = None,
     order_kind: str = "limit",
     order_date: Optional[datetime] = None,
+    reason: Optional[str] = None,
+    intent_source: Optional[str] = None,
     commit: bool = False,
     promote_filled: bool = True,
     broker_prefix: str = "bybit",
@@ -379,12 +416,14 @@ def upsert_broker_order(
     """Insert or update portfolio_orders. Returns 'inserted' | 'updated' | 'skipped'.
 
     Never overwrites existing extra_data.source when already robot/manual.
+    Never clears an existing reason when the new reason is empty.
     """
     oid = str(order_id or "").strip()
     if not oid or not figi:
         return "skipped"
     now = order_date or datetime.now(timezone.utc)
     live_status = normalize_live_order_status(status)
+    reason_norm = normalize_order_reason(reason, intent_source=intent_source, source=source)
     existing = find_order_by_broker_id(
         db, portfolio_account_id=int(portfolio_account_id), order_id=oid
     )
@@ -398,6 +437,8 @@ def upsert_broker_order(
             robot_id=robot_id,
             preserve_source=preserve,
         )
+        # Keep prior reason unless we have a new one
+        reason_to_set = reason_norm or existing.get("reason")
         try:
             db.execute(
                 text(
@@ -411,6 +452,7 @@ def upsert_broker_order(
                         figi = COALESCE(:figi, figi),
                         order_direction = COALESCE(:order_direction, order_direction),
                         order_date = COALESCE(:order_date, order_date),
+                        reason = COALESCE(:reason, reason),
                         extra_data = CAST(:extra_data AS jsonb)
                     WHERE account_id = :account_id AND order_id = :order_id
                     """
@@ -424,6 +466,7 @@ def upsert_broker_order(
                     "figi": str(figi).strip().upper(),
                     "order_direction": _direction_from_side(side),
                     "order_date": order_date,
+                    "reason": reason_to_set,
                     "extra_data": json.dumps(extra, ensure_ascii=False),
                     "account_id": int(portfolio_account_id),
                     "order_id": oid,
@@ -456,6 +499,8 @@ def upsert_broker_order(
     src = str(source or SOURCE_EXTERNAL).lower()
     if src not in VALID_SOURCES:
         src = SOURCE_EXTERNAL
+    if reason_norm is None:
+        reason_norm = normalize_order_reason(None, intent_source=intent_source, source=src)
     extra = _merge_extra(None, source=src, robot_id=robot_id, preserve_source=False)
     try:
         db.execute(
@@ -463,11 +508,11 @@ def upsert_broker_order(
                 f"""
                 INSERT INTO {settings.DB_SCHEMA}.portfolio_orders
                 (account_id, order_id, figi, order_type, order_direction, order_date,
-                 lots_requested, lots_executed, price, execution_price, status,
+                 lots_requested, lots_executed, price, execution_price, status, reason,
                  extra_data, created_at)
                 VALUES
                 (:account_id, :order_id, :figi, :order_type, :order_direction, :order_date,
-                 :lots_requested, :lots_executed, :price, :execution_price, :status,
+                 :lots_requested, :lots_executed, :price, :execution_price, :status, :reason,
                  CAST(:extra_data AS jsonb), :now)
                 """
             ),
@@ -483,6 +528,7 @@ def upsert_broker_order(
                 "price": price if price is not None and price > 0 else None,
                 "execution_price": avg_price,
                 "status": live_status,
+                "reason": reason_norm,
                 "extra_data": json.dumps(extra, ensure_ascii=False),
                 "now": datetime.now(timezone.utc),
             },
@@ -607,6 +653,7 @@ def _portfolio_order_label_maps(db: Session) -> Dict[str, Dict[str, str]]:
         "ORDER_DIRECTION": {},
         "STATUS": {},
         "SOURCE": {},
+        "REASON": {},
     }
     try:
         rows = db.execute(
@@ -615,7 +662,7 @@ def _portfolio_order_label_maps(db: Session) -> Dict[str, Dict[str, str]]:
                 SELECT column_name, string_value, name
                 FROM {settings.DB_SCHEMA}.dictionary
                 WHERE table_name = 'PORTFOLIO_ORDERS'
-                  AND column_name IN ('ORDER_DIRECTION', 'STATUS', 'SOURCE')
+                  AND column_name IN ('ORDER_DIRECTION', 'STATUS', 'SOURCE', 'REASON')
                   AND hide_from_ui = 0
                 """
             )
@@ -645,7 +692,8 @@ def load_portfolio_orders(
             text(
                 f"""
                 SELECT id, figi, order_direction, lots_requested, price, order_id, status,
-                       order_date, lots_executed, execution_price, extra_data, order_type
+                       order_date, lots_executed, execution_price, extra_data, order_type,
+                       reason
                 FROM {settings.DB_SCHEMA}.portfolio_orders
                 WHERE account_id = :account_id
                 ORDER BY order_date DESC
@@ -665,6 +713,7 @@ def load_portfolio_orders(
     dir_map = labels.get("ORDER_DIRECTION") or {}
     status_map = labels.get("STATUS") or {}
     source_map = labels.get("SOURCE") or {}
+    reason_map = labels.get("REASON") or {}
     out: List[Dict[str, Any]] = []
     for r in rows:
         extra = r[10] if isinstance(r[10], dict) else {}
@@ -676,6 +725,8 @@ def load_portfolio_orders(
         source = str((extra or {}).get("source") or SOURCE_ROBOT).strip().lower()
         side = str(r[2] or "buy").strip().lower()
         status = str(r[6] or "").strip().lower()
+        reason = str(r[12]).strip() if len(r) > 12 and r[12] else None
+        reason_key = reason.lower() if reason else ""
         out.append(
             {
                 "id": int(r[0]),
@@ -696,6 +747,8 @@ def load_portfolio_orders(
                 "order_type": source,
                 "broker_order_type": str(r[11] or "limit"),
                 "robot_id": (extra or {}).get("robot_id"),
+                "reason": reason,
+                "reason_name": reason_map.get(reason_key) or reason,
             }
         )
     return out
@@ -736,6 +789,8 @@ def insert_robot_orders_batch(
             avg_price=t.get("avg_fill_price"),
             source=SOURCE_ROBOT,
             robot_id=int(robot_id),
+            reason=t.get("reason"),
+            intent_source=t.get("intent_source") or t.get("intent_kind"),
             commit=False,
             promote_filled=True,
             broker_prefix=broker_prefix,

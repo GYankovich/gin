@@ -336,6 +336,15 @@ def test_sync_live_orders_inserts_history(monkeypatch):
     assert out["history_updated"] == 5
 
 
+def test_normalize_order_reason():
+    assert preg.normalize_order_reason("stop_loss") == "stop_loss"
+    assert preg.normalize_order_reason("Take Profit") == "take_profit"
+    assert preg.normalize_order_reason(None, intent_source="entry") == "entry"
+    assert preg.normalize_order_reason(None, intent_source="exit_sl_tp") == "exit_sl_tp"
+    assert preg.normalize_order_reason("grain_seed_force_flatten") == "flatten"
+    assert preg.normalize_order_reason(None, source=preg.SOURCE_MANUAL) == "manual"
+
+
 def test_load_portfolio_orders_enriches_dictionary_names():
     from datetime import datetime, timezone
 
@@ -353,6 +362,7 @@ def test_load_portfolio_orders_enriches_dictionary_names():
         None,
         {"source": "manual"},
         "limit",
+        "manual",
     )
     label_rows = [
         ("ORDER_DIRECTION", "buy", "Покупка"),
@@ -362,6 +372,8 @@ def test_load_portfolio_orders_enriches_dictionary_names():
         ("SOURCE", "manual", "Вручную"),
         ("SOURCE", "robot", "Робот"),
         ("SOURCE", "external", "Прочее"),
+        ("REASON", "manual", "Вручную"),
+        ("REASON", "stop_loss", "Стоп-лосс"),
     ]
 
     def _execute(query, _params=None):
@@ -384,6 +396,8 @@ def test_load_portfolio_orders_enriches_dictionary_names():
     assert rows[0]["status_name"] == "В работе"
     assert rows[0]["source"] == "manual"
     assert rows[0]["source_name"] == "Вручную"
+    assert rows[0]["reason"] == "manual"
+    assert rows[0]["reason_name"] == "Вручную"
 
 
 def test_manual_pending_insert_then_update():
@@ -418,6 +432,7 @@ def test_upsert_does_not_overwrite_manual_source():
         "pending",
         {"source": "manual", "robot_id": 24},
         "buy",
+        "manual",
     )
     with patch.object(preg, "promote_filled_order_to_operation", return_value=True):
         result = preg.upsert_broker_order(

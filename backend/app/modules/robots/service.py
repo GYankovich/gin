@@ -6138,6 +6138,7 @@ class RobotService:
             quantity=float(order_qty),
             price=px,
             source=SOURCE_MANUAL,
+            reason="manual",
             commit=True,
         )
         if portfolio_order_id is None:

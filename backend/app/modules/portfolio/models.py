@@ -218,6 +218,7 @@ class PortfolioOrder(Base):
     execution_price = Column(Numeric(20, 4), nullable=True)
 
     status = Column(String(30), nullable=False)
+    reason = Column(String(64), nullable=True)
 
     commission = Column(Numeric(20, 4), nullable=True)
     commission_currency = Column(String(10), nullable=True)
