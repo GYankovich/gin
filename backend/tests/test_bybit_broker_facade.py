@@ -149,8 +149,8 @@ class _FakeBybitHttp:
         }
         return {"retCode": 0, "result": {"orderId": oid}}
 
-    async def get_open_orders(self, *, category: str, symbol: str | None = None, order_id: str | None = None):
-        _ = category
+    async def get_open_orders(self, *, category: str, symbol: str | None = None, order_id: str | None = None, settle_coin: str | None = None):
+        _ = (category, settle_coin)
         rows = [r for r in self._orders.values() if r.get("orderStatus") in {"New", "PartiallyFilled"}]
         if order_id:
             rows = [r for r in rows if r.get("orderId") == order_id]
@@ -250,6 +250,32 @@ def test_bybit_account_id_stable_without_token_prefix():
     assert b.parse_account_kind("bybit:UNIFIED") == "UNIFIED"
     assert b.parse_account_kind("bybit:rXr4Mn4MbynY:FUND") == "FUND"  # legacy still parses
     assert b.parse_account_kind("BYBIT_UNIFIED") == "UNIFIED"
+
+
+def test_bybit_get_orders_only_for_unified_account():
+    async def _run():
+        http = _FakeBybitHttp()
+        b = ByBitBrokerFacade("key", http_client=http, ws_client=_FakeBybitWs())
+        await b.post_order(
+            figi="BTCUSDT",
+            quantity=1,
+            price=65000.0,
+            direction="ORDER_DIRECTION_BUY",
+            account_id="bybit:UNIFIED",
+        )
+        unified = await b.get_orders("bybit:UNIFIED")
+        fund = await b.get_orders("bybit:FUND")
+        copy = await b.get_orders("bybit:COPY")
+        hist_fund = await b.get_order_history("bybit:FUND", limit=10)
+        hist_unified = await b.get_order_history("bybit:UNIFIED", limit=10)
+        await b.close()
+        assert len(unified) == 1
+        assert fund == []
+        assert copy == []
+        assert hist_fund == []
+        assert len(hist_unified) == 1
+
+    asyncio.run(_run())
 
 
 def test_bybit_broker_get_accounts_and_funds():
@@ -378,7 +404,7 @@ def test_bybit_broker_execution_mapping_market_limit_and_status():
         assert market_order["executionReportStatus"] == "EXECUTION_REPORT_STATUS_NEW"
         assert state["executionReportStatus"] == "EXECUTION_REPORT_STATUS_NEW"
         assert cancelled["executionReportStatus"] == "EXECUTION_REPORT_STATUS_CANCELLED"
-        assert any(o["orderId"] == limit_order["orderId"] for o in orders)
+        assert any(o.get("order_id") == limit_order["orderId"] for o in orders)
 
     asyncio.run(_run())
 

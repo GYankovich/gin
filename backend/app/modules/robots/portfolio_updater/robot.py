@@ -318,6 +318,31 @@ class PortfolioUpdaterRobot(BaseRobot):
             upsert_broker_order,
         )
 
+        # ByBit: trading orders belong to UNIFIED. FUND/COPY must not import the same
+        # linear open/history list (facade ignores account_id → duplicate rows).
+        if str(broker_type).lower() == "bybit":
+            parse_kind = getattr(facade, "parse_account_kind", None)
+            kind = ""
+            if callable(parse_kind):
+                try:
+                    kind = str(parse_kind(str(account.get("id") or "")) or "").strip().upper()
+                except Exception:
+                    kind = ""
+            if not kind:
+                aid = str(account.get("id") or "").strip().upper()
+                if aid.endswith(":FUND") or aid in {"BYBIT_FUND", "BYBIT:FUND"}:
+                    kind = "FUND"
+                elif aid.endswith(":COPY") or aid in {"BYBIT_COPY", "BYBIT:COPY"}:
+                    kind = "COPY"
+                else:
+                    kind = "UNIFIED"
+            if kind in {"FUND", "COPY"}:
+                self.log.info(
+                    "    ↻ Заявки: skip %s (ByBit linear orders only on UNIFIED)",
+                    account.get("id"),
+                )
+                return
+
         def _side(row: Dict[str, Any]) -> str:
             s = str(row.get("side") or "").strip().lower()
             if s in {"sell", "order_direction_sell"}:

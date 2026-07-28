@@ -938,7 +938,10 @@ class ByBitBrokerFacade(BrokerFacade):
         }
 
     async def get_orders(self, account_id: str) -> List[Dict[str, Any]]:
-        _ = account_id
+        # Linear/spot open orders live on UNIFIED only. FUND/COPY share the same
+        # API key response — returning them for every kind duplicated portfolio_orders.
+        if self.parse_account_kind(account_id) != _ACCOUNT_KIND_UNIFIED:
+            return []
         settle = "USDT" if str(self._instrument_category or "").lower() == "linear" else None
         resp = await self._http.get_open_orders(
             category=self._instrument_category,
@@ -956,7 +959,8 @@ class ByBitBrokerFacade(BrokerFacade):
 
     async def get_order_history(self, account_id: str, *, limit: int = 50) -> List[Dict[str, Any]]:
         """Closed / filled / cancelled orders from ByBit history."""
-        _ = account_id
+        if self.parse_account_kind(account_id) != _ACCOUNT_KIND_UNIFIED:
+            return []
         lim = max(1, min(int(limit or 50), 50))
         resp = await self._http.get_order_history(
             category=self._instrument_category,
