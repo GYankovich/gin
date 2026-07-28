@@ -11,7 +11,7 @@ from urllib.parse import urlencode
 class BybitSigner:
     """HMAC signer for private ByBit REST v5 endpoints."""
 
-    def __init__(self, api_key: str, api_secret: str, *, recv_window: int = 5000) -> None:
+    def __init__(self, api_key: str, api_secret: str, *, recv_window: int = 10000) -> None:
         self.api_key = str(api_key or "").strip()
         self.api_secret = str(api_secret or "").strip()
         self.recv_window = int(recv_window)

@@ -30,8 +30,8 @@ def test_stage6_allow_short_sell_without_asset():
             _ = (user_id, figi)
             return 100.0
 
-        async def post_order(self, figi, quantity, price, direction, account_id):
-            _ = (figi, quantity, price, direction, account_id)
+        async def post_order(self, figi, quantity, price, direction, account_id, *, reduce_only: bool = False):
+            _ = (figi, quantity, price, direction, account_id, reduce_only)
             return {"orderId": "oid-1", "executionReportStatus": "EXECUTION_REPORT_STATUS_NEW"}
 
     async def _run():

@@ -24,6 +24,8 @@ export type MoexRobotSettingsInput = {
     takeProfitPct: number
     maxPositionPct: number
     maxPositionRub: number
+    maxDailyLoss?: number
+    minTradeAmountRub?: number
 }
 
 export type MoexRobotSettingsCheckInput = MoexRobotSettingsInput & {
@@ -139,13 +141,23 @@ export function collectMoexSettingsIssues(
 
     const stop = Number(input.stopLossPct || 0)
     const take = Number(input.takeProfitPct || 0)
-    if (stop > 0 && take > 0 && stop >= take) {
-        issues.push({
-            id: 'stop_take',
-            severity: 'warning',
-            field: 'risk',
-            message: 'Стоп-лосс (%) обычно меньше тейк-профита (%)',
-        })
+    if (stop > 0 && take >= 0) {
+        const rr = take / stop
+        if (rr < 1) {
+            issues.push({
+                id: 'risk_reward_lt_1',
+                severity: 'error',
+                field: 'risk',
+                message: `R/R = ${rr.toFixed(2)}: риск больше прибыли (тейк/стоп < 1)`,
+            })
+        } else if (rr < 1.5) {
+            issues.push({
+                id: 'risk_reward_lt_1_5',
+                severity: 'warning',
+                field: 'risk',
+                message: `R/R = ${rr.toFixed(2)}: рекомендуется соотношение ≥ 1.5`,
+            })
+        }
     }
 
     const cap = Number(input.capital || 0)
@@ -159,18 +171,36 @@ export function collectMoexSettingsIssues(
     }
 
     const maxPct = Number(input.maxPositionPct || 0)
-    const maxRub = Number(input.maxPositionRub || 0)
-    if (!input.isCrypto && cap > 0 && maxPct > 0 && maxRub > 0) {
-        const pctRub = (cap * maxPct) / 100
-        const diff = Math.abs(pctRub - maxRub) / Math.max(maxRub, pctRub, 1)
-        if (diff > 0.35) {
-            issues.push({
-                id: 'position_pct_rub',
-                severity: 'warning',
-                field: 'risk',
-                message: `Макс. доля (${maxPct}% ≈ ${Math.round(pctRub).toLocaleString('ru-RU')} ₽) и лимит ${Math.round(maxRub).toLocaleString('ru-RU')} ₽ расходятся`,
-            })
-        }
+    if (maxPct > 100) {
+        issues.push({
+            id: 'position_share_gt_100',
+            severity: 'error',
+            field: 'risk',
+            message: 'Макс. доля позиции не может быть больше 100%',
+        })
+    }
+
+    const maxRub =
+        Number(input.maxPositionRub || 0) ||
+        (cap > 0 && maxPct > 0 ? (cap * maxPct) / 100 : 0)
+    const minTrade = Number(input.minTradeAmountRub ?? NaN)
+    if (Number.isFinite(minTrade) && maxRub > 0 && maxRub < minTrade) {
+        issues.push({
+            id: 'min_trade_vs_max_position',
+            severity: 'error',
+            field: 'risk',
+            message: 'Макс. позиция меньше мин. суммы сделки',
+        })
+    }
+
+    const dailyLoss = Number(input.maxDailyLoss ?? NaN)
+    if (Number.isFinite(dailyLoss) && cap > 0 && dailyLoss > cap) {
+        issues.push({
+            id: 'daily_loss_vs_budget',
+            severity: 'error',
+            field: 'risk',
+            message: 'Макс. дневной убыток не может превышать бюджет',
+        })
     }
 
     return issues

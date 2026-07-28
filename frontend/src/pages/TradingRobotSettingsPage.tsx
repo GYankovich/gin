@@ -9,22 +9,30 @@ import type { Robot } from '@/types/robot'
 import { useToast } from '@/components/ui/Toast'
 import { api } from '@/services/api'
 import { useSearchParams } from 'react-router-dom'
-import { RobotIllustration } from '@/components/ui/RobotIllustration'
 import { TestingStrategyParamsCard } from '@/pages/testing/TestingStrategyParamsCard'
 import { TestingRiskParamsCard } from '@/pages/testing/TestingRiskParamsCard'
+import { calcMaxPositionFromBudget } from '@/pages/testing/riskParamsValidation'
 import { buildMoexConfig } from '@/modules/robots/config/builders/buildMoexConfig'
 import {
     createDefaultCryptoScreeningFilters,
     cryptoFieldsFromFilters,
-    cryptoFiltersFromFields,
-    ensureCompleteCryptoFilters,
+    cryptoFiltersFromConfigUniverse,
     type CryptoScreeningFilter,
-    type CryptoScreeningFilterType,
 } from '@/pages/testing/cryptoScreeningPipeline'
 import {
+    formatCryptoScreeningToggleLabel,
+    isCryptoScreeningInProgress,
+} from '@/modules/robots/live/cryptoScreeningStatus'
+import {
+    DEFAULT_EXECUTION_LATENCY_SEC,
+    DEFAULT_MAX_DRAWDOWN_PCT,
     defaultSlippagePct,
     type FundingSimulationMode,
 } from '@/pages/testing/executionRiskDefaults'
+import {
+    hydrateExecutionRiskFromConfig,
+    resolveBrokerFromRobotConfig,
+} from '@/pages/robots/hydrateFromRobotRest'
 import {
     buildCryptoTradingRobotConfig,
     cryptoDefaultsFromConfig,
@@ -39,7 +47,7 @@ import {
 import {
     collectIssues,
     hasBlockingValidationIssues,
-    type ValidationIssue,
+    type ConfigValidationIssue,
 } from '@/modules/robots/config/validate/collectIssues'
 import {
     buildTradingRobotConfig,
@@ -49,21 +57,22 @@ import type { RobotStrategyName, RobotStrategyParams } from '@/types/robot'
 import {
     tradingHoursFromSchedule,
     useTradingRobotStrategyForm,
-    type TradingRobotStrategyDraft,
 } from '@/pages/robots/useTradingRobotStrategyForm'
 import { derivePipelineStageStatuses } from '@/pages/robots/pipelineStageStatus'
 import {
     GRAIN_SEED_CRYPTO_P3_EXCLUDE_FIELD_KEYS,
     GRAIN_SEED_EXCLUDED_P3_FIELD_KEYS,
 } from '@/pages/testing/strategyPresets'
-import { PipelineStageBadges } from '@/components/ui/PipelineStageBadges'
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
+import { PipelineStageBadges } from '@/components/ui/PipelineStageBadges'
 import { PipelineVisualizer, type RobotEditorStage } from '@/pages/robots/components/PipelineVisualizer'
-import { RobotContextPanel } from '@/pages/robots/components/RobotContextPanel'
+import { FleetPanel } from '@/pages/robots/components/FleetPanel'
+import { CreateRobotForm } from '@/pages/robots/components/CreateRobotForm'
 import { derivePipelineVisualizerNodes, stagePanelTitle } from '@/pages/robots/derivePipelineVisualizerNodes'
 import { CryptoBrokerConfigurator } from '@/modules/robots/components/CryptoConfigurator'
 import { CryptoCostsCard } from '@/modules/robots/components/CryptoCostsCard'
 import { CryptoUniverseConfigurator } from '@/modules/robots/components/CryptoUniverseConfigurator'
+import { PortfolioConfigurator } from '@/modules/robots/components/PortfolioConfigurator'
 import { MOEX_P2_SNAPSHOT_FILTER_PRESETS, type UniverseFilterPresetId } from '@/modules/robots/config/universeFilterPresets'
 import { MoexConfigurator } from '@/modules/robots/components/MoexConfigurator'
 import {
@@ -72,7 +81,7 @@ import {
     portfolioDefaultsFromConfig,
     type BybitAccountType,
 } from '@/modules/robots/config/builders/buildPortfolioConfig'
-import { brokerFromTokenId, brokerFromTokenType, brokerLabelFromToken } from '@/modules/robots/config/tokenBroker'
+import { brokerFromTokenId, brokerLabelFromToken } from '@/modules/robots/config/tokenBroker'
 import {
     pollMinuteOptionsForRobotType,
     resolvePollMinutesFromRobot,
@@ -88,126 +97,56 @@ import type { PipelineFilter as TestingPipelineFilter } from '@/pages/testing/te
 import {
     formatFixedTickers,
     normalizeUniverseMode,
-    normalizeCryptoUniverseMode,
     parseFixedTickersInput,
-    TRADING_UNIVERSE_MODE_OPTIONS,
     type CryptoUniverseMode,
     type UniverseMode,
 } from '@/utils/universeMode'
 import {
     HISTORICAL_FILTER_TYPES,
-    formatUniverseJobTime,
     hydrateCandidatePool,
     hydrateHistoricalScreening,
     hydratePaperSelection,
     hydrateUniverseJobsState,
 } from '@/utils/robotConfigV2'
 import { normalizeSignalInterval } from '@/pages/testing/testingPipeline'
-import { formatRobotSessionStatus } from '@/utils/robotSessionStatus'
 import {
     BROKER_CHANGE_BLOCKED_MESSAGE,
     brokerTypeLabel,
     isBrokerTypeConflictError,
 } from '@/modules/robots/config/brokerImmutability'
+import {
+    dirtySnapshotFromDraft,
+    serializeDirtySnapshot,
+    type DraftSnapshot,
+} from '@/pages/robots/robotDraft'
+import { useRobotsList } from '@/pages/robots/hooks/useRobotsList'
+import { useRobotEditorSave } from '@/pages/robots/hooks/useRobotEditor'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import cyberHero from '@/assets/dashboard/cyber-hero.png'
 
 ///@EPIC Frontend.ITEM RobotsUI.TOPIC Trading Robot Configuration [1]
 ///@ Главная форма настройки торгового робота: pipeline-фильтры, риск/costs, расписание,
 ///@ пресеты и интеграция с robots API для create/update/preview сценариев.
-type DraftSnapshot = {
-    name: string
-    tokenId: number
-    robotType: 1 | 2
-    pollValue: number
-    pollUnit: 'minutes' | 'hours'
-    brokerCommissionRate: number
-    ndflRate: number
-    hoursFrom: string
-    hoursTo: string
-    weekdaysMask: number
-    pipelineMode: 'ALL' | 'ANY'
-    universeMode: 'fixed' | 'dms_pipeline' | 'tqbr_scan'
-    fixedTickersText: string
-    historicalEnabled: boolean
-    historicalInterval: string
-    historicalLookbackDays: number
-    historicalDailyAtMsk: string
-    paperRefreshMinutes: number
-    strategy: TradingRobotStrategyDraft
-    bybitTestnet: boolean
-    instrumentCategory: 'spot' | 'linear' | 'inverse'
-    leverage: number
-    makerFeePct: number
-    takerFeePct: number
-    fundingMode: FundingSimulationMode
-    backtestExecution: 'limit_maker' | 'market_taker'
-    backtestFeeModel: 'maker_taker' | 'taker_only' | 'maker_only'
-    maintenanceMarginPct: number
-    cryptoUniverseMode: CryptoUniverseMode
-    cryptoFilters: Array<{ type: CryptoScreeningFilterType; value: number }>
-    portfolioBrokerType: string
-    portfolioBybitTestnet: boolean
-    portfolioBybitAccountType: BybitAccountType
-    filters: Array<{
-        type: PipelineFilterType
-        min?: number
-        max_percent?: number
-        min_percent?: number
-        period?: number
-        eq?: string
-        direction?: 'BOTH' | 'UP_ONLY' | 'DOWN_ONLY'
-        max_steps?: number
-        min_ratio?: number
-        list?: string[] | null
-    }>
-}
 
-type PortfolioDirtySnapshot = Pick<
-    DraftSnapshot,
-    | 'name'
-    | 'tokenId'
-    | 'robotType'
-    | 'pollValue'
-    | 'pollUnit'
-    | 'hoursFrom'
-    | 'hoursTo'
-    | 'weekdaysMask'
-    | 'portfolioBrokerType'
-    | 'portfolioBybitTestnet'
-    | 'portfolioBybitAccountType'
->
-
-function dirtySnapshotFromDraft(draft: DraftSnapshot): DraftSnapshot | PortfolioDirtySnapshot {
-    if (draft.robotType === 1) {
-        return {
-            name: draft.name,
-            tokenId: draft.tokenId,
-            robotType: draft.robotType,
-            pollValue: draft.pollValue,
-            pollUnit: draft.pollUnit,
-            hoursFrom: draft.hoursFrom,
-            hoursTo: draft.hoursTo,
-            weekdaysMask: draft.weekdaysMask,
-            portfolioBrokerType: draft.portfolioBrokerType,
-            portfolioBybitTestnet: draft.portfolioBybitTestnet,
-            portfolioBybitAccountType: draft.portfolioBybitAccountType,
-        }
-    }
-    return draft
-}
-
-function serializeDirtySnapshot(draft: DraftSnapshot | PortfolioDirtySnapshot): string {
-    return JSON.stringify(draft)
-}
-
-function fieldIssues(issues: ValidationIssue[] | null, field: string): ValidationIssue[] {
+function fieldIssues(issues: ConfigValidationIssue[] | null, field: string): ConfigValidationIssue[] {
     return (issues || []).filter(i => i.field === field)
 }
 
 export default function TradingRobotSettingsPage() {
     const [searchParams, setSearchParams] = useSearchParams()
     const toast = useToast()
-    const [robots, setRobots] = useState<Robot[]>([])
+    const {
+        robots,
+        total: robotsTotal,
+        loading,
+        error: robotsLoadError,
+        filters: listFilters,
+        load: loadRobotsList,
+        upsert: upsertRobotInListState,
+        setRobots,
+        cancelPending,
+    } = useRobotsList()
+    const { saving, saveRobot, consumeSkipLoad } = useRobotEditorSave()
     const [tokenOptions, setTokenOptions] = useState<Array<{ value: string; label: string }>>([])
     const [tokenCatalog, setTokenCatalog] = useState<ApiKeyItem[]>([])
     const [selectedRobot, setSelectedRobot] = useState<number | null>(() => {
@@ -216,9 +155,6 @@ export default function TradingRobotSettingsPage() {
         return parsed && Number.isFinite(parsed) ? parsed : null
     })
     const [isNewRobot, setIsNewRobot] = useState<boolean>(() => !searchParams.get('robotId'))
-    const [loading, setLoading] = useState(true)
-    const [saving, setSaving] = useState(false)
-    const [duplicating, setDuplicating] = useState(false)
     const [previewLoading, setPreviewLoading] = useState(false)
     const [preview, setPreview] = useState<{
         total_checked: number
@@ -245,6 +181,9 @@ export default function TradingRobotSettingsPage() {
     const [backtestExecution, setBacktestExecution] = useState<'limit_maker' | 'market_taker'>('market_taker')
     const [backtestFeeModel, setBacktestFeeModel] = useState<'maker_taker' | 'taker_only' | 'maker_only'>('maker_taker')
     const [maintenanceMarginPct, setMaintenanceMarginPct] = useState(0.5)
+    const [slippagePct, setSlippagePct] = useState(() => defaultSlippagePct('moex'))
+    const [executionLatencySec, setExecutionLatencySec] = useState(DEFAULT_EXECUTION_LATENCY_SEC)
+    const [maxDrawdownPct, setMaxDrawdownPct] = useState(DEFAULT_MAX_DRAWDOWN_PCT)
     const [cryptoFilters, setCryptoFilters] = useState<CryptoScreeningFilter[]>(() => createDefaultCryptoScreeningFilters())
     const [cryptoUniverseMode, setCryptoUniverseMode] = useState<CryptoUniverseMode>('fixed')
     const [portfolioBrokerType, setPortfolioBrokerType] = useState('tinvest')
@@ -262,12 +201,14 @@ export default function TradingRobotSettingsPage() {
         symbols: string[]
         accepted: number
         scanned: number
+        rejected?: number
+        reused?: boolean
         message?: string | null
     } | null>(null)
-    const [migratingV3, setMigratingV3] = useState(false)
     const [pipelineRunning, setPipelineRunning] = useState(false)
     const [checkLoading, setCheckLoading] = useState(false)
-    const [checkedIssues, setCheckedIssues] = useState<ValidationIssue[] | null>(null)
+    const [checkedIssues, setCheckedIssues] = useState<ConfigValidationIssue[] | null>(null)
+    const [fleetDrawerOpen, setFleetDrawerOpen] = useState(false)
     const [filters, setFilters] = useState<PipelineFilter[]>([])
     const [name, setName] = useState('')
     const [tokenId, setTokenId] = useState<number>(0)
@@ -286,19 +227,12 @@ export default function TradingRobotSettingsPage() {
     ])
     const hydratingDraftRef = useRef(false)
     const isEditingRef = useRef(false)
-    const skipNextLoadOneRef = useRef<number | null>(null)
     const tradingDefaultsRef = useRef<{ brokerPct: number; ndflPct: number } | null>(null)
 
     const selectedRobotEntity = useMemo(
         () => robots.find(r => r.id === selectedRobot) || null,
         [robots, selectedRobot],
     )
-
-    const needsConfigV3Migrate = useMemo(() => {
-        if (!selectedRobotEntity?.config) return false
-        const v = Number((selectedRobotEntity.config as { config_version?: number }).config_version ?? 0)
-        return v < 3
-    }, [selectedRobotEntity?.config])
 
     const isMoexType2Tinvest = useMemo(
         () => isMoexType2TinvestDraft(robotType, strategyForm.brokerType, selectedRobotEntity?.config ?? null),
@@ -383,6 +317,9 @@ export default function TradingRobotSettingsPage() {
             portfolioBrokerType,
             portfolioBybitTestnet,
             portfolioBybitAccountType,
+            slippagePct,
+            executionLatencySec,
+            maxDrawdownPct,
             filters,
         ],
     )
@@ -462,44 +399,70 @@ export default function TradingRobotSettingsPage() {
         setCryptoScreeningLoading(true)
         try {
             const res = await robotService.runCryptoScreening(selectedRobot)
-            if (res.skipped) {
-                toast.show(res.message || 'Crypto-screening пропущен', 'info')
-            } else {
-                toast.show(`Crypto: ${res.accepted} из ${res.scanned} символов`, 'success')
-            }
+            toast.show(res.message || 'Crypto-screening поставлен в очередь', 'info')
             setCryptoScreeningPreview({
-                symbols: res.symbols,
-                accepted: res.accepted,
-                scanned: res.scanned,
-                message: res.message,
+                symbols: [],
+                accepted: 0,
+                scanned: 0,
+                message: formatCryptoScreeningToggleLabel({
+                    status: res.status || 'queued',
+                    started_at: res.started_at,
+                }) || res.message,
             })
-            if (res.symbols.length > 0) {
-                setFixedTickersText(res.symbols.join(', '))
+
+            const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms))
+            const deadline = Date.now() + 20 * 60 * 1000
+            let lastStatus = res.status || 'queued'
+            while (Date.now() < deadline) {
+                await sleep(3000)
+                const st = await robotService.getCryptoScreeningStatus(selectedRobot)
+                lastStatus = st.status
+                setCryptoScreeningPreview((prev) => ({
+                    symbols: prev?.symbols ?? [],
+                    accepted: prev?.accepted ?? 0,
+                    scanned: prev?.scanned ?? 0,
+                    message: formatCryptoScreeningToggleLabel(st) || st.message || prev?.message,
+                }))
+                if (!isCryptoScreeningInProgress(st)) {
+                    if (st.status === 'failed') {
+                        toast.show(st.error || st.message || 'Crypto-screening ошибка', 'error')
+                        return
+                    }
+                    const daily = await robotService.listUniverseDaily(selectedRobot)
+                    const acceptedRows = (daily.items || []).filter(
+                        (row: { filter_result?: string }) =>
+                            String(row.filter_result || '').toLowerCase() === 'accepted',
+                    )
+                    const symbols = acceptedRows
+                        .map((row: { ticker?: string; symbol?: string }) =>
+                            String(row.ticker || row.symbol || '').trim().toUpperCase(),
+                        )
+                        .filter(Boolean)
+                    setCryptoScreeningPreview({
+                        symbols,
+                        accepted: symbols.length,
+                        scanned: Number(daily.total || acceptedRows.length),
+                        message: formatCryptoScreeningToggleLabel(st) || st.message,
+                    })
+                    if (symbols.length > 0) {
+                        setFixedTickersText(symbols.join(', '))
+                    }
+                    toast.show(
+                        `Crypto: ${symbols.length} accepted (из ${daily.total || symbols.length})`,
+                        'success',
+                    )
+                    await refreshRobotInList(selectedRobot)
+                    return
+                }
             }
-            await refreshRobotInList(selectedRobot)
+            toast.show(
+                `Screening ещё выполняется (${lastStatus}) — статус также на Live`,
+                'info',
+            )
         } catch {
             toast.show('Не удалось запустить crypto-screening', 'error')
         } finally {
             setCryptoScreeningLoading(false)
-        }
-    }
-
-    const migrateConfigV3 = async () => {
-        if (!selectedRobot || isNewRobot) return
-        setMigratingV3(true)
-        try {
-            const res = await robotService.migrateConfigV3(selectedRobot)
-            const item = res.items.find(i => i.robot_id === selectedRobot)
-            if (item?.updated) {
-                toast.show(`Config v3: обновлён (profile ${item.schema_profile})`, 'success')
-            } else {
-                toast.show('Config уже v3', 'info')
-            }
-            await refreshRobotInList(selectedRobot)
-        } catch {
-            toast.show('Ошибка миграции config v3', 'error')
-        } finally {
-            setMigratingV3(false)
         }
     }
 
@@ -537,6 +500,9 @@ export default function TradingRobotSettingsPage() {
         portfolioBrokerType,
         portfolioBybitTestnet,
         portfolioBybitAccountType,
+        slippagePct,
+        executionLatencySec,
+        maxDrawdownPct,
         filters: filters.map(f => ({
             type: f.type,
             min: f.min != null ? Number(f.min) : undefined,
@@ -583,17 +549,26 @@ export default function TradingRobotSettingsPage() {
         setMaintenanceMarginPct(draft.maintenanceMarginPct ?? 0.5)
         setCryptoUniverseMode(draft.cryptoUniverseMode ?? 'fixed')
         setCryptoFilters(
-            ensureCompleteCryptoFilters(
-                (draft.cryptoFilters ?? []).map((f, idx) => ({
-                    id: `hydrate-${f.type}-${idx}`,
-                    type: f.type,
-                    value: f.value,
-                })),
-            ),
+            (draft.cryptoFilters ?? []).map((f, idx) => ({
+                id: `hydrate-${f.type}-${idx}`,
+                type: f.type,
+                value: f.value,
+            })),
         )
         setPortfolioBrokerType(draft.portfolioBrokerType ?? 'tinvest')
         setPortfolioBybitTestnet(draft.portfolioBybitTestnet ?? true)
         setPortfolioBybitAccountType(draft.portfolioBybitAccountType ?? 'UNIFIED')
+        setSlippagePct(
+            draft.slippagePct != null ? Number(draft.slippagePct) : defaultSlippagePct('moex'),
+        )
+        setExecutionLatencySec(
+            draft.executionLatencySec != null
+                ? Number(draft.executionLatencySec)
+                : DEFAULT_EXECUTION_LATENCY_SEC,
+        )
+        setMaxDrawdownPct(
+            draft.maxDrawdownPct != null ? Number(draft.maxDrawdownPct) : DEFAULT_MAX_DRAWDOWN_PCT,
+        )
         setFilters(
             draft.filters.map((f, idx) => ({
                 id: `${f.type}-${idx}-${Date.now()}`,
@@ -653,20 +628,11 @@ export default function TradingRobotSettingsPage() {
     }
 
     const loadRobots = async (showLoader = true) => {
-        if (showLoader) setLoading(true)
-        try {
-            const res = await robotService.list(200, 0)
-            setRobots(res.items)
-            if (!selectedRobot && res.items.length > 0 && !isNewRobot) {
-                setSelectedRobot(res.items[0].id)
-            }
-            return res.items
-        } catch {
-            toast.show('Не удалось загрузить роботов', 'error')
-            return []
-        } finally {
-            if (showLoader) setLoading(false)
+        const items = await loadRobotsList(undefined, showLoader)
+        if (!selectedRobot && items.length > 0 && !isNewRobot) {
+            setSelectedRobot(items[0].id)
         }
+        return items
     }
 
     const openRobotForEdit = (robotId: number) => {
@@ -676,9 +642,11 @@ export default function TradingRobotSettingsPage() {
         setIsNewRobot(false)
         setSelectedRobot(robotId)
         setSearchParams({ robotId: String(robotId) })
+        setFleetDrawerOpen(false)
     }
 
     const startCreateRobot = () => {
+        setFleetDrawerOpen(false)
         setIsNewRobot(true)
         setSelectedRobot(null)
         setSearchParams({})
@@ -722,6 +690,9 @@ export default function TradingRobotSettingsPage() {
             portfolioBrokerType: 'tinvest',
             portfolioBybitTestnet: true,
             portfolioBybitAccountType: 'UNIFIED',
+            slippagePct: defaultSlippagePct('moex'),
+            executionLatencySec: DEFAULT_EXECUTION_LATENCY_SEC,
+            maxDrawdownPct: DEFAULT_MAX_DRAWDOWN_PCT,
             strategy: strategyForm.getDraft(),
             filters: DEFAULT_PIPELINE_FILTERS,
         })
@@ -729,8 +700,8 @@ export default function TradingRobotSettingsPage() {
     }
 
     const upsertRobotInList = useCallback((robot: Robot) => {
-        setRobots(prev => prev.map(r => (r.id === robot.id ? robot : r)))
-    }, [])
+        upsertRobotInListState(robot)
+    }, [upsertRobotInListState])
 
     const toggleRobotStatus = async (robot: Robot) => {
         const nextStatus = robot.status === 1 ? 2 : 1
@@ -757,63 +728,32 @@ export default function TradingRobotSettingsPage() {
         }
     }
 
-    const duplicateRobot = async () => {
-        if (!selectedRobotEntity) return
-        const defaultName = `${selectedRobotEntity.name} (copy)`
-        const name = window.prompt('Имя копии робота', defaultName)
-        if (!name?.trim()) return
-
-        let brokerType: string | undefined
-        if (Number(selectedRobotEntity.type) === 2) {
-            const currentBroker = String(
-                (selectedRobotEntity.config as { broker_type?: string } | null)?.broker_type || 'tinvest',
-            ).toLowerCase()
-            if (currentBroker === 'tinvest') {
-                const migrateCrypto = window.confirm(
-                    'Дублировать как ByBit (crypto)?\n\nOK — копия с broker_type=bybit (universe сброшен).\nОтмена — тот же брокер T-Invest.',
-                )
-                if (migrateCrypto) brokerType = 'bybit'
-            } else if (currentBroker === 'bybit') {
-                const migrateMoex = window.confirm(
-                    'Дублировать как T-Invest (MOEX)?\n\nOK — копия с broker_type=tinvest.\nОтмена — тот же брокер ByBit.',
-                )
-                if (migrateMoex) brokerType = 'tinvest'
-            }
-        }
-
-        setDuplicating(true)
-        try {
-            const created = await robotService.duplicate({
-                source_robot_id: selectedRobotEntity.id,
-                name: name.trim(),
-                broker_type: brokerType,
-                token_id: tokenId > 0 ? tokenId : undefined,
-            })
-            toast.show(`Робот «${created.name}» создан`, 'success')
-            await loadRobots(false)
-            openRobotForEdit(created.id)
-        } catch {
-            toast.show('Не удалось дублировать робота', 'error')
-        } finally {
-            setDuplicating(false)
-        }
-    }
-
     useEffect(() => {
         const boot = async () => {
             await Promise.all([
                 loadReferenceData(),
-                loadRobots(true),
+                loadRobotsList({}, true).then(items => {
+                    if (!selectedRobot && items.length > 0 && !isNewRobot) {
+                        setSelectedRobot(items[0].id)
+                    }
+                }),
             ])
         }
         boot()
+        return () => {
+            cancelPending()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
+
+    useEffect(() => {
+        if (robotsLoadError) toast.show(robotsLoadError, 'error')
+    }, [robotsLoadError])
 
     useEffect(() => {
         const loadOne = async () => {
             if (!selectedRobot || isNewRobot) return
-            if (skipNextLoadOneRef.current === selectedRobot) {
-                skipNextLoadOneRef.current = null
+            if (consumeSkipLoad(selectedRobot)) {
                 return
             }
             try {
@@ -829,24 +769,25 @@ export default function TradingRobotSettingsPage() {
                 if (!filters.length && Array.isArray(pipeline.filters)) {
                     filters.push(...(pipeline.filters as any[]))
                 }
-                const schedule = (r as any).schedule || null
+                const schedule = r.schedule || null
                 const isTradingRobot = Number(r.type) === 2
                 const resolvedPoll = resolvePollMinutesFromRobot(
                     schedule,
                     cfg,
                     isTradingRobot ? 2 : 1,
                 )
-                const startCfg = toTime(String(cfg?.risk?.trading_hours_start || '').replace(' MSK', ''))
-                const endCfg = toTime(String(cfg?.risk?.trading_hours_end || '').replace(' MSK', ''))
+                const risk = (cfg.risk || {}) as Record<string, unknown>
+                const costs = (cfg.costs || {}) as Record<string, unknown>
+                const startCfg = toTime(String(risk.trading_hours_start || '').replace(' MSK', ''))
+                const endCfg = toTime(String(risk.trading_hours_end || '').replace(' MSK', ''))
                 const startSch = toTime(schedule?.start_time)
                 const endSch = toTime(schedule?.end_time)
                 const resolvedStart = startCfg ?? startSch ?? '10:00'
                 const resolvedEnd = endCfg ?? endSch ?? '18:45'
-                const weekdaysCfg = cfg?.risk?.allowed_weekdays != null ? Number(cfg.risk.allowed_weekdays) : null
+                const weekdaysCfg = risk.allowed_weekdays != null ? Number(risk.allowed_weekdays) : null
                 const weekdaysSch = schedule?.weekdays != null ? Number(schedule.weekdays) : null
                 const resolvedWeekdays = weekdaysCfg ?? weekdaysSch ?? 31
-                const uiUniverseMode =
-                    paperState.universeMode === 'dms_pipeline' ? 'tqbr_scan' : paperState.universeMode
+                const uiUniverseMode = normalizeUniverseMode(paperState.universeMode)
                 const normalized: Array<DraftSnapshot['filters'][number]> = filters
                     .filter(f => ['security_status', 'trading_status', 'allowed_tickers', 'volume', 'num_trades', 'gap', 'spread', 'atr', 'capitalization', 'min_step_ratio', 'excluded_tickers', 'exclude_tickers', 'turnover', 'gap_retention', 'price_vs_open', 'opening_range'].includes(String(f?.type)))
                     .map((f) => ({
@@ -862,13 +803,20 @@ export default function TradingRobotSettingsPage() {
                         list: Array.isArray(f.list) ? f.list.map((x: any) => String(x).toUpperCase()) : f.list ?? null,
                     }))
                 const portfolioFields = portfolioDefaultsFromConfig(cfg)
+                let strategyDraft = strategyForm.getDraft()
                 if (isTradingRobot) {
-                    strategyForm.hydrateFromConfig(cfg as Record<string, unknown>)
+                    strategyDraft = strategyForm.hydrateFromConfig(cfg as Record<string, unknown>)
                 }
-                const broker = brokerFromTokenType(
+                const broker = resolveBrokerFromRobotConfig(
+                    cfg,
                     r.token ? { type: r.token.type, typeName: r.token.typeName } : undefined,
                 )
                 strategyForm.setBrokerType(broker)
+                strategyDraft = { ...strategyDraft, brokerType: broker }
+                const execRisk = hydrateExecutionRiskFromConfig(
+                    cfg,
+                    isCryptoBroker(broker) ? 'crypto' : 'moex',
+                )
                 let cryptoFields: Pick<
                     DraftSnapshot,
                     | 'bybitTestnet'
@@ -893,13 +841,13 @@ export default function TradingRobotSettingsPage() {
                     backtestFeeModel: 'maker_taker',
                     maintenanceMarginPct: 0.5,
                     cryptoUniverseMode: 'fixed',
-                    cryptoFilters: createDefaultCryptoScreeningFilters().map(f => ({ type: f.type, value: f.value })),
+                    cryptoFilters: [],
                 }
                 let resolvedFixedTickers = formatFixedTickers(paperState.fixedTickers)
                 if (isCryptoBroker(broker)) {
                     const crypto = cryptoDefaultsFromConfig(cfg)
                     cryptoFields = {
-                        bybitTestnet: false,
+                        bybitTestnet: crypto.bybitTestnet,
                         instrumentCategory: crypto.instrumentCategory,
                         leverage: crypto.leverage,
                         makerFeePct: crypto.makerFeePct,
@@ -909,24 +857,11 @@ export default function TradingRobotSettingsPage() {
                         backtestFeeModel: crypto.backtestFeeModel ?? 'maker_taker',
                         maintenanceMarginPct: crypto.maintenanceMarginPct ?? 0.5,
                         cryptoUniverseMode: crypto.cryptoUniverseMode,
-                        cryptoFilters: ensureCompleteCryptoFilters(
-                            cryptoFiltersFromFields({
-                            cryptoMinVolume24hUsd: crypto.cryptoMinVolume24hUsd,
-                            cryptoMinLastPrice: crypto.cryptoMinLastPrice,
-                            cryptoMaxSpreadBps: crypto.cryptoMaxSpreadBps,
-                            cryptoMaxFundingRatePct: crypto.cryptoMaxFundingRatePct,
-                            cryptoMinFundingRatePct: crypto.cryptoMinFundingRatePct,
-                            cryptoMinOpenInterestUsd: crypto.cryptoMinOpenInterestUsd,
-                            cryptoMinLsr: crypto.cryptoMinLsr,
-                            cryptoMaxLsr: crypto.cryptoMaxLsr,
-                            cryptoMinRvol: crypto.cryptoMinRvol,
-                            cryptoMinAtrPercent: crypto.cryptoMinAtrPercent,
-                            cryptoMaxAtrPercent: crypto.cryptoMaxAtrPercent,
-                            cryptoLookbackDays: crypto.cryptoLookbackDays,
-                            cryptoFundingLookbackHours: crypto.cryptoFundingLookbackHours,
-                            cryptoRefreshEveryMinutes: crypto.cryptoRefreshEveryMinutes,
-                        }),
-                        ),
+                        cryptoFilters: cryptoFiltersFromConfigUniverse(
+                            (cfg.crypto_universe && typeof cfg.crypto_universe === 'object'
+                                ? cfg.crypto_universe
+                                : {}) as Record<string, unknown>,
+                        ).map(f => ({ type: f.type, value: f.value })),
                     }
                     const symbols = Array.isArray(cfg.allowed_symbols)
                         ? (cfg.allowed_symbols as string[])
@@ -948,29 +883,32 @@ export default function TradingRobotSettingsPage() {
                     pollUnit: 'minutes',
                     brokerCommissionRate:
                         Number(
-                            cfg?.costs?.broker_commission_rate != null
-                                ? cfg.costs.broker_commission_rate
+                            costs.broker_commission_rate != null
+                                ? costs.broker_commission_rate
                                 : strategyForm.brokerCommissionPct / 100 || 0.0005,
                         ) * 100,
                     ndflRate:
-                        Number(cfg?.costs?.ndfl_rate != null ? cfg.costs.ndfl_rate : strategyForm.ndflPct / 100 || 0.15) * 100,
+                        Number(costs.ndfl_rate != null ? costs.ndfl_rate : strategyForm.ndflPct / 100 || 0.15) * 100,
                     hoursFrom: resolvedStart,
                     hoursTo: resolvedEnd,
                     weekdaysMask: resolvedWeekdays,
                     pipelineMode: paperState.mode,
-                    universeMode: isCryptoBroker(broker) ? normalizeCryptoUniverseMode(cryptoFields.cryptoUniverseMode ?? 'fixed') : uiUniverseMode,
+                    universeMode: uiUniverseMode,
                     fixedTickersText: resolvedFixedTickers,
-                    historicalEnabled: uiUniverseMode !== 'fixed' ? true : histState.enabled,
+                    historicalEnabled: histState.enabled,
                     historicalInterval: normalizeSignalInterval(histState.interval),
                     historicalLookbackDays: histState.lookbackDays,
                     historicalDailyAtMsk: histState.dailyAtMsk,
                     paperRefreshMinutes: paperState.refreshMinutes,
-                    strategy: strategyForm.getDraft(),
+                    strategy: strategyDraft,
                     ...cryptoFields,
-                    portfolioBrokerType: broker,
-                    portfolioBybitTestnet: isTradingRobot ? true : portfolioFields.bybitTestnet,
-                    portfolioBybitAccountType: isTradingRobot ? 'UNIFIED' : portfolioFields.bybitAccountType,
-                    filters: normalized.length > 0 ? normalized : DEFAULT_PIPELINE_FILTERS,
+                    portfolioBrokerType: portfolioFields.brokerType || broker,
+                    portfolioBybitTestnet: portfolioFields.bybitTestnet,
+                    portfolioBybitAccountType: portfolioFields.bybitAccountType,
+                    slippagePct: execRisk.slippagePct,
+                    executionLatencySec: execRisk.executionLatencySec,
+                    maxDrawdownPct: execRisk.maxDrawdownPct,
+                    filters: normalized,
                 })
                 applyUniverseStatusFromConfig(cfg)
             } catch {
@@ -1034,6 +972,9 @@ export default function TradingRobotSettingsPage() {
         portfolioBrokerType,
         portfolioBybitTestnet,
         portfolioBybitAccountType,
+        slippagePct,
+        executionLatencySec,
+        maxDrawdownPct,
         filters,
         baselineDraft,
     ])
@@ -1053,13 +994,16 @@ export default function TradingRobotSettingsPage() {
         if (!isMoexType2Tinvest && !isCrypto && marketProfile !== 'moex' && (activeStage === 'p1' || activeStage === 'p2')) {
             setActiveStage('p3')
         }
+        // Crypto / MOEX: p1+p2 объединены — старый p2 ведём на p1
+        if ((isCrypto || isMoexType2Tinvest) && activeStage === 'p2') {
+            setActiveStage('p1')
+        }
     }, [robotType, isMoexType2Tinvest, isCrypto, marketProfile, activeStage])
 
     const handleUniverseModeChange = (raw: unknown) => {
         const mode = normalizeUniverseMode(raw)
-        const uiMode = mode === 'dms_pipeline' ? 'tqbr_scan' : mode
-        setUniverseMode(uiMode)
-        setHistoricalEnabled(uiMode !== 'fixed')
+        setUniverseMode(mode)
+        setHistoricalEnabled(mode !== 'fixed')
     }
 
     const toTime = (raw: any): string | null => {
@@ -1071,6 +1015,10 @@ export default function TradingRobotSettingsPage() {
 
     const buildTradingFormSnapshot = () => {
         const session = tradingHoursFromSchedule(hoursFrom, hoursTo, weekdaysMask)
+        const maxPositionRub = calcMaxPositionFromBudget(
+            strategyForm.capital,
+            strategyForm.maxPositionPct,
+        )
         return {
             strategy: strategyForm.strategy,
             strategyParams: strategyForm.strategyParams,
@@ -1080,7 +1028,7 @@ export default function TradingRobotSettingsPage() {
             stopLossPct: strategyForm.stopLossPct,
             takeProfitPct: strategyForm.takeProfitPct,
             maxPositionPct: strategyForm.maxPositionPct,
-            maxPositionRub: strategyForm.maxPositionRub,
+            maxPositionRub,
             maxDailyLoss: strategyForm.maxDailyLoss,
             minTradeAmountRub: strategyForm.minTradeAmountRub,
             brokerCommissionPct: strategyForm.brokerCommissionPct,
@@ -1094,7 +1042,7 @@ export default function TradingRobotSettingsPage() {
             historicalInterval,
             historicalLookbackDays,
             historicalDailyAtMsk,
-            bybitTestnet: false,
+            bybitTestnet,
             instrumentCategory,
             leverage,
             makerFeePct,
@@ -1104,7 +1052,9 @@ export default function TradingRobotSettingsPage() {
             backtestFeeModel,
             maintenanceMarginPct,
             cryptoUniverseMode,
-            slippagePct: defaultSlippagePct('crypto'),
+            slippagePct,
+            executionLatencySec,
+            maxDrawdownPct,
             ...cryptoFieldsFromFilters(cryptoFilters),
             ...session,
         }
@@ -1124,15 +1074,32 @@ export default function TradingRobotSettingsPage() {
             preserveAllowedFigis: existingFigis,
         }
         const profile = resolveSchemaProfileFromDraft(robotType, strategyForm.brokerType, cfg)
-        const patch =
+        const patch = (
             marketProfile === 'crypto'
                 ? buildCryptoTradingRobotConfig(snapshot)
                 : profile === 'type2_tinvest'
                   ? buildMoexConfig(snapshot)
                   : buildTradingRobotConfig(snapshot)
+        ) as Record<string, unknown>
         if (cfg.instrument_map) {
             patch.instrument_map = cfg.instrument_map as Record<string, unknown>
         }
+        // Preserve REST risk/bybit keys that the form does not edit.
+        const prevRisk = (cfg.risk || {}) as Record<string, unknown>
+        const nextRisk = { ...((patch.risk as Record<string, unknown>) || {}) }
+        if (prevRisk.allow_short !== undefined) nextRisk.allow_short = prevRisk.allow_short
+        if (prevRisk.risk_per_trade_pct !== undefined) nextRisk.risk_per_trade_pct = prevRisk.risk_per_trade_pct
+        if (prevRisk.enforce_session_hours !== undefined) {
+            nextRisk.enforce_session_hours = prevRisk.enforce_session_hours
+        }
+        patch.risk = nextRisk
+        const prevBybit = (cfg.bybit || {}) as Record<string, unknown>
+        if (prevBybit.position_mode != null) {
+            const nextBybit = { ...((patch.bybit as Record<string, unknown>) || {}) }
+            nextBybit.position_mode = prevBybit.position_mode
+            patch.bybit = nextBybit
+        }
+        if (cfg.account_id != null) patch.account_id = cfg.account_id
         return patch
     }
 
@@ -1146,7 +1113,10 @@ export default function TradingRobotSettingsPage() {
             stopLossPct: strategyForm.stopLossPct,
             takeProfitPct: strategyForm.takeProfitPct,
             maxPositionPct: strategyForm.maxPositionPct,
-            maxPositionRub: strategyForm.maxPositionRub,
+            maxPositionRub: calcMaxPositionFromBudget(
+                strategyForm.capital,
+                strategyForm.maxPositionPct,
+            ),
             maxDailyLoss: strategyForm.maxDailyLoss,
             minTradeAmountRub: strategyForm.minTradeAmountRub,
             brokerCommissionPct: strategyForm.brokerCommissionPct,
@@ -1173,7 +1143,12 @@ export default function TradingRobotSettingsPage() {
         stopLossPct: strategyForm.stopLossPct,
         takeProfitPct: strategyForm.takeProfitPct,
         maxPositionPct: strategyForm.maxPositionPct,
-        maxPositionRub: strategyForm.maxPositionRub,
+        maxPositionRub: calcMaxPositionFromBudget(
+            strategyForm.capital,
+            strategyForm.maxPositionPct,
+        ),
+        maxDailyLoss: strategyForm.maxDailyLoss,
+        minTradeAmountRub: strategyForm.minTradeAmountRub,
         universeMode,
         fixedTickersText,
         isCrypto,
@@ -1247,10 +1222,7 @@ export default function TradingRobotSettingsPage() {
             )
             return false
         }
-        setSaving(true)
         try {
-            let robotId = selectedRobot
-            const creatingNew = isNewRobot
             const schedule =
                 robotType === 2
                     ? buildSchedulePatch()
@@ -1261,60 +1233,40 @@ export default function TradingRobotSettingsPage() {
                           hoursTo,
                           weekdaysMask,
                       })
-            if (isNewRobot) {
-                const created = await robotService.create({
-                    name: name.trim(),
-                    token_id: tokenId,
-                    type: robotType,
-                    config:
-                        robotType === 2
-                            ? buildFullTradingConfig()
-                            : buildPortfolioRobotConfig(buildPortfolioFormSnapshot()),
-                    ...schedule,
-                })
-                robotId = created.id
-                skipNextLoadOneRef.current = robotId
-                setSelectedRobot(robotId)
+            const config =
+                robotType === 2
+                    ? buildFullTradingConfig()
+                    : buildPortfolioRobotConfig(buildPortfolioFormSnapshot())
+
+            const { robot, created } = await saveRobot({
+                isNew: isNewRobot,
+                robotId: selectedRobot,
+                name,
+                tokenId,
+                robotType,
+                config,
+                schedule,
+            })
+
+            if (created) {
+                setSelectedRobot(robot.id)
                 setIsNewRobot(false)
-                setSearchParams({ robotId: String(robotId) })
-                commitBaselineFromForm()
-            } else {
-                if (!robotId) {
-                    throw new Error('robot id missing')
-                }
-                const patch: Record<string, any> = {
-                    name: name.trim(),
-                    token_id: tokenId,
-                    type: robotType,
-                }
-                if (robotType === 2) {
-                    patch.config = buildFullTradingConfig()
-                    Object.assign(patch, schedule)
-                } else {
-                    patch.config = buildPortfolioRobotConfig(buildPortfolioFormSnapshot())
-                    Object.assign(patch, schedule)
-                }
-                await robotService.updateRobot(robotId, patch)
+                setSearchParams({ robotId: String(robot.id) })
             }
-            if (!robotId) {
-                throw new Error('robot id missing')
-            }
-            toast.show(creatingNew ? 'Робот создан и настроен' : 'Настройки робота сохранены', 'success')
-            if (!creatingNew) {
-                commitBaselineFromForm()
-            }
+            commitBaselineFromForm()
             setCheckedIssues(null)
-            await loadRobots(false)
+            upsertRobotInList(robot)
+            toast.show(created ? 'Робот создан и настроен' : 'Настройки робота сохранены', 'success')
+            await loadRobotsList(listFilters, false)
             return true
         } catch (err: unknown) {
-            if (isBrokerTypeConflictError(err)) {
+            const msg = err instanceof Error ? err.message : ''
+            if (msg === BROKER_CHANGE_BLOCKED_MESSAGE || isBrokerTypeConflictError(err)) {
                 toast.show(BROKER_CHANGE_BLOCKED_MESSAGE, 'warning')
             } else {
                 toast.show('Не удалось сохранить настройки робота', 'error')
             }
             return false
-        } finally {
-            setSaving(false)
         }
     }
 
@@ -1340,17 +1292,24 @@ export default function TradingRobotSettingsPage() {
         setCheckLoading(true)
         const issues = collectIssues(buildValidationInput())
         try {
-            if (isMoexType2Tinvest && !hasBlockingValidationIssues(issues)) {
+            if (robotType === 2 && !hasBlockingValidationIssues(issues)) {
                 try {
                     const cfg = (selectedRobotEntity?.config || {}) as Record<string, unknown>
                     const existingFigis = Array.isArray(cfg.allowed_figis) ? (cfg.allowed_figis as string[]) : []
-                    const config = buildMoexConfig({
-                        ...buildTradingFormSnapshot(),
-                        preserveAllowedFigis: existingFigis,
-                    })
+                    const config = isCrypto
+                        ? buildCryptoTradingRobotConfig({
+                              ...buildTradingFormSnapshot(),
+                              preserveAllowedFigis: existingFigis,
+                          })
+                        : isMoexType2Tinvest
+                          ? buildMoexConfig({
+                                ...buildTradingFormSnapshot(),
+                                preserveAllowedFigis: existingFigis,
+                            })
+                          : buildFullTradingConfig()
                     await robotService.validateConfig({
                         robot_type: 2,
-                        broker_type: 'tinvest',
+                        broker_type: isCrypto ? 'bybit' : 'tinvest',
                         config,
                     })
                 } catch (err: unknown) {
@@ -1499,35 +1458,7 @@ export default function TradingRobotSettingsPage() {
         setCheckedIssues(null)
     }, [dirtyDraftKey])
 
-    if (loading) {
-        return (
-            <div className="page" data-page="robots">
-                <RobotsHero onCreate={undefined} />
-                <div className="dashboard-layout robots-page-layout" aria-busy="true" aria-label="Загрузка роботов">
-                    <div className="robots-workspace">
-                        <aside className="robots-workspace__sidebar">
-                            <Card className="robots-list-card portfolio-panel">
-                                <div className="dashboard-totals-card__head">
-                                    <h3 className="dashboard-panel-title">Флот</h3>
-                                </div>
-                                <div className="ops-loader" style={{ minHeight: 120 }}>
-                                    <div className="soft-loading-bar" />
-                                </div>
-                            </Card>
-                        </aside>
-                        <div className="robots-workspace__main">
-                            <Card className="portfolio-panel robots-editor-empty">
-                                <div className="ops-loader" style={{ minHeight: 160 }}>
-                                    <div className="soft-loading-bar" />
-                                </div>
-                            </Card>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        )
-    }
-
+    const isNarrow = useMediaQuery('(max-width: 1279px)')
     const isGrainSeed = strategyForm.strategy === 'grain_seed'
     const pollMinuteOptions = pollMinuteOptionsForRobotType(robotType)
     const pollSelectMinutes = snapPollMinutes(pollValue, pollMinuteOptions)
@@ -1542,99 +1473,112 @@ export default function TradingRobotSettingsPage() {
         })
     }
 
+    if (loading) {
+        return (
+            <div
+                className={`page${isNarrow ? ' page--robots-narrow' : ''}`}
+                data-page="robots"
+                data-robots-layout={isNarrow ? 'narrow' : 'desktop'}
+            >
+                <RobotsHero />
+                {isNarrow && (
+                    <div className="robots-fleet-trigger-bar" aria-hidden>
+                        <div className="soft-loading-bar" style={{ width: '100%', height: 40 }} />
+                    </div>
+                )}
+                <div className="dashboard-layout robots-page-layout" aria-busy="true" aria-label="Загрузка роботов">
+                    <div className="robots-workspace">
+                        {!isNarrow && (
+                            <aside className="robots-workspace__sidebar">
+                                <Card className="robots-list-card portfolio-panel">
+                                    <div className="ops-loader" style={{ minHeight: 80 }}>
+                                        <div className="soft-loading-bar" />
+                                    </div>
+                                </Card>
+                            </aside>
+                        )}
+                        <div className="robots-workspace__main">
+                            <div className="ops-loader" style={{ minHeight: 120 }}>
+                                <div className="soft-loading-bar" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     return (
-        <div className="page" data-page="robots">
-            <RobotsHero onCreate={startCreateRobot} />
+        <div
+            className={`page${isNarrow ? ' page--robots-narrow' : ''}`}
+            data-page="robots"
+            data-robots-layout={isNarrow ? 'narrow' : 'desktop'}
+        >
+            <RobotsHero />
+
+            {isNarrow && (
+                <div className="robots-fleet-trigger-bar">
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        className="robots-fleet-trigger"
+                        onClick={() => setFleetDrawerOpen(true)}
+                        aria-expanded={fleetDrawerOpen}
+                        aria-controls="robots-fleet-sidebar"
+                    >
+                        Список роботов{robotsTotal > 0 ? ` · ${robotsTotal}` : ''}
+                    </Button>
+                </div>
+            )}
 
             <div className="dashboard-layout robots-page-layout">
-            <div className="robots-workspace">
-                <aside className="robots-workspace__sidebar">
-            <Card className="robots-list-card portfolio-panel">
-                <div className="dashboard-totals-card__head">
-                    <h3 className="dashboard-panel-title">Флот</h3>
-                </div>
-                {robots.length === 0 ? (
-                    <div className="robots-empty-fleet">
-                        <RobotIllustration size={96} />
-                        <p className="dashboard-empty">Роботов пока нет. Создайте первого.</p>
-                        <Button variant="primary" size="sm" onClick={startCreateRobot}>
-                            + Создать робота
-                        </Button>
-                    </div>
-                ) : (
-                    <div className="robots-list-cards">
-                        {robots.map(r => {
-                            const hasError = Boolean(r.last_error)
-                            const headTone = hasError
-                                ? 'error'
-                                : r.status === 1
-                                  ? 'active'
-                                  : 'inactive'
-                            return (
-                            <div
-                                key={r.id}
-                                role="button"
-                                tabIndex={0}
-                                className={`robots-list-item${!isNewRobot && selectedRobot === r.id ? ' robots-list-item--selected' : ''}${hasError ? ' robots-list-item--error' : ''}`}
-                                onClick={() => openRobotForEdit(r.id)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault()
-                                        openRobotForEdit(r.id)
-                                    }
-                                }}
-                            >
-                                <div className={`robots-list-item__head robots-list-item__head--${headTone}`}>
-                                    <strong>{r.name}</strong>
-                                    <span className="robots-list-item__open">Открыт →</span>
-                                </div>
-                                <div className="robots-list-item__meta mono">
-                                    {r.typeName}
-                                    {r.statusName ? ` · ${r.statusName}` : ''}
-                                </div>
-                                {Number(r.type) === 2 && (
-                                    <div className="robots-list-item__session" title={r.last_error || undefined}>
-                                        {formatRobotSessionStatus(r, { noEmoji: true })}
-                                    </div>
-                                )}
-                            </div>
-                            )
-                        })}
-                    </div>
-                )}
-                {robots.length > 0 && (
-                <Button
-                    variant="primary"
-                    size="sm"
-                    className="robot-create-btn"
-                    onClick={startCreateRobot}
-                >
-                    + Создать робота
-                </Button>
-                )}
-            </Card>
-                </aside>
+            <div className={`robots-workspace${isNarrow ? ' robots-workspace--narrow' : ''}`}>
+                <FleetPanel
+                    robots={robots}
+                    loading={loading}
+                    error={robotsLoadError}
+                    selectedRobotId={selectedRobot}
+                    isNewRobot={isNewRobot}
+                    onRetry={() => void loadRobotsList(listFilters, true)}
+                    onSelect={openRobotForEdit}
+                    onCreate={startCreateRobot}
+                    mobileOpen={isNarrow ? fleetDrawerOpen : false}
+                    onMobileClose={() => setFleetDrawerOpen(false)}
+                    forceDrawer={isNarrow}
+                />
 
                 <div className="robots-workspace__main">
                     {!hasEditor ? (
-                        <Card className="portfolio-panel robots-editor-empty">
-                            <h3 className="dashboard-panel-title">Редактор</h3>
+                        <div className="robots-editor-empty">
                             <p className="dashboard-empty">
-                                Выберите робота слева или создайте нового, чтобы настроить pipeline и запуск.
+                                {isNarrow
+                                    ? 'Откройте список роботов или создайте нового.'
+                                    : 'Выберите робота слева или создайте нового.'}
                             </p>
-                            <Button variant="ghost" size="sm" className="dashboard-hero__cfg" onClick={startCreateRobot}>
-                                + Создать
-                            </Button>
-                        </Card>
+                            <div className="robots-editor-empty__actions">
+                                {isNarrow && (
+                                    <Button variant="secondary" size="sm" onClick={() => setFleetDrawerOpen(true)}>
+                                        Список роботов
+                                    </Button>
+                                )}
+                                <Button variant="primary" size="sm" onClick={startCreateRobot}>
+                                    + Создать
+                                </Button>
+                            </div>
+                        </div>
                     ) : (
-                    <>
-                    <PipelineVisualizer
-                        nodes={pipelineVisualizerNodes}
-                        activeStage={activeStage}
-                        onStageChange={setActiveStage}
-                    />
+                    <div className="robots-editor-card">
+                    {robotType === 2 && pipelineVisualizerNodes.length > 0 && (
+                        <PipelineVisualizer
+                            nodes={pipelineVisualizerNodes}
+                            activeStage={activeStage}
+                            onStageChange={setActiveStage}
+                            variant={isNarrow ? 'segmented' : 'default'}
+                        />
+                    )}
 
-                    <div className="step-editor-panel portfolio-panel">
+                    <div className="robots-editor-card__body step-editor-panel">
+                        {!isNarrow && (
                         <header className="step-editor-panel__header">
                             <h2 className="step-editor-panel__title">
                                 <span className="step-editor-panel__title-accent">{stagePanelTitle(activeStage, marketProfile)}</span>
@@ -1644,55 +1588,48 @@ export default function TradingRobotSettingsPage() {
                                     {marketProfileLabel(marketProfile)}
                                 </span>
                             )}
-                            {isMoexType2Tinvest && activeStage === 'p2' && universeMode !== 'fixed' && (
+                            {isMoexType2Tinvest && activeStage === 'p1' && universeMode !== 'fixed' && (
                                 <span className="step-editor-panel__meta">Universe: MOEX + DMS</span>
                             )}
-                            {isCrypto && activeStage === 'p2' && cryptoUniverseMode === 'auto' && (
+                            {isCrypto && activeStage === 'p1' && cryptoUniverseMode === 'auto' && (
                                 <span className="step-editor-panel__meta">Universe: ByBit screening</span>
                             )}
                         </header>
+                        )}
 
             {activeStage === 'general' && (
             <>
-            <div className="form-group">
-                <label className="form-label">Название робота</label>
-                <input className="form-input cyber-input" value={name} onChange={e => setName(e.target.value)} />
-                {fieldIssues(checkedIssues, 'name').map(issue => (
-                    <p key={issue.id} className="field-inline-error">{issue.message}</p>
-                ))}
-            </div>
-            <div className="form-row">
-                <div className="form-group">
-                    <label className="form-label">Токен</label>
-                    <div className="cyber-select-wrap">
-                    <Select
-                        options={[{ value: '0', label: 'Выберите токен' }, ...tokenOptions]}
-                        value={String(tokenId || 0)}
-                        onChange={v => {
-                            const next = Number(v || 0)
-                            setTokenId(next)
-                            const broker = brokerFromTokenId(next, tokenCatalog)
-                            if (broker) syncBrokerFromToken(broker, true)
-                        }}
-                    />
-                    </div>
-                    {fieldIssues(checkedIssues, 'token').map(issue => (
-                        <p key={issue.id} className="field-inline-error">{issue.message}</p>
-                    ))}
-                </div>
-                <div className="form-group">
-                    <label className="form-label">Брокер</label>
-                    <div className="cyber-select-wrap">
-                        <div className="gin-select gin-select--readonly" aria-readonly="true">
-                            <div className="gin-select__trigger">
-                                <span className="gin-select__value">
-                                    {brokerLabelFromToken(tokenId, tokenCatalog)}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <CreateRobotForm
+                name={name}
+                onNameChange={setName}
+                tokenId={tokenId}
+                tokenOptions={tokenOptions}
+                onTokenChange={next => {
+                    setTokenId(next)
+                    const broker = brokerFromTokenId(next, tokenCatalog)
+                    if (broker) syncBrokerFromToken(broker, true)
+                }}
+                robotType={robotType}
+                robotTypeOptions={robotTypeOptions}
+                onRobotTypeChange={next => {
+                    setRobotType(next)
+                    if (next === 1) setActiveStage('general')
+                }}
+                typeLocked={!isNewRobot}
+                brokerLabel={brokerLabelFromToken(tokenId, tokenCatalog)}
+                checkedIssues={checkedIssues}
+            />
+
+            {isPortfolioRobot && (
+                <PortfolioConfigurator
+                    brokerType={portfolioBrokerType}
+                    bybitTestnet={portfolioBybitTestnet}
+                    onBybitTestnetChange={setPortfolioBybitTestnet}
+                    bybitAccountType={portfolioBybitAccountType}
+                    onBybitAccountTypeChange={setPortfolioBybitAccountType}
+                    onConfigDirty={() => setIsEditing(true)}
+                />
+            )}
 
             <div className="step-editor-panel__subsection">
                 <h4 className="card__subsection-title">Расписание</h4>
@@ -1748,49 +1685,6 @@ export default function TradingRobotSettingsPage() {
 
             {activeStage === 'p1' && isCrypto && (
                 <CryptoUniverseConfigurator
-                    stage="p1"
-                    cryptoUniverseMode={cryptoUniverseMode}
-                    onCryptoUniverseModeChange={setCryptoUniverseMode}
-                    fixedTickersText={fixedTickersText}
-                    onFixedTickersTextChange={setFixedTickersText}
-                    cryptoFilters={cryptoFilters}
-                    onCryptoFiltersChange={setCryptoFilters}
-                    universeFieldIssues={checkedIssues ?? undefined}
-                    onConfigDirty={() => setIsEditing(true)}
-                />
-            )}
-
-            {activeStage === 'p1' && isMoexType2Tinvest && (
-                <MoexConfigurator
-                    stage="p1"
-                    universeMode={universeMode}
-                    onUniverseModeChange={handleUniverseModeChange}
-                    fixedTickersText={fixedTickersText}
-                    onFixedTickersTextChange={setFixedTickersText}
-                    historicalInterval={historicalInterval}
-                    onHistoricalIntervalChange={setHistoricalInterval}
-                    historicalLookbackDays={historicalLookbackDays}
-                    onHistoricalLookbackDaysChange={setHistoricalLookbackDays}
-                    historicalDailyAtMsk={historicalDailyAtMsk}
-                    onHistoricalDailyAtMskChange={setHistoricalDailyAtMsk}
-                    paperRefreshMinutes={paperRefreshMinutes}
-                    onPaperRefreshMinutesChange={setPaperRefreshMinutes}
-                    pipelineMode={pipelineMode}
-                    onPipelineModeChange={setPipelineMode}
-                    onApplyPreset={applyPreset}
-                    filters={filters}
-                    onFiltersChange={setFilters}
-                    isGrainSeed={isGrainSeed}
-                    strategyParams={strategyForm.strategyParams}
-                    onStrategyParamChange={(key, value) => strategyForm.setStrategyParam(key, value)}
-                    onAtrFilterSync={syncAtrFilterFromParams}
-                    universeFieldIssues={checkedIssues ?? undefined}
-                />
-            )}
-
-            {activeStage === 'p2' && isCrypto && (
-                <CryptoUniverseConfigurator
-                    stage="p2"
                     cryptoUniverseMode={cryptoUniverseMode}
                     onCryptoUniverseModeChange={setCryptoUniverseMode}
                     fixedTickersText={fixedTickersText}
@@ -1807,9 +1701,8 @@ export default function TradingRobotSettingsPage() {
                 />
             )}
 
-            {activeStage === 'p2' && isMoexType2Tinvest && (
+            {activeStage === 'p1' && isMoexType2Tinvest && (
                 <MoexConfigurator
-                    stage="p2"
                     universeMode={universeMode}
                     onUniverseModeChange={handleUniverseModeChange}
                     fixedTickersText={fixedTickersText}
@@ -1833,6 +1726,7 @@ export default function TradingRobotSettingsPage() {
                     onAtrFilterSync={syncAtrFilterFromParams}
                     preview={preview}
                     universeFieldIssues={checkedIssues ?? undefined}
+                    onConfigDirty={() => setIsEditing(true)}
                 />
             )}
 
@@ -1840,13 +1734,12 @@ export default function TradingRobotSettingsPage() {
                 <>
                     {isCrypto ? (
                         <p className="form-hint">
-                            Сигналы на live-свечах ByBit. Пул символов — на этапах отбора; здесь стратегия и фильтры
+                            Сигналы на live-свечах ByBit. Пул символов — на «Поиск и отбор»; здесь стратегия и фильтры
                             входа (ATR, спред, ADX).
                         </p>
                     ) : (
                         <p className="form-hint">
-                            Свечи и индикаторы в реальном времени — T-Invest. Пул тикеров задаётся этапами поиска и
-                            отбора.
+                            Свечи и индикаторы в реальном времени — T-Invest. Пул тикеров задаётся на «Поиск и отбор».
                         </p>
                     )}
                     {!isCrypto && <PipelineStageBadges stages={pipelineStages.filter(s => s.id === 'p3')} />}
@@ -1883,7 +1776,7 @@ export default function TradingRobotSettingsPage() {
                     {isCrypto && (
                         <CollapsibleSection
                             title="Инструмент ByBit"
-                            hint="Категория контракта и плечо (live без маржи — 1×)."
+                            hint="Категория контракта и плечо (0 = без маржи)."
                             defaultOpen={false}
                         >
                             <CryptoBrokerConfigurator
@@ -1892,6 +1785,8 @@ export default function TradingRobotSettingsPage() {
                                 leverage={leverage}
                                 onLeverageChange={setLeverage}
                                 fixedTickersText={fixedTickersText}
+                                bybitTestnet={bybitTestnet}
+                                onBybitTestnetChange={setBybitTestnet}
                                 leverageLocked
                                 onConfigDirty={() => setIsEditing(true)}
                             />
@@ -1903,11 +1798,12 @@ export default function TradingRobotSettingsPage() {
                             grouped
                             className="robot-settings-p3-params"
                             sectionTitle="Параметры стратегии"
-                            sectionHint="Фильтры входа отсекают шумные символы до генерации сигнала. Подстройте ATR и спред под текущий рынок."
+                            sectionHint="Фильтры входа отсекают шумные символы до генерации сигнала. Пресет «Активные торги» — мягче ATR/gap для crypto 5m и SELL без позиции."
                             market="crypto"
                             strategy={strategyForm.strategy}
                             params={strategyForm.strategyParams}
                             onParamChange={strategyForm.setStrategyParam}
+                            onParamsPatch={patch => strategyForm.setStrategyParams(patch)}
                             onConfigDirty={() => setIsEditing(true)}
                             excludeFieldKeys={isGrainSeed ? GRAIN_SEED_CRYPTO_P3_EXCLUDE_FIELD_KEYS : undefined}
                         />
@@ -1961,12 +1857,15 @@ export default function TradingRobotSettingsPage() {
                         minTradeAmountRub={strategyForm.minTradeAmountRub}
                         onMinTradeAmountRubChange={strategyForm.setMinTradeAmountRub}
                         minTradeAmountLabel={isCrypto ? 'Мин. сумма сделки (USDT)' : 'Мин. сумма сделки (₽)'}
-                        slippagePct={defaultSlippagePct(isCrypto ? 'crypto' : 'moex')}
-                        onSlippagePctChange={() => {}}
-                        executionLatencySec={0}
-                        onExecutionLatencySecChange={() => {}}
-                        maxDrawdownPct={20}
-                        onMaxDrawdownPctChange={() => {}}
+                        maxDailyLossLabel={
+                            isCrypto ? 'Макс. дневной убыток (USDT)' : 'Макс. дневной убыток (₽)'
+                        }
+                        slippagePct={slippagePct}
+                        onSlippagePctChange={setSlippagePct}
+                        executionLatencySec={executionLatencySec}
+                        onExecutionLatencySecChange={setExecutionLatencySec}
+                        maxDrawdownPct={maxDrawdownPct}
+                        onMaxDrawdownPctChange={setMaxDrawdownPct}
                         showCosts={!isCrypto}
                         capitalLabel={isCrypto ? 'Бюджет (USDT)' : 'Бюджет (₽)'}
                         maxPositionRubLabel={isCrypto ? 'Макс. позиция (USDT)' : 'Макс. позиция (₽)'}
@@ -1985,6 +1884,7 @@ export default function TradingRobotSettingsPage() {
                             className="cyber-form-card"
                             instrumentCategory={instrumentCategory}
                             fixedTickersText={fixedTickersText}
+                            bybitTestnet={bybitTestnet}
                             makerFeePct={makerFeePct}
                             onMakerFeePctChange={setMakerFeePct}
                             takerFeePct={takerFeePct}
@@ -2002,45 +1902,53 @@ export default function TradingRobotSettingsPage() {
             )}
 
                     </div>
-                    </>
+
+                    <div className="robots-editor-card__footer" role="toolbar" aria-label="Действия робота">
+                        <Button
+                            size="sm"
+                            variant="primary"
+                            glow
+                            className="robots-editor-card__btn"
+                            loading={saving}
+                            onClick={() => void save()}
+                        >
+                            {isNewRobot ? 'Создать' : 'Сохранить'}
+                        </Button>
+                        {!isNewRobot && selectedRobotEntity && (
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                className="robots-editor-card__btn"
+                                loading={pipelineRunning || checkLoading || previewLoading || saving}
+                                disabled={pipelineRunning}
+                                onClick={() =>
+                                    void (selectedRobotEntity.status === 1 ? handleStop() : handleRun())
+                                }
+                            >
+                                {selectedRobotEntity.status === 1 ? 'Остановить' : 'Запустить'}
+                            </Button>
+                        )}
+                        {!isNewRobot && selectedRobotEntity && (
+                            <Button
+                                size="sm"
+                                variant="danger"
+                                className="robots-editor-card__btn"
+                                onClick={() => void deleteRobot(selectedRobotEntity)}
+                            >
+                                Удалить
+                            </Button>
+                        )}
+                    </div>
+                    </div>
                     )}
                 </div>
-
-                {(isNewRobot || selectedRobot) && (
-                    <RobotContextPanel
-                        robot={selectedRobotEntity}
-                        isNewRobot={isNewRobot}
-                        robotType={robotType}
-                        marketProfile={marketProfile}
-                        universeMode={universeMode}
-                        candidatePoolCount={candidatePoolTickers.length}
-                        allowedFigisCount={allowedFigisCount}
-                        allowedFigis={allowedFigisPreview}
-                        lastPaperRun={lastPaperRun}
-                        checkedIssues={checkedIssues}
-                        preview={preview}
-                        saving={saving}
-                        checkLoading={checkLoading}
-                        previewLoading={previewLoading}
-                        pipelineRunning={pipelineRunning || histJobLoading || paperJobLoading}
-                        onSave={() => void save()}
-                        onRun={() => void handleRun()}
-                        onStop={() => void handleStop()}
-                        onDelete={() => selectedRobotEntity && void deleteRobot(selectedRobotEntity)}
-                        onDuplicate={() => void duplicateRobot()}
-                        duplicating={duplicating}
-                        needsConfigV3Migrate={needsConfigV3Migrate}
-                        onMigrateConfigV3={() => void migrateConfigV3()}
-                        migratingV3={migratingV3}
-                    />
-                )}
             </div>
             </div>
         </div>
     )
 }
 
-function RobotsHero({ onCreate }: { onCreate?: () => void }) {
+function RobotsHero() {
     return (
         <header className="dashboard-hero">
             <div className="dashboard-hero__bg" style={{ backgroundImage: `url(${cyberHero})` }} aria-hidden />
@@ -2052,13 +1960,6 @@ function RobotsHero({ onCreate }: { onCreate?: () => void }) {
                 </h1>
                 <p className="dashboard-hero__sub">Флот · pipeline · запуск</p>
             </div>
-            {onCreate && (
-                <div className="dashboard-hero__actions">
-                    <Button variant="ghost" size="sm" className="dashboard-hero__cfg" onClick={onCreate}>
-                        + Создать
-                    </Button>
-                </div>
-            )}
         </header>
     )
 }

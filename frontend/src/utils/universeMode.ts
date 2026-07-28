@@ -36,7 +36,7 @@ export const UNIVERSE_MODE_OPTIONS: { value: UniverseMode; label: string; hint: 
 /** Опции для настроек торгового робота (v2: MOEX П1 + DMS П2). */
 export const TRADING_UNIVERSE_MODE_OPTIONS: { value: UniverseMode; label: string; hint: string }[] = [
     {
-        value: 'tqbr_scan',
+        value: 'dms_pipeline',
         label: 'MOEX + DMS',
         hint: 'П1 — скрининг по свечам MOEX, П2 — фильтры снапшота и allowed_figis',
     },

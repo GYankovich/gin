@@ -66,6 +66,7 @@ class TradingRobot(BaseRobot, TradePersistenceMixin):
         open_positions = []
         signals = []
         trades = []
+        closed_trades = []
 
         try:
             # ========== STAGE 1: Сбор роботов по расписанию ==========
@@ -110,14 +111,42 @@ class TradingRobot(BaseRobot, TradePersistenceMixin):
             stage3 = Stage3Portfolio(account_id, broker, self._write_log_wrapper)
             portfolio = await stage3.get_portfolio()
 
-            # ========== STAGE 4: Управление позициями ==========
+            from app.modules.robots.trading.broker_position_sync import (
+                configured_leverage,
+                extract_account_position_meta,
+            )
+            from app.modules.robots.trading.brokers.margin import resolve_margin_params
+
+            account_meta = extract_account_position_meta(portfolio.get("positions") or [])
+            account_positions = {k: float(v.get("qty") or 0) for k, v in account_meta.items()}
+            risk_params = dict(risk_params or {})
+            bybit_cfg = robot_config.get("bybit") if isinstance(robot_config.get("bybit"), dict) else {}
+            category = str(bybit_cfg.get("instrument_category") or "").strip().lower()
+            if broker_type == "bybit":
+                lev = configured_leverage(robot_config, risk_params)
+                margin = resolve_margin_params(robot_config)
+                risk_params["max_leverage"] = lev
+                risk_params["instrument_category"] = category or "linear"
+                risk_params["margin_enabled"] = bool(margin.get("enabled")) or category == "spot"
+            risk_params["free_funds"] = float(portfolio.get("free_funds") or 0)
+
+            # ========== STAGE 4: Планирование SL/TP exits (без place) ==========
             stage4 = Stage4Positions(
                 self.db, self.schema, broker, account_id, robot_id, self._write_log_wrapper
             )
             open_positions = await stage4.get_open_positions()
 
-            # Проверка stop-loss/take-profit
-            closed_trades = await stage4.check_stop_loss_take_profit(open_positions, prices, risk_params)
+            from app.modules.robots.trading.contracts import OrderIntent
+            from app.modules.robots.trading.symbol_guard import SymbolGuard
+
+            guard = SymbolGuard(broker=broker, account_id=account_id or "", log_func=self._write_log_wrapper)
+            exit_intents = await stage4.plan_stop_loss_take_profit(
+                open_positions,
+                prices,
+                risk_params,
+                guard=guard,
+                account_positions=account_positions,
+            )
 
             # ========== STAGE 5: Генерация сигналов ==========
             stage5 = Stage5Signals(broker, self._write_log_wrapper)
@@ -129,10 +158,12 @@ class TradingRobot(BaseRobot, TradePersistenceMixin):
                 portfolio_value=portfolio.get("total_value", 0),
                 free_funds=portfolio.get("free_funds", 0),
                 open_positions=open_positions,
+                account_positions=account_positions,
                 current_prices=prices,
                 log_api_call_func=self._log_api_call_wrapper,  # ← передаём для логирования в БД
                 token_id=token_id,
-                user_id=user_id
+                user_id=user_id,
+                pending_order_figis=guard.blocked_figis(),
             )
 
             # Сохраняем сигналы в БД
@@ -141,8 +172,11 @@ class TradingRobot(BaseRobot, TradePersistenceMixin):
                 signal_ids = await self.save_signals(self.db, self.schema, robot_id, signals)
                 self.log.info(f"   💾 Сохранено сигналов: {len(signal_ids)}")
 
-            # ========== STAGE 6: Выставление заявок ==========
-            if signals:
+            # ========== STAGE 6: Единый Execution path ==========
+            entry_intents = [OrderIntent.from_strategy_signal(s) for s in signals]
+            all_intents = list(exit_intents) + entry_intents
+            closed_trades = []
+            if all_intents:
                 execution = build_live_execution_service(
                     db=self.db,
                     schema=self.schema,
@@ -152,8 +186,11 @@ class TradingRobot(BaseRobot, TradePersistenceMixin):
                     token_id=token_id,
                     user_id=user_id,
                     log_func=self._write_log_wrapper,
+                    in_flight_orders=guard.in_flight_orders,
+                    account_positions=account_positions,
                 )
-                trades = await execution.submit_signals(signals, risk_params=risk_params)
+                trades = await execution.submit_intents(all_intents, risk_params=risk_params)
+                closed_trades = [t for t in trades if str(t.get("intent_source") or "") == "exit_sl_tp"]
                 trade_ids = await self.save_trades(self.db, self.schema, robot_id, trades)
                 self.log.info(f"   💾 Сохранено сделок: {len(trade_ids)}")
                 executed_signal_ids = [

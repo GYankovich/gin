@@ -124,6 +124,8 @@ export function TestingPageContent({
                 cryptoMinAtrPercent: form.cryptoMinAtrPercent,
                 cryptoMaxAtrPercent: form.cryptoMaxAtrPercent,
                 cryptoLookbackDays: form.cryptoLookbackDays,
+                cryptoFundingLookbackHours: form.cryptoFundingLookbackHours,
+                cryptoRefreshEveryMinutes: form.cryptoRefreshEveryMinutes,
                 bybitTestnet: form.bybitTestnet,
                 instrumentCategory: form.instrumentCategory,
                 leverage: form.leverage,
@@ -176,6 +178,8 @@ export function TestingPageContent({
             form.cryptoMinAtrPercent,
             form.cryptoMaxAtrPercent,
             form.cryptoLookbackDays,
+            form.cryptoFundingLookbackHours,
+            form.cryptoRefreshEveryMinutes,
             form.bybitTestnet,
             form.instrumentCategory,
             form.leverage,
@@ -374,6 +378,7 @@ export function TestingPageContent({
                 onStrategyChange={form.setStrategy}
                 params={form.strategyParams}
                 onParamChange={form.setStrategyParam}
+                onParamsPatch={form.setStrategyParams}
                 onConfigDirty={() => form.setConfigDirty(true)}
                 pollValue={form.pollValue}
                 onPollValueChange={form.setPollValue}

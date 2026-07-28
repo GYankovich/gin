@@ -24,6 +24,28 @@ interface DataTableProps<T> {
     mobileDetails?: (row: T) => React.ReactNode
     mobileBreakpoint?: number
     rowClassName?: (row: T) => string
+    /** Initial / controlled-default primary sort column. */
+    defaultSortKey?: string | null
+    defaultSortDir?: 'asc' | 'desc'
+    /** Always applied as tiebreaker after primary sort. */
+    secondarySortKey?: string
+}
+
+function compareValues(va: unknown, vb: unknown): number {
+    if (va == null && vb == null) return 0
+    if (va == null) return 1
+    if (vb == null) return -1
+    if (typeof va === 'number' && typeof vb === 'number') {
+        if (!Number.isFinite(va) && !Number.isFinite(vb)) return 0
+        if (!Number.isFinite(va)) return 1
+        if (!Number.isFinite(vb)) return -1
+        return va < vb ? -1 : va > vb ? 1 : 0
+    }
+    const sa = String(va).toLowerCase()
+    const sb = String(vb).toLowerCase()
+    if (sa < sb) return -1
+    if (sa > sb) return 1
+    return 0
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -38,9 +60,12 @@ export function DataTable<T extends Record<string, any>>({
     mobileDetails,
     mobileBreakpoint = 768,
     rowClassName,
+    defaultSortKey = null,
+    defaultSortDir = 'asc',
+    secondarySortKey,
 }: DataTableProps<T>) {
-    const [sortKey, setSortKey] = useState<string | null>(null)
-    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+    const [sortKey, setSortKey] = useState<string | null>(defaultSortKey)
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>(defaultSortDir)
     const [isMobile, setIsMobile] = useState(false)
     const [expandedKey, setExpandedKey] = useState<string | number | null>(null)
 
@@ -54,14 +79,18 @@ export function DataTable<T extends Record<string, any>>({
     }, [mobileBreakpoint])
 
     const sorted = useMemo(() => {
-        if (!sortKey) return data
+        if (!sortKey && !secondarySortKey) return data
         return [...data].sort((a, b) => {
-            const va = a[sortKey], vb = b[sortKey]
-            if (va == null || vb == null) return 0
-            const cmp = va < vb ? -1 : va > vb ? 1 : 0
-            return sortDir === 'asc' ? cmp : -cmp
+            if (sortKey) {
+                const cmp = compareValues(a[sortKey], b[sortKey])
+                if (cmp !== 0) return sortDir === 'asc' ? cmp : -cmp
+            }
+            if (secondarySortKey && secondarySortKey !== sortKey) {
+                return compareValues(a[secondarySortKey], b[secondarySortKey])
+            }
+            return 0
         })
-    }, [data, sortKey, sortDir])
+    }, [data, sortKey, sortDir, secondarySortKey])
 
     const toggleSort = (key: string) => {
         if (sortKey === key) {

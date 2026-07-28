@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import os
+import time
 
 os.environ.setdefault("DB_HOST", "localhost")
 os.environ.setdefault("DB_PORT", "5432")
@@ -20,6 +21,21 @@ from app.modules.bybit.http_client import BYBIT_API_MAINNET, BybitApiError, Bybi
 from app.modules.bybit.signer import BybitSigner
 
 
+def _server_time_response(*, offset_ms: int = 0) -> httpx.Response:
+    bybit_ms = int(time.time() * 1000) + int(offset_ms)
+    return httpx.Response(
+        200,
+        json={
+            "retCode": 0,
+            "retMsg": "OK",
+            "result": {
+                "timeSecond": str(bybit_ms // 1000),
+                "timeNano": str(bybit_ms * 1_000_000),
+            },
+        },
+    )
+
+
 def test_bybit_signer_signature_vector():
     signer = BybitSigner("demo_key", "demo_secret", recv_window=5000)
     ts = 1710000000000
@@ -30,6 +46,11 @@ def test_bybit_signer_signature_vector():
         hashlib.sha256,
     ).hexdigest()
     assert signer.sign(timestamp_ms=ts, query_string=query) == expected
+
+
+def test_bybit_signer_default_recv_window_is_10000():
+    signer = BybitSigner("k", "s")
+    assert signer.recv_window == 10000
 
 
 def test_bybit_signer_canonical_body_sorted_compact():
@@ -113,9 +134,11 @@ def test_bybit_signer_canonical_query_preserves_insertion_order():
 
 
 def test_bybit_get_transaction_log_sign_matches_wire_query():
-    signer = BybitSigner("k", "s", recv_window=5000)
+    signer = BybitSigner("k", "s", recv_window=10000)
 
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v5/market/time":
+            return _server_time_response()
         assert request.url.path == "/v5/account/transaction-log"
         # Exact query we signed (no httpx reordering).
         wire_query = request.url.query.decode() if isinstance(request.url.query, (bytes, bytearray)) else str(request.url.query)
@@ -126,6 +149,7 @@ def test_bybit_get_transaction_log_sign_matches_wire_query():
             query_string=wire_query,
         )
         assert request.headers.get("X-BAPI-SIGN") == expected
+        assert request.headers.get("X-BAPI-RECV-WINDOW") == "10000"
         return httpx.Response(200, json={"retCode": 0, "retMsg": "OK", "result": {"list": []}})
 
     async def _run() -> dict:
@@ -150,10 +174,13 @@ def test_bybit_get_transaction_log_sign_matches_wire_query():
 
 def test_bybit_get_wallet_balance_private_headers():
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v5/market/time":
+            return _server_time_response()
         assert request.url.path == "/v5/account/wallet-balance"
         assert request.headers.get("X-BAPI-API-KEY") == "k"
         assert request.headers.get("X-BAPI-SIGN")
         assert request.headers.get("X-BAPI-SIGN-TYPE") == "2"
+        assert request.headers.get("X-BAPI-RECV-WINDOW") == "10000"
         assert request.headers.get("Content-Type") == "application/json"
         return httpx.Response(200, json={"retCode": 0, "retMsg": "OK", "result": {"list": []}})
 
@@ -174,6 +201,8 @@ def test_bybit_get_wallet_balance_private_headers():
 
 def test_bybit_query_api_private_success():
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v5/market/time":
+            return _server_time_response()
         assert request.url.path == "/v5/user/query-api"
         assert request.headers.get("X-BAPI-SIGN-TYPE") == "2"
         return httpx.Response(200, json={"retCode": 0, "retMsg": "OK", "result": {"apiKey": "k"}})
@@ -204,9 +233,11 @@ def test_bybit_create_order_posts_signed_canonical_body():
       "timeInForce": "GTC",
   }
   body_string = BybitSigner.canonical_body(payload)
-  signer = BybitSigner("k", "s", recv_window=5000)
+  signer = BybitSigner("k", "s", recv_window=10000)
 
   def handler(request: httpx.Request) -> httpx.Response:
+      if request.url.path == "/v5/market/time":
+          return _server_time_response()
       assert request.url.path == "/v5/order/create"
       assert request.content == body_string.encode("utf-8")
       ts = int(request.headers["X-BAPI-TIMESTAMP"])
@@ -235,6 +266,70 @@ def test_bybit_create_order_posts_signed_canonical_body():
 
   data = asyncio.run(_run())
   assert data["result"]["orderId"] == "oid-1"
+
+
+def test_bybit_syncs_server_time_offset_before_private_call():
+    seen_paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_paths.append(request.url.path)
+        if request.url.path == "/v5/market/time":
+            return _server_time_response(offset_ms=2500)
+        assert request.url.path == "/v5/user/query-api"
+        ts = int(request.headers["X-BAPI-TIMESTAMP"])
+        # Signed timestamp should be shifted toward ByBit clock (~+2500ms).
+        assert abs(ts - (int(time.time() * 1000) + 2500)) < 2000
+        return httpx.Response(200, json={"retCode": 0, "retMsg": "OK", "result": {}})
+
+    async def _run() -> BybitHttpClient:
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport) as http:
+            client = BybitHttpClient(
+                testnet=True,
+                api_key="k",
+                api_secret="s",
+                http_client=http,
+            )
+            await client.query_api()
+            return client
+
+    client = asyncio.run(_run())
+    assert seen_paths[0] == "/v5/market/time"
+    assert abs(client._time_offset_ms - 2500) < 1500
+
+
+def test_bybit_resyncs_on_retcode_10002():
+    calls = {"n": 0, "time": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v5/market/time":
+            calls["time"] += 1
+            # First sync: large skew; second (force) sync: aligned.
+            offset = 60_000 if calls["time"] == 1 else 0
+            return _server_time_response(offset_ms=offset)
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(
+                200,
+                json={"retCode": 10002, "retMsg": "invalid request, please check your server timestamp"},
+            )
+        return httpx.Response(200, json={"retCode": 0, "retMsg": "OK", "result": {"apiKey": "k"}})
+
+    async def _run() -> dict:
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport) as http:
+            client = BybitHttpClient(
+                testnet=True,
+                api_key="k",
+                api_secret="s",
+                http_client=http,
+            )
+            return await client.query_api()
+
+    data = asyncio.run(_run())
+    assert data["retCode"] == 0
+    assert calls["n"] == 2
+    assert calls["time"] >= 2
 
 
 def test_bybit_retries_on_rate_limit_retcode_10006():
@@ -268,6 +363,8 @@ def test_bybit_get_inter_transfer_list_and_funding_history_paths():
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request.url.path)
+        if request.url.path == "/v5/market/time":
+            return _server_time_response()
         if request.url.path == "/v5/asset/transfer/query-inter-transfer-list":
             assert request.url.params.get("limit") == "50"
             return httpx.Response(

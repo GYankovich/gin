@@ -1,11 +1,17 @@
-import React from 'react'
+import React, { useMemo } from 'react'
+import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Select } from '@/components/ui/Select'
 import { Toggle } from '@/components/ui/Toggle'
 import {
+    GRAIN_SEED_TRADING_PRESET_META,
+    GRAIN_SEED_TRADING_PRESET_ORDER,
+    applyGrainSeedTradingPreset,
+    detectGrainSeedTradingPreset,
     getStrategyFieldsForUi,
     getStrategyMeta,
     groupStrategyFields,
+    type GrainSeedTradingPresetId,
     type StrategyParamField,
 } from '@/pages/testing/strategyPresets'
 import { normalizeStrategyInterval } from '@/pages/testing/strategyIntervals'
@@ -15,6 +21,8 @@ export type TestingStrategyParamsCardProps = {
     strategy: string
     params: Record<string, unknown>
     onParamChange: (key: string, value: unknown) => void
+    /** Массовый патч (пресеты торговой логики). Если нет — применяется через onParamChange. */
+    onParamsPatch?: (patch: Record<string, unknown>) => void
     onConfigDirty?: () => void
     /** MOEX vs Crypto — label, options и нормализация interval. */
     market?: TestingMarket
@@ -27,6 +35,8 @@ export type TestingStrategyParamsCardProps = {
     excludeFieldKeys?: readonly string[]
     /** Группировать поля по секциям (свечи / фильтры / индикаторы). */
     grouped?: boolean
+    /** Показать кнопки пресетов grain_seed (по умолчанию — для crypto). */
+    showTradingPresets?: boolean
 }
 
 /**
@@ -38,6 +48,7 @@ export function TestingStrategyParamsCard({
     strategy,
     params,
     onParamChange,
+    onParamsPatch,
     onConfigDirty,
     market = 'moex',
     className = 'mb-6 cyber-form-card testing-cyber-card',
@@ -46,14 +57,32 @@ export function TestingStrategyParamsCard({
     embedded = false,
     excludeFieldKeys,
     grouped = false,
+    showTradingPresets,
 }: TestingStrategyParamsCardProps) {
     const meta = getStrategyMeta(strategy)
     const fields = getStrategyFieldsForUi(strategy, { excludeKeys: excludeFieldKeys, market })
+    const tradingPresetsVisible =
+        showTradingPresets ?? (strategy === 'grain_seed' && market === 'crypto')
+    const activeTradingPreset = useMemo(
+        () => (strategy === 'grain_seed' ? detectGrainSeedTradingPreset(params) : null),
+        [strategy, params],
+    )
     const update = (key: string, value: unknown) => {
         if (key === 'interval' && typeof value === 'string') {
             onParamChange(key, normalizeStrategyInterval(value, market))
         } else {
             onParamChange(key, value)
+        }
+        onConfigDirty?.()
+    }
+    const applyTradingPreset = (presetId: GrainSeedTradingPresetId) => {
+        const next = applyGrainSeedTradingPreset(params, presetId)
+        if (onParamsPatch) {
+            onParamsPatch(next)
+        } else {
+            for (const [key, value] of Object.entries(next)) {
+                if (params[key] !== value) onParamChange(key, value)
+            }
         }
         onConfigDirty?.()
     }
@@ -103,6 +132,32 @@ export function TestingStrategyParamsCard({
                 <p className="form-hint" style={{ marginTop: embedded ? 0 : undefined }}>
                     {hint}
                 </p>
+            )}
+            {tradingPresetsVisible && (
+                <div className="pipeline-presets-row" style={{ marginBottom: 12 }}>
+                    <span className="pipeline-presets-row__label">Пресет логики</span>
+                    <div className="preset-buttons">
+                        {GRAIN_SEED_TRADING_PRESET_ORDER.map(id => {
+                            const pMeta = GRAIN_SEED_TRADING_PRESET_META[id]
+                            return (
+                                <Button
+                                    key={id}
+                                    size="sm"
+                                    variant={activeTradingPreset === id ? 'primary' : 'ghost'}
+                                    title={pMeta.hint}
+                                    onClick={() => applyTradingPreset(id)}
+                                >
+                                    {pMeta.label}
+                                </Button>
+                            )
+                        })}
+                    </div>
+                    {activeTradingPreset && (
+                        <p className="form-hint" style={{ margin: 0 }}>
+                            {GRAIN_SEED_TRADING_PRESET_META[activeTradingPreset].hint}
+                        </p>
+                    )}
+                </div>
             )}
             {fieldGrid}
         </>

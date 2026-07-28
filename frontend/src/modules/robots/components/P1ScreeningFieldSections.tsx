@@ -56,7 +56,7 @@ export function P1ScreeningFieldSections({
     const dirty = () => handlers.onDirty?.()
 
     return (
-        <div className="form-row">
+        <div className="form-row p1-screening-schedule">
             {fields.map(field => (
                 <P1ScalarField
                     key={field.key}

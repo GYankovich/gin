@@ -158,7 +158,7 @@ class PortfolioOperation(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     account_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.portfolio_accounts.id", ondelete="CASCADE"), nullable=False)
 
-    operation_id = Column(String(50), nullable=False, unique=True)
+    operation_id = Column(String(120), nullable=False, unique=True)
     parent_operation_id = Column(String(50), nullable=True)
 
     figi = Column(String(20), nullable=True)
@@ -197,15 +197,15 @@ class PortfolioOrder(Base):
     __tablename__ = "portfolio_orders"
     __table_args__ = (
         Index("ix_portfolio_orders_account_date", "account_id", "order_date"),
-        Index("ix_portfolio_orders_order_id", "order_id", unique=True),
+        Index("uq_portfolio_orders_account_order_id", "account_id", "order_id", unique=True),
         {"schema": SCHEMA},
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     account_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.portfolio_accounts.id", ondelete="CASCADE"), nullable=False)
 
-    order_id = Column(String(50), nullable=False, unique=True)
-    figi = Column(String(20), nullable=True)
+    order_id = Column(String(120), nullable=False)
+    figi = Column(String(32), nullable=True)
     instrument_uid = Column(String(50), nullable=True)
 
     order_type = Column(String(30), nullable=False)

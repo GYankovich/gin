@@ -88,6 +88,8 @@ export function legacyFormToTestingFormState(input: {
         cryptoMinAtrPercent: input.cryptoMinAtrPercent,
         cryptoMaxAtrPercent: input.cryptoMaxAtrPercent,
         cryptoLookbackDays: input.cryptoLookbackDays,
+        cryptoFundingLookbackHours: input.cryptoFundingLookbackHours,
+        cryptoRefreshEveryMinutes: input.cryptoRefreshEveryMinutes,
         bybitTestnet: input.bybitTestnet,
         instrumentCategory: input.instrumentCategory,
         leverage: input.leverage,

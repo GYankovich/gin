@@ -1,8 +1,10 @@
 import { api } from './api'
 import type {
     Robot,
+    RobotListRequest,
     RobotListResponse,
     StrategyListResponse,
+    StrategyParam,
     GrainSeedConfig,
     RobotTradingDefaults,
     RobotHistoryBacktestResult,
@@ -15,14 +17,24 @@ import type {
     RobotHistoricalScreeningResponse,
     RobotPaperSelectionResponse,
     RobotCryptoScreeningResponse,
+    RobotCryptoScreeningStatus,
+    RobotUniverseActiveCounts,
 } from '@/types/robot'
 
 ///@EPIC Frontend.ITEM APIClient.TOPIC Robots Service Facade [1]
 ///@ Клиентский фасад для /robots и связанных endpoints: CRUD, backtest, live snapshot,
 ///@ DMS preview и вспомогательные методы для экранов настройки/тестирования.
 export const robotService = {
-    async list(limit = 50, offset = 0): Promise<RobotListResponse> {
-        const { data } = await api.post<RobotListResponse>('/robots/data', { limit, offset })
+    async list(params: RobotListRequest | number = {}, offset = 0): Promise<RobotListResponse> {
+        const body: RobotListRequest =
+            typeof params === 'number'
+                ? { limit: params, offset }
+                : {
+                      limit: 50,
+                      offset: 0,
+                      ...params,
+                  }
+        const { data } = await api.post<RobotListResponse>('/robots/data', body)
         return data
     },
 
@@ -259,15 +271,20 @@ export const robotService = {
         return data
     },
 
-    async getUniverseActiveCounts(robotId: number): Promise<{
-        robot_id: number
-        today: string
-        today_active: number
-        yesterday: string
-        yesterday_active: number
-        source: string
-    }> {
-        const { data } = await api.get(`/robots/${robotId}/universe/active-counts`)
+    async getCryptoScreeningStatus(robotId: number): Promise<RobotCryptoScreeningStatus> {
+        const { data } = await api.get<RobotCryptoScreeningStatus>(
+            `/robots/${robotId}/crypto-screening/status`,
+        )
+        return data
+    },
+
+    async getUniverseActiveCounts(robotId: number): Promise<RobotUniverseActiveCounts> {
+        const { data } = await api.get<RobotUniverseActiveCounts>(`/robots/${robotId}/universe/active-counts`)
+        return data
+    },
+
+    async getStrategy(name: string): Promise<StrategyParam> {
+        const { data } = await api.get<StrategyParam>(`/robots/strategies/${encodeURIComponent(name)}`)
         return data
     },
 
@@ -310,7 +327,7 @@ export const robotService = {
         return data
     },
 
-    async getLiveSnapshot(robotId: number): Promise<{
+    async getLiveSnapshot(robotId: number, opts?: { mode?: 'ops' | 'full' }): Promise<{
         robot_id: number
         status: number
         broker_type: string
@@ -319,11 +336,73 @@ export const robotService = {
         active_positions: any[]
         portfolio_positions: any[]
         portfolio_summary: Record<string, any>
+        portfolio_fetch_error?: string | null
+        portfolio_source?: string | null
         recent_signals: any[]
         recent_orders: any[]
+        open_orders?: any[]
+        order_history?: any[]
+        recent_logs?: any[]
         stream_health: Record<string, any>
+        orders_synced_at?: string | null
     }> {
-        const { data } = await api.post('/robots/live/snapshot', { robotId })
+        const { data } = await api.post('/robots/live/snapshot', {
+            robotId,
+            mode: opts?.mode ?? 'full',
+        })
+        return data
+    },
+
+    async placeManualOrder(payload: {
+        robotId: number
+        figi: string
+        side: 'BUY' | 'SELL'
+        price: number
+        quantity?: number
+        notional?: number
+        reduceOnly?: boolean
+    }): Promise<{
+        order_id: string
+        figi: string
+        side: string
+        quantity: number
+        price: number
+        status: string
+        broker_type: string
+        reduce_only: boolean
+        notional?: number | null
+        size_mode?: string
+        event_id?: number | null
+    }> {
+        const body: Record<string, unknown> = {
+            robotId: payload.robotId,
+            figi: payload.figi,
+            side: payload.side,
+            price: payload.price,
+            reduceOnly: payload.reduceOnly ?? false,
+        }
+        if (payload.notional != null && Number(payload.notional) > 0) {
+            body.notional = Number(payload.notional)
+        } else if (payload.quantity != null && Number(payload.quantity) > 0) {
+            body.quantity = Number(payload.quantity)
+        }
+        const { data } = await api.post('/robots/live/manual-order', body)
+        return data
+    },
+
+    async syncLiveOrders(robotId: number): Promise<{
+        robot_id: number
+        updated: number
+        imported: number
+        upserted: number
+        cancelled: number
+        history_updated: number
+        healed_open?: number
+        healed_closed?: number
+        open_orders: any[]
+        order_history: any[]
+    }> {
+        const { data } = await api.post('/robots/live/sync-orders', { robotId })
         return data
     },
 

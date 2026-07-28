@@ -3,6 +3,8 @@ LiveExecutionService — единая точка выставления заяв
 
 Оборачивает проверенную логику Stage6 (risk gates, slippage, post_order).
 Backtest: тот же сервис, broker = SimBacktestBrokerFacade.
+
+Все place (включая SL/TP exits) идут через submit_intents / submit_signals.
 """
 
 from __future__ import annotations
@@ -11,6 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Protocol, runtime_checkable
 
+from app.modules.robots.trading.contracts import OrderIntent
 from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
 
 
@@ -19,6 +22,13 @@ class ExecutionService(Protocol):
     async def submit_signals(
         self,
         signals: List[Dict[str, Any]],
+        *,
+        risk_params: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]: ...
+
+    async def submit_intents(
+        self,
+        intents: List[OrderIntent],
         *,
         risk_params: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]: ...
@@ -40,6 +50,7 @@ class LiveExecutionContext:
     log_func: Optional[Callable[[str], None]] = None
     daily_trade_counter: Optional[Dict[str, int]] = None
     last_trade_by_figi: Optional[Dict[str, datetime]] = None
+    in_flight_orders: Optional[Dict[str, str]] = None
     cost_params: Optional[Dict[str, float]] = None
     account_positions: Optional[Dict[str, float]] = None
     now_fn: Optional[Callable[[], datetime]] = None
@@ -47,7 +58,7 @@ class LiveExecutionContext:
 
 
 class LiveExecutionService:
-    """LIVE (и BACKTEST-sim): submit_signals + poll_order_status через Stage6."""
+    """LIVE (и BACKTEST-sim): submit_intents / submit_signals + poll_order_status."""
 
     def __init__(self, ctx: LiveExecutionContext):
         self._ctx = ctx
@@ -71,6 +82,7 @@ class LiveExecutionService:
                 c.log_func,
                 daily_trade_counter=c.daily_trade_counter,
                 last_trade_by_figi=c.last_trade_by_figi,
+                in_flight_orders=c.in_flight_orders,
                 cost_params=c.cost_params,
                 account_positions=c.account_positions,
                 now_fn=c.now_fn,
@@ -85,7 +97,18 @@ class LiveExecutionService:
     ) -> List[Dict[str, Any]]:
         if not signals:
             return []
-        return await self._stage().execute_signals(signals, risk_params=risk_params or {})
+        intents = [OrderIntent.from_strategy_signal(s) for s in signals]
+        return await self.submit_intents(intents, risk_params=risk_params)
+
+    async def submit_intents(
+        self,
+        intents: List[OrderIntent],
+        *,
+        risk_params: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        if not intents:
+            return []
+        return await self._stage().execute_intents(intents, risk_params=risk_params or {})
 
     async def poll_order_status(self, order_id: str) -> Dict[str, Any]:
         return await self._stage().update_order_status(order_id)
@@ -95,19 +118,38 @@ class LiveExecutionService:
         return Stage6Orders.map_execution_status_to_trade_status(execution_status, closing=closing)
 
     def sync_counters_from_stage(self) -> None:
-        """После submit — перенести счётчики сделок обратно в сессию."""
+        """После submit — перенести счётчики сделок обратно в сессию.
+
+        Shared-by-reference maps (session book / counters) are already mutated
+        in place by Stage6 — clearing them would wipe live updates.
+        """
         st = self._stage6
         if st is None:
             return
-        if self._ctx.daily_trade_counter is not None:
+        if (
+            self._ctx.daily_trade_counter is not None
+            and self._ctx.daily_trade_counter is not st._daily_trade_counter
+        ):
             self._ctx.daily_trade_counter.clear()
             self._ctx.daily_trade_counter.update(st._daily_trade_counter)
-        if self._ctx.last_trade_by_figi is not None:
+        if (
+            self._ctx.last_trade_by_figi is not None
+            and self._ctx.last_trade_by_figi is not st._last_trade_by_figi
+        ):
             self._ctx.last_trade_by_figi.clear()
             self._ctx.last_trade_by_figi.update(st._last_trade_by_figi)
-        if self._ctx.account_positions is not None:
+        if (
+            self._ctx.account_positions is not None
+            and self._ctx.account_positions is not st.account_positions
+        ):
             self._ctx.account_positions.clear()
             self._ctx.account_positions.update(st.account_positions)
+        if (
+            self._ctx.in_flight_orders is not None
+            and self._ctx.in_flight_orders is not st._in_flight_orders
+        ):
+            self._ctx.in_flight_orders.clear()
+            self._ctx.in_flight_orders.update(st._in_flight_orders)
 
 
 def build_live_execution_service(
@@ -122,6 +164,7 @@ def build_live_execution_service(
     log_func: Optional[Callable[[str], None]] = None,
     daily_trade_counter: Optional[Dict[str, int]] = None,
     last_trade_by_figi: Optional[Dict[str, datetime]] = None,
+    in_flight_orders: Optional[Dict[str, str]] = None,
     cost_params: Optional[Dict[str, float]] = None,
     account_positions: Optional[Dict[str, float]] = None,
     now_fn: Optional[Callable[[], datetime]] = None,
@@ -138,6 +181,7 @@ def build_live_execution_service(
         log_func=log_func,
         daily_trade_counter=daily_trade_counter,
         last_trade_by_figi=last_trade_by_figi,
+        in_flight_orders=in_flight_orders,
         cost_params=cost_params,
         account_positions=account_positions,
         now_fn=now_fn,
@@ -166,6 +210,7 @@ def execution_service_for_session(session: Any) -> LiveExecutionService:
         log_func=getattr(session, "_write_log", None),
         daily_trade_counter=getattr(session, "_daily_trade_counter", None),
         last_trade_by_figi=getattr(session, "_last_trade_by_figi", None),
+        in_flight_orders=getattr(session, "_in_flight_orders", None),
         cost_params=getattr(session, "cost_params", None),
         account_positions=getattr(session, "account_positions", None),
         now_fn=getattr(session, "_now", None),

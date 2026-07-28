@@ -87,7 +87,11 @@ class TInvestBrokerFacade(BrokerFacade):
         price: float,
         direction: str,
         account_id: str,
+        *,
+        reduce_only: bool = False,
+        qty_round_up: bool = False,
     ) -> Dict[str, Any]:
+        del reduce_only, qty_round_up  # T-Invest close path does not use reduceOnly / round-up
         return await self._rest_call(self._facade.post_order, figi, int(quantity), price, direction, account_id)
 
     async def get_order_state(self, account_id: str, order_id: str) -> Dict[str, Any]:

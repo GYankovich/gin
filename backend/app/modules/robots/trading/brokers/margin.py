@@ -6,17 +6,27 @@ from typing import Any, Dict, Optional
 
 
 def resolve_margin_params(config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Resolve margin settings.
+
+    leverage=0 means margin trading is disabled (no borrowed buying power).
+    leverage>0 enables margin for non-spot ByBit categories at that leverage.
+    """
     cfg = config or {}
     broker = str(cfg.get("broker_type") or "tinvest").strip().lower()
     bybit = cfg.get("bybit") if isinstance(cfg.get("bybit"), dict) else {}
     risk = cfg.get("risk") if isinstance(cfg.get("risk"), dict) else {}
     category = str(bybit.get("instrument_category") or "linear").strip().lower()
-    leverage = float(bybit.get("leverage") or risk.get("max_leverage") or 1.0)
+    if "leverage" in bybit and bybit.get("leverage") is not None:
+        leverage = float(bybit.get("leverage"))
+    elif risk.get("max_leverage") is not None:
+        leverage = float(risk.get("max_leverage"))
+    else:
+        leverage = 1.0
     mmr = float(bybit.get("maintenance_margin_rate") or 0.005)
-    enabled = broker == "bybit" and category != "spot" and leverage > 1.0
+    enabled = broker == "bybit" and category != "spot" and leverage > 0
     return {
         "enabled": enabled,
-        "leverage": max(1.0, leverage),
+        "leverage": float(leverage),
         "maintenance_margin_rate": max(0.0, mmr),
         "category": category,
     }

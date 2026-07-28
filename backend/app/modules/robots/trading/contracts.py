@@ -260,6 +260,75 @@ class Signal(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# OrderIntent — единый intent до Execution (exits + entries)
+# ---------------------------------------------------------------------------
+
+OrderIntentKind = Literal["entry", "exit_sl_tp", "exit_strategy", "flatten"]
+
+
+@dataclass(slots=True)
+class OrderIntent:
+    """Намерение выставить заявку. Place делает только Execution/Stage6."""
+
+    kind: OrderIntentKind
+    figi: str
+    side: Literal["BUY", "SELL"]
+    quantity: float
+    price: float
+    reduce_only: bool = False
+    reason: str = ""
+    signal_id: Optional[Any] = None
+    trade_id: Optional[int] = None
+    estimated_profit: Optional[float] = None
+    meta: Dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def intent_source(self) -> str:
+        return self.kind
+
+    def to_stage6_signal(self) -> Dict[str, Any]:
+        """Dict shape expected by Stage6Orders.execute_signals / execute_intents."""
+        payload = dict(self.meta or {})
+        payload.update({
+            "figi": self.figi,
+            "signal": self.side,
+            "quantity": self.quantity,
+            "price": self.price,
+            "reduce_only": self.reduce_only,
+            "intent_kind": self.kind,
+            "intent_source": self.kind,
+            "reason": self.reason,
+            "_signal_id": self.signal_id,
+            "trade_id": self.trade_id,
+            "estimated_profit": self.estimated_profit,
+        })
+        return payload
+
+    @classmethod
+    def from_strategy_signal(cls, signal: Dict[str, Any]) -> "OrderIntent":
+        side = str(signal.get("signal") or "").upper()
+        if side not in {"BUY", "SELL"}:
+            side = "BUY"
+        kind: OrderIntentKind = "exit_strategy" if side == "SELL" else "entry"
+        # Explicit flag from Stage5 when closing/reducing holdings; never imply for shorts.
+        reduce_only = bool(signal.get("reduce_only"))
+        return cls(
+            kind=kind,
+            figi=str(signal.get("figi") or ""),
+            side=side,  # type: ignore[arg-type]
+            quantity=float(signal.get("quantity") or 0),
+            price=float(signal.get("price") or 0),
+            reduce_only=reduce_only,
+            reason=str(signal.get("create_reason") or signal.get("reason") or ""),
+            signal_id=signal.get("_signal_id") or signal.get("signal_id"),
+            meta={k: v for k, v in signal.items() if k not in {
+                "figi", "signal", "quantity", "price", "create_reason", "reason",
+                "_signal_id", "signal_id", "reduce_only",
+            }},
+        )
+
+
+# ---------------------------------------------------------------------------
 # Order и Fill
 # ---------------------------------------------------------------------------
 
@@ -379,6 +448,8 @@ __all__ = [
     "MarketSnapshot",
     "Signal",
     "SignalSide",
+    "OrderIntent",
+    "OrderIntentKind",
     "Order",
     "OrderType",
     "OrderStatus",

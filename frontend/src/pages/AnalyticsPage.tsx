@@ -138,7 +138,8 @@ export default function AnalyticsPage() {
         })
     }, [portfolioChartData])
 
-    const onComparisonChartReady = useCallback((chart: IChartApi) => {
+    const onComparisonChartReady = useCallback((chart: IChartApi | null) => {
+        if (!chart) return
         const data = portfolioChartData()
         if (!data.length) return
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
@@ -152,7 +153,8 @@ export default function AnalyticsPage() {
         chart.timeScale().fitContent()
     }, [portfolioChartData])
 
-    const onDrawdownReady = useCallback((chart: IChartApi) => {
+    const onDrawdownReady = useCallback((chart: IChartApi | null) => {
+        if (!chart) return
         const data = drawdownData()
         if (!data.length) return
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark'

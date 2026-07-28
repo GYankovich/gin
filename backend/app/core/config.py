@@ -51,8 +51,10 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",  # Vite frontend
         "http://localhost:8000",  # Local backend
+        "http://localhost:8001",  # Live WS gateway
         "http://127.0.0.1:5173",
         "http://127.0.0.1:8000",
+        "http://127.0.0.1:8001",
     ]
 
     # ---- Режим работы ----
@@ -104,6 +106,30 @@ class Settings(BaseSettings):
     )
     WORKER_POLL_INTERVAL_SECONDS: float = Field(default=1.0, ge=0.2, le=30.0)
     BACKGROUND_JOB_STALE_SECONDS: int = Field(default=7200, ge=60, le=86400)
+    LIVE_SESSION_HEARTBEAT_SECONDS: float = Field(
+        default=30.0,
+        ge=5.0,
+        le=300.0,
+        description="Интервал touch updated_at для live_trading_session (анти-залипание)",
+    )
+    LIVE_SESSION_STALE_SECONDS: int = Field(
+        default=180,
+        ge=60,
+        le=3600,
+        description="Если live_trading_session running без heartbeat дольше — fail и разрешить re-enqueue",
+    )
+    WORKER_LEASE_STALE_SECONDS: int = Field(
+        default=90,
+        ge=30,
+        le=3600,
+        description="Lease lane-worker считается мёртвым, если heartbeat старше N секунд",
+    )
+    WORKER_LEASE_HEARTBEAT_SECONDS: float = Field(
+        default=20.0,
+        ge=5.0,
+        le=120.0,
+        description="Интервал heartbeat в background_worker_leases",
+    )
     EMBEDDED_BACKGROUND_MAX_CONCURRENT: int = Field(
         default=1,
         ge=1,

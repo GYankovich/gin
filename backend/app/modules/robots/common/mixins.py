@@ -144,13 +144,88 @@ class TradePersistenceMixin:
         trade_ids = []
 
         for trade in trades:
+            order_id = trade.get("order_id")
+            oid = str(order_id).strip() if order_id is not None else ""
+            is_broker_import = oid.startswith("broker_import:")
+
+            if is_broker_import:
+                from app.modules.robots.trading.broker_position_sync import (
+                    legacy_broker_import_order_ids,
+                )
+
+                candidate_ids = legacy_broker_import_order_ids(
+                    str(trade.get("figi") or ""),
+                    str(trade.get("side") or ""),
+                    robot_id=int(robot_id),
+                )
+                # Prefer exact id from payload first.
+                if oid and oid not in candidate_ids:
+                    candidate_ids = [oid, *candidate_ids]
+
+                existing = db.execute(
+                    text(
+                        f"""
+                        SELECT id, order_id
+                        FROM {schema}.robot_trades
+                        WHERE robot_id = :robot_id
+                          AND order_id = ANY(:order_ids)
+                        ORDER BY
+                          CASE WHEN LOWER(COALESCE(status, '')) = 'open' THEN 0 ELSE 1 END,
+                          id DESC
+                        LIMIT 1
+                        """
+                    ),
+                    {"robot_id": int(robot_id), "order_ids": candidate_ids},
+                ).first()
+                if existing:
+                    trade_id = int(existing[0])
+                    db.execute(
+                        text(
+                            f"""
+                            UPDATE {schema}.robot_trades
+                            SET status = :status,
+                                figi = :figi,
+                                side = :side,
+                                quantity = :quantity,
+                                price = :price,
+                                total_amount = :total_amount,
+                                entry_price = :entry_price,
+                                commission = COALESCE(:commission, commission),
+                                order_id = :order_id,
+                                filled_quantity = :filled_quantity,
+                                avg_fill_price = :avg_fill_price,
+                                updated_at = :now
+                            WHERE id = :id
+                            """
+                        ),
+                        {
+                            "id": trade_id,
+                            "status": trade["status"],
+                            "figi": trade["figi"],
+                            "side": trade["side"],
+                            "quantity": trade["quantity"],
+                            "price": trade["price"],
+                            "total_amount": trade["total_amount"],
+                            "entry_price": trade.get("entry_price"),
+                            "commission": trade.get("commission"),
+                            "order_id": oid or candidate_ids[0],
+                            "filled_quantity": trade.get("filled_quantity"),
+                            "avg_fill_price": trade.get("avg_fill_price"),
+                            "now": datetime.now(timezone.utc),
+                        },
+                    )
+                    trade_ids.append(trade_id)
+                    continue
+
             query = f"""
                 INSERT INTO {schema}.robot_trades
-                (robot_id, figi, side, quantity, price, total_amount, 
-                 entry_price, commission, status, order_id, created_at)
+                (robot_id, figi, side, quantity, price, total_amount,
+                 entry_price, commission, status, order_id,
+                 filled_quantity, avg_fill_price, created_at)
                 VALUES
                 (:robot_id, :figi, :side, :quantity, :price, :total_amount,
-                 :entry_price, :commission, :status, :order_id, :now)
+                 :entry_price, :commission, :status, :order_id,
+                 :filled_quantity, :avg_fill_price, :now)
                 RETURNING id
             """
 
@@ -168,6 +243,8 @@ class TradePersistenceMixin:
                         "commission": trade.get("commission"),
                         "status": trade["status"],
                         "order_id": trade.get("order_id"),
+                        "filled_quantity": trade.get("filled_quantity"),
+                        "avg_fill_price": trade.get("avg_fill_price"),
                         "now": datetime.now(timezone.utc)
                     }
                 ).first()
@@ -175,7 +252,7 @@ class TradePersistenceMixin:
                 if result:
                     trade_ids.append(result[0])
 
-            except Exception as e:
+            except Exception:
                 db.rollback()
                 raise
 
@@ -213,13 +290,14 @@ class TradePersistenceMixin:
             True если обновление успешно
         """
         # Entry FILL = open position; exit FILL (closing=True) = closed.
+        # NEW/resting → pending (distinct from open position after fill).
         fill_status = "closed" if closing else "open"
         status_mapping = {
             "EXECUTION_REPORT_STATUS_FILL": fill_status,
             "EXECUTION_REPORT_STATUS_PARTIALLYFILL": "partial",
             "EXECUTION_REPORT_STATUS_CANCELLED": "cancelled",
             "EXECUTION_REPORT_STATUS_REJECTED": "rejected",
-            "EXECUTION_REPORT_STATUS_NEW": "open",
+            "EXECUTION_REPORT_STATUS_NEW": "pending",
         }
         db_status = status_mapping.get(status, status.lower())
 
@@ -297,11 +375,17 @@ class TradePersistenceMixin:
             event_id = row[0] if row else None
             if event_id is not None:
                 try:
-                    from app.modules.robots.live_events import notify_robot_live_event, uses_postgres_live_events
+                    from app.modules.robots.live_events import (
+                        notify_live_orders_refresh,
+                        notify_robot_live_event,
+                        uses_postgres_live_events,
+                    )
                     if uses_postgres_live_events():
                         ws_type = "skipped" if str(status).strip().lower() == "skipped" else "order"
                         notify_robot_live_event(db, robot_id, ws_type, int(event_id))
                         db.commit()
+                    if str(status).strip().lower() != "skipped":
+                        notify_live_orders_refresh(int(robot_id))
                 except Exception:
                     pass
             return event_id

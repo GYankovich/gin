@@ -7,6 +7,7 @@ import {
     listStrategyMeta,
     stripTradingHoursMsk,
 } from '@/pages/testing/strategyPresets'
+import { calcMaxPositionFromBudget } from '@/pages/testing/riskParamsValidation'
 
 const DEFAULT_STRATEGY = 'grain_seed'
 
@@ -94,42 +95,77 @@ export function useTradingRobotStrategyForm() {
         setStopLossPct(risk.stop_loss_percent)
         setTakeProfitPct(risk.take_profit_percent)
         setMaxPositionPct(risk.max_position_percent)
-        setMaxPositionRub(risk.max_position_rub)
+        setMaxPositionRub(calcMaxPositionFromBudget(1_000_000, risk.max_position_percent))
         setMaxDailyLoss(risk.max_daily_loss)
         setMinTradeAmountRub(500)
         setBrokerType('tinvest')
         hydratingRef.current = false
     }, [])
 
-    const hydrateFromConfig = useCallback((cfg: Record<string, unknown>) => {
-        const robotStrategy = String(cfg.strategy ?? DEFAULT_STRATEGY)
-        const rawParams = (cfg.strategy_params as Record<string, unknown> | undefined) ?? {}
+    const hydrateFromConfig = useCallback((cfg: Record<string, unknown>): TradingRobotStrategyDraft => {
+        const signalGen = (cfg.signal_generation || {}) as Record<string, unknown>
+        const robotStrategy = String(
+            cfg.strategy ?? signalGen.strategy ?? DEFAULT_STRATEGY,
+        )
+        const rawParams =
+            (cfg.strategy_params as Record<string, unknown> | undefined) ??
+            (signalGen.params as Record<string, unknown> | undefined) ??
+            {}
         const risk = cfg.risk as Record<string, unknown> | undefined
         const costs = cfg.costs as Record<string, unknown> | undefined
         const broker = String(cfg.broker_type ?? 'tinvest')
         const isCrypto = broker.toLowerCase() === 'bybit'
         const defaultMinTrade = isCrypto ? 5 : 500
 
-        hydratingRef.current = true
-        setStrategyRaw(robotStrategy)
         const preset = getStrategyParamsPreset(robotStrategy)
         const merged: Record<string, unknown> = { ...preset, ...rawParams }
-        if (merged.interval) {
-            merged.interval = normalizeSignalInterval(String(merged.interval))
-            setIntervalState(String(merged.interval))
+        const nextInterval = normalizeSignalInterval(
+            String(merged.interval ?? preset.interval ?? 'CANDLE_INTERVAL_5_MIN'),
+        )
+        merged.interval = nextInterval
+
+        const nextCapital = Number(rawParams?.initial_capital ?? 1_000_000)
+        const nextMaxPct = Number(risk?.max_position_percent ?? 10)
+        const nextStop = Number(risk?.stop_loss_percent ?? 2)
+        const nextTake = Number(risk?.take_profit_percent ?? 3)
+        const nextDailyLoss = Number(risk?.max_daily_loss ?? 10_000)
+        const nextMinTrade = Number(risk?.min_trade_amount_rub ?? defaultMinTrade)
+        const nextMaxRub = calcMaxPositionFromBudget(nextCapital, nextMaxPct)
+        const nextCommission = Number(
+            (Number(costs?.broker_commission_rate ?? 0.0005) * 100).toFixed(4),
+        )
+        const nextNdfl = Number((Number(costs?.ndfl_rate ?? 0.15) * 100).toFixed(2))
+
+        const draft: TradingRobotStrategyDraft = {
+            strategy: robotStrategy,
+            brokerType: broker,
+            capital: nextCapital,
+            strategyParams: merged,
+            interval: nextInterval,
+            stopLossPct: nextStop,
+            takeProfitPct: nextTake,
+            maxPositionPct: nextMaxPct,
+            maxPositionRub: nextMaxRub,
+            maxDailyLoss: nextDailyLoss,
+            minTradeAmountRub: nextMinTrade,
         }
-        setStrategyParams(merged)
-        setCapital(Number(rawParams?.initial_capital ?? 1_000_000))
-        setStopLossPct(Number(risk?.stop_loss_percent ?? 2))
-        setTakeProfitPct(Number(risk?.take_profit_percent ?? 3))
-        setMaxPositionPct(Number(risk?.max_position_percent ?? 10))
-        setMaxPositionRub(Number(risk?.max_position_rub ?? 50_000))
-        setMaxDailyLoss(Number(risk?.max_daily_loss ?? 10_000))
-        setMinTradeAmountRub(Number(risk?.min_trade_amount_rub ?? defaultMinTrade))
-        setBrokerCommissionPct(Number((Number(costs?.broker_commission_rate ?? 0.0005) * 100).toFixed(4)))
-        setNdflPct(Number((Number(costs?.ndfl_rate ?? 0.15) * 100).toFixed(2)))
-        setBrokerType(broker)
+
+        hydratingRef.current = true
+        setStrategyRaw(draft.strategy)
+        setStrategyParams(draft.strategyParams)
+        setIntervalState(draft.interval)
+        setCapital(draft.capital)
+        setStopLossPct(draft.stopLossPct)
+        setTakeProfitPct(draft.takeProfitPct)
+        setMaxPositionPct(draft.maxPositionPct)
+        setMaxPositionRub(draft.maxPositionRub)
+        setMaxDailyLoss(draft.maxDailyLoss)
+        setMinTradeAmountRub(draft.minTradeAmountRub)
+        setBrokerCommissionPct(nextCommission)
+        setNdflPct(nextNdfl)
+        setBrokerType(draft.brokerType)
         hydratingRef.current = false
+        return draft
     }, [])
 
     const applyCommissionDefaults = useCallback((brokerRatePct: number, ndflRatePct: number) => {
@@ -147,7 +183,7 @@ export function useTradingRobotStrategyForm() {
             stopLossPct,
             takeProfitPct,
             maxPositionPct,
-            maxPositionRub,
+            maxPositionRub: calcMaxPositionFromBudget(capital, maxPositionPct),
             maxDailyLoss,
             minTradeAmountRub,
         }),
@@ -160,7 +196,6 @@ export function useTradingRobotStrategyForm() {
             stopLossPct,
             takeProfitPct,
             maxPositionPct,
-            maxPositionRub,
             maxDailyLoss,
             minTradeAmountRub,
         ],

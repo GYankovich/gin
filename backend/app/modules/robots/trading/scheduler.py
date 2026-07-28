@@ -15,7 +15,11 @@ from app.core.database import SessionLocal, try_dispose_pool_on_connectivity_err
 from app.core.config import settings
 from app.core.logging_config import get_logger
 from app.core.scheduler_utils import scheduler_startup_delay
-from app.core.background_jobs.repository import enqueue_background_job, has_active_job
+from app.core.background_jobs.repository import (
+    enqueue_background_job,
+    fail_stale_live_session_jobs,
+    has_active_job,
+)
 from app.core.background_jobs.worker import LANE_HEAVY
 from app.modules.robots.trading.runtime import get_trading_orchestrator
 from app.modules.robots.scheduling.schedule_policy import should_start_trading_session
@@ -128,6 +132,22 @@ class TradingScheduler:
         """Один цикл: постановка live-сессий в heavy lane."""
         db = SessionLocal()
         try:
+            # Safety net: drop zombie live_session rows even if heavy worker is down.
+            try:
+                n_stale = fail_stale_live_session_jobs(
+                    db,
+                    stale_seconds=int(settings.LIVE_SESSION_STALE_SECONDS),
+                )
+                if n_stale:
+                    db.commit()
+                    system_log.warning(
+                        "Сброшено %s зависших live_trading_session (нет heartbeat)",
+                        n_stale,
+                    )
+            except Exception as exc:
+                db.rollback()
+                system_log.warning("Не удалось сбросить stale live sessions: %s", exc)
+
             robots = await self._get_active_robots(db)
 
             if robots:
@@ -233,7 +253,7 @@ class TradingScheduler:
         system_log.info("🛑 Торговый планировщик остановлен")
 
     async def force_run(self, robot_id: int) -> Dict:
-        """Принудительный запуск робота через heavy lane (без idempotency)."""
+        """Принудительный запуск робота через heavy lane (с idempotency на робота)."""
         db = SessionLocal()
         try:
             robots = await self._get_active_robots(db)
@@ -242,12 +262,20 @@ class TradingScheduler:
             if not robot:
                 return {"status": "error", "message": f"Robot {robot_id} not found"}
 
+            idempotency_key = f"live_session:{robot_id}"
+            if has_active_job(db, idempotency_key=idempotency_key):
+                return {
+                    "status": "already_running",
+                    "robot_id": robot_id,
+                    "message": "live_trading_session already queued/running",
+                }
+
             job_id = enqueue_background_job(
                 db,
                 lane=LANE_HEAVY,
                 job_type="live_trading_session",
                 payload=robot,
-                idempotency_key=None,
+                idempotency_key=idempotency_key,
             )
             db.commit()
             system_log.info(f"🔧 Принудительная постановка в очередь robot_id={robot_id} job_id={job_id}")

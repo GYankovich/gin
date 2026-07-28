@@ -49,6 +49,7 @@ export class LivePanel {
         if (!token) return;
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        // Prefer explicit URL; in DEV default to WS gateway :8001 (same as LivePage).
         const url = wsUrl || `${protocol}//${window.location.host}/ws/live?token=${encodeURIComponent(token)}`;
 
         try {

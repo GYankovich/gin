@@ -31,8 +31,16 @@ async def _start_api_background() -> None:
     if settings.WORKER_EMBEDDED_ENABLED:
         try:
             from app.core.background_jobs.worker import start_embedded_lane_workers
+            from app.core.background_jobs.worker_lease import WorkerLeaseConflictError
+
             await start_embedded_lane_workers()
             system_log.info("Lane workers запущены (embedded)")
+        except WorkerLeaseConflictError as e:
+            system_log.error(
+                "Embedded workers не стартовали — lane уже занята: %s "
+                "(остановите второй worker или WORKER_EMBEDDED_ENABLED=false)",
+                e,
+            )
         except Exception as e:
             system_log.error("Ошибка запуска lane workers: %s", e)
     else:

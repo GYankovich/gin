@@ -7,8 +7,8 @@ import { createChart, IChartApi, DeepPartial, ChartOptions, ISeriesApi, Time } f
 interface ChartProps {
     height?: number
     className?: string
-    /** Second argument is the chart container div (for tooltips / overlays). */
-    onReady?: (chart: IChartApi, container?: HTMLDivElement | null) => void
+    /** Second argument is the chart container div (for tooltips / overlays). Pass null on unmount. */
+    onReady?: (chart: IChartApi | null, container?: HTMLDivElement | null) => void
 }
 
 export function Chart({ height = 360, className = '', onReady }: ChartProps) {
@@ -24,8 +24,11 @@ export function Chart({ height = 360, className = '', onReady }: ChartProps) {
         if (!containerRef.current) return
 
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+        const el = containerRef.current
+        const initialWidth = Math.max(el.clientWidth || 0, 1)
 
-        const chart = createChart(containerRef.current, {
+        const chart = createChart(el, {
+            width: initialWidth,
             height,
             layout: {
                 background: { color: 'transparent' },
@@ -77,21 +80,36 @@ export function Chart({ height = 360, className = '', onReady }: ChartProps) {
         } as DeepPartial<ChartOptions>)
 
         chartRef.current = chart
-        onReadyRef.current?.(chart, containerRef.current)
+        onReadyRef.current?.(chart, el)
 
         const ro = new ResizeObserver(() => {
-            if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth })
+            if (!containerRef.current) return
+            const w = containerRef.current.clientWidth
+            if (w > 0) chart.applyOptions({ width: w })
         })
-        ro.observe(containerRef.current)
+        ro.observe(el)
+        // Grid/flex parents often report 0 on the first paint — retry once after layout.
+        requestAnimationFrame(() => {
+            if (!containerRef.current || chartRef.current !== chart) return
+            const w = containerRef.current.clientWidth
+            if (w > 0) chart.applyOptions({ width: w })
+        })
 
         return () => {
             ro.disconnect()
+            onReadyRef.current?.(null, null)
             chart.remove()
             chartRef.current = null
         }
     }, [height])
 
-    return <div ref={containerRef} className={`chart-container ${className}`} />
+    return (
+        <div
+            ref={containerRef}
+            className={`chart-container ${className}`}
+            style={{ width: '100%', minHeight: height }}
+        />
+    )
 }
 
 export type { IChartApi, ISeriesApi, Time }

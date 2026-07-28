@@ -137,3 +137,57 @@ def test_migrate_v2_to_v3_adds_schema_profile():
     assert out["config_version"] == CONFIG_VERSION_V3
     assert out["schema_profile"] == "type2_tinvest"
     assert out["broker_type"] == "tinvest"
+
+
+def test_signal_generation_from_config_accepts_bybit():
+    """Regression: history-backtest type2_bybit must not 422 on data_source=bybit."""
+    from app.modules.robots.config.migration import signal_generation_from_config
+
+    sig = signal_generation_from_config(
+        {
+            "config_version": 3,
+            "schema_profile": "type2_bybit",
+            "broker_type": "bybit",
+            "market_profile": "crypto",
+            "signal_generation": {
+                "strategy": "grain_seed",
+                "params": {"interval": "5m"},
+                "data_source": "bybit",
+                "update_interval_seconds": 10,
+            },
+        }
+    )
+    assert sig.data_source == "bybit"
+    assert sig.strategy == "grain_seed"
+    assert sig.params.get("interval") == "5m"
+
+
+def test_history_derive_engine_params_bybit_skips_moex_p1():
+    from app.modules.robots.service import RobotService
+
+    class _DummyDms:
+        pass
+
+    p = RobotService._history_derive_engine_params(
+        {
+            "config_version": 3,
+            "schema_profile": "type2_bybit",
+            "broker_type": "bybit",
+            "strategy": "grain_seed",
+            "signal_generation": {
+                "strategy": "grain_seed",
+                "params": {"interval": "5m", "candle_days": 14},
+                "data_source": "bybit",
+            },
+            "crypto_universe": {"enabled": True},
+            "universe_mode": "auto",
+            "risk": {},
+            "costs": {},
+        },
+        dms_service=_DummyDms(),
+    )
+    assert p["strategy_name"] == "grain_seed"
+    assert p["signal_generation"].data_source == "bybit"
+    assert p["historical_screening"] is None
+    assert p["strategy_params"].get("moex_analysis_interval") is None
+    assert p["strategy_params"].get("interval") == "5m"

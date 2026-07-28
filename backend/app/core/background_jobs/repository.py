@@ -34,6 +34,42 @@ def has_active_job(db: Session, *, idempotency_key: str) -> bool:
     return row is not None
 
 
+def find_latest_job_for_robot(
+    db: Session,
+    *,
+    job_type: str,
+    robot_id: int,
+    statuses: Optional[tuple] = None,
+) -> Optional[Dict[str, Any]]:
+    """Latest background_jobs row for robot_id in payload (optionally filtered by status)."""
+    params: Dict[str, Any] = {
+        "job_type": str(job_type),
+        "rid": str(int(robot_id)),
+    }
+    status_clause = ""
+    if statuses:
+        parts = []
+        for i, st in enumerate(statuses):
+            key = f"st{i}"
+            parts.append(f":{key}")
+            params[key] = str(st)
+        status_clause = f"AND status IN ({', '.join(parts)})"
+    row = db.execute(
+        text(f"""
+            SELECT id, lane, job_type, status, created_at, started_at, finished_at,
+                   error, message, payload
+            FROM {Schema}.background_jobs
+            WHERE job_type = :job_type
+              AND (payload->>'robot_id') = :rid
+              {status_clause}
+            ORDER BY created_at DESC
+            LIMIT 1
+        """),
+        params,
+    ).mappings().first()
+    return dict(row) if row else None
+
+
 def find_background_job_for_backtest_run(db: Session, run_id: int) -> Optional[Dict[str, Any]]:
     """Latest background_jobs row for history_backtest run_id (any status)."""
     ik = f"history_backtest:{int(run_id)}"
@@ -160,12 +196,58 @@ def fail_background_job(
     )
 
 
+def cancel_live_session_jobs_for_robot(
+    db: Session,
+    *,
+    robot_id: int,
+    reason: str = "robot disabled",
+) -> int:
+    """
+    Stop signal for live: mark queued/running live_trading_session jobs for robot as failed.
+    Running session must also poll robots.status and exit cooperatively.
+    """
+    result = db.execute(
+        text(f"""
+            UPDATE {Schema}.background_jobs
+            SET status = 'failed',
+                error = :error,
+                message = :message,
+                finished_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE job_type = 'live_trading_session'
+              AND status IN ('queued', 'running')
+              AND (payload->>'robot_id') = :rid
+        """),
+        {
+            "rid": str(int(robot_id)),
+            "error": str(reason)[:4000],
+            "message": "cancelled (robot status off)",
+        },
+    )
+    try:
+        return int(result.rowcount or 0)
+    except Exception:
+        return 0
+
+
+def touch_background_job(db: Session, job_id: UUID) -> None:
+    """Heartbeat: keep long-running jobs from looking stale."""
+    db.execute(
+        text(f"""
+            UPDATE {Schema}.background_jobs
+            SET updated_at = CURRENT_TIMESTAMP
+            WHERE id = :id
+              AND status = 'running'
+        """),
+        {"id": job_id},
+    )
+
+
 def fail_stale_background_jobs(db: Session, *, stale_seconds: int) -> int:
     """Fail short-lived jobs stuck in running.
 
-    Long-running job types (live trading sessions) are excluded: they are meant
-    to stay ``running`` for hours and would otherwise be killed every
-    BACKGROUND_JOB_STALE_SECONDS, then block re-enqueue via idempotency.
+    Long-running ``live_trading_session`` jobs use heartbeat +
+    ``fail_stale_live_session_jobs`` instead of this timeout.
     """
     if stale_seconds <= 0:
         return 0
@@ -179,6 +261,27 @@ def fail_stale_background_jobs(db: Session, *, stale_seconds: int) -> int:
                 updated_at = CURRENT_TIMESTAMP
             WHERE status = 'running'
               AND job_type NOT IN ('live_trading_session')
+              AND updated_at < (CURRENT_TIMESTAMP - make_interval(secs => :stale_seconds))
+        """),
+        {"stale_seconds": int(stale_seconds)},
+    )
+    return int(row.rowcount or 0)
+
+
+def fail_stale_live_session_jobs(db: Session, *, stale_seconds: int) -> int:
+    """Fail live sessions that stopped heartbeating (process crash / hung task)."""
+    if stale_seconds <= 0:
+        return 0
+    row = db.execute(
+        text(f"""
+            UPDATE {Schema}.background_jobs
+            SET status = 'failed',
+                error = COALESCE(error, 'stale live session (no heartbeat)'),
+                message = 'failed (live session stale)',
+                finished_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE status = 'running'
+              AND job_type = 'live_trading_session'
               AND updated_at < (CURRENT_TIMESTAMP - make_interval(secs => :stale_seconds))
         """),
         {"stale_seconds": int(stale_seconds)},

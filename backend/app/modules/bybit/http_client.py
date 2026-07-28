@@ -29,6 +29,8 @@ class BybitApiError(RuntimeError):
 class BybitHttpClient:
     """Thin HTTP client for ByBit public/private REST endpoints."""
 
+    _TIME_SYNC_TTL_SECONDS = 300.0
+
     def __init__(
         self,
         *,
@@ -39,7 +41,7 @@ class BybitHttpClient:
         token_id: int | None = None,
         context_type: str | None = "bybit_http",
         context_ref: str | None = None,
-        recv_window: int = 5000,
+        recv_window: int = 10000,
         timeout_seconds: float = 20.0,
         http_client: Optional[httpx.AsyncClient] = None,
     ) -> None:
@@ -54,6 +56,8 @@ class BybitHttpClient:
         self._context_type = str(context_type or "").strip() or None
         self._context_ref = str(context_ref or "").strip() or None
         self._signer: BybitSigner | None = None
+        self._time_offset_ms: int = 0
+        self._time_synced_at: float | None = None
         if api_key and api_secret:
             self._signer = BybitSigner(api_key, api_secret, recv_window=recv_window)
 
@@ -69,6 +73,71 @@ class BybitHttpClient:
             )
             self._own_http = True
         return self._http
+
+    def _local_now_ms(self) -> int:
+        return int(time.time() * 1000)
+
+    def _signed_timestamp_ms(self) -> int:
+        return self._local_now_ms() + int(self._time_offset_ms)
+
+    def _time_sync_stale(self) -> bool:
+        if self._time_synced_at is None:
+            return True
+        return (time.monotonic() - self._time_synced_at) >= self._TIME_SYNC_TTL_SECONDS
+
+    @staticmethod
+    def _parse_server_time_ms(payload: Mapping[str, Any] | None) -> int | None:
+        result = (payload or {}).get("result") if isinstance(payload, Mapping) else None
+        if not isinstance(result, Mapping):
+            return None
+        nano = result.get("timeNano")
+        if nano is not None and str(nano).strip():
+            try:
+                return int(str(nano).strip()) // 1_000_000
+            except (TypeError, ValueError):
+                pass
+        second = result.get("timeSecond")
+        if second is not None and str(second).strip():
+            try:
+                return int(str(second).strip()) * 1000
+            except (TypeError, ValueError):
+                pass
+        return None
+
+    async def _sync_server_time(self, *, force: bool = False) -> None:
+        """Align request timestamps with ByBit server clock (fixes retCode=10002)."""
+        if not force and not self._time_sync_stale():
+            return
+        t0 = self._local_now_ms()
+        data = await self.get_server_time()
+        t1 = self._local_now_ms()
+        bybit_ms = self._parse_server_time_ms(data)
+        if bybit_ms is None:
+            raise BybitApiError("ByBit server time response missing timeSecond/timeNano")
+        local_mid = (t0 + t1) // 2
+        self._time_offset_ms = int(bybit_ms - local_mid)
+        self._time_synced_at = time.monotonic()
+
+    async def _ensure_time_synced(self) -> None:
+        await self._sync_server_time(force=False)
+
+    def _apply_auth_headers(
+        self,
+        headers: dict[str, str],
+        *,
+        method_u: str,
+        query_string: str,
+        body_string: str,
+    ) -> None:
+        if self._signer is None:
+            raise BybitApiError("ByBit private endpoint requires api_key/api_secret")
+        ts = self._signed_timestamp_ms()
+        sign = self._signer.sign(
+            timestamp_ms=ts,
+            query_string=query_string if method_u == "GET" else "",
+            body_string=body_string,
+        )
+        headers.update(self._signer.build_headers(timestamp_ms=ts, signature=sign))
 
     async def _request(
         self,
@@ -94,13 +163,13 @@ class BybitHttpClient:
         if auth:
             if self._signer is None:
                 raise BybitApiError("ByBit private endpoint requires api_key/api_secret")
-            ts = int(time.time() * 1000)
-            sign = self._signer.sign(
-                timestamp_ms=ts,
-                query_string=query_string if method_u == "GET" else "",
+            await self._ensure_time_synced()
+            self._apply_auth_headers(
+                headers,
+                method_u=method_u,
+                query_string=query_string,
                 body_string=body_string,
             )
-            headers.update(self._signer.build_headers(timestamp_ms=ts, signature=sign))
 
         url = f"{self.base_url}{path}"
         # Auth GET: append the exact query we signed so wire == HMAC payload.
@@ -112,6 +181,7 @@ class BybitHttpClient:
         body_bytes: bytes | None = None
         if method_u != "GET" and request_payload and auth:
             body_bytes = body_string.encode("utf-8")
+        timestamp_resync_used = False
         for attempt in range(max_retries):
             started_at = datetime.now(timezone.utc)
             resp = await http.request(
@@ -172,6 +242,21 @@ class BybitHttpClient:
             )
             if ret_code == 10006 and attempt < max_retries - 1:
                 await asyncio.sleep(min(60.0, 2.0 ** attempt + 0.5))
+                continue
+            if (
+                auth
+                and ret_code == 10002
+                and not timestamp_resync_used
+                and attempt < max_retries - 1
+            ):
+                timestamp_resync_used = True
+                await self._sync_server_time(force=True)
+                self._apply_auth_headers(
+                    headers,
+                    method_u=method_u,
+                    query_string=query_string,
+                    body_string=body_string,
+                )
                 continue
             raise last_error
         if last_error is not None:
@@ -507,6 +592,29 @@ class BybitHttpClient:
             auth=False,
         )
 
+    async def set_leverage(
+        self,
+        *,
+        category: str,
+        symbol: str,
+        buy_leverage: str | int | float,
+        sell_leverage: str | int | float | None = None,
+    ) -> dict[str, Any]:
+        """POST /v5/position/set-leverage (one-way: buy+sell required)."""
+        buy = str(buy_leverage)
+        sell = str(sell_leverage if sell_leverage is not None else buy_leverage)
+        return await self._request(
+            "POST",
+            "/v5/position/set-leverage",
+            payload={
+                "category": category,
+                "symbol": symbol,
+                "buyLeverage": buy,
+                "sellLeverage": sell,
+            },
+            auth=True,
+        )
+
     async def create_order(
         self,
         *,
@@ -517,19 +625,23 @@ class BybitHttpClient:
         qty: str,
         price: str | None = None,
         time_in_force: str | None = None,
+        reduce_only: bool = False,
     ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "category": category,
+            "symbol": symbol,
+            "side": side,
+            "orderType": order_type,
+            "qty": qty,
+            "price": price,
+            "timeInForce": time_in_force,
+        }
+        if reduce_only:
+            payload["reduceOnly"] = True
         return await self._request(
             "POST",
             "/v5/order/create",
-            payload={
-                "category": category,
-                "symbol": symbol,
-                "side": side,
-                "orderType": order_type,
-                "qty": qty,
-                "price": price,
-                "timeInForce": time_in_force,
-            },
+            payload=payload,
             auth=True,
         )
 
@@ -557,15 +669,22 @@ class BybitHttpClient:
         category: str,
         symbol: str | None = None,
         order_id: str | None = None,
+        settle_coin: str | None = None,
     ) -> dict[str, Any]:
+        params: dict[str, Any] = {
+            "category": category,
+            "symbol": symbol,
+            "orderId": order_id,
+        }
+        # Linear open-orders without symbol require settleCoin (ByBit 10001 otherwise).
+        if settle_coin:
+            params["settleCoin"] = settle_coin
+        elif str(category or "").lower() == "linear" and not symbol:
+            params["settleCoin"] = "USDT"
         return await self._request(
             "GET",
             "/v5/order/realtime",
-            params={
-                "category": category,
-                "symbol": symbol,
-                "orderId": order_id,
-            },
+            params=params,
             auth=True,
         )
 

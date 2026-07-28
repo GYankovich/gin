@@ -1,6 +1,14 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { Card } from '@/components/ui/Card'
 import { parseNum } from '@/pages/testing/testingUtils'
+import {
+    calcMaxPositionFromBudget,
+    riskInputClass,
+    validateRiskParams,
+    type RiskRewardLevel,
+} from '@/pages/testing/riskParamsValidation'
+
+export { calcMaxPositionFromBudget } from '@/pages/testing/riskParamsValidation'
 
 export type TestingRiskParamsCardProps = {
     capital: number
@@ -46,6 +54,11 @@ export type TestingRiskParamsCardProps = {
     embedded?: boolean
 }
 
+function RiskIndicator({ level, children }: { level: RiskRewardLevel; children: React.ReactNode }) {
+    if (level === 'neutral') return null
+    return <p className={`risk-indicator risk-indicator--${level}`}>{children}</p>
+}
+
 export function TestingRiskParamsCard({
     capital,
     onCapitalChange,
@@ -59,7 +72,7 @@ export function TestingRiskParamsCard({
     onTakeProfitPctChange,
     maxPositionPct,
     onMaxPositionPctChange,
-    maxPositionRub,
+    maxPositionRub: _maxPositionRub,
     onMaxPositionRubChange,
     maxDailyLoss,
     onMaxDailyLossChange,
@@ -69,7 +82,7 @@ export function TestingRiskParamsCard({
     onExecutionLatencySecChange,
     maxDrawdownPct,
     onMaxDrawdownPctChange,
-    maxDailyLossLabel = 'Макс. дневной убыток (%)',
+    maxDailyLossLabel = 'Макс. дневной убыток',
     minTradeAmountRub,
     onMinTradeAmountRubChange,
     showMinTradeAmount = false,
@@ -90,28 +103,190 @@ export function TestingRiskParamsCard({
     const dirty = () => onConfigDirty?.()
     const commissionVisible = showCommission ?? showCosts
     const ndflVisible = showNdfl ?? showCosts
+    const checkMinTrade = showMinTradeAmount && onMinTradeAmountRubChange != null
+
+    const validation = useMemo(
+        () =>
+            validateRiskParams({
+                budget: capital,
+                positionShare: maxPositionPct,
+                stopLoss: stopLossPct,
+                takeProfit: takeProfitPct,
+                minTradeSize: minTradeAmountRub,
+                maxDailyLoss,
+                checkMinTrade,
+            }),
+        [capital, maxPositionPct, stopLossPct, takeProfitPct, minTradeAmountRub, maxDailyLoss, checkMinTrade],
+    )
+
+    const derivedMaxPosition = validation.maxPosition
+    const rrLevel = validation.riskReward.level
+    const rrBadgeClass =
+        rrLevel === 'err' ? 'badge badge--down' : rrLevel === 'warn' ? 'badge badge--warn' : 'badge badge--up'
+
+    const syncMaxPosition = (nextCapital: number, nextPct: number) => {
+        onMaxPositionRubChange(calcMaxPositionFromBudget(nextCapital, nextPct))
+    }
 
     const body = (
-        <div className="testing-risk-two-cols">
-                {showCapital && (
-                <div className="form-group">
+        <div className="risk-params-layout">
+            {showCapital && (
+                <div className="form-group risk-params-layout__full">
                     <label className="form-label">{capitalLabel}</label>
                     <input
-                        className="form-input"
-                        type="text"
-                        value={String(capital)}
+                        className="form-input cyber-input"
+                        type="number"
+                        min={0}
+                        step="1"
+                        value={capital}
                         onChange={e => {
-                            onCapitalChange(parseNum(e.target.value, true, 0))
+                            const next = parseNum(e.target.value, true, 0)
+                            onCapitalChange(next)
+                            syncMaxPosition(next, maxPositionPct)
+                            dirty()
+                        }}
+                    />
+                    <p className="form-hint">Общий капитал для торговли</p>
+                </div>
+            )}
+
+            <div className="risk-params-layout__row testing-risk-two-cols">
+                <div className="form-group">
+                    <label className="form-label">Макс. доля позиции (%)</label>
+                    <input
+                        className={riskInputClass(validation.positionShare?.level)}
+                        type="number"
+                        step="0.1"
+                        min={0}
+                        max={100}
+                        value={maxPositionPct}
+                        onChange={e => {
+                            const next = parseNum(e.target.value, true, 0, 100)
+                            onMaxPositionPctChange(next)
+                            syncMaxPosition(capital, next)
+                            dirty()
+                        }}
+                    />
+                    <p className="form-hint">% от бюджета на 1 позицию</p>
+                    {validation.positionShare && (
+                        <RiskIndicator level={validation.positionShare.level}>
+                            {validation.positionShare.message}
+                        </RiskIndicator>
+                    )}
+                </div>
+                <div className="form-group">
+                    <label className="form-label">{maxPositionRubLabel}</label>
+                    <input
+                        className={riskInputClass(
+                            validation.minTrade?.level === 'err' ? 'err' : null,
+                        )}
+                        type="number"
+                        value={derivedMaxPosition}
+                        readOnly
+                        tabIndex={-1}
+                        aria-readonly="true"
+                    />
+                    <p className="form-hint form-hint--cyan">Рассчитывается автоматически</p>
+                </div>
+            </div>
+
+            <div className="risk-params-layout__row testing-risk-two-cols">
+                <div className="form-group">
+                    <label className="form-label">Стоп-лосс (%)</label>
+                    <input
+                        className={riskInputClass(rrLevel === 'neutral' ? null : rrLevel)}
+                        type="number"
+                        step="0.1"
+                        min={0}
+                        value={stopLossPct}
+                        onChange={e => {
+                            onStopLossPctChange(parseNum(e.target.value, true, 0))
                             dirty()
                         }}
                     />
                 </div>
+                <div className="form-group">
+                    <label className="form-label">Тейк-профит (%)</label>
+                    <input
+                        className={riskInputClass(rrLevel === 'neutral' ? null : rrLevel)}
+                        type="number"
+                        step="0.1"
+                        min={0}
+                        value={takeProfitPct}
+                        onChange={e => {
+                            onTakeProfitPctChange(parseNum(e.target.value, true, 0))
+                            dirty()
+                        }}
+                    />
+                </div>
+                {validation.riskRewardRatio != null && (
+                    <div className="form-group risk-params-layout__span">
+                        <div className="risk-ratio-indicator">
+                            <span className={rrBadgeClass}>
+                                R/R = {validation.riskRewardRatio.toFixed(2)}
+                            </span>
+                            {rrLevel === 'warn' && (
+                                <span className="badge badge--warn">Рекомендуется ≥ 1.5</span>
+                            )}
+                            {rrLevel === 'err' && (
+                                <span className="badge badge--down">Риск больше прибыли</span>
+                            )}
+                            {rrLevel === 'ok' && (
+                                <span className="badge badge--up">Соотношение в норме</span>
+                            )}
+                        </div>
+                    </div>
                 )}
+            </div>
+
+            <div className="risk-params-layout__row testing-risk-two-cols">
+                {checkMinTrade && (
+                    <div className="form-group">
+                        <label className="form-label">{minTradeAmountLabel}</label>
+                        <input
+                            className={riskInputClass(validation.minTrade?.level)}
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={minTradeAmountRub ?? 0}
+                            onChange={e => {
+                                onMinTradeAmountRubChange!(parseNum(e.target.value, true, 0))
+                                dirty()
+                            }}
+                        />
+                        <p className="form-hint">Ниже порога — сделка не исполняется</p>
+                        {validation.minTrade && (
+                            <RiskIndicator level={validation.minTrade.level}>
+                                {validation.minTrade.message}
+                            </RiskIndicator>
+                        )}
+                    </div>
+                )}
+                <div className="form-group">
+                    <label className="form-label">{maxDailyLossLabel}</label>
+                    <input
+                        className={riskInputClass(validation.dailyLoss?.level)}
+                        type="number"
+                        step="0.1"
+                        min={0}
+                        value={maxDailyLoss}
+                        onChange={e => {
+                            onMaxDailyLossChange(parseNum(e.target.value, true, 0))
+                            dirty()
+                        }}
+                    />
+                    <p className="form-hint color-warn">При достижении — торговля останавливается</p>
+                    {validation.dailyLoss && (
+                        <RiskIndicator level={validation.dailyLoss.level}>
+                            {validation.dailyLoss.message}
+                        </RiskIndicator>
+                    )}
+                </div>
                 {commissionVisible && (
                     <div className="form-group">
                         <label className="form-label">Комиссия брокера (%)</label>
                         <input
-                            className="form-input"
+                            className="form-input cyber-input"
                             type="number"
                             step="0.01"
                             value={brokerCommissionPct}
@@ -126,7 +301,7 @@ export function TestingRiskParamsCard({
                     <div className="form-group">
                         <label className="form-label">НДФЛ (%)</label>
                         <input
-                            className="form-input"
+                            className="form-input cyber-input"
                             type="number"
                             step="0.01"
                             value={ndflPct}
@@ -137,93 +312,13 @@ export function TestingRiskParamsCard({
                         />
                     </div>
                 )}
-                <div className="form-group">
-                    <label className="form-label">Стоп-лосс (%)</label>
-                    <input
-                        className="form-input"
-                        type="number"
-                        step="0.1"
-                        value={stopLossPct}
-                        onChange={e => {
-                            onStopLossPctChange(parseNum(e.target.value, true, 0))
-                            dirty()
-                        }}
-                    />
-                </div>
-                <div className="form-group">
-                    <label className="form-label">Тейк-профит (%)</label>
-                    <input
-                        className="form-input"
-                        type="number"
-                        step="0.1"
-                        value={takeProfitPct}
-                        onChange={e => {
-                            onTakeProfitPctChange(parseNum(e.target.value, true, 0))
-                            dirty()
-                        }}
-                    />
-                </div>
-                <div className="form-group">
-                    <label className="form-label">Макс. доля позиции (%)</label>
-                    <input
-                        className="form-input"
-                        type="number"
-                        step="0.1"
-                        value={maxPositionPct}
-                        onChange={e => {
-                            onMaxPositionPctChange(parseNum(e.target.value, true, 0))
-                            dirty()
-                        }}
-                    />
-                </div>
-                <div className="form-group">
-                    <label className="form-label">{maxPositionRubLabel}</label>
-                    <input
-                        className="form-input"
-                        type="number"
-                        step="1000"
-                        value={maxPositionRub}
-                        onChange={e => {
-                            onMaxPositionRubChange(parseNum(e.target.value, true, 0))
-                            dirty()
-                        }}
-                    />
-                </div>
-                {showMinTradeAmount && onMinTradeAmountRubChange != null && (
-                    <div className="form-group">
-                        <label className="form-label">{minTradeAmountLabel}</label>
-                        <input
-                            className="form-input"
-                            type="number"
-                            min={0}
-                            step={1}
-                            value={minTradeAmountRub ?? 0}
-                            onChange={e => {
-                                onMinTradeAmountRubChange(parseNum(e.target.value, true, 0))
-                                dirty()
-                            }}
-                        />
-                        <p className="form-hint">Сделки с нотионалом ниже порога не отправляются (Stage6).</p>
-                    </div>
-                )}
-                <div className="form-group">
-                    <label className="form-label">{maxDailyLossLabel}</label>
-                    <input
-                        className="form-input"
-                        type="number"
-                        step="0.1"
-                        min={0}
-                        value={maxDailyLoss}
-                        onChange={e => {
-                            onMaxDailyLossChange(parseNum(e.target.value, true, 0))
-                            dirty()
-                        }}
-                    />
-                </div>
+            </div>
+
+            <div className="risk-params-layout__row testing-risk-two-cols">
                 <div className="form-group">
                     <label className="form-label">Проскальзывание (%)</label>
                     <input
-                        className="form-input"
+                        className="form-input cyber-input"
                         type="number"
                         step="0.01"
                         min={0}
@@ -237,7 +332,7 @@ export function TestingRiskParamsCard({
                 <div className="form-group">
                     <label className="form-label">Задержка исполнения (сек)</label>
                     <input
-                        className="form-input"
+                        className="form-input cyber-input"
                         type="number"
                         step="1"
                         min={0}
@@ -251,7 +346,7 @@ export function TestingRiskParamsCard({
                 <div className="form-group">
                     <label className="form-label">Макс. допустимая просадка (%)</label>
                     <input
-                        className="form-input"
+                        className="form-input cyber-input"
                         type="number"
                         step="0.1"
                         min={0}
@@ -261,12 +356,13 @@ export function TestingRiskParamsCard({
                             dirty()
                         }}
                     />
+                    <p className="form-hint color-down">При превышении — бот останавливается</p>
                 </div>
                 {showMinProfitTarget && onMinProfitTargetPctChange != null && (
                     <div className="form-group">
                         <label className="form-label">Мин. цель прибыли (%)</label>
                         <input
-                            className="form-input"
+                            className="form-input cyber-input"
                             type="number"
                             min={0}
                             step={0.05}
@@ -280,6 +376,7 @@ export function TestingRiskParamsCard({
                     </div>
                 )}
             </div>
+        </div>
     )
 
     if (embedded) {

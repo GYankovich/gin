@@ -70,7 +70,7 @@ export function TestingUniverseCard({ robotId, universe }: TestingUniverseCardPr
                         <strong>Как это связано с бэктестом</strong>
                         <ol>
                             <li>
-                                Режим universe — в карточке «Отбор бумаг» или в настройках робота: фиксированный список,
+                                Режим universe — в «Поиск и отбор» или в настройках робота: фиксированный список,
                                 DMS pipeline или вся TQBR.
                             </li>
                             <li>

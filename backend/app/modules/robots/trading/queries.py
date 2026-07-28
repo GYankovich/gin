@@ -64,6 +64,15 @@ def build_get_robot_config_query() -> str:
            """
 
 
+def build_get_robot_status_query() -> str:
+    """Текущий status робота (1=on, 2=off, 0=deleted)."""
+    return """
+           SELECT status FROM {schema}.robots
+           WHERE id = :robot_id
+           LIMIT 1 \
+           """
+
+
 def build_update_robot_status_query() -> str:
     """
     Обновление статуса робота
@@ -215,7 +224,7 @@ def build_get_open_positions_query() -> str:
     Получение открытых позиций робота.
     """
     return """
-           SELECT id, figi, side, quantity, entry_price, status
+           SELECT id, figi, side, quantity, entry_price, status, created_at
            FROM {schema}.robot_trades
            WHERE robot_id = :robot_id AND status IN ('open', 'partial') \
            """

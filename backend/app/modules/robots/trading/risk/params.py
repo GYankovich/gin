@@ -51,6 +51,9 @@ class RiskParams(BaseModel):
     take_profit_pct: float = Field(default=3.0, description="Тейк в %")
     trailing_activation_pct: float = Field(default=0.5, description="При какой прибыли активируется трейлинг")
     trailing_step_pct: float = Field(default=0.2, description="Шаг трейлинга")
+    # Soft TP guards (SL never delayed).
+    min_hold_seconds: float = Field(default=120.0, description="Не закрывать по TP раньше N секунд после входа")
+    min_tp_move_bps: float = Field(default=10.0, description="Мин. движение цены от entry в bps для TP")
 
     # --- издержки ---
     commission_pct: float = Field(default=0.05, description="Комиссия брокера в %")
@@ -77,7 +80,8 @@ class RiskParams(BaseModel):
 
     @field_validator("max_daily_loss_pct", "stop_loss_pct", "take_profit_pct", "max_position_pct",
                      "trailing_activation_pct", "trailing_step_pct", "commission_pct",
-                     "free_funds_reserve_pct", "risk_per_trade_pct", "max_leverage")
+                     "free_funds_reserve_pct", "risk_per_trade_pct", "max_leverage",
+                     "min_hold_seconds", "min_tp_move_bps")
     @classmethod
     def _non_negative(cls, v: float) -> float:
         if v < 0:

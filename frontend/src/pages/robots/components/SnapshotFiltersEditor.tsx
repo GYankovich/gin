@@ -9,6 +9,7 @@ import {
     FILTER_DEFAULTS,
     FILTER_FIELD_HINT,
     FILTER_META,
+    FILTER_UNIT,
     type PipelineFilter,
     type PipelineFilterType,
 } from '@/pages/robots/pipelineFilterMeta'
@@ -105,21 +106,17 @@ export function SnapshotFiltersEditor({
     const isLocked = (type: PipelineFilterType) =>
         !isHistorical && (type === 'security_status' || type === 'trading_status')
 
-    const canRemove = (type: PipelineFilterType) =>
-        !isLocked(type) && !(isHistorical === false && type === 'atr')
+    const canRemove = (type: PipelineFilterType) => !isLocked(type)
 
     const renderInputs = (f: PipelineFilter) => {
         if (f.type === 'volume') {
             return (
-                <div className="form-row pipeline-inline-row">
-                    <input
-                        className="form-input cyber-input"
-                        type="number"
-                        value={Number(f.min || 0)}
-                        onChange={e => updateFilter(f.id, { min: Number(e.target.value || 0) })}
-                    />
-                    <span className="cyber-unit">₽</span>
-                </div>
+                <input
+                    className="form-input cyber-input"
+                    type="number"
+                    value={Number(f.min || 0)}
+                    onChange={e => updateFilter(f.id, { min: Number(e.target.value || 0) })}
+                />
             )
         }
         if (f.type === 'num_trades') {
@@ -134,43 +131,24 @@ export function SnapshotFiltersEditor({
         }
         if (f.type === 'gap') {
             return (
-                <div className="form-row pipeline-inline-row">
-                    <input
-                        className="form-input cyber-input"
-                        type="number"
-                        step="0.1"
-                        value={Number(f.max_percent || 0)}
-                        onChange={e => updateFilter(f.id, { max_percent: Number(e.target.value || 0) })}
-                    />
-                    <span className="cyber-unit">%</span>
-                    <SegmentedControl
-                        options={[
-                            { value: 'BOTH', label: 'Оба' },
-                            { value: 'UP_ONLY', label: '↑' },
-                            { value: 'DOWN_ONLY', label: '↓' },
-                        ]}
-                        value={f.direction || 'BOTH'}
-                        onChange={v =>
-                            updateFilter(f.id, {
-                                direction: v as 'BOTH' | 'UP_ONLY' | 'DOWN_ONLY',
-                            })
-                        }
-                    />
-                </div>
+                <input
+                    className="form-input cyber-input"
+                    type="number"
+                    step="0.1"
+                    value={Number(f.max_percent || 0)}
+                    onChange={e => updateFilter(f.id, { max_percent: Number(e.target.value || 0) })}
+                />
             )
         }
         if (f.type === 'spread') {
             return (
-                <div className="form-row pipeline-inline-row">
-                    <input
-                        className="form-input cyber-input"
-                        type="number"
-                        step="0.01"
-                        value={Number(f.max_percent || 0)}
-                        onChange={e => updateFilter(f.id, { max_percent: Number(e.target.value || 0) })}
-                    />
-                    <span className="cyber-unit">%</span>
-                </div>
+                <input
+                    className="form-input cyber-input"
+                    type="number"
+                    step="0.01"
+                    value={Number(f.max_percent || 0)}
+                    onChange={e => updateFilter(f.id, { max_percent: Number(e.target.value || 0) })}
+                />
             )
         }
         if (f.type === 'atr') {
@@ -208,16 +186,13 @@ export function SnapshotFiltersEditor({
         }
         if (f.type === 'turnover') {
             return (
-                <div className="form-row pipeline-inline-row">
-                    <input
-                        className="form-input cyber-input"
-                        type="number"
-                        step="0.01"
-                        value={Number(f.min_percent || 0)}
-                        onChange={e => updateFilter(f.id, { min_percent: Number(e.target.value || 0) })}
-                    />
-                    <span className="cyber-unit">% выпуска</span>
-                </div>
+                <input
+                    className="form-input cyber-input"
+                    type="number"
+                    step="0.01"
+                    value={Number(f.min_percent || 0)}
+                    onChange={e => updateFilter(f.id, { min_percent: Number(e.target.value || 0) })}
+                />
             )
         }
         if (f.type === 'gap_retention') {
@@ -235,34 +210,28 @@ export function SnapshotFiltersEditor({
         }
         if (f.type === 'price_vs_open') {
             return (
-                <div className="form-row pipeline-inline-row">
-                    <input
-                        className="form-input cyber-input"
-                        type="number"
-                        step="0.001"
-                        min={0.9}
-                        max={1.1}
-                        value={Number(f.min_percent || 0.998)}
-                        onChange={e => updateFilter(f.id, { min_percent: Number(e.target.value || 0.998) })}
-                    />
-                    <span className="cyber-unit">доля от OPEN</span>
-                </div>
+                <input
+                    className="form-input cyber-input"
+                    type="number"
+                    step="0.001"
+                    min={0.9}
+                    max={1.1}
+                    value={Number(f.min_percent || 0.998)}
+                    onChange={e => updateFilter(f.id, { min_percent: Number(e.target.value || 0.998) })}
+                />
             )
         }
         if (f.type === 'opening_range') {
             return (
-                <div className="form-row pipeline-inline-row">
-                    <input
-                        className="form-input cyber-input"
-                        type="number"
-                        step="0.1"
-                        min={0}
-                        max={100}
-                        value={Number(f.min_percent || 0)}
-                        onChange={e => updateFilter(f.id, { min_percent: Number(e.target.value || 0) })}
-                    />
-                    <span className="cyber-unit">%</span>
-                </div>
+                <input
+                    className="form-input cyber-input"
+                    type="number"
+                    step="0.1"
+                    min={0}
+                    max={100}
+                    value={Number(f.min_percent || 0)}
+                    onChange={e => updateFilter(f.id, { min_percent: Number(e.target.value || 0) })}
+                />
             )
         }
         if (f.type === 'min_step_ratio') {
@@ -324,32 +293,58 @@ export function SnapshotFiltersEditor({
             )}
 
             <div className="snapshot-filters-editor__list">
-                {chunk(activeFilters, 2).map(row => (
+                {chunk(activeFilters, 3).map(row => (
                     <div key={row.map(f => f.id).join('-')} className="form-row">
-                        {row.map(f => (
-                            <div key={f.id} className="form-group">
-                                <label className="form-label">
-                                    {FILTER_META[f.type].label}
-                                    {FILTER_FIELD_HINT[f.type] && (
-                                        <FormLabelTooltip text={FILTER_FIELD_HINT[f.type]} />
-                                    )}
-                                    {canRemove(f.type) && (
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="ghost"
-                                            className="pipeline-delete-btn"
-                                            title="Убрать фильтр"
-                                            onClick={() => removeFilter(f.id)}
-                                            style={{ marginLeft: 6 }}
-                                        >
-                                            ×
-                                        </Button>
-                                    )}
-                                </label>
-                                {renderInputs(f)}
-                            </div>
-                        ))}
+                        {row.map(f => {
+                            const unit = FILTER_UNIT[f.type]
+                            return (
+                                <div key={f.id} className="form-group">
+                                    <div className="snapshot-filter-field__label-row">
+                                        <label className="form-label">
+                                            {FILTER_META[f.type].label}
+                                            {unit && (
+                                                <span className="cyber-unit form-label__unit">({unit})</span>
+                                            )}
+                                            {FILTER_FIELD_HINT[f.type] && (
+                                                <FormLabelTooltip text={FILTER_FIELD_HINT[f.type]} />
+                                            )}
+                                        </label>
+                                        {f.type === 'gap' && (
+                                            <SegmentedControl
+                                                className="snapshot-filter-field__gap-dir"
+                                                options={[
+                                                    { value: 'BOTH', label: 'Оба' },
+                                                    { value: 'UP_ONLY', label: '↑' },
+                                                    { value: 'DOWN_ONLY', label: '↓' },
+                                                ]}
+                                                value={f.direction || 'BOTH'}
+                                                onChange={v =>
+                                                    updateFilter(f.id, {
+                                                        direction: v as 'BOTH' | 'UP_ONLY' | 'DOWN_ONLY',
+                                                    })
+                                                }
+                                                aria-label="Направление гэпа"
+                                            />
+                                        )}
+                                    </div>
+                                    <div className="snapshot-filter-field__controls">
+                                        {renderInputs(f)}
+                                        {canRemove(f.type) && (
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="ghost"
+                                                className="pipeline-delete-btn"
+                                                title="Убрать фильтр"
+                                                onClick={() => removeFilter(f.id)}
+                                            >
+                                                ×
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            )
+                        })}
                     </div>
                 ))}
             </div>

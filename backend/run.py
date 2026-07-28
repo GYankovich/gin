@@ -295,10 +295,11 @@ def check_dependencies():
 
     return True
 
-def run_worker(lane: str):
+def run_worker(lane: str, *, force_lease: bool = False):
     """Standalone lane worker process."""
     from app.core.logging_config import setup_logging
     from app.core.background_jobs.worker import LANE_HEAVY, LANE_PORTFOLIO, run_standalone_lane_worker
+    from app.core.background_jobs.worker_lease import WorkerLeaseConflictError
 
     setup_logging()
     allowed = {LANE_PORTFOLIO, LANE_HEAVY}
@@ -307,9 +308,16 @@ def run_worker(lane: str):
         sys.exit(1)
 
     print(f"\n[START] Starting standalone worker lane={lane}")
+    if force_lease:
+        print("[WARN] --force-lease: will steal existing lease if present")
     print("Press Ctrl+C to stop\n")
     try:
-        asyncio.run(run_standalone_lane_worker(lane))
+        asyncio.run(run_standalone_lane_worker(lane, force_lease=force_lease))
+    except WorkerLeaseConflictError as exc:
+        print(f"\n[ERR] {exc}")
+        print("Уже крутится другой worker этой lane на этой БД.")
+        print("Остановите его или: python backend/run.py worker --lane", lane, "--force-lease")
+        sys.exit(2)
     except KeyboardInterrupt:
         print("\n[STOP] Worker stopped")
 
@@ -335,6 +343,11 @@ def main():
         required=True,
         choices=["portfolio", "heavy"],
         help="Worker lane to process",
+    )
+    worker_parser.add_argument(
+        "--force-lease",
+        action="store_true",
+        help="Steal lane lease even if another worker heartbeat is fresh",
     )
 
     sub.add_parser("server", help="Run API server (default)")
@@ -363,7 +376,7 @@ def main():
     if command == "worker":
         if not skip_migrate and not run_migrations():
             sys.exit(1)
-        run_worker(args.lane)
+        run_worker(args.lane, force_lease=bool(getattr(args, "force_lease", False)))
         return
 
     if command == "ws":

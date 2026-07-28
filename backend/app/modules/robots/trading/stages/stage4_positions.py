@@ -1,19 +1,20 @@
 """
-Stage 4: Управление позициями (открытые, стоп-лосс, тейк-профит)
+Stage 4: Управление позициями (открытые позиции + plan SL/TP intents).
+
+Place ордеров не делает — только decision → OrderIntent.
+Исполнение: LiveExecutionService / Stage6.
 """
 #///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingStagesStage4Positions [1]
 #/// Исходный модуль `backend/app/modules/robots/trading/stages/stage4_positions.py` — автоматическая разметка для Obsidian Source Scanner.
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 from datetime import datetime, timezone
 from sqlalchemy import text
 
 from app.modules.robots.trading.brokers.base import BrokerFacade
-from app.modules.robots.trading.costs import (
-    TradingCosts,
-    calculate_stop_loss_price,
-    calculate_take_profit_price
-)
+from app.modules.robots.trading.contracts import OrderIntent
+from app.modules.robots.trading.risk.manager import RiskManager
+from app.modules.robots.trading.symbol_guard import SymbolGuard, normalize_figi
 from app.modules.robots.trading import queries as trading_queries
 from app.core.logging_config import get_logger
 
@@ -21,7 +22,7 @@ logger = get_logger(__name__)
 
 
 class Stage4Positions:
-    """Управление позициями"""
+    """Управление позициями: read + plan SL/TP exits (без post_order)."""
 
     def __init__(
             self,
@@ -50,7 +51,6 @@ class Stage4Positions:
         }
 
     def _write_log(self, message: str):
-        """Запись в лог"""
         if self.log_func:
             self.log_func(f"[STAGE4] {message}")
         else:
@@ -76,7 +76,8 @@ class Stage4Positions:
                     "side": row[2],
                     "quantity": float(row[3]) if row[3] else 0,
                     "entry_price": float(row[4]) if row[4] else 0,
-                    "status": row[5]
+                    "status": row[5],
+                    "created_at": row[6] if len(row) > 6 else None,
                 }
                 positions.append(pos)
                 self._write_log(f"   {pos['figi']}: {pos['side']} {pos['quantity']} @ {pos['entry_price']:.4f}")
@@ -88,94 +89,110 @@ class Stage4Positions:
             self._write_log(f"   ❌ Ошибка получения позиций: {e}")
             return []
 
+    async def plan_stop_loss_take_profit(
+            self,
+            open_positions: List[Dict],
+            prices: Dict[str, float],
+            risk_params: Dict,
+            *,
+            pending_close_figis: Optional[Set[str]] = None,
+            guard: Optional[SymbolGuard] = None,
+            account_positions: Optional[Dict[str, float]] = None,
+    ) -> List[OrderIntent]:
+        """Решает, какие позиции закрыть по SL/TP. Возвращает OrderIntent (без place)."""
+        self._write_log("🔴 Планирование stop-loss/take-profit (decision only)")
+
+        symbol_guard = guard or SymbolGuard(
+            broker=self.broker,
+            account_id=self.account_id,
+            log_func=self.log_func,
+        )
+        pending = {
+            normalize_figi(x)
+            for x in (pending_close_figis or set())
+            if normalize_figi(x)
+        }
+        pending |= symbol_guard.blocked_figis()
+        holdings = None
+        if account_positions is not None:
+            holdings = {
+                normalize_figi(k): float(v or 0)
+                for k, v in account_positions.items()
+                if normalize_figi(k)
+            }
+
+        intents = RiskManager.plan_sl_tp_exit_intents(
+            open_positions,
+            prices,
+            risk_params,
+            cost_kw=self._cost_kw(),
+            log_func=self._write_log,
+        )
+
+        accepted: List[OrderIntent] = []
+        for intent in intents:
+            figi_key = normalize_figi(intent.figi)
+            if figi_key in pending:
+                self._write_log(
+                    f"      ⏭️ Close уже pending/in-flight для {figi_key} — intent не создаём"
+                )
+                continue
+
+            if holdings is not None:
+                broker_signed = float(holdings.get(figi_key, 0.0) or 0.0)
+                # SELL closes long (>0); BUY closes short (<0).
+                if intent.side == "SELL":
+                    available = max(0.0, broker_signed)
+                else:
+                    available = abs(min(0.0, broker_signed))
+                if available <= 1e-12:
+                    self._write_log(
+                        f"      ⏭️ Нет позиции на брокере для close {figi_key} "
+                        f"(broker_qty={broker_signed:g}, side={intent.side}) — skip"
+                    )
+                    continue
+                if float(intent.quantity or 0) > available + 1e-9:
+                    self._write_log(
+                        f"      🔧 Close qty {figi_key}: {intent.quantity:g} → broker {available:g}"
+                    )
+                    intent.quantity = available
+
+            if await symbol_guard.has_active_broker_order(figi_key):
+                self._write_log(
+                    f"      ⏭️ На брокере уже есть активная заявка по {figi_key} — skip"
+                )
+                pending.add(figi_key)
+                continue
+            accepted.append(intent)
+            if figi_key:
+                pending.add(figi_key)
+            self._write_log(
+                f"      📋 Intent exit_sl_tp {figi_key} {intent.side} qty={intent.quantity} "
+                f"reason={intent.reason}"
+            )
+
+        self._write_log(f"   Intents на закрытие: {len(accepted)}")
+        return accepted
+
     async def check_stop_loss_take_profit(
             self,
             open_positions: List[Dict],
             prices: Dict[str, float],
-            risk_params: Dict
-    ) -> List[Dict]:
-        """Проверяет stop-loss и take-profit для открытых позиций"""
-        self._write_log("🔴 Проверка stop-loss/take-profit")
-
-        closed_trades = []
-        stop_loss_percent = risk_params.get("stop_loss_percent", 2)
-        take_profit_percent = risk_params.get("take_profit_percent", 3)
-
-        for position in open_positions:
-            figi = position["figi"]
-            entry_price = position["entry_price"]
-            current_price = prices.get(figi)
-            quantity = position["quantity"]
-            is_long = str(position.get("side", "")).lower() in {"buy", "long"}
-
-            if not current_price:
-                self._write_log(f"   {figi}: нет текущей цены")
-                continue
-
-            stop_loss = calculate_stop_loss_price(entry_price, stop_loss_percent, is_long=is_long)
-            take_profit = calculate_take_profit_price(
-                entry_price, take_profit_percent, is_long=is_long, **self._cost_kw()
-            )
-
-            self._write_log(f"   {figi}: цена={current_price:.4f}, SL={stop_loss:.4f}, TP={take_profit:.4f}")
-
-            should_close = False
-            reason = None
-
-            if is_long:
-                if current_price <= stop_loss:
-                    should_close = True
-                    reason = "stop_loss"
-                    self._write_log(f"      ⚠️ Сработал STOP-LOSS!")
-                elif current_price >= take_profit:
-                    should_close = True
-                    reason = "take_profit"
-                    self._write_log(f"      🎯 Сработал TAKE-PROFIT!")
-            else:
-                if current_price >= stop_loss:
-                    should_close = True
-                    reason = "stop_loss"
-                    self._write_log(f"      ⚠️ Сработал STOP-LOSS (short)!")
-                elif current_price <= take_profit:
-                    should_close = True
-                    reason = "take_profit"
-                    self._write_log(f"      🎯 Сработал TAKE-PROFIT (short)!")
-
-            if should_close:
-                try:
-                    self._write_log(f"      🔄 Выставление заявки на закрытие...")
-
-                    direction = "ORDER_DIRECTION_BUY" if str(position.get("side", "")).lower() == "sell" else "ORDER_DIRECTION_SELL"
-                    order = await self.broker.post_order(
-                        figi=figi,
-                        quantity=quantity,
-                        price=current_price,
-                        direction=direction,
-                        account_id=self.account_id
-                    )
-                    order_id = order.get("orderId")
-
-                    costs = TradingCosts(entry_price, int(quantity), is_buy=is_long, **self._cost_kw())
-                    profit_calc = costs.calculate_actual_profit(current_price)
-
-                    closed_trades.append({
-                        "trade_id": position["id"],
-                        "order_id": order_id,
-                        "figi": figi,
-                        "exit_price": current_price,
-                        "reason": reason,
-                        "profit": profit_calc["net_profit"]
-                    })
-                    self._write_log(
-                        f"      ✅ Заявка на закрытие отправлена (order_id={order_id})."
-                        f" Фактическое закрытие будет после fill."
-                    )
-
-                except Exception as e:
-                    self._write_log(f"      ❌ Ошибка закрытия: {e}")
-
-        self._write_log(f"   Закрыто позиций: {len(closed_trades)}")
-        return closed_trades
+            risk_params: Dict,
+            *,
+            pending_close_figis: Optional[Set[str]] = None,
+            guard: Optional[SymbolGuard] = None,
+            account_positions: Optional[Dict[str, float]] = None,
+    ) -> List[OrderIntent]:
+        """Alias: plan SL/TP intents (no broker place)."""
+        return await self.plan_stop_loss_take_profit(
+            open_positions,
+            prices,
+            risk_params,
+            pending_close_figis=pending_close_figis,
+            guard=guard,
+            account_positions=account_positions,
+        )
 
     async def _close_trade(self, trade_id: int, exit_price: float, reason: str, profit: float, profit_percent: float):
         """Закрывает сделку в БД"""
