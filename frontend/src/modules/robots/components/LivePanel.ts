@@ -25,6 +25,7 @@ interface OrderEvent {
     quantity: number;
     price: number;
     status: string;
+    reason?: string;
     time: string;
 }
 
@@ -229,6 +230,7 @@ export class LivePanel {
                 <span class="badge ${o.side === 'buy' ? 'badge-success' : 'badge-danger'}">${o.side.toUpperCase()}</span>
                 <span class="text-mono" style="font-size:0.8rem">${o.figi.slice(0, 12)}</span>
                 <span style="font-size:0.75rem;color:var(--text-muted)">${o.quantity}x${o.price.toFixed(2)}</span>
+                ${o.reason ? `<span style="font-size:0.7rem;color:var(--text-muted)">${o.reason}</span>` : ''}
                 <span class="badge ${o.status === 'filled' ? 'badge-success' : o.status === 'rejected' ? 'badge-danger' : 'badge-warning'}" style="margin-left:auto">
                     ${o.status}
                 </span>

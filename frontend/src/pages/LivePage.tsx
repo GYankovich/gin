@@ -1433,6 +1433,11 @@ export default function LivePage() {
             render: r => String(r.source_name || r.source || r.order_type || '—'),
         },
         {
+            key: 'reason',
+            header: 'Причина',
+            render: r => String(r.reason_name || r.reason || '—'),
+        },
+        {
             key: 'side',
             header: 'Сторона',
             render: r => String(r.side_name || r.side || '—'),
