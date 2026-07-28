@@ -22,15 +22,18 @@ RiskManager — единый риск-менеджмент для backtest и li
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, time
+from datetime import datetime, time, timezone
 from typing import Any, Dict, List, Optional
 
-from app.modules.robots.trading.contracts import Candle, Position, Signal
+from app.modules.robots.trading.contracts import Candle, OrderIntent, Position, Signal
 from app.modules.robots.trading.costs import (
     TradingCosts,
     calculate_position_size,
+    calculate_stop_loss_price,
+    calculate_take_profit_price,
 )
 from app.modules.robots.trading.risk.params import RiskParams
+from app.modules.robots.trading.symbol_guard import normalize_figi
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +74,61 @@ def risk_budget_max_quantity(
         return None
     q = int(max_loss_rub // loss_per_unit)
     return q if q > 0 else None
+
+
+def position_age_seconds(position: Dict[str, Any], now: Optional[datetime] = None) -> Optional[float]:
+    """Age of open position from created_at / opened_at; None if unknown."""
+    raw = position.get("created_at") or position.get("opened_at") or position.get("entry_time")
+    if raw is None:
+        return None
+    if isinstance(raw, datetime):
+        created = raw
+    else:
+        try:
+            text = str(raw).replace("Z", "+00:00")
+            created = datetime.fromisoformat(text)
+        except Exception:
+            return None
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    clock = now or datetime.now(created.tzinfo)
+    if clock.tzinfo is None:
+        clock = clock.replace(tzinfo=created.tzinfo)
+    try:
+        return max(0.0, (clock - created).total_seconds())
+    except Exception:
+        return None
+
+
+def tp_move_bps(entry_price: float, current_price: float) -> float:
+    """Absolute move from entry in basis points."""
+    entry = float(entry_price or 0)
+    px = float(current_price or 0)
+    if entry <= 0 or px <= 0:
+        return 0.0
+    return abs(px - entry) / entry * 10_000.0
+
+
+def should_skip_take_profit(
+    position: Dict[str, Any],
+    *,
+    current_price: float,
+    risk_params: Dict[str, Any],
+    now: Optional[datetime] = None,
+) -> Optional[str]:
+    """Return skip reason for soft TP, or None if TP is allowed. SL never uses this."""
+    min_hold = float(risk_params.get("min_hold_seconds") or 0)
+    if min_hold > 0:
+        age = position_age_seconds(position, now=now)
+        if age is not None and age < min_hold:
+            return f"min_hold_seconds age={age:.0f}<{min_hold:.0f}"
+    min_bps = float(risk_params.get("min_tp_move_bps") or 0)
+    if min_bps > 0:
+        entry = float(position.get("entry_price") or 0)
+        move = tp_move_bps(entry, current_price)
+        if move < min_bps:
+            return f"min_tp_move_bps move={move:.2f}<{min_bps:.2f}"
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -251,11 +309,14 @@ class RiskManager:
         if rb_cap is not None:
             qty = min(qty, rb_cap)
 
-        # leverage cap: максимум notional = equity * max_leverage.
+        # leverage=0 → margin disabled: do not size new entries.
         max_lev = float(self.params.max_leverage or 0.0)
-        if max_lev > 0:
-            lev_cap = int((equity * max_lev) // entry_price)
-            qty = min(qty, max(0, lev_cap))
+        if max_lev <= 0:
+            return 0
+
+        # leverage cap: максимум notional = equity * max_leverage.
+        lev_cap = int((equity * max_lev) // entry_price)
+        qty = min(qty, max(0, lev_cap))
 
         # явная учётная проверка кэша (с комиссией)
         if qty > 0:
@@ -267,6 +328,189 @@ class RiskManager:
         return max(0, int(qty))
 
     # ------- выход по стопу/тейку/трейлингу -------
+
+    @staticmethod
+    def plan_sl_tp_exit_intents(
+        open_positions: List[Dict[str, Any]],
+        prices: Dict[str, float],
+        risk_params: Dict[str, Any],
+        *,
+        cost_kw: Optional[Dict[str, float]] = None,
+        log_func: Optional[Any] = None,
+        now: Optional[datetime] = None,
+    ) -> List[OrderIntent]:
+        """Live SL/TP decisions from mark prices → OrderIntent (no place).
+
+        Shared by Stage4 adapter and TradingCore. Uses the same formulas as
+        legacy Stage4 (`calculate_stop_loss_price` / `calculate_take_profit_price`).
+        Soft TP may be delayed by min_hold_seconds / min_tp_move_bps; SL is never delayed.
+        """
+        intents: List[OrderIntent] = []
+        stop_loss_percent = risk_params.get("stop_loss_percent", 2)
+        take_profit_percent = risk_params.get("take_profit_percent", 3)
+        kw = dict(cost_kw or {})
+
+        def _log(msg: str) -> None:
+            if callable(log_func):
+                log_func(msg)
+
+        for position in open_positions or []:
+            figi = position.get("figi")
+            figi_key = normalize_figi(figi)
+            entry_price = float(position.get("entry_price") or 0)
+            quantity = float(position.get("quantity") or 0)
+            is_long = str(position.get("side", "")).lower() in {"buy", "long"}
+            current_price = prices.get(figi) if figi is not None else None
+            if current_price is None and figi_key:
+                current_price = prices.get(figi_key)
+            if not current_price or entry_price <= 0 or quantity <= 0:
+                if not current_price:
+                    _log(f"   {figi}: нет текущей цены")
+                continue
+
+            stop_loss = calculate_stop_loss_price(entry_price, stop_loss_percent, is_long=is_long)
+            take_profit = calculate_take_profit_price(
+                entry_price, take_profit_percent, is_long=is_long, **kw
+            )
+            _log(f"   {figi}: цена={float(current_price):.4f}, SL={stop_loss:.4f}, TP={take_profit:.4f}")
+
+            reason: Optional[str] = None
+            px = float(current_price)
+            if is_long:
+                if px <= stop_loss:
+                    reason = "stop_loss"
+                    _log("      ⚠️ Сработал STOP-LOSS!")
+                elif px >= take_profit:
+                    reason = "take_profit"
+                    _log("      🎯 Сработал TAKE-PROFIT!")
+            else:
+                if px >= stop_loss:
+                    reason = "stop_loss"
+                    _log("      ⚠️ Сработал STOP-LOSS (short)!")
+                elif px <= take_profit:
+                    reason = "take_profit"
+                    _log("      🎯 Сработал TAKE-PROFIT (short)!")
+
+            if not reason:
+                continue
+
+            if reason == "take_profit":
+                skip = should_skip_take_profit(
+                    position,
+                    current_price=px,
+                    risk_params=risk_params,
+                    now=now,
+                )
+                if skip:
+                    _log(f"      ⏭️ Soft TP пропущен: {skip}")
+                    continue
+
+            side = "BUY" if str(position.get("side", "")).lower() == "sell" else "SELL"
+            costs = TradingCosts(entry_price, float(quantity), is_buy=is_long, **kw)
+            profit_calc = costs.calculate_actual_profit(px)
+            trade_id = position.get("id")
+            intents.append(
+                OrderIntent(
+                    kind="exit_sl_tp",
+                    figi=figi_key or str(figi or ""),
+                    side=side,  # type: ignore[arg-type]
+                    quantity=quantity,
+                    price=px,
+                    reduce_only=True,
+                    reason=reason,
+                    trade_id=int(trade_id) if trade_id is not None else None,
+                    estimated_profit=float(profit_calc.get("net_profit") or 0),
+                    meta={"position_side": position.get("side"), "entry_price": entry_price},
+                )
+            )
+        return intents
+
+    @staticmethod
+    def size_live_strategy_signal(
+        *,
+        side: str,
+        current_price: float,
+        portfolio_value: float,
+        free_funds: float,
+        held_qty: float,
+        risk_params: Dict[str, Any],
+        strategy_params: Optional[Dict[str, Any]] = None,
+    ) -> tuple[Optional[float], Optional[str]]:
+        """Sizing + entry filters formerly embedded in Stage5.
+
+        Returns (quantity, skip_reason). quantity is None when skipped.
+        """
+        strategy_params = strategy_params or {}
+        effective = str(side or "").upper()
+        has_asset = held_qty > 0
+        sell_only_if_has_asset = bool(strategy_params.get("sell_only_if_has_asset", True))
+
+        if effective == "SELL" and sell_only_if_has_asset and not has_asset:
+            return None, "SELL_DOWNGRADED_NO_ASSET"
+
+        if effective == "SELL" and not has_asset:
+            allow_short = bool(risk_params.get("allow_short", False))
+            if not allow_short:
+                return None, "SELL_NO_ASSET_SHORT_FORBIDDEN"
+
+        max_position_percent = risk_params.get("max_position_percent", 10)
+        max_position_rub = risk_params.get("max_position_rub")
+        existing_position_value = held_qty * float(current_price)
+
+        if effective == "SELL":
+            allow_short = bool(risk_params.get("allow_short", False))
+            if has_asset:
+                quantity = float(held_qty) if held_qty > 0 else 0.0
+            elif allow_short:
+                quantity = float(
+                    calculate_position_size(
+                        portfolio_value=portfolio_value,
+                        current_price=current_price,
+                        max_position_percent=max_position_percent,
+                        max_position_rub=max_position_rub,
+                        free_funds=free_funds,
+                        existing_position_value=0.0,
+                    )
+                )
+            else:
+                quantity = 0.0
+        else:
+            quantity = float(
+                calculate_position_size(
+                    portfolio_value=portfolio_value,
+                    current_price=current_price,
+                    max_position_percent=max_position_percent,
+                    max_position_rub=max_position_rub,
+                    free_funds=free_funds,
+                    existing_position_value=existing_position_value,
+                )
+            )
+
+        if quantity <= 0:
+            reason = (
+                "INSUFFICIENT_FUNDS_OR_SIZE_ZERO"
+                if effective == "BUY"
+                else "SELL_QTY_ZERO"
+            )
+            return None, reason
+
+        if effective == "BUY":
+            gross_return = float(risk_params.get("take_profit_percent", 3)) / 100.0
+            broker_commission = float(risk_params.get("broker_commission", 0.0005))
+            exchange_fee = float(risk_params.get("exchange_fee", 0.0001))
+            slippage = float(risk_params.get("slippage_bps", 0.0)) / 10000.0
+            ndfl = float(risk_params.get("ndfl", 0.13))
+            net_return = (
+                gross_return
+                - broker_commission
+                - exchange_fee
+                - slippage
+                - (ndfl * max(gross_return, 0))
+            )
+            if net_return <= 0:
+                return None, f"BUY_UNPROFITABLE net_return={net_return:.4f}"
+
+        return quantity, None
 
     def evaluate_exits(
         self,
@@ -434,4 +678,7 @@ __all__ = [
     "parse_force_close_time",
     "compute_effective_free_funds",
     "risk_budget_max_quantity",
+    "position_age_seconds",
+    "tp_move_bps",
+    "should_skip_take_profit",
 ]

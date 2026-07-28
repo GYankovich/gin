@@ -21,6 +21,28 @@ from app.modules.robots.trading.stages.stage4_positions import Stage4Positions
 from app.modules.robots.trading.stages.stage5_signals import Stage5Signals
 from app.modules.robots.trading.execution import execution_service_for_session
 from app.modules.robots.trading.execution.service import LiveExecutionService
+from app.modules.robots.trading.contracts import OrderIntent
+from app.modules.robots.trading.symbol_guard import SymbolGuard
+from app.modules.robots.trading.account_positions_book import (
+    apply_trade_to_account_positions as apply_trade_to_book,
+    signed_qty as book_signed_qty,
+)
+from app.modules.robots.trading.broker_position_sync import (
+    broker_positions_missing_in_db,
+    configured_leverage,
+    extract_account_position_meta,
+    is_fatal_broker_error,
+    is_synthetic_broker_order_id,
+)
+from app.modules.robots.trading.account_health import (
+    DEFAULT_LIQ_DISTANCE_HALT,
+    DEFAULT_MM_RATE_HALT,
+    DEFAULT_REFRESH_FAIL_HALT,
+    evaluate_equity_drawdown_halt,
+    evaluate_margin_halt,
+    evaluate_refresh_fail_halt,
+)
+from app.modules.robots.trading.brokers.margin import resolve_margin_params
 from app.modules.robots.trading import queries as trading_queries
 from app.modules.robots.trading.grain_seed_orchestrator import (
     evaluate_grain_seed_orchestration,
@@ -39,6 +61,8 @@ from app.modules.robots.trading.costs import resolve_robot_cost_rates, resolve_b
 from app.modules.robots.trading.contracts import ExecutionMode
 from app.modules.robots.live_events import (
     insert_session_log,
+    notify_live_alert,
+    notify_live_prices,
     publish_live_event,
     uses_postgres_live_events,
 )
@@ -120,9 +144,28 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         self.cached_prices: Dict[str, float] = {}
         self.cached_positions: List[Dict] = []
         self.account_positions: Dict[str, float] = {}
+        # figi → {qty, avg_price, mark_price, side} for broker→DB import
+        self.account_position_meta: Dict[str, Dict[str, Any]] = {}
         self._daily_trade_counter: Dict[str, int] = {}
         self._last_trade_by_figi: Dict[str, datetime] = {}
+        # figi -> order_id: заявка отправлена, ждём FILL/CANCEL/REJECT
+        self._in_flight_orders: Dict[str, str] = {}
         self._pending_position_closures: Dict[str, Dict[str, Any]] = {}
+        # order_id -> {figi, side, applied_qty} — book mutated only by cumulative fills
+        self._order_fill_watches: Dict[str, Dict[str, Any]] = {}
+        self._trading_halted: bool = False
+        self._trading_halt_reason: str = ""
+        self._leverage_synced: bool = False
+        # Broker book freshness: fail-closed when refresh fails.
+        self._account_book_fresh: bool = False
+        self._account_refresh_fail_streak: int = 0
+        self._session_start_equity: Optional[float] = None
+        self._session_peak_equity: float = 0.0
+        self._margin_health: Dict[str, Any] = {}
+        # Dirty prices to fan-out to Live UI (same stream as Stage2, throttled).
+        self._live_price_dirty: Dict[str, float] = {}
+        self._live_price_flush_task: Optional[asyncio.Task] = None
+        self._live_price_flush_interval_sec = 0.35
 
         self._grain_seed_orchestration = None
         self._grain_seed_mismatch_logged = False
@@ -241,6 +284,54 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         except Exception:
             pass
 
+    def _queue_live_price_for_ui(self, figi: str, price: float) -> None:
+        """Mark a Stage2 tick for Live UI fan-out (throttled batch NOTIFY)."""
+        key = str(figi or "").strip().upper()
+        try:
+            px = float(price)
+        except Exception:
+            return
+        if not key or not (px == px):
+            return
+        self._live_price_dirty[key] = px
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        task = self._live_price_flush_task
+        if task is None or task.done():
+            self._live_price_flush_task = loop.create_task(self._flush_live_prices_loop())
+
+    async def _flush_live_prices_loop(self) -> None:
+        """Coalesce dirty ticks and push to Live subscribers (~3 Hz)."""
+        try:
+            while self.running and self._live_price_dirty:
+                await asyncio.sleep(self._live_price_flush_interval_sec)
+                batch = self._live_price_dirty
+                self._live_price_dirty = {}
+                if not batch:
+                    continue
+                try:
+                    notify_live_prices(
+                        self.robot_id,
+                        [{"figi": k, "price": v} for k, v in batch.items()],
+                    )
+                except Exception:
+                    pass
+        finally:
+            self._live_price_flush_task = None
+            # Final flush if session is stopping with leftovers.
+            if self._live_price_dirty:
+                batch = self._live_price_dirty
+                self._live_price_dirty = {}
+                try:
+                    notify_live_prices(
+                        self.robot_id,
+                        [{"figi": k, "price": v} for k, v in batch.items()],
+                    )
+                except Exception:
+                    pass
+
     async def _ensure_account_id(self) -> Optional[str]:
         """
         Гарантирует account_id для live-сессии.
@@ -343,27 +434,411 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
             self._write_log(f"⚠️ portfolio_sync enqueue не выполнен: {e}")
 
     async def _refresh_account_positions(self) -> None:
-        """Обновляет фактические позиции счета у брокера для запрета short SELL."""
+        """Seed account_positions from broker (signed: long>0, short<0).
+
+        Broker snapshot is authoritative. Live fills adjust the book between
+        refreshes; place alone does not. On failure the book is marked stale
+        (fail-closed for new orders).
+        """
         if not self.account_id:
             self.account_positions = {}
+            self.account_position_meta = {}
+            self._order_fill_watches.clear()
+            self._account_book_fresh = False
             return
         try:
             portfolio_raw = await self.broker.get_portfolio(self.account_id)
             positions = list((portfolio_raw or {}).get("positions") or [])
-            pos_map: Dict[str, float] = {}
-            for p in positions:
-                qty = self._to_float_qty(p.get("quantity"))
-                if qty <= 0:
-                    continue
-                figi = str(p.get("figi") or "").strip().upper()
-                ticker = str(p.get("ticker") or "").strip().upper()
-                if figi:
-                    pos_map[figi] = qty
-                if ticker:
-                    pos_map[ticker] = qty
-            self.account_positions = pos_map
+            # Keep free_funds in sync for Stage6 leverage gate.
+            if isinstance(portfolio_raw, dict):
+                if not isinstance(self.portfolio, dict):
+                    self.portfolio = {}
+                try:
+                    self.portfolio["free_funds"] = float(portfolio_raw.get("free_funds") or 0)
+                except Exception:
+                    pass
+                total = portfolio_raw.get("total_amount_portfolio")
+                if isinstance(total, dict) and total.get("decimal") is not None:
+                    try:
+                        self.portfolio["total_value"] = float(total.get("decimal") or 0)
+                    except Exception:
+                        pass
+                health = portfolio_raw.get("margin_health")
+                if isinstance(health, dict):
+                    self._margin_health = dict(health)
+                    self.portfolio["margin_health"] = dict(health)
+                    eq = float(health.get("equity") or self.portfolio.get("total_value") or 0)
+                    if eq > 0:
+                        if self._session_start_equity is None:
+                            self._session_start_equity = eq
+                        self._session_peak_equity = max(float(self._session_peak_equity or 0), eq)
+                        self.portfolio["total_value"] = eq
+            meta = extract_account_position_meta(positions)
+            pos_map: Dict[str, float] = {
+                k: float(v.get("qty") or 0.0) for k, v in meta.items()
+            }
+            self.account_positions.clear()
+            self.account_positions.update(pos_map)
+            self.account_position_meta = meta
+            # Broker snapshot wins — drop in-flight fill watches (would double-count).
+            self._order_fill_watches.clear()
+            self._account_book_fresh = True
+            self._account_refresh_fail_streak = 0
+            self._write_log(
+                f"📦 account_positions (broker seed): {len(self.account_positions)} "
+                f"({', '.join(f'{k}:{v:g}' for k, v in sorted(self.account_positions.items())[:12])}"
+                f"{'…' if len(self.account_positions) > 12 else ''})"
+            )
+            mm = float((self._margin_health or {}).get("account_mm_rate") or 0)
+            if mm > 0:
+                self._write_log(f"   📉 accountMMRate={mm:.4f}")
         except Exception as e:
-            self._write_log(f"⚠️ Не удалось обновить позиции счета: {e}")
+            self._account_book_fresh = False
+            self._account_refresh_fail_streak = int(self._account_refresh_fail_streak or 0) + 1
+            self._write_log(
+                f"⚠️ Не удалось обновить позиции счета: {e} "
+                f"(fail_streak={self._account_refresh_fail_streak})"
+            )
+
+    async def _check_live_account_health(self) -> bool:
+        """MMR / equity / refresh-fail gates. Returns False if trading must skip this cycle.
+
+        May set HALT (session stop) on hard breaches.
+        """
+        if self._trading_halted:
+            return False
+
+        risk = self.risk_params if isinstance(self.risk_params, dict) else {}
+        mm_halt = float(risk.get("margin_mm_rate_halt") or DEFAULT_MM_RATE_HALT)
+        liq_halt = float(risk.get("liq_distance_halt") or DEFAULT_LIQ_DISTANCE_HALT)
+        refresh_halt_n = int(risk.get("account_refresh_fail_halt") or DEFAULT_REFRESH_FAIL_HALT)
+
+        halt, reason = evaluate_refresh_fail_halt(
+            self._account_refresh_fail_streak,
+            halt_after=refresh_halt_n,
+        )
+        if halt:
+            await self._halt_trading(reason)
+            return False
+
+        if not self._account_book_fresh:
+            self._write_log(
+                "⏭️ [HEALTH] Книга позиций устарела — цикл без заявок (fail-closed)"
+            )
+            return False
+
+        health = dict(self._margin_health or {})
+        if health.get("min_liq_distance_pct") is None and self.account_position_meta:
+            from app.modules.robots.trading.account_health import min_liq_distance_pct as _min_liq
+
+            rows = [
+                {
+                    "instrument_type": "crypto_perpetual",
+                    "mark_price": meta.get("mark_price"),
+                    "liq_price": meta.get("liq_price"),
+                }
+                for meta in (self.account_position_meta or {}).values()
+            ]
+            dist = _min_liq(rows)
+            if dist is not None:
+                health["min_liq_distance_pct"] = dist
+
+        halt, reason = evaluate_margin_halt(
+            health,
+            mm_rate_halt=mm_halt,
+            liq_distance_halt=liq_halt,
+        )
+        if halt:
+            await self._halt_trading(f"margin_health: {reason}")
+            return False
+
+        eq = float(
+            health.get("equity")
+            or (self.portfolio or {}).get("total_value")
+            or 0
+        )
+        max_dd = float(risk.get("max_drawdown_percent") or 0)
+        halt, reason = evaluate_equity_drawdown_halt(
+            equity=eq,
+            peak_equity=float(self._session_peak_equity or 0),
+            session_start_equity=float(self._session_start_equity or 0),
+            max_drawdown_percent=max_dd,
+        )
+        if halt:
+            await self._halt_trading(f"equity_health: {reason}")
+            return False
+
+        return True
+
+    def register_order_fill_watch(
+        self,
+        *,
+        order_id: str,
+        figi: str,
+        side: str,
+    ) -> None:
+        """Watch an open order; book updates only when cumulative fill increases."""
+        oid = str(order_id or "").strip()
+        figi_key = str(figi or "").upper().strip()
+        side_u = str(side or "").upper().strip()
+        if not oid or not figi_key or side_u not in {"BUY", "SELL"}:
+            return
+        if oid not in self._order_fill_watches:
+            self._order_fill_watches[oid] = {
+                "figi": figi_key,
+                "side": side_u,
+                "applied_qty": 0.0,
+            }
+
+    def apply_fill_to_account_positions(
+        self,
+        *,
+        order_id: str,
+        filled_qty_total: float,
+        figi: Optional[str] = None,
+        side: Optional[str] = None,
+    ) -> float:
+        """Apply incremental fill qty (total cumExec - already applied). Returns new signed book qty."""
+        oid = str(order_id or "").strip()
+        watch = self._order_fill_watches.get(oid)
+        if watch is None:
+            figi_key = str(figi or "").upper().strip()
+            side_u = str(side or "").upper().strip()
+            if not figi_key or side_u not in {"BUY", "SELL"}:
+                return 0.0
+            watch = {"figi": figi_key, "side": side_u, "applied_qty": 0.0}
+            self._order_fill_watches[oid] = watch
+        try:
+            filled = float(filled_qty_total or 0.0)
+        except Exception:
+            filled = 0.0
+        applied = float(watch.get("applied_qty") or 0.0)
+        delta = filled - applied
+        if delta <= 1e-12:
+            return book_signed_qty(self.account_positions, str(watch.get("figi") or ""))
+        new_qty = apply_trade_to_book(
+            self.account_positions,
+            figi=str(watch.get("figi") or ""),
+            side=str(watch.get("side") or ""),
+            quantity=delta,
+        )
+        watch["applied_qty"] = filled
+        self._write_log(
+            f"📦 account_positions FILL order={oid} "
+            f"{watch.get('figi')} {watch.get('side')} +{delta:g} "
+            f"(cum={filled:g}) → {new_qty:g}"
+        )
+        return new_qty
+
+    def clear_order_fill_watch(self, order_id: str) -> None:
+        self._order_fill_watches.pop(str(order_id or "").strip(), None)
+
+    # Backward-compatible aliases (old optimistic API → fill watch / no-op revert).
+    def apply_trade_to_account_positions(
+        self,
+        *,
+        figi: str,
+        side: str,
+        quantity: float,
+        order_id: Optional[str] = None,
+    ) -> float:
+        """Deprecated: prefer register_order_fill_watch + apply_fill_to_account_positions."""
+        if order_id:
+            self.register_order_fill_watch(order_id=str(order_id), figi=figi, side=side)
+            return self.apply_fill_to_account_positions(
+                order_id=str(order_id),
+                filled_qty_total=float(quantity or 0),
+                figi=figi,
+                side=side,
+            )
+        new_qty = apply_trade_to_book(
+            self.account_positions,
+            figi=figi,
+            side=side,
+            quantity=quantity,
+        )
+        self._write_log(
+            f"📦 account_positions[{str(figi).upper()}] → {new_qty:g} "
+            f"({str(side).upper()} {float(quantity or 0):g})"
+        )
+        return new_qty
+
+    def register_optimistic_account_position_delta(
+        self,
+        *,
+        figi: str,
+        side: str,
+        quantity: float,
+        order_id: str,
+    ) -> None:
+        """Deprecated alias: register fill watch (quantity ignored until FILL)."""
+        _ = quantity
+        self.register_order_fill_watch(order_id=order_id, figi=figi, side=side)
+
+    def revert_optimistic_account_position(self, order_id: str) -> None:
+        """Deprecated: reject/cancel no longer reverts book (fills already applied stay)."""
+        self.clear_order_fill_watch(order_id)
+
+    async def _reconcile_open_positions_with_broker(self) -> None:
+        """Закрывает фантомы в БД и импортирует брокерские позиции, которых нет в БД."""
+        if not self.db:
+            return
+        stage4 = Stage4Positions(
+            self.db, self.schema, self.broker, self.account_id,
+            self.robot_id, self._write_log, cost_params=self.cost_params,
+        )
+        kept: List[Dict[str, Any]] = []
+        closed_n = 0
+        for pos in list(self.positions or []):
+            figi_key = str(pos.get("figi") or "").upper().strip()
+            is_long = str(pos.get("side", "")).lower() in {"buy", "long"}
+            broker_qty = float(self.account_positions.get(figi_key, 0.0) or 0.0)
+            has_broker = (broker_qty > 0) if is_long else (broker_qty < 0)
+            if not has_broker:
+                trade_id = pos.get("id")
+                if trade_id is not None:
+                    try:
+                        px = float(
+                            (self.cached_prices or {}).get(figi_key)
+                            or pos.get("entry_price")
+                            or 0
+                        )
+                        await stage4._close_trade(
+                            int(trade_id),
+                            exit_price=px,
+                            reason="broker_sync_flat",
+                            profit=0.0,
+                            profit_percent=0.0,
+                        )
+                        closed_n += 1
+                        self._write_log(
+                            f"   🧹 [SYNC] БД-позиция {figi_key} ({pos.get('side')}) "
+                            f"закрыта: на брокере qty={broker_qty:g}"
+                        )
+                    except Exception as exc:
+                        self._write_log(f"   ⚠️ [SYNC] не удалось закрыть {figi_key} в БД: {exc}")
+                        kept.append(pos)
+                continue
+            # Clamp DB qty to what broker actually holds.
+            live_qty = abs(broker_qty)
+            try:
+                db_qty = float(pos.get("quantity") or 0)
+            except Exception:
+                db_qty = 0.0
+            if live_qty > 0 and db_qty > live_qty + 1e-9:
+                pos = dict(pos)
+                pos["quantity"] = live_qty
+                self._write_log(
+                    f"   🔧 [SYNC] {figi_key}: qty БД {db_qty:g} → брокер {live_qty:g}"
+                )
+            kept.append(pos)
+        self.positions = kept
+        self.cached_positions = kept
+        if closed_n:
+            self._write_log(f"   ✅ [SYNC] Закрыто призрачных позиций в БД: {closed_n}")
+
+        # Import broker-only positions (e.g. naked short after phantom long closed).
+        to_import = broker_positions_missing_in_db(
+            self.account_position_meta or {},
+            self.positions,
+            fallback_prices=self.cached_prices or {},
+            robot_id=int(self.robot_id) if self.robot_id is not None else None,
+        )
+        if not to_import:
+            return
+        try:
+            ids = await self.save_trades(self.db, self.schema, self.robot_id, to_import)
+            for trade, trade_id in zip(to_import, ids):
+                row = {
+                    "id": trade_id,
+                    "figi": trade["figi"],
+                    "side": trade["side"],
+                    "quantity": trade["quantity"],
+                    "entry_price": trade["entry_price"],
+                    "status": "open",
+                }
+                self.positions.append(row)
+                self._write_log(
+                    f"   📥 [SYNC] Импорт с брокера: {trade['figi']} "
+                    f"{trade['side']} qty={trade['quantity']:g} @ {trade['entry_price']:g}"
+                )
+            self.cached_positions = list(self.positions)
+            if ids:
+                self._write_log(f"   ✅ [SYNC] Импортировано позиций с брокера: {len(ids)}")
+        except Exception as exc:
+            self._write_log(f"   ⚠️ [SYNC] импорт позиций с брокера не удался: {exc}")
+
+    async def _halt_trading(self, reason: str) -> None:
+        """Stop the live session after fatal broker errors (110007 / 110017)."""
+        if self._trading_halted:
+            return
+        self._trading_halted = True
+        self._trading_halt_reason = str(reason or "fatal_broker_error")
+        halt_msg = (
+            f"🛑 [HALT] {self._trading_halt_reason} — "
+            f"новые заявки запрещены, сессия останавливается"
+        )
+        self._write_log(halt_msg)
+        # Persist ERROR log + push Live UI alert (type=error → liveIssue banner).
+        alert_text = f"HALT: {self._trading_halt_reason}"
+        try:
+            await self._publish_live_event({
+                "type": "log",
+                "level": "ERROR",
+                "message": halt_msg,
+                "robot_id": self.robot_id,
+                "time": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception:
+            pass
+        try:
+            notify_live_alert(self.robot_id, alert_text)
+        except Exception:
+            pass
+        if self.db:
+            try:
+                query = trading_queries.build_update_robot_status_query().format(schema=self.schema)
+                self.db.execute(
+                    text(query),
+                    {
+                        "status": 2,
+                        "now": datetime.now(timezone.utc),
+                        "robot_id": self.robot_id,
+                    },
+                )
+                self.db.commit()
+            except Exception as exc:
+                self._write_log(f"   ⚠️ [HALT] не удалось обновить status робота: {exc}")
+        self.running = False
+
+    async def _sync_broker_leverage(self) -> None:
+        """Push configured leverage to ByBit when margin is enabled (leverage>0)."""
+        if self._leverage_synced:
+            return
+        if normalize_broker_type(self.broker_type) != "bybit":
+            self._leverage_synced = True
+            return
+        lev = configured_leverage(self.config if isinstance(self.config, dict) else {}, self.risk_params)
+        margin = resolve_margin_params(self.config if isinstance(self.config, dict) else {})
+        if lev <= 0 or not margin.get("enabled"):
+            self._write_log(
+                f"   ℹ️ leverage={lev:g} — маржинальная торговля выключена, setLeverage не вызываем"
+            )
+            self._leverage_synced = True
+            return
+        symbols = [str(x).upper() for x in (self.allowed_figis or []) if str(x).strip()]
+        if not symbols:
+            self._leverage_synced = True
+            return
+        ok = 0
+        for symbol in symbols[:50]:
+            try:
+                await self.broker.set_leverage(symbol, lev)
+                ok += 1
+            except Exception as exc:
+                self._write_log(f"   ⚠️ setLeverage {symbol} x{int(lev)}: {exc}")
+        self._write_log(f"   ✅ setLeverage x{int(lev)} для {ok}/{len(symbols[:50])} символов")
+        self._leverage_synced = True
 
     async def _create_execution_log(self) -> Optional[int]:
         """Создает запись о запуске сессии в БД"""
@@ -549,6 +1024,23 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
             rp.setdefault("trading_hours_start", "00:00")
             rp.setdefault("trading_hours_end", "23:59")
             rp.setdefault("allowed_weekdays", 127)
+            rp.setdefault("min_hold_seconds", 120)
+            rp.setdefault("min_tp_move_bps", 10.0)
+            bybit_cfg = self.config.get("bybit") if isinstance(self.config.get("bybit"), dict) else {}
+            category = str(bybit_cfg.get("instrument_category") or "linear").strip().lower()
+            lev = configured_leverage(self.config, rp)
+            margin = resolve_margin_params(self.config)
+            rp["max_leverage"] = lev
+            rp["instrument_category"] = category
+            rp["margin_enabled"] = bool(margin.get("enabled")) or category == "spot"
+            cu = self.config.get("crypto_universe") if isinstance(self.config.get("crypto_universe"), dict) else {}
+            if cu.get("min_last_price") is not None:
+                try:
+                    rp["min_last_price"] = float(cu.get("min_last_price"))
+                except Exception:
+                    pass
+            # Re-sync leverage if config changed while session is running.
+            self._leverage_synced = False
         else:
             rp.setdefault("enforce_session_hours", True)
         self.risk_params = rp
@@ -562,7 +1054,15 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
 
         self._write_log(f"📋 Конфигурация обновлена:")
         self._write_log(f"   Account ID: {self.account_id}")
-        self._write_log(f"   FIGIs: {self.allowed_figis}")
+        n_cfg = len(self.allowed_figis or [])
+        if n_cfg <= 12:
+            self._write_log(f"   FIGIs (config.allowed): {self.allowed_figis}")
+        else:
+            preview = list(self.allowed_figis or [])[:8]
+            self._write_log(
+                f"   FIGIs (config.allowed): {n_cfg} шт. "
+                f"[{', '.join(str(x) for x in preview)}…]"
+            )
         self._write_log(f"   Strategy: {self.strategy_name}")
         self._write_log(f"   Broker: {self.broker_type}")
         if self.broker_type == "bybit":
@@ -571,6 +1071,10 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
             self._write_log(
                 f"   Издержки: maker {float(maker or br):.6f}, taker {float(taker or br):.6f}, "
                 f"НДФЛ {tx:.4f}"
+            )
+            self._write_log(
+                f"   Плечо: {float(self.risk_params.get('max_leverage') or 0):g} "
+                f"(margin_enabled={bool(self.risk_params.get('margin_enabled'))})"
             )
         else:
             self._write_log(
@@ -990,6 +1494,7 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                                                 "timestamp": datetime.now(timezone.utc).isoformat(),
                                             },
                                         )
+                                        self._queue_live_price_for_ui(str(figi), float(price))
                                         self.stats["prices_received"] += 1
 
                                 elif ev_type == "candle_closed":
@@ -997,6 +1502,7 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                                     price = ev.get("price")
                                     if price is not None:
                                         self.cached_prices[figi] = float(price)
+                                        self._queue_live_price_for_ui(str(figi), float(price))
 
                                     candle_log = self._format_ws_candle_log(figi, candle)
                                     if candle_log:
@@ -1071,9 +1577,37 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
     # Торговый поток
     # ============================================================
 
+    def _is_robot_enabled_in_db(self) -> bool:
+        """True while robots.status == 1. Missing row / DB error → keep running (fail-open)."""
+        if not self.db or not self.robot_id:
+            return True
+        try:
+            query = trading_queries.build_get_robot_status_query().format(schema=self.schema)
+            row = self.db.execute(text(query), {"robot_id": self.robot_id}).first()
+            if not row:
+                return False
+            return int(row[0] or 0) == 1
+        except Exception as exc:
+            self._write_log(f"   ⚠️ не удалось прочитать status робота: {exc}")
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return True
+
+    def _request_stop_from_db_signal(self, reason: str) -> None:
+        if not self.running:
+            return
+        self._write_log(f"🛑 [TRADE] Стоп по сигналу БД: {reason}")
+        self.running = False
+
     async def _run_single_trading_cycle(self, cycle_count: int) -> None:
         """Один торговый цикл — делегат в trading.core (BRD-ARCH-04)."""
         from app.modules.robots.trading.core.trading_core import run_single_trading_cycle
+
+        if not self._is_robot_enabled_in_db():
+            self._request_stop_from_db_signal("robots.status != 1 (выключен)")
+            return
 
         await run_single_trading_cycle(self, cycle_count)
 
@@ -1087,8 +1621,14 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
 
         while self.running:
             try:
+                if not self._is_robot_enabled_in_db():
+                    self._request_stop_from_db_signal("robots.status != 1 (выключен)")
+                    break
+
                 cycle_count += 1
                 await self._run_single_trading_cycle(cycle_count)
+                if not self.running:
+                    break
                 if self._cycle_id:
                     api_summary = self._format_api_calls_summary(self._cycle_api_counts)
                     self._write_log(f"📡 [TRADE] {api_summary}")
@@ -1169,7 +1709,10 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                 break
 
         order_ids.extend(await self._get_open_order_ids())
-        dedup_order_ids = list(dict.fromkeys([oid for oid in order_ids if oid]))
+        dedup_order_ids = list(dict.fromkeys([
+            oid for oid in order_ids
+            if oid and not is_synthetic_broker_order_id(oid)
+        ]))
         if not dedup_order_ids:
             return
 
@@ -1211,10 +1754,98 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                 "time": datetime.now(timezone.utc).isoformat(),
             })
 
+            if execution_status in {
+                "EXECUTION_REPORT_STATUS_FILL",
+                "EXECUTION_REPORT_STATUS_PARTIALLYFILL",
+            }:
+                side_hint = state.get("side")
+                figi_hint = state.get("figi") or state.get("symbol")
+                # Normalize ByBit side Buy/Sell → BUY/SELL
+                if side_hint:
+                    s = str(side_hint).upper()
+                    if s in {"BUY", "ORDER_DIRECTION_BUY"}:
+                        side_hint = "BUY"
+                    elif s in {"SELL", "ORDER_DIRECTION_SELL"}:
+                        side_hint = "SELL"
+                filled_total = float(state.get("lots_executed") or 0)
+                # First poll without a place-time watch (e.g. after broker refresh):
+                # seed watermark to current cumExec so we do not double-apply into seeded book.
+                oid_s = str(order_id)
+                if oid_s not in self._order_fill_watches:
+                    if side_hint and figi_hint:
+                        self.register_order_fill_watch(
+                            order_id=oid_s,
+                            figi=str(figi_hint),
+                            side=str(side_hint),
+                        )
+                        self._order_fill_watches[oid_s]["applied_qty"] = float(filled_total or 0)
+                elif filled_total > 0:
+                    self.apply_fill_to_account_positions(
+                        order_id=oid_s,
+                        filled_qty_total=filled_total,
+                        figi=str(figi_hint) if figi_hint else None,
+                        side=str(side_hint) if side_hint else None,
+                    )
+
             if execution_status == "EXECUTION_REPORT_STATUS_FILL":
                 pending_close = self._pending_position_closures.pop(order_id, None)
                 if pending_close:
                     await self._finalize_position_close(pending_close)
+                self.clear_order_fill_watch(str(order_id))
+            elif execution_status in {
+                "EXECUTION_REPORT_STATUS_CANCELLED",
+                "EXECUTION_REPORT_STATUS_REJECTED",
+            }:
+                # Unfilled remainder never touched the book; clear watch only.
+                self.clear_order_fill_watch(str(order_id))
+                self._pending_position_closures.pop(order_id, None)
+            if execution_status in {
+                "EXECUTION_REPORT_STATUS_FILL",
+                "EXECUTION_REPORT_STATUS_CANCELLED",
+                "EXECUTION_REPORT_STATUS_REJECTED",
+            }:
+                self._clear_in_flight_order(order_id=str(order_id))
+
+    def _clear_in_flight_order(self, *, order_id: Optional[str] = None, figi: Optional[str] = None) -> None:
+        if order_id:
+            oid = str(order_id)
+            for key in [k for k, v in self._in_flight_orders.items() if str(v) == oid]:
+                self._in_flight_orders.pop(key, None)
+        if figi:
+            self._in_flight_orders.pop(str(figi).upper(), None)
+
+    def _hydrate_in_flight_orders_from_db(self) -> None:
+        """Восстановить незакрытые заявки после рестарта сессии."""
+        if not self.db:
+            return
+        query = f"""
+            SELECT figi, order_id
+            FROM {self.schema}.robot_trades
+            WHERE robot_id = :robot_id
+              AND order_id IS NOT NULL
+              AND status IN ('open', 'pending', 'partial')
+            ORDER BY created_at DESC
+            LIMIT 200
+        """
+        try:
+            rows = self.db.execute(text(query), {"robot_id": self.robot_id}).fetchall()
+            restored: Dict[str, str] = {}
+            for row in rows or []:
+                figi = str(row[0] or "").upper().strip()
+                oid = str(row[1] or "").strip()
+                # Position seeds are not exchange orders — never block Stage5/6.
+                if is_synthetic_broker_order_id(oid):
+                    continue
+                if figi and oid and figi not in restored:
+                    restored[figi] = oid
+            self._in_flight_orders = restored
+            if restored:
+                self._write_log(
+                    f"⏳ [TRADE] Заявки в исполнении: {len(restored)} — {', '.join(sorted(restored.keys())[:12])}"
+                    + ("…" if len(restored) > 12 else "")
+                )
+        except Exception as exc:
+            self._write_log(f"⚠️ [TRADE] Не удалось восстановить in-flight заявки: {exc}")
 
     async def _get_open_order_ids(self) -> List[str]:
         if not self.db:
@@ -1230,7 +1861,10 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         """
         try:
             rows = self.db.execute(text(query), {"robot_id": self.robot_id}).fetchall()
-            return [r[0] for r in rows if r and r[0]]
+            return [
+                r[0] for r in rows
+                if r and r[0] and not is_synthetic_broker_order_id(r[0])
+            ]
         except Exception:
             return []
 
@@ -1281,7 +1915,9 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                 raise Exception("account_id не указан в конфигурации")
             await self._enqueue_portfolio_sync()
             await self._refresh_account_positions()
+            await self._sync_broker_leverage()
             self._ensure_allowed_instruments_or_raise()
+            self._hydrate_in_flight_orders_from_db()
 
             await indicator_service.register_robot(self.robot_id, self.broker, self.allowed_figis, self.strategy_params)
             await indicator_service.bootstrap_candles_at_startup(
@@ -1512,6 +2148,23 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
 
             self._grain_seed_flatten_sent.add(figi)
 
+            # Register for FILL-based book update (no optimistic patch on place).
+            if order_id:
+                self.register_order_fill_watch(
+                    order_id=str(order_id),
+                    figi=figi,
+                    side=close_side.upper(),
+                )
+                await self._put_to_queue_with_limit(
+                    self.order_queue,
+                    {
+                        "type": "order_status",
+                        "order_id": order_id,
+                        "status": order_status,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    },
+                )
+
             is_buy_close = close_side == "buy"
             costs_close = TradingCosts(px, qty, is_buy=is_buy_close, **cost_kw)
             commission = costs_close.calculate_commission()
@@ -1552,27 +2205,46 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
 
         return trades_out, closures
 
-    async def _check_stop_loss(self, prices: Dict[str, float]) -> List[Dict]:
-        """Проверяет стоп-лоссы и тейк-профиты"""
+    async def _plan_exit_intents(self, prices: Dict[str, float]) -> List[OrderIntent]:
+        """Stage4 decision-only: SL/TP → OrderIntent (no post_order)."""
         if not self.db:
             self._write_log("⚠️ [TRADE] Нет БД для проверки стоп-лоссов")
             return []
 
-        self._write_log("🔴 [TRADE] Проверка стоп-лоссов...")
+        self._write_log("🔴 [TRADE] Планирование SL/TP exits...")
         try:
+            guard = self.symbol_guard()
             stage4 = Stage4Positions(
                 self.db, self.schema, self.broker, self.account_id,
                 self.robot_id, self._write_log, cost_params=self.cost_params,
             )
-            closed = await stage4.check_stop_loss_take_profit(
-                self.positions or [], prices, self.risk_params
+            intents = await stage4.plan_stop_loss_take_profit(
+                self.positions or [],
+                prices,
+                self.risk_params,
+                pending_close_figis=guard.blocked_figis(),
+                guard=guard,
+                account_positions=self.account_positions,
             )
-            if closed:
-                self._write_log(f"   Закрыто позиций: {len(closed)}")
-            return closed
+            if intents:
+                self._write_log(f"   Exit intents: {len(intents)}")
+            return intents
         except Exception as e:
-            self._write_log(f"   ❌ Ошибка проверки стоп-лоссов: {e}")
+            self._write_log(f"   ❌ Ошибка планирования стоп-лоссов: {e}")
             return []
+
+    async def _check_stop_loss(self, prices: Dict[str, float]) -> List[OrderIntent]:
+        """Backward-compatible alias for _plan_exit_intents."""
+        return await self._plan_exit_intents(prices)
+
+    def symbol_guard(self) -> SymbolGuard:
+        return SymbolGuard(
+            in_flight_orders=self._in_flight_orders,
+            pending_position_closures=self._pending_position_closures,
+            broker=self.broker,
+            account_id=self.account_id or "",
+            log_func=self._write_log,
+        )
 
     async def _apply_live_funding_if_due(self, prices: Dict[str, float]) -> None:
         """ByBit funding accrual for open positions (aligns live with backtest)."""
@@ -1691,6 +2363,69 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         daily_loss_pct = (-daily_pnl / total_value) * 100.0 if daily_pnl < 0 else 0.0
         return daily_loss_pct >= max_daily_loss
 
+    async def _resolve_stage5_figis(self) -> List[str]:
+        """Stage5 universe = accepted today ∪ open positions (not full config.allowed_*)."""
+        from app.modules.robots.trading.brokers.routing import (
+            filter_allowed_instruments,
+            normalize_broker_type,
+        )
+        from app.modules.robots.trading.stage5_universe import (
+            collect_open_position_symbols,
+            load_today_accepted_symbols,
+            merge_stage5_figis,
+        )
+
+        broker = normalize_broker_type(self.broker_type or "tinvest")
+        is_crypto = broker == "bybit"
+        accepted: List[str] = []
+        if self.db and self.robot_id:
+            try:
+                im = (
+                    self.config.get("instrument_map")
+                    if isinstance(self.config, dict) and isinstance(self.config.get("instrument_map"), dict)
+                    else {}
+                )
+                figi_by_ticker = (
+                    im.get("figi_by_ticker") if isinstance(im.get("figi_by_ticker"), dict) else {}
+                )
+                accepted = load_today_accepted_symbols(
+                    self.db,
+                    self.schema,
+                    int(self.robot_id),
+                    is_crypto=is_crypto,
+                    figi_by_ticker=figi_by_ticker,
+                )
+            except Exception as exc:
+                self._write_log(f"   ⚠️ [STAGE5] не удалось загрузить accepted сегодня: {exc}")
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+
+        open_syms = collect_open_position_symbols(
+            self.positions,
+            self.account_position_meta,
+        )
+        merged = merge_stage5_figis(accepted, open_syms)
+        filtered, _dropped = filter_allowed_instruments(broker, merged)
+        config_n = len(self.allowed_figis or [])
+        self._write_log(
+            f"🎯 [STAGE5] universe={len(filtered)} "
+            f"(accepted_today={len(accepted)}, positions={len(open_syms)}, "
+            f"config_allowed={config_n})"
+        )
+        if filtered:
+            preview = ", ".join(filtered[:12])
+            self._write_log(
+                f"   STAGE5 symbols: {preview}{'…' if len(filtered) > 12 else ''}"
+            )
+        elif config_n:
+            self._write_log(
+                "   ⚠️ [STAGE5] пустой периметр (нет accepted сегодня и позиций) — "
+                "сигналы не считаем по config.allowed_*"
+            )
+        return filtered
+
     async def _generate_signals(self, prices: Dict[str, float]) -> List[Dict]:
         """Генерирует сигналы через Stage5Signals"""
         self._write_log("🎯 [TRADE] Генерация сигналов...")
@@ -1701,8 +2436,12 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         async def log_api_call_wrapper(**kwargs):
             await self._log_api_call(**kwargs)
 
+        figis = await self._resolve_stage5_figis()
+        if not figis:
+            return []
+
         signals = await stage5.generate_signals(
-            figis=self.allowed_figis,
+            figis=figis,
             strategy_name=self.strategy_name,
             strategy_params=self.strategy_params,
             risk_params=self.risk_params,
@@ -1714,23 +2453,33 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
             current_prices=prices,
             log_api_call_func=log_api_call_wrapper,
             token_id=self.token_id,
-            user_id=self.user_id
+            user_id=self.user_id,
+            pending_order_figis=self.symbol_guard().blocked_figis(),
         )
 
         return signals
 
-    async def _execute_orders(self, signals: List[Dict]) -> List[Dict]:
-        """Выставляет заявки"""
-        if not signals:
+    async def _execute_intents(self, intents: List[OrderIntent]) -> List[Dict]:
+        """Единая точка place: LiveExecutionService.submit_intents."""
+        if not intents:
             return []
 
         if not self.db:
             self._write_log("⚠️ [TRADE] Нет БД для сохранения заявок")
             return []
 
-        self._write_log("📊 [TRADE] Выставление заявок...")
+        if self._trading_halted:
+            self._write_log(
+                f"🛑 [TRADE] HALT активен ({self._trading_halt_reason}) — заявки не выставляем"
+            )
+            return []
+
+        self._write_log(f"📊 [TRADE] Выставление заявок (intents={len(intents)})...")
+        risk_params = dict(self.risk_params or {})
+        if isinstance(self.portfolio, dict):
+            risk_params["free_funds"] = float(self.portfolio.get("free_funds", 0) or 0)
         execution = execution_service_for_session(self)
-        trades = await execution.submit_signals(signals, risk_params=self.risk_params)
+        trades = await execution.submit_intents(intents, risk_params=risk_params)
         execution.sync_counters_from_stage()
         skipped = [t for t in trades if t.get("status") == "skipped"]
         if skipped:
@@ -1741,15 +2490,35 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
             self._write_log(f"⚠️ [TRADE] Пропущено сделок: {len(skipped)}; причины: {reasons}")
 
         for trade in trades:
-            if trade.get("order_id"):
+            if trade.get("fatal_broker_error") or is_fatal_broker_error(trade.get("error")):
+                await self._halt_trading(
+                    f"fatal broker error on {trade.get('figi')}: {trade.get('error')}"
+                )
+                break
+            oid = trade.get("order_id")
+            status = str(trade.get("status") or "")
+            if oid and status not in {"skipped", "failed"}:
+                # Place does not mutate book — watch fills instead.
+                self.register_order_fill_watch(
+                    order_id=str(oid),
+                    figi=str(trade.get("figi") or ""),
+                    side=str(trade.get("side") or "").upper(),
+                )
                 await self._put_to_queue_with_limit(
                     self.order_queue,
                     {
                         "type": "order_status",
                         "order_id": trade["order_id"],
                         "status": trade.get("execution_status", trade["status"]),
-                        "timestamp": datetime.now(timezone.utc).isoformat()
-                    }
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    },
                 )
 
         return trades
+
+    async def _execute_orders(self, signals: List[Dict]) -> List[Dict]:
+        """Выставляет заявки из strategy signals (через OrderIntent)."""
+        if not signals:
+            return []
+        intents = [OrderIntent.from_strategy_signal(s) for s in signals]
+        return await self._execute_intents(intents)

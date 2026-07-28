@@ -32,11 +32,17 @@ class _FakeDB:
     def __init__(self, rows_by_table: dict[str, list]):
         self.rows_by_table = rows_by_table
         self.executed: list[tuple[str, dict]] = []
+        self.commits = 0
+        self.rollbacks = 0
 
     def execute(self, stmt, params=None):
         sql = str(stmt)
         self.executed.append((sql, params or {}))
         if "bybit_funding_history" in sql and "INSERT" in sql.upper():
+            return _FakeResult([])
+        if "bybit_open_interest_history" in sql and "INSERT" in sql.upper():
+            return _FakeResult([])
+        if "bybit_lsr_history" in sql and "INSERT" in sql.upper():
             return _FakeResult([])
         if "bybit_funding_history" in sql:
             return _FakeResult(self.rows_by_table.get("funding", []))
@@ -45,6 +51,12 @@ class _FakeDB:
         if "bybit_lsr_history" in sql:
             return _FakeResult(self.rows_by_table.get("lsr", []))
         return _FakeResult([])
+
+    def commit(self):
+        self.commits += 1
+
+    def rollback(self):
+        self.rollbacks += 1
 
 
 def test_bulk_load_oi_and_lsr_respect_ttl():
@@ -185,8 +197,44 @@ def test_enrich_derivative_metrics_api_on_cache_miss():
     assert stats["oi_api"] == 1
     assert stats["lsr_api"] == 1
     assert stats["funding_cache_hits"] == 0
+    assert stats["cache_commits"] == 1
+    assert db.commits == 1
     client.get_funding_history.assert_awaited()
     client.get_open_interest.assert_awaited()
     client.get_account_ratio.assert_awaited()
     assert row.open_interest_usd == pytest.approx(1000.0)  # 10 * 100
     assert any("INSERT" in sql.upper() and "bybit_funding_history" in sql for sql, _ in db.executed)
+    assert any("INSERT" in sql.upper() and "bybit_open_interest_history" in sql for sql, _ in db.executed)
+    assert any("INSERT" in sql.upper() and "bybit_lsr_history" in sql for sql, _ in db.executed)
+
+
+def test_enrich_cache_hit_does_not_commit():
+    now = datetime.now(timezone.utc)
+    db = _FakeDB(
+        {
+            "funding": [("ETHUSDT", 0.0001, now - timedelta(hours=1))],
+            "oi": [("ETHUSDT", 5_000_000.0)],
+            "lsr": [("ETHUSDT", 0.6, 0.4)],
+        }
+    )
+    client = MagicMock()
+    row = ScreeningRow(
+        symbol="ETHUSDT",
+        turnover24h=1e8,
+        lastPrice=3000.0,
+        spreadPercent=0.06,
+        score=1.0,
+    )
+    filters = CryptoUniverseFilters(
+        min_funding_rate=-0.001,
+        max_funding_rate=0.001,
+        min_open_interest_usd=1.0,
+        min_lsr=0.1,
+        max_lsr=5.0,
+        funding_lookback_hours=8,
+    )
+    stats = asyncio.run(
+        enrich_derivative_metrics_live(client, [row], filters=filters, db=db)
+    )
+    assert stats["cache_commits"] == 0
+    assert db.commits == 0

@@ -1,7 +1,7 @@
 ///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiToast [1]
 ///@ Исходный модуль `frontend/src/components/ui/Toast.tsx` — автоматическая разметка для Obsidian Source Scanner.
 
-import React, { createContext, useContext, useState, useCallback } from 'react'
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react'
 
 type ToastType = 'success' | 'error' | 'warning' | 'info'
 
@@ -30,8 +30,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), durationMs)
     }, [])
 
+    const value = useMemo(() => ({ show }), [show])
+
     return (
-        <Ctx.Provider value={{ show }}>
+        <Ctx.Provider value={value}>
             {children}
             <div className="toast-container">
                 {toasts.map(t => (

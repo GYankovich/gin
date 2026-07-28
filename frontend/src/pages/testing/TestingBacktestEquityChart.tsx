@@ -46,8 +46,8 @@ export function TestingBacktestEquityChart({
     const chartHeight = useAnalysisChartHeight()
 
     const onChartReady = useCallback(
-        (chart: IChartApi, containerEl?: HTMLDivElement | null) => {
-            if (!result?.equity_curve?.length) return
+        (chart: IChartApi | null, containerEl?: HTMLDivElement | null) => {
+            if (!chart || !result?.equity_curve?.length) return
             const strategyInterval = normalizeSignalInterval(
                 interval || (selectedRobot?.config as { strategy_params?: { interval?: string } })?.strategy_params?.interval || '',
             )

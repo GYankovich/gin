@@ -180,7 +180,7 @@ flowchart LR
 | # | Задача | Target ref | Файлы / действия | DoD |
 |---|--------|------------|------------------|-----|
 | R1.1 | Live entry через orchestrator | §3.1, §9.1 | Добавить `TradingOrchestrator.run_live_session()`; `TradingScheduler` вызывает orchestrator вместо прямого `create_trading_session` | Live path документирован; один entry point |
-| R1.2 | TradingCore меньше связан с session | §4 | Вынести signal/order hooks в injectable deps (strategy, risk, execution) | `run_cycle` тестируется без полного mock session |
+| R1.2 | TradingCore меньше связан с session | §4 | Вынести signal/order hooks в injectable deps (strategy, risk, execution). **Частично:** OrderIntent pipeline — см. [STAGE4-6-ORDER-INTENT.md](STAGE4-6-ORDER-INTENT.md) | `run_cycle` тестируется без полного mock session |
 | R1.3 | Консолидация execution | §4.3 | Deprecate прямой `LiveExecution` в prod; единый `execution_service_for_session()` | Нет prod-импортов `execution/live.py` |
 | R1.4 | Удалить legacy unified_runner из prod | §11 | Grep + redirect оставшихся вызовов на orchestrator/session | `unified_runner` только в тестах / помечен deprecated |
 | R1.5 | `broker_type` immutable | §15 | `POST /update`, `POST /config` → 409 при смене `broker_type` | pytest + OpenAPI error model |

@@ -67,14 +67,17 @@ def test_enrich_volatility_uses_cache_skips_api(monkeypatch):
     )
     client = MagicMock()
     client.get_kline = AsyncMock()
+    db = MagicMock()
     row = ScreeningRow(symbol="ETHUSDT", turnover24h=1e8, lastPrice=3000.0, score=1.0)
     filters = CryptoUniverseFilters(min_rvol=1.5, min_atr_percent=1.0, max_atr_percent=15.0)
     stats = asyncio.run(
-        enrich_volatility_metrics_live(client, [row], filters=filters, db=MagicMock())
+        enrich_volatility_metrics_live(client, [row], filters=filters, db=db)
     )
     assert stats["cache_hits"] == 1
     assert stats["api"] == 0
+    assert stats["cache_commits"] == 0
     client.get_kline.assert_not_called()
+    db.commit.assert_not_called()
     assert row.rvol == pytest.approx(2.2)
     assert row.atr_percent == pytest.approx(3.5)
 
@@ -85,23 +88,43 @@ def test_enrich_volatility_api_when_cache_incomplete(monkeypatch):
         "app.modules.robots.crypto_universe._bulk_load_volatility_from_candles_cache",
         lambda *a, **k: {"SOLUSDT": (None, 4.0)},
     )
+    upsert_calls: list[dict] = []
+
+    def _fake_upsert(db, *, symbol, interval_label, rows):
+        upsert_calls.append(
+            {"symbol": symbol, "interval_label": interval_label, "rows": list(rows)}
+        )
+        return len(rows)
+
+    monkeypatch.setattr(
+        "app.modules.robots.trading.data.providers.bybit_market._upsert_bybit_candles",
+        _fake_upsert,
+    )
     client = MagicMock()
     client.get_kline = AsyncMock(
         return_value={
             "result": {
                 "list": [
-                    # ByBit order: newest first; code reverses
+                    # ByBit order: newest first; code reverses for metrics
                     [str(1_700_000_000_000 + i * 86_400_000), "1", "3", "0.5", "2", str(100 + i)]
                     for i in range(20)
                 ]
             }
         }
     )
+    db = MagicMock()
     row = ScreeningRow(symbol="SOLUSDT", turnover24h=1e8, lastPrice=100.0, score=1.0)
     filters = CryptoUniverseFilters(min_rvol=1.5, min_atr_percent=1.0, atr_period=14, lookback_days=14)
     stats = asyncio.run(
-        enrich_volatility_metrics_live(client, [row], filters=filters, db=MagicMock())
+        enrich_volatility_metrics_live(client, [row], filters=filters, db=db)
     )
     assert stats["api"] == 1
     assert stats["cache_hits"] == 0
+    assert stats["kline_rows_written"] == 20
+    assert stats["cache_commits"] == 1
     client.get_kline.assert_awaited()
+    db.commit.assert_called()
+    assert len(upsert_calls) == 1
+    assert upsert_calls[0]["symbol"] == "SOLUSDT"
+    assert upsert_calls[0]["interval_label"] == "D1"
+    assert len(upsert_calls[0]["rows"]) == 20

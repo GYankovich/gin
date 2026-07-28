@@ -94,11 +94,40 @@ async def handle_corporate_actions_dividend_etl(_payload: Dict[str, Any]) -> Non
         db.close()
 
 
+async def handle_crypto_screening(payload: Dict[str, Any]) -> None:
+    """Live/settings crypto universe rebuild (ByBit filters → allowed_symbols)."""
+    from app.core.database import SessionLocal
+    from app.modules.robots.service import robot_service
+
+    robot_id = int(payload["robot_id"])
+    user_id = int(payload["user_id"])
+    force = bool(payload.get("force", True))
+    db = SessionLocal()
+    try:
+        await robot_service.run_crypto_screening_job(
+            db, robot_id=robot_id, user_id=user_id, force=force,
+        )
+        try:
+            db.commit()
+        except Exception:
+            pass
+        logger.info("crypto_screening done robot_id=%s", robot_id)
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        db.close()
+
+
 JOB_HANDLERS: Dict[str, JobHandler] = {
     "portfolio_sync": handle_portfolio_sync,
     "live_trading_session": handle_live_trading_session,
     "history_backtest": handle_history_backtest,
     "crypto_screening_prefetch": handle_crypto_screening_prefetch,
+    "crypto_screening": handle_crypto_screening,
     "corporate_actions_dividend_etl": handle_corporate_actions_dividend_etl,
 }
 

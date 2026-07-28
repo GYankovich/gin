@@ -99,10 +99,103 @@ export const GRAIN_SEED_STRATEGY_PARAMS_PRESET = {
     max_position_size_pct: 20.0,
     force_close_time_msk: '18:45',
     force_market_flatten: true,
+    sell_only_if_has_asset: true,
     interval: 'CANDLE_INTERVAL_5_MIN',
     candle_days: 14,
     signal_profile: 'legacy',
 } as const
+
+/**
+ * Именованные пресеты торговой логики grain_seed (фильтры входа + триггеры).
+ * `balanced` — дефолт осторожный; `active_trading` — больше сигналов (в т.ч. SELL/short)
+ * по live-логам crypto 5m (ATR%~0.2–0.6, gap часто >2.5%).
+ */
+export type GrainSeedTradingPresetId = 'balanced' | 'active_trading'
+
+export const GRAIN_SEED_TRADING_PRESET_META: Record<
+    GrainSeedTradingPresetId,
+    { label: string; shortLabel: string; hint: string }
+> = {
+    balanced: {
+        label: 'Сбалансированный',
+        shortLabel: 'Баланс',
+        hint: 'Осторожные фильтры гэпа/ATR, SELL только при наличии позиции',
+    },
+    active_trading: {
+        label: 'Активные торги',
+        shortLabel: 'Активн.',
+        hint: 'Мягче ATR/gap для crypto 5m, чаще BB/MA, разрешены SELL без позиции (short)',
+    },
+}
+
+export const GRAIN_SEED_TRADING_PRESET_ORDER: GrainSeedTradingPresetId[] = [
+    'balanced',
+    'active_trading',
+]
+
+/** Патч strategy_params поверх текущего конфига (не затирает interval/candle_days). */
+export const GRAIN_SEED_TRADING_PRESETS: Record<
+    GrainSeedTradingPresetId,
+    Partial<Record<string, unknown>>
+> = {
+    balanced: {
+        gap_filter_pct: 2.5,
+        spread_limit_pct: 0.15,
+        spread_proxy_multiplier: 8.0,
+        atr_period: 14,
+        atr_min_pct: 1.5,
+        adx_period: 14,
+        adx_threshold: 22.0,
+        ma_fast_period: 5,
+        ma_slow_period: 20,
+        bb_period: 20,
+        bb_stddev: 2.0,
+        min_profit_target_pct: 0.35,
+        sell_only_if_has_asset: true,
+        signal_profile: 'legacy',
+    },
+    active_trading: {
+        gap_filter_pct: 7.0,
+        spread_limit_pct: 0.15,
+        spread_proxy_multiplier: 8.0,
+        atr_period: 14,
+        atr_min_pct: 0.3,
+        adx_period: 14,
+        adx_threshold: 18.0,
+        ma_fast_period: 5,
+        ma_slow_period: 15,
+        bb_period: 20,
+        bb_stddev: 1.7,
+        min_profit_target_pct: 0.35,
+        sell_only_if_has_asset: false,
+        signal_profile: 'legacy',
+    },
+}
+
+export function applyGrainSeedTradingPreset(
+    current: Record<string, unknown>,
+    presetId: GrainSeedTradingPresetId,
+): Record<string, unknown> {
+    const patch = GRAIN_SEED_TRADING_PRESETS[presetId]
+    return { ...current, ...patch }
+}
+
+export function detectGrainSeedTradingPreset(
+    params: Record<string, unknown>,
+): GrainSeedTradingPresetId | null {
+    for (const id of GRAIN_SEED_TRADING_PRESET_ORDER) {
+        const patch = GRAIN_SEED_TRADING_PRESETS[id]
+        const match = Object.entries(patch).every(([key, expected]) => {
+            const actual = params[key]
+            if (typeof expected === 'number' && typeof actual === 'number') {
+                return Math.abs(actual - expected) < 1e-9
+            }
+            return actual === expected
+        })
+        if (match) return id
+    }
+    return null
+}
 
 /** Поля grain_seed, которые на MOEX не показываем в П3 (уже в П1 / П2 / риск). */
 export const GRAIN_SEED_EXCLUDED_P3_FIELD_KEYS = [
@@ -119,7 +212,11 @@ export const GRAIN_SEED_EXCLUDED_P3_FIELD_KEYS = [
 /** MOEX-only: принудительное закрытие сессии — не для ByBit. */
 export const GRAIN_SEED_MOEX_ONLY_FIELD_KEYS = ['force_close_time_msk', 'force_market_flatten'] as const
 
-/** Crypto П3: скрываем только MOEX EOD; фильтры ATR/спред/ADX остаются редактируемыми. */
+/**
+ * Crypto П3: скрываем только MOEX EOD.
+ * `atr_min_pct` оставляем — это gate 5m-бара на входе в сигнал (не путать с
+ * `crypto_universe.min_atr_percent` на скрининге пула).
+ */
 export const GRAIN_SEED_CRYPTO_P3_EXCLUDE_FIELD_KEYS = [...GRAIN_SEED_MOEX_ONLY_FIELD_KEYS] as const
 
 const GRAIN_SEED_META: StrategyMeta = {
@@ -154,7 +251,8 @@ const GRAIN_SEED_META: StrategyMeta = {
             min: 0,
             step: 0.05,
             group: 'filters',
-            description: 'Базовый порог спреда. На crypto сравнивается с proxy (HL) × множитель.',
+            description:
+                'На входе в сделку: базовый порог спреда. На crypto сравнивается с proxy (HL) × множитель. Отбор в пул — max_spread_bps на «Поиске монет».',
         },
         {
             key: 'spread_proxy_multiplier',
@@ -163,7 +261,7 @@ const GRAIN_SEED_META: StrategyMeta = {
             min: 1,
             step: 0.5,
             group: 'filters',
-            description: 'Потолок = лимит спреда × множитель. Типично 6–10 для ByBit (HL≈1–2%).',
+            description: 'На входе в сделку: потолок = лимит спреда × множитель. Типично 6–10 для ByBit (HL≈1–2%).',
         },
         {
             key: 'atr_period',
@@ -171,7 +269,7 @@ const GRAIN_SEED_META: StrategyMeta = {
             kind: 'integer',
             min: 2,
             group: 'filters',
-            description: 'Окно ATR для оценки волатильности.',
+            description: 'На входе в сделку: окно ATR для gate волатильности бара сигнала.',
         },
         {
             key: 'atr_min_pct',
@@ -180,7 +278,8 @@ const GRAIN_SEED_META: StrategyMeta = {
             min: 0,
             step: 0.1,
             group: 'filters',
-            description: 'Минимальная волатильность. На quiet crypto часто нужно 0.3–0.6 вместо 1.5.',
+            description:
+                'На входе в сделку: мин. волатильность бара. Отбор монет в пул — min_atr_percent на «Поиске монет».',
         },
         {
             key: 'adx_period',
@@ -220,6 +319,14 @@ const GRAIN_SEED_META: StrategyMeta = {
                 { value: 'legacy', label: 'legacy — тренд/флэт, гэп/ATR/ADX' },
                 { value: 'tz_signals_v1', label: 'tz_signals_v1 (BUY + SL/TP в движке)' },
             ],
+        },
+        {
+            key: 'sell_only_if_has_asset',
+            label: 'SELL только при наличии позиции',
+            kind: 'boolean',
+            group: 'signals',
+            description:
+                'Если выкл. и risk.allow_short=true — SELL без позиции открывает short. Нужно для активных торгов.',
         },
         {
             key: 'min_profit_target_pct',

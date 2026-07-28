@@ -68,8 +68,16 @@ class BrokerFacade(ABC):
         price: float,
         direction: str,
         account_id: str,
+        *,
+        reduce_only: bool = False,
+        qty_round_up: bool = False,
     ) -> Dict[str, Any]:
         raise NotImplementedError
+
+    async def set_leverage(self, figi: str, leverage: int | float) -> Dict[str, Any]:
+        """Optional: sync broker leverage. Default no-op for non-ByBit facades."""
+        _ = (figi, leverage)
+        return {}
 
     @abstractmethod
     async def get_order_state(self, account_id: str, order_id: str) -> Dict[str, Any]:

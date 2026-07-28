@@ -14,7 +14,8 @@ class BybitBrokerConfig(BaseModel):
     testnet: bool = False
     instrument_category: Literal["spot", "linear", "inverse"] = "linear"
     position_mode: Literal["one_way", "hedge"] = "one_way"
-    leverage: int = Field(default=1, ge=1, le=125)
+    # 0 = no margin trading; >=1 = set ByBit leverage and allow margin sizing.
+    leverage: int = Field(default=1, ge=0, le=125)
 
 
 class CryptoUniverseRefresh(BaseModel):
@@ -25,14 +26,14 @@ class CryptoUniverseConfig(BaseModel):
     enabled: bool = True
     min_volume_24h_usd: float = 50_000_000.0
     min_last_price: float = Field(
-        default=0.01,
+        default=0.05,
         ge=0,
         description="Minimum last price in USDT; 0 disables the price filter",
     )
     max_spread_bps: float = 15.0
     min_funding_rate: float = Field(default=-0.0001, description="-0.01%")
     max_funding_rate: float = Field(default=0.0002, description="0.02%")
-    min_open_interest_usd: float = 10_000_000.0
+    min_open_interest_usd: float = 20_000_000.0
     min_lsr: float = 0.5
     max_lsr: float = 1.5
     min_rvol: float = 2.0

@@ -471,7 +471,11 @@ class SimBacktestBrokerFacade(BrokerFacade):
         price: float,
         direction: str,
         account_id: str,
+        *,
+        reduce_only: bool = False,
+        qty_round_up: bool = False,
     ) -> Dict[str, Any]:
+        del reduce_only, qty_round_up
         qty = int(quantity or 0)
         px = float(price or 0)
         if qty <= 0 or px <= 0:

@@ -35,6 +35,8 @@ logger = get_logger(__name__)
 DERIVATIVE_SNAPSHOT_TTL_MINUTES = 15
 # Funding prints ~every 8h on linear; require a point at least this fresh for cache hit.
 FUNDING_CACHE_MAX_AGE_HOURS = 8
+# Commit ByBit derivative cache every N symbols with API writes (survive worker kill).
+DERIVATIVE_CACHE_COMMIT_EVERY = 1
 
 
 @dataclass
@@ -42,14 +44,14 @@ class CryptoUniverseFilters:
     min_turnover_24h_usd: float = 50_000_000.0
     max_spread_pct: float = 0.15
     """Maximum bid-ask spread in percent (15 bps in UI → 0.15 here)."""
-    min_last_price: float = 0.01
+    min_last_price: float = 0.05
     limit: int = 80
     category: str = "linear"
     quote_coin: str = "USDT"
     min_funding_rate: Optional[float] = -0.0001
     max_funding_rate: Optional[float] = 0.0002
     funding_lookback_hours: int = 8
-    min_open_interest_usd: Optional[float] = 10_000_000.0
+    min_open_interest_usd: Optional[float] = 20_000_000.0
     min_lsr: Optional[float] = 0.5
     max_lsr: Optional[float] = 1.5
     min_rvol: Optional[float] = 2.0
@@ -383,6 +385,50 @@ def _persist_funding_history_rows(
         )
 
 
+def _commit_derivative_cache(db: Session) -> bool:
+    """Persist market-cache writes so a mid-screening kill does not lose them."""
+    try:
+        db.commit()
+        return True
+    except Exception as exc:
+        logger.warning("screening market cache commit failed: %s", exc)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
+
+
+def _kline_raw_to_cache_rows(raw_rows: List[Any]) -> List[Dict[str, Any]]:
+    """ByBit kline list → candles_cache upsert dicts (accepts 6+ fields)."""
+    out: List[Dict[str, Any]] = []
+    for item in raw_rows:
+        if not isinstance(item, (list, tuple)) or len(item) < 6:
+            continue
+        try:
+            ts_ms = int(item[0])
+            open_ = float(item[1])
+            high = float(item[2])
+            low = float(item[3])
+            close = float(item[4])
+            vol = float(item[5])
+        except Exception:
+            continue
+        if close <= 0:
+            continue
+        out.append(
+            {
+                "candle_time": datetime.fromtimestamp(ts_ms / 1000.0, tz=timezone.utc),
+                "open": open_,
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": vol,
+            }
+        )
+    return out
+
+
 async def _fetch_avg_funding_live(
     client: BybitHttpClient,
     *,
@@ -591,7 +637,8 @@ async def _fetch_volatility_metrics_live(
     symbol: str,
     lookback_days: int,
     atr_period: int,
-) -> Tuple[Optional[float], Optional[float]]:
+) -> Tuple[Optional[float], Optional[float], List[Dict[str, Any]]]:
+    """Returns (rvol, atr_percent, normalized D1 rows for candles_cache)."""
     try:
         data = await client.get_kline(
             category=category,
@@ -600,11 +647,40 @@ async def _fetch_volatility_metrics_live(
             limit=max(lookback_days + 1, atr_period + 2),
         )
         raw_rows = list((data.get("result") or {}).get("list") or [])
-        raw_rows.reverse()
-        highs, lows, closes, volumes = _parse_kline_rows(raw_rows)
-        return _volatility_from_ohlcv(highs, lows, closes, volumes, atr_period=atr_period)
+        # ByBit returns newest-first; keep a copy for cache, reverse for OHLCV metrics.
+        cache_rows = _kline_raw_to_cache_rows(raw_rows)
+        chron = list(raw_rows)
+        chron.reverse()
+        highs, lows, closes, volumes = _parse_kline_rows(chron)
+        rvol, atr = _volatility_from_ohlcv(highs, lows, closes, volumes, atr_period=atr_period)
+        return rvol, atr, cache_rows
     except Exception:
-        return None, None
+        return None, None, []
+
+
+def _persist_volatility_klines(
+    db: Session,
+    *,
+    symbol: str,
+    rows: List[Dict[str, Any]],
+) -> int:
+    if not rows:
+        return 0
+    from app.modules.robots.trading.data.providers.bybit_market import _upsert_bybit_candles
+
+    try:
+        return int(
+            _upsert_bybit_candles(
+                db,
+                symbol=str(symbol).upper(),
+                interval_label="D1",
+                rows=rows,
+            )
+            or 0
+        )
+    except Exception as exc:
+        logger.debug("volatility candles_cache upsert failed %s: %s", symbol, exc)
+        return 0
 
 
 def apply_derivative_filters(
@@ -663,7 +739,11 @@ async def enrich_derivative_metrics_live(
     filters: CryptoUniverseFilters,
     db: Optional[Session] = None,
 ) -> Dict[str, int]:
-    """Fill funding/OI/LSR. Prefer DB cache (TTL); API only on miss. Returns hit/miss counters."""
+    """Fill funding/OI/LSR. Prefer DB cache (TTL); API only on miss. Returns hit/miss counters.
+
+    API-fetched rows are written to history tables and committed incrementally so a
+    worker kill mid-screening still leaves reusable cache for the next run.
+    """
     stats = {
         "symbols": len(rows),
         "funding_cache_hits": 0,
@@ -672,6 +752,7 @@ async def enrich_derivative_metrics_live(
         "oi_api": 0,
         "lsr_cache_hits": 0,
         "lsr_api": 0,
+        "cache_commits": 0,
     }
     if not rows:
         return stats
@@ -702,8 +783,15 @@ async def enrich_derivative_metrics_live(
             logger.warning("derivative cache bulk load failed: %s", exc)
             funding_cache, oi_cache, lsr_cache = {}, {}, {}
 
+    pending_commits = 0
+    commit_every = max(1, int(DERIVATIVE_CACHE_COMMIT_EVERY))
+
     for row in rows:
         sym = row.symbol.upper()
+        dirty = False
+        fetched_oi = False
+        fetched_lsr = False
+        snapshot_time = datetime.now(timezone.utc)
 
         if sym in funding_cache:
             row.avg_funding_rate = funding_cache[sym]
@@ -725,6 +813,7 @@ async def enrich_derivative_metrics_live(
                         category=filters.category,
                         rows=raw,
                     )
+                    dirty = True
                 except Exception as exc:
                     logger.debug("funding cache upsert failed %s: %s", row.symbol, exc)
 
@@ -739,6 +828,7 @@ async def enrich_derivative_metrics_live(
                 last_price=row.lastPrice,
             )
             stats["oi_api"] += 1
+            fetched_oi = row.open_interest_usd is not None
 
         if sym in lsr_cache:
             row.lsr, row.long_ratio, row.short_ratio = lsr_cache[sym]
@@ -750,9 +840,53 @@ async def enrich_derivative_metrics_live(
                 symbol=row.symbol,
             )
             stats["lsr_api"] += 1
+            fetched_lsr = (
+                row.lsr is not None
+                and row.long_ratio is not None
+                and row.short_ratio is not None
+            )
+
+        if db is not None and (fetched_oi or fetched_lsr):
+            try:
+                # Persist only freshly fetched legs; cache hits stay as-is in history.
+                oi_val = row.open_interest_usd if fetched_oi else None
+                lsr_val = row.lsr if fetched_lsr else None
+                long_val = row.long_ratio if fetched_lsr else None
+                short_val = row.short_ratio if fetched_lsr else None
+                partial = ScreeningRow(
+                    symbol=row.symbol,
+                    turnover24h=row.turnover24h,
+                    lastPrice=row.lastPrice,
+                    spreadPercent=row.spreadPercent,
+                    score=row.score,
+                    open_interest_usd=oi_val,
+                    lsr=lsr_val,
+                    long_ratio=long_val,
+                    short_ratio=short_val,
+                )
+                _upsert_oi_lsr_cache(
+                    db,
+                    row=partial,
+                    instrument_category=filters.category,
+                    snapshot_time=snapshot_time,
+                )
+                dirty = True
+            except Exception as exc:
+                logger.debug("oi/lsr cache upsert failed %s: %s", row.symbol, exc)
+
+        if db is not None and dirty:
+            pending_commits += 1
+            if pending_commits >= commit_every:
+                if _commit_derivative_cache(db):
+                    stats["cache_commits"] += 1
+                pending_commits = 0
+
+    if db is not None and pending_commits > 0:
+        if _commit_derivative_cache(db):
+            stats["cache_commits"] += 1
 
     logger.info(
-        "crypto derivative enrich: symbols=%s funding cache/api=%s/%s oi=%s/%s lsr=%s/%s",
+        "crypto derivative enrich: symbols=%s funding cache/api=%s/%s oi=%s/%s lsr=%s/%s commits=%s",
         stats["symbols"],
         stats["funding_cache_hits"],
         stats["funding_api"],
@@ -760,6 +894,7 @@ async def enrich_derivative_metrics_live(
         stats["oi_api"],
         stats["lsr_cache_hits"],
         stats["lsr_api"],
+        stats["cache_commits"],
     )
     return stats
 
@@ -771,8 +906,17 @@ async def enrich_volatility_metrics_live(
     filters: CryptoUniverseFilters,
     db: Optional[Session] = None,
 ) -> Dict[str, int]:
-    """Fill rvol/ATR%. Prefer bybit D1 candles_cache; API get_kline only on miss."""
-    stats = {"symbols": len(rows), "cache_hits": 0, "api": 0}
+    """Fill rvol/ATR%. Prefer bybit D1 candles_cache; API get_kline only on miss.
+
+    API klines are upserted into candles_cache and committed incrementally.
+    """
+    stats = {
+        "symbols": len(rows),
+        "cache_hits": 0,
+        "api": 0,
+        "kline_rows_written": 0,
+        "cache_commits": 0,
+    }
     if not rows:
         return stats
 
@@ -784,6 +928,9 @@ async def enrich_volatility_metrics_live(
             lookback_days=filters.lookback_days,
             atr_period=filters.atr_period,
         )
+
+    pending_commits = 0
+    commit_every = max(1, int(DERIVATIVE_CACHE_COMMIT_EVERY))
 
     for row in rows:
         sym = row.symbol.upper()
@@ -803,20 +950,38 @@ async def enrich_volatility_metrics_live(
                 row.rvol, row.atr_percent = rvol_c, atr_c
                 stats["cache_hits"] += 1
                 continue
-        row.rvol, row.atr_percent = await _fetch_volatility_metrics_live(
+
+        rvol, atr, cache_rows = await _fetch_volatility_metrics_live(
             client,
             category=filters.category,
             symbol=row.symbol,
             lookback_days=filters.lookback_days,
             atr_period=filters.atr_period,
         )
+        row.rvol, row.atr_percent = rvol, atr
         stats["api"] += 1
 
+        if db is not None and cache_rows:
+            wrote = _persist_volatility_klines(db, symbol=row.symbol, rows=cache_rows)
+            stats["kline_rows_written"] += wrote
+            if wrote > 0:
+                pending_commits += 1
+                if pending_commits >= commit_every:
+                    if _commit_derivative_cache(db):
+                        stats["cache_commits"] += 1
+                    pending_commits = 0
+
+    if db is not None and pending_commits > 0:
+        if _commit_derivative_cache(db):
+            stats["cache_commits"] += 1
+
     logger.info(
-        "crypto volatility enrich: symbols=%s cache/api=%s/%s",
+        "crypto volatility enrich: symbols=%s cache/api=%s/%s kline_rows=%s commits=%s",
         stats["symbols"],
         stats["cache_hits"],
         stats["api"],
+        stats["kline_rows_written"],
+        stats["cache_commits"],
     )
     return stats
 
@@ -996,14 +1161,14 @@ def _resolve_filters(config: Dict[str, Any]) -> CryptoUniverseFilters:
     return CryptoUniverseFilters(
         min_turnover_24h_usd=float(min_turnover),
         max_spread_pct=max_spread_pct,
-        min_last_price=float(cu["min_last_price"]) if cu.get("min_last_price") is not None else 0.01,
+        min_last_price=float(cu["min_last_price"]) if cu.get("min_last_price") is not None else 0.05,
         limit=int(cu.get("limit") or 80),
         category=str(cu.get("category") or bybit.get("instrument_category") or "linear"),
         quote_coin=str(cu.get("quote_coin") or "USDT"),
         min_funding_rate=_opt_float("min_funding_rate") if "min_funding_rate" in cu else -0.0001,
         max_funding_rate=_opt_float("max_funding_rate") if "max_funding_rate" in cu else 0.0002,
         funding_lookback_hours=int(cu.get("funding_lookback_hours") or 8),
-        min_open_interest_usd=_opt_float("min_open_interest_usd") if "min_open_interest_usd" in cu else 10_000_000.0,
+        min_open_interest_usd=_opt_float("min_open_interest_usd") if "min_open_interest_usd" in cu else 20_000_000.0,
         min_lsr=_opt_float("min_lsr") if "min_lsr" in cu else 0.5,
         max_lsr=_opt_float("max_lsr") if "max_lsr" in cu else 1.5,
         min_rvol=_opt_float("min_rvol") if "min_rvol" in cu else 2.0,

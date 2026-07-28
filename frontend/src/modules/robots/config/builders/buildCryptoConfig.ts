@@ -1,6 +1,7 @@
 import { buildStrategyParamsPayload, type TradingRobotFormSnapshot } from '@/pages/testing/buildTradingRobotConfigV2'
 import { CRYPTO_UNIVERSE_DEFAULTS } from '@/modules/robots/config/cryptoUniverseDefaults'
 import { normalizeFundingMode, type FundingSimulationMode } from '@/pages/testing/executionRiskDefaults'
+import { stripTradingHoursMsk, toRiskMskTime } from '@/pages/testing/strategyPresets'
 
 
 
@@ -67,7 +68,7 @@ export function buildCryptoTradingRobotConfig(snapshot: TradingRobotFormSnapshot
 
             position_mode: 'one_way',
 
-            leverage: Math.max(1, Number(snapshot.leverage ?? 1)),
+            leverage: Math.max(0, Number(snapshot.leverage ?? 0)),
 
             maintenance_margin_rate: Number(
                 ((snapshot.maintenanceMarginPct ?? 0.5) / 100).toFixed(6),
@@ -130,13 +131,19 @@ export function buildCryptoTradingRobotConfig(snapshot: TradingRobotFormSnapshot
 
             allow_short: true,
 
-            max_leverage: Math.max(1, Number(snapshot.leverage ?? 5)),
+            max_leverage: Math.max(0, Number(snapshot.leverage ?? 0)),
 
-            trading_hours_start: '00:00 MSK',
+            trading_hours_start: toRiskMskTime(
+                stripTradingHoursMsk(snapshot.tradingHoursStart) || '00:00',
+                '00:00 MSK',
+            ),
 
-            trading_hours_end: '23:59 MSK',
+            trading_hours_end: toRiskMskTime(
+                stripTradingHoursMsk(snapshot.tradingHoursEnd) || '23:59',
+                '23:59 MSK',
+            ),
 
-            allowed_weekdays: 127,
+            allowed_weekdays: Number(snapshot.allowedWeekdays ?? 127),
 
         },
 
@@ -146,50 +153,48 @@ export function buildCryptoTradingRobotConfig(snapshot: TradingRobotFormSnapshot
             latency_sec: Math.max(0, Number(snapshot.executionLatencySec ?? 0)),
         },
 
-        crypto_universe: {
-
-            enabled: cryptoMode === 'auto',
-
-            min_volume_24h_usd: Number(snapshot.cryptoMinVolume24hUsd ?? CRYPTO_UNIVERSE_DEFAULTS.minVolume24hUsd),
-
-            min_last_price: Number(snapshot.cryptoMinLastPrice ?? CRYPTO_UNIVERSE_DEFAULTS.minLastPrice),
-
-            max_spread_bps: Number(snapshot.cryptoMaxSpreadBps ?? CRYPTO_UNIVERSE_DEFAULTS.maxSpreadBps),
-
-            min_funding_rate: Number(
-                ((snapshot.cryptoMinFundingRatePct ?? CRYPTO_UNIVERSE_DEFAULTS.minFundingRatePct) / 100).toFixed(8),
-            ),
-
-            max_funding_rate: Number(
-                ((snapshot.cryptoMaxFundingRatePct ?? CRYPTO_UNIVERSE_DEFAULTS.maxFundingRatePct) / 100).toFixed(8),
-            ),
-
-            min_open_interest_usd: Number(
-                snapshot.cryptoMinOpenInterestUsd ?? CRYPTO_UNIVERSE_DEFAULTS.minOpenInterestUsd,
-            ),
-
-            min_lsr: Number(snapshot.cryptoMinLsr ?? CRYPTO_UNIVERSE_DEFAULTS.minLsr),
-
-            max_lsr: Number(snapshot.cryptoMaxLsr ?? CRYPTO_UNIVERSE_DEFAULTS.maxLsr),
-
-            min_rvol: Number(snapshot.cryptoMinRvol ?? CRYPTO_UNIVERSE_DEFAULTS.minRvol),
-
-            min_atr_percent: Number(snapshot.cryptoMinAtrPercent ?? CRYPTO_UNIVERSE_DEFAULTS.minAtrPercent),
-
-            max_atr_percent: Number(snapshot.cryptoMaxAtrPercent ?? CRYPTO_UNIVERSE_DEFAULTS.maxAtrPercent),
-
-            lookback_days: Number(snapshot.cryptoLookbackDays ?? CRYPTO_UNIVERSE_DEFAULTS.lookbackDays),
-
-            funding_lookback_hours: Math.max(
-                1,
-                Number(snapshot.cryptoFundingLookbackHours ?? 8),
-            ),
-
-            refresh: {
-                every_minutes: Math.max(0, Number(snapshot.cryptoRefreshEveryMinutes ?? 60)),
-            },
-
-        },
+        crypto_universe: (() => {
+            const cu: Record<string, unknown> = {
+                enabled: cryptoMode === 'auto',
+            }
+            const setNum = (key: string, value: unknown) => {
+                if (value === undefined || value === null) return
+                const n = Number(value)
+                if (!Number.isFinite(n)) return
+                cu[key] = n
+            }
+            setNum('min_volume_24h_usd', snapshot.cryptoMinVolume24hUsd)
+            setNum('min_last_price', snapshot.cryptoMinLastPrice)
+            setNum('max_spread_bps', snapshot.cryptoMaxSpreadBps)
+            if (snapshot.cryptoMinFundingRatePct !== undefined && snapshot.cryptoMinFundingRatePct !== null) {
+                cu.min_funding_rate = Number((Number(snapshot.cryptoMinFundingRatePct) / 100).toFixed(8))
+            }
+            if (snapshot.cryptoMaxFundingRatePct !== undefined && snapshot.cryptoMaxFundingRatePct !== null) {
+                cu.max_funding_rate = Number((Number(snapshot.cryptoMaxFundingRatePct) / 100).toFixed(8))
+            }
+            setNum('min_open_interest_usd', snapshot.cryptoMinOpenInterestUsd)
+            setNum('min_lsr', snapshot.cryptoMinLsr)
+            setNum('max_lsr', snapshot.cryptoMaxLsr)
+            setNum('min_rvol', snapshot.cryptoMinRvol)
+            setNum('min_atr_percent', snapshot.cryptoMinAtrPercent)
+            setNum('max_atr_percent', snapshot.cryptoMaxAtrPercent)
+            setNum('lookback_days', snapshot.cryptoLookbackDays)
+            if (
+                snapshot.cryptoFundingLookbackHours !== undefined &&
+                snapshot.cryptoFundingLookbackHours !== null
+            ) {
+                cu.funding_lookback_hours = Math.max(1, Number(snapshot.cryptoFundingLookbackHours))
+            }
+            if (
+                snapshot.cryptoRefreshEveryMinutes !== undefined &&
+                snapshot.cryptoRefreshEveryMinutes !== null
+            ) {
+                cu.refresh = {
+                    every_minutes: Math.max(0, Number(snapshot.cryptoRefreshEveryMinutes)),
+                }
+            }
+            return cu
+        })(),
 
         update_interval_seconds: 10,
 
@@ -295,7 +300,7 @@ export function cryptoDefaultsFromConfig(cfg: Record<string, unknown>): {
 
         instrumentCategory: category,
 
-        leverage: Math.max(1, Number(bybit.leverage ?? 1)),
+        leverage: Math.max(0, Number(bybit.leverage ?? 0)),
 
         makerFeePct: Number((Number(costs.maker_fee_rate ?? 0.0001) * 100).toFixed(4)),
 

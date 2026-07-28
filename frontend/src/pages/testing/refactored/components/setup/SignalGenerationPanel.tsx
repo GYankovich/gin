@@ -30,6 +30,7 @@ export function SignalGenerationPanel({
     market,
     params,
     onParamChange,
+    onParamsPatch,
 }: SignalGenerationPanelProps) {
     const dirty = () => onConfigDirty?.()
 
@@ -56,6 +57,7 @@ export function SignalGenerationPanel({
                 strategy={strategy}
                 params={params}
                 onParamChange={onParamChange}
+                onParamsPatch={onParamsPatch}
                 onConfigDirty={dirty}
                 embedded
                 sectionTitle=""

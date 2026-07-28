@@ -1,6 +1,9 @@
 """
 WebSocket endpoint for live robot monitoring.
-Proxies T-Invest price stream to the frontend for a given robot.
+
+When a background trading session is running, attaches to that session's
+Stage2 price fan-out (via live_events) instead of opening a second broker WS.
+Falls back to a dedicated broker stream only if the robot is idle.
 """
 #///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsLiveWs [1]
 #/// Исходный модуль `backend/app/modules/robots/live_ws.py` — автоматическая разметка для Obsidian Source Scanner.
@@ -19,12 +22,42 @@ from app.core.config import settings
 from app.core.security import resolve_session_user_id
 from app.core.logging_config import get_logger
 from app.modules.robots.service import robot_service
-from app.modules.robots.live_events import subscribe_live_events, unsubscribe_live_events
+from app.modules.robots.live_events import (
+    build_orders_snapshot_payload,
+    fetch_recent_session_logs,
+    subscribe_live_events,
+    unsubscribe_live_events,
+)
 from app.modules.robots.trading.brokers.factory import create_broker_facade
 
 logger = get_logger("live_ws")
 
 router = APIRouter()
+
+
+def _trading_session_active(robot_id: int) -> bool:
+    """True when heavy worker already runs live_trading_session for this robot."""
+    db = SessionLocal()
+    try:
+        row = db.execute(
+            text(
+                f"""
+                SELECT 1
+                FROM {settings.DB_SCHEMA}.background_jobs
+                WHERE job_type = 'live_trading_session'
+                  AND (payload->>'robot_id')::text = :robot_id
+                  AND status IN ('queued', 'running')
+                LIMIT 1
+                """
+            ),
+            {"robot_id": str(int(robot_id))},
+        ).first()
+        return bool(row)
+    except Exception as exc:
+        logger.warning("trading_session_active check failed robot_id=%s: %s", robot_id, exc)
+        return False
+    finally:
+        db.close()
 
 
 def _normalize_instruments(config: dict) -> list[str]:
@@ -35,6 +68,100 @@ def _normalize_instruments(config: dict) -> list[str]:
     else:
         raw = cfg.get("figis") or cfg.get("allowed_figis") or cfg.get("strategy_params", {}).get("figis") or []
     return [str(x).strip().upper() for x in list(raw or []) if str(x).strip()]
+
+
+def _resolve_live_ws_instruments(user_id: int, robot_id: int, config: dict) -> list[str]:
+    """WS price stream = portfolio ∪ accepted screening (no full config dump)."""
+    from datetime import date
+
+    from app.modules.robots.service import _load_portfolio_positions_from_db
+
+    cfg = config if isinstance(config, dict) else {}
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def _add(value) -> None:
+        s = str(value or "").strip().upper()
+        if s and s not in seen:
+            seen.add(s)
+            out.append(s)
+
+    account_id = str(cfg.get("account_id") or "").strip()
+    broker_type = str(cfg.get("broker_type") or "").strip().lower()
+    is_crypto = (
+        broker_type == "bybit"
+        or isinstance(cfg.get("bybit"), dict)
+        or isinstance(cfg.get("crypto_universe"), dict)
+    )
+    im = cfg.get("instrument_map") if isinstance(cfg.get("instrument_map"), dict) else {}
+    figi_by_ticker = im.get("figi_by_ticker") if isinstance(im.get("figi_by_ticker"), dict) else {}
+
+    db = SessionLocal()
+    try:
+        if account_id:
+            try:
+                for pos in _load_portfolio_positions_from_db(db, int(user_id), account_id):
+                    _add(pos.get("figi") or pos.get("ticker"))
+            except Exception as exc:
+                logger.warning(
+                    "live_ws portfolio instruments failed robot_id=%s: %s",
+                    robot_id,
+                    exc,
+                )
+
+        td = date.today()
+        try:
+            if is_crypto:
+                rows = db.execute(
+                    text(
+                        f"""
+                        SELECT symbol
+                        FROM {settings.DB_SCHEMA}.crypto_universe_daily
+                        WHERE robot_id = :rid AND trade_date = :td
+                          AND LOWER(COALESCE(filter_result, '')) IN ('accept', 'accepted')
+                        ORDER BY created_at DESC
+                        LIMIT 1000
+                        """
+                    ),
+                    {"rid": int(robot_id), "td": td},
+                ).fetchall()
+                for r in rows:
+                    _add(r[0])
+            else:
+                rows = db.execute(
+                    text(
+                        f"""
+                        SELECT ticker
+                        FROM {settings.DB_SCHEMA}.daily_universe
+                        WHERE robot_id = :rid AND trade_date = :td
+                          AND LOWER(COALESCE(filter_result, '')) IN ('accept', 'accepted')
+                        ORDER BY created_at DESC
+                        LIMIT 1000
+                        """
+                    ),
+                    {"rid": int(robot_id), "td": td},
+                ).fetchall()
+                for r in rows:
+                    ticker = str(r[0] or "").strip().upper()
+                    if not ticker:
+                        continue
+                    mapped = (
+                        figi_by_ticker.get(ticker)
+                        or figi_by_ticker.get(ticker.lower())
+                        or figi_by_ticker.get(str(r[0]))
+                    )
+                    _add(mapped or ticker)
+        except Exception as exc:
+            logger.warning(
+                "live_ws screening instruments failed robot_id=%s: %s",
+                robot_id,
+                exc,
+            )
+    finally:
+        db.close()
+
+    # Never fall back to full allowed_symbols / config universe (hundreds of coins).
+    return out
 
 
 def _build_ws_init_payload(robot_id: int, broker_type: str, instruments: list[str]) -> dict:
@@ -172,48 +299,88 @@ async def live_websocket(
         await ws.close(code=4006)
         return
 
-    figis = _normalize_instruments(config)
+    figis = _resolve_live_ws_instruments(user_id, robot_id, config)
 
-    if not figis:
-        figis = await _autofill_figis_from_pipeline(user_id, robot_id)
-
-    if not figis:
-        mode = str(config.get("universe_mode") or "dms_pipeline").strip().lower()
-        if mode == "fixed":
-            hint = "Set fixed_tickers in robot settings and sync universe."
-        elif mode == "tqbr_scan":
-            hint = "Sync universe (TQBR scan) or wait for scheduled refresh."
-        else:
-            hint = "Check DMS pipeline filters or sync universe from Live/Testing."
-        await ws.send_json({
-            "type": "error",
-            "message": f"Robot has no instruments (allowed_figis empty). {hint}",
-        })
-        await ws.close(code=4005)
-        return
+    # Empty is OK: Live still streams logs/orders; client may subscribe after portfolio/screening load.
+    # Do NOT autofill allowed_symbols / full universe into the figi bar.
 
     await ws.send_json(_build_ws_init_payload(robot_id, broker_type, figis))
-    broker = create_broker_facade(
-        broker_type,
-        robot["token"],
-        token_extra_data=robot.get("token_extra_data"),
-        robot_config=config,
-    )
+    try:
+        seed_db = SessionLocal()
+        try:
+            for log_payload in fetch_recent_session_logs(seed_db, robot_id, limit=120):
+                await ws.send_json(log_payload)
+            orders_seed = build_orders_snapshot_payload(
+                seed_db,
+                robot_id=int(robot_id),
+                user_id=int(user_id),
+                account_id=str(config.get("account_id") or "").strip() or None,
+            )
+            if orders_seed:
+                await ws.send_json(orders_seed)
+        finally:
+            seed_db.close()
+    except Exception as seed_exc:
+        logger.warning("Failed to seed recent session logs robot_id=%s: %s", robot_id, seed_exc)
+
+    # Prefer the background trading session's Stage2 price stream (fan-out via
+    # live_events NOTIFY). Open a dedicated broker WS only when the robot is idle.
+    attach_session_stream = _trading_session_active(robot_id)
+    broker = None
     queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
     event_queue = await subscribe_live_events(robot_id)
     outbound_queue: asyncio.Queue = asyncio.Queue(maxsize=2000)
-    try:
-        connected = await broker.connect_websocket(user_id)
-        if not connected:
-            raise RuntimeError("WebSocket connection failed")
-        await broker.subscribe_prices(user_id, figis, queue)
-    except Exception as e:
-        logger.error("Broker WS connect failed: %s", e)
-        await ws.send_json({"type": "error", "message": f"Broker WS error: {e}"})
-        await ws.close(code=4010)
-        return
+
+    if attach_session_stream:
+        _put_nowait_drop_oldest(outbound_queue, {
+            "type": "log",
+            "level": "INFO",
+            "message": (
+                "Live monitor attached to background trading session price stream "
+                "(no second broker WebSocket)."
+            ),
+            "time": datetime.now(timezone.utc).isoformat(),
+        })
+        logger.info("live_ws robot_id=%s mode=session_fanout", robot_id)
+    else:
+        broker = create_broker_facade(
+            broker_type,
+            robot["token"],
+            token_extra_data=robot.get("token_extra_data"),
+            robot_config=config,
+        )
+        try:
+            connected = await broker.connect_websocket(user_id)
+            if not connected:
+                raise RuntimeError("WebSocket connection failed")
+            await broker.subscribe_prices(user_id, figis, queue)
+        except Exception as e:
+            logger.error("Broker WS connect failed: %s", e)
+            await ws.send_json({"type": "error", "message": f"Broker WS error: {e}"})
+            await ws.close(code=4010)
+            await unsubscribe_live_events(robot_id, event_queue)
+            try:
+                await broker.close()
+            except Exception:
+                pass
+            return
+        _put_nowait_drop_oldest(outbound_queue, {
+            "type": "log",
+            "level": "INFO",
+            "message": (
+                "Trading session idle — Live opened a dedicated broker WebSocket "
+                "for prices (fallback)."
+            ),
+            "time": datetime.now(timezone.utc).isoformat(),
+        })
+        logger.info("live_ws robot_id=%s mode=broker_fallback", robot_id)
 
     async def relay_prices():
+        if attach_session_stream:
+            # Prices arrive via event_queue (session fan-out). Keep task alive.
+            while True:
+                await asyncio.sleep(3600)
+            return
         last_poll_ts = 0.0
         last_polled_prices: dict[str, float] = {}
         last_ws_price_ts: dict[str, float] = {}
@@ -227,7 +394,6 @@ async def live_websocket(
                 last_poll_ts = now_ts
                 for figi in figis:
                     last_ws_ts = last_ws_price_ts.get(figi, 0.0)
-                    # Smart fallback: poll only symbols with stale/missing WS updates.
                     if last_ws_ts > 0.0 and (now_ts - last_ws_ts) < stale_after_sec:
                         continue
                     try:
@@ -313,28 +479,39 @@ async def live_websocket(
                 payload = {}
             action = payload.get("action")
             figis_batch = _normalize_figis(payload)
-            if action == "subscribe" and figis_batch:
+            if attach_session_stream:
+                if action in {"subscribe", "unsubscribe"}:
+                    _put_nowait_drop_oldest(outbound_queue, {
+                        "type": "log",
+                        "level": "INFO",
+                        "message": (
+                            f"Ignore {action}: prices come from the background session stream."
+                        ),
+                        "time": datetime.now(timezone.utc).isoformat(),
+                    })
+                continue
+            if action == "subscribe" and figis_batch and broker is not None:
                 await broker.subscribe_prices(user_id, figis_batch, queue)
                 if len(figis_batch) == 1:
-                    msg = f"Subscribed to {figis_batch[0]}"
+                    msg_txt = f"Subscribed to {figis_batch[0]}"
                 else:
-                    msg = f"Subscribed to {len(figis_batch)} instruments"
+                    msg_txt = f"Subscribed to {len(figis_batch)} instruments"
                 _put_nowait_drop_oldest(outbound_queue, {
                     "type": "log",
                     "level": "INFO",
-                    "message": msg,
+                    "message": msg_txt,
                     "time": datetime.now(timezone.utc).isoformat(),
                 })
-            elif action == "unsubscribe" and figis_batch:
+            elif action == "unsubscribe" and figis_batch and broker is not None:
                 await broker.unsubscribe_prices(user_id, figis_batch, queue)
                 if len(figis_batch) == 1:
-                    msg = f"Unsubscribed from {figis_batch[0]}"
+                    msg_txt = f"Unsubscribed from {figis_batch[0]}"
                 else:
-                    msg = f"Unsubscribed from {len(figis_batch)} instruments"
+                    msg_txt = f"Unsubscribed from {len(figis_batch)} instruments"
                 _put_nowait_drop_oldest(outbound_queue, {
                     "type": "log",
                     "level": "INFO",
-                    "message": msg,
+                    "message": msg_txt,
                     "time": datetime.now(timezone.utc).isoformat(),
                 })
     except WebSocketDisconnect:
@@ -349,5 +526,12 @@ async def live_websocket(
         if writer_task:
             writer_task.cancel()
         await unsubscribe_live_events(robot_id, event_queue)
-        await broker.close_websocket(user_id, queue=queue)
-        await broker.close()
+        if broker is not None:
+            try:
+                await broker.close_websocket(user_id, queue=queue)
+            except Exception:
+                pass
+            try:
+                await broker.close()
+            except Exception:
+                pass

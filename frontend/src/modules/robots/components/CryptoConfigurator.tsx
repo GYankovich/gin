@@ -15,6 +15,8 @@ export type CryptoBrokerConfiguratorProps = {
     leverage: number
     onLeverageChange: (v: number) => void
     fixedTickersText: string
+    bybitTestnet?: boolean
+    onBybitTestnetChange?: (v: boolean) => void
     onConfigDirty?: () => void
     /** Заблокировать плечо на 1× (live без маржи). */
     leverageLocked?: boolean
@@ -27,6 +29,8 @@ export function CryptoBrokerConfigurator({
     leverage,
     onLeverageChange,
     fixedTickersText,
+    bybitTestnet = false,
+    onBybitTestnetChange,
     onConfigDirty,
     leverageLocked = false,
 }: CryptoBrokerConfiguratorProps) {
@@ -34,8 +38,8 @@ export function CryptoBrokerConfigurator({
     const [instrumentSymbols, setInstrumentSymbols] = React.useState<string[]>([])
 
     useEffect(() => {
-        if (leverageLocked && leverage !== 1) {
-            onLeverageChange(1)
+        if (leverageLocked && leverage !== 0) {
+            onLeverageChange(0)
         }
     }, [leverageLocked, leverage, onLeverageChange])
 
@@ -45,7 +49,7 @@ export function CryptoBrokerConfigurator({
             .getInstruments({
                 category: instrumentCategory,
                 quote_coin: 'USDT',
-                testnet: false,
+                testnet: bybitTestnet,
             })
             .then(res => {
                 if (cancelled) return
@@ -57,7 +61,7 @@ export function CryptoBrokerConfigurator({
         return () => {
             cancelled = true
         }
-    }, [instrumentCategory])
+    }, [instrumentCategory, bybitTestnet])
 
     void parseFixedTickersInput(fixedTickersText)
 
@@ -67,6 +71,22 @@ export function CryptoBrokerConfigurator({
                 Категория инструмента и плечо. Комиссии и funding — на шаге «Риск-менеджмент».
             </p>
             <div className="testing-robot-grid">
+                {onBybitTestnetChange && (
+                    <div className="form-group">
+                        <label className="form-label">Среда ByBit</label>
+                        <Select
+                            options={[
+                                { value: 'false', label: 'Mainnet' },
+                                { value: 'true', label: 'Testnet' },
+                            ]}
+                            value={bybitTestnet ? 'true' : 'false'}
+                            onChange={v => {
+                                onBybitTestnetChange(v === 'true')
+                                dirty()
+                            }}
+                        />
+                    </div>
+                )}
                 <div className="form-group">
                     <label className="form-label">Категория инструмента</label>
                     <Select
@@ -83,20 +103,23 @@ export function CryptoBrokerConfigurator({
                     <input
                         className="form-input cyber-input"
                         type="number"
-                        min={1}
+                        min={0}
                         max={125}
-                        value={leverageLocked ? 1 : leverage}
+                        value={leverageLocked ? 0 : leverage}
                         readOnly={leverageLocked}
                         disabled={leverageLocked}
                         aria-readonly={leverageLocked}
                         onChange={e => {
                             if (leverageLocked) return
-                            onLeverageChange(Math.max(1, Number(e.target.value) || 1))
+                            onLeverageChange(Math.max(0, Number(e.target.value) || 0))
                             dirty()
                         }}
                     />
                     {leverageLocked && (
-                        <p className="form-hint">Фиксировано 1× — без маржинального плеча</p>
+                        <p className="form-hint">0 — без маржинальной торговли</p>
+                    )}
+                    {!leverageLocked && (
+                        <p className="form-hint">0 = без маржи; ≥1 = плечо на ByBit</p>
                     )}
                 </div>
             </div>

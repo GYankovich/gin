@@ -590,8 +590,62 @@ async def get_robot_live_snapshot(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
 ):
-    data = await robot_live_snapshot_usecase.execute(db, current_user.id, request.robotId)
+    data = await robot_live_snapshot_usecase.execute(
+        db, current_user.id, request.robotId, mode=request.mode,
+    )
     return schemas.RobotLiveSnapshotResponse(**data)
+
+
+@router.post("/live/manual-order", response_model=schemas.RobotManualOrderResponse)
+async def place_robot_manual_order(
+        request: schemas.RobotManualOrderRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    """Ручная лимитная заявка от имени робота (напрямую в брокера, без Stage6)."""
+    try:
+        data = await service.robot_service.place_manual_live_order(
+            db,
+            user_id=current_user.id,
+            robot_id=request.robotId,
+            figi=request.figi,
+            side=request.side,
+            price=request.price,
+            quantity=request.quantity,
+            notional=request.notional,
+            reduce_only=bool(request.reduceOnly),
+        )
+        return schemas.RobotManualOrderResponse(**data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка ручной заявки: {e}",
+        ) from e
+
+
+@router.post("/live/sync-orders", response_model=schemas.RobotLiveSyncOrdersResponse)
+async def sync_robot_live_orders(
+        request: schemas.RobotLiveSyncOrdersRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+):
+    """Синхронизация robot_trades ↔ открытые заявки брокера (ByBit/T-Invest)."""
+    try:
+        data = await service.robot_service.sync_live_orders(
+            db,
+            user_id=current_user.id,
+            robot_id=request.robotId,
+        )
+        return schemas.RobotLiveSyncOrdersResponse(**data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка синхронизации заявок: {e}",
+        ) from e
 
 
 @router.post("/migrate-config-v2", response_model=schemas.RobotMigrateConfigV2Response)
@@ -692,18 +746,42 @@ async def run_crypto_screening_job(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Crypto-screening: ByBit tickers -> allowed_symbols."""
+    """Queue crypto-screening on heavy lane. Poll GET .../crypto-screening/status."""
     try:
-        data = await service.robot_service.run_crypto_screening_job(
+        data = await service.robot_service.enqueue_crypto_screening_job(
             db, robot_id=request.robotId, user_id=current_user.id, force=True,
         )
-        return schemas.RobotCryptoScreeningResponse(robot_id=request.robotId, **data)
+        return schemas.RobotCryptoScreeningResponse(**data)
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ошибка crypto screening: {e}",
+            detail=f"Ошибка постановки crypto screening: {e}",
+        ) from e
+
+
+@router.get(
+    "/{robot_id}/crypto-screening/status",
+    response_model=schemas.RobotCryptoScreeningStatusResponse,
+)
+async def get_crypto_screening_status(
+    robot_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Background crypto-screening status for Live UI."""
+    try:
+        data = await service.robot_service.get_crypto_screening_status(
+            db, robot_id=robot_id, user_id=current_user.id,
+        )
+        return schemas.RobotCryptoScreeningStatusResponse(**data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка статуса crypto screening: {e}",
         ) from e
 
 

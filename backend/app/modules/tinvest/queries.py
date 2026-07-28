@@ -303,12 +303,13 @@ def build_get_latest_operation_date_query() -> str:
 
 
 def build_delete_operations_by_period_query() -> str:
-    """Удалить операции по счету в заданном диапазоне дат."""
+    """Удалить операции по счету в диапазоне дат (кроме зеркал ORDER_*)."""
     return """
            DELETE FROM ganaly.portfolio_operations
            WHERE account_id = :account_db_id
              AND operation_date >= :from_dt
-             AND operation_date <= :to_dt \
+             AND operation_date <= :to_dt
+             AND operation_type NOT LIKE 'ORDER%' \
            """
 
 

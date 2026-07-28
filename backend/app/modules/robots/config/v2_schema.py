@@ -105,7 +105,7 @@ class SignalGenerationConfig(BaseModel):
 
     strategy: str = "grain_seed"
     params: Dict[str, Any] = Field(default_factory=dict)
-    data_source: Literal["tinvest", "vtb", "alfa"] = "tinvest"
+    data_source: Literal["tinvest", "vtb", "alfa", "bybit"] = "tinvest"
     update_interval_seconds: int = Field(default=10, ge=1, le=3600)
     indicator_update_schedule: Dict[str, str] = Field(
         default_factory=lambda: {

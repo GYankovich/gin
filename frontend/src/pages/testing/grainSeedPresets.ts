@@ -6,9 +6,15 @@
  */
 export {
     GRAIN_SEED_STRATEGY_PARAMS_PRESET,
+    GRAIN_SEED_TRADING_PRESETS,
+    GRAIN_SEED_TRADING_PRESET_META,
+    applyGrainSeedTradingPreset,
     getGrainSeedRiskPreset,
     stripTradingHoursMsk,
     toRiskMskTime,
 } from '@/pages/testing/strategyPresets'
 
-export type { GrainSeedRiskPreset } from '@/pages/testing/strategyPresets'
+export type {
+    GrainSeedRiskPreset,
+    GrainSeedTradingPresetId,
+} from '@/pages/testing/strategyPresets'

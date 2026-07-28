@@ -358,13 +358,37 @@ class AnalyticsService:
 
         result = db.execute(text(query), params).fetchall()
 
+        type_labels: Dict[str, str] = {}
+        try:
+            label_rows = db.execute(
+                text(
+                    """
+                    SELECT string_value, name
+                    FROM ganaly.dictionary
+                    WHERE table_name = 'PORTFOLIO_POSITIONS'
+                      AND column_name = 'INSTRUMENT_TYPE'
+                      AND hide_from_ui = 0
+                    """
+                )
+            ).fetchall()
+            for string_value, name in label_rows:
+                key = str(string_value or "").strip().lower()
+                label = str(name or "").strip()
+                if key and label:
+                    type_labels[key] = label
+        except Exception:
+            type_labels = {}
+
         positions = []
         for row in result:
+            instrument_type = self._safe_str(row[3], 'unknown')
+            type_key = str(instrument_type or "").strip().lower()
             positions.append({
                 "id": self._safe_int(row[0]),
                 "figi": self._safe_str(row[1], None),
                 "ticker": self._safe_str(row[2], None),
-                "instrument_type": self._safe_str(row[3], 'unknown'),
+                "instrument_type": instrument_type,
+                "type_name": type_labels.get(type_key) or instrument_type,
                 "quantity": self._safe_float(row[4], 0.0),
                 "current_price": self._safe_float(row[5], 0.0),
                 "total_value": self._safe_float(row[6], 0.0),

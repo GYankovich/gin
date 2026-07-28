@@ -11,6 +11,7 @@ import {
 export type CryptoCostsCardProps = {
     instrumentCategory: 'spot' | 'linear' | 'inverse'
     fixedTickersText: string
+    bybitTestnet?: boolean
     makerFeePct: number
     onMakerFeePctChange: (v: number) => void
     takerFeePct: number
@@ -30,6 +31,7 @@ export type CryptoCostsCardProps = {
 export function CryptoCostsCard({
     instrumentCategory,
     fixedTickersText,
+    bybitTestnet = false,
     makerFeePct,
     onMakerFeePctChange,
     takerFeePct,
@@ -65,7 +67,7 @@ export function CryptoCostsCard({
             .getFundingRate({
                 symbol: previewSymbol,
                 instrument_category: instrumentCategory,
-                testnet: false,
+                testnet: bybitTestnet,
             })
             .then(row => {
                 if (cancelled) return
@@ -83,7 +85,7 @@ export function CryptoCostsCard({
         return () => {
             cancelled = true
         }
-    }, [previewSymbol, instrumentCategory, fundingMode])
+    }, [previewSymbol, instrumentCategory, fundingMode, bybitTestnet])
 
     const body = (
         <>

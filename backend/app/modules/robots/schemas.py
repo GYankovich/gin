@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing import Optional, List, Dict, Any, ClassVar, Annotated, Union, Literal
 from datetime import datetime, time, date, timezone
 
@@ -279,6 +279,14 @@ class RobotPaperSelectionResponse(RobotSyncUniverseResponse):
 
 class RobotCryptoScreeningResponse(BaseModel):
     robot_id: int
+    # Async enqueue (Live / settings start)
+    status: str = Field(
+        default="queued",
+        description="queued | running | already_running | success (legacy sync)",
+    )
+    job_id: Optional[str] = None
+    started_at: Optional[datetime] = None
+    # Legacy sync fields (enable-robot path / older clients)
     symbols: List[str] = Field(default_factory=list)
     accepted: int = 0
     scanned: int = 0
@@ -286,6 +294,23 @@ class RobotCryptoScreeningResponse(BaseModel):
     message: Optional[str] = None
     skipped: bool = False
     reused: bool = False
+
+
+class RobotCryptoScreeningStatusResponse(BaseModel):
+    robot_id: int
+    status: str = Field(
+        description="idle | queued | running | success | failed",
+    )
+    job_id: Optional[str] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    error: Optional[str] = None
+    message: Optional[str] = None
+    last_completed_at: Optional[datetime] = Field(
+        default=None,
+        description="Last successful completion (job finished_at or crypto_universe_daily max created_at)",
+    )
+    universe_updated_at: Optional[datetime] = None
 
 
 class RobotUniverseActiveCountsResponse(BaseModel):
@@ -508,6 +533,10 @@ class RobotHistoryBacktestResponse(BaseModel):
 
 class RobotLiveSnapshotRequest(BaseModel):
     robotId: int = Field(..., description="ID робота")
+    mode: Literal["ops", "full"] = Field(
+        default="full",
+        description="ops = сигналы/заявки/логи из БД; full = +портфель брокера и reconcile заявок",
+    )
 
 
 class RobotLiveSnapshotResponse(BaseModel):
@@ -523,7 +552,87 @@ class RobotLiveSnapshotResponse(BaseModel):
     portfolio_source: Optional[str] = None
     recent_signals: List[Dict[str, Any]] = Field(default_factory=list)
     recent_orders: List[Dict[str, Any]] = Field(default_factory=list)
+    open_orders: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Активные заявки из portfolio_orders (pending/partial)",
+    )
+    order_history: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="История заявок из portfolio_orders (исполненные / отменённые)",
+    )
+    recent_logs: List[Dict[str, Any]] = Field(default_factory=list)
     stream_health: Dict[str, Any] = Field(default_factory=dict)
+    orders_synced_at: Optional[datetime] = Field(
+        default=None,
+        description="Время последнего успешного reconcile заявок с брокером",
+    )
+
+
+class RobotManualOrderRequest(BaseModel):
+    """Ручная лимитная заявка из Live (напрямую в брокера, минуя Stage6)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    robotId: int = Field(..., description="ID робота")
+    figi: str = Field(..., min_length=1, description="Символ / FIGI")
+    side: Literal["BUY", "SELL"] = Field(..., description="Направление")
+    price: float = Field(..., gt=0, description="Лимит-цена")
+    quantity: Optional[float] = Field(default=None, gt=0, description="Количество (монеты)")
+    notional: Optional[float] = Field(
+        default=None,
+        gt=0,
+        description="Сумма в quote (например USDT); qty = notional / price",
+    )
+    reduceOnly: bool = Field(default=False, alias="reduce_only")
+
+    @model_validator(mode="after")
+    def _exactly_one_size(self) -> "RobotManualOrderRequest":
+        has_qty = self.quantity is not None
+        has_notional = self.notional is not None
+        if has_qty == has_notional:
+            raise ValueError("укажите ровно одно из полей: quantity или notional")
+        return self
+
+
+class RobotManualOrderResponse(BaseModel):
+    order_id: str
+    figi: str
+    side: str
+    quantity: float
+    price: float
+    status: str
+    broker_type: str
+    reduce_only: bool = False
+    notional: Optional[float] = Field(default=None, description="Запрошенная сумма USDT (если size_mode=notional)")
+    size_mode: Literal["quantity", "notional"] = "quantity"
+    event_id: Optional[int] = None
+    account_order_id: Optional[int] = Field(
+        default=None,
+        description="ID строки в portfolio_orders",
+    )
+
+
+class RobotLiveSyncOrdersRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    robotId: int = Field(..., description="ID робота")
+
+
+class RobotLiveSyncOrdersResponse(BaseModel):
+    robot_id: int
+    updated: int = Field(0, description="Сколько строк обновлено (open upsert + state + history)")
+    imported: int = Field(0, description="Сколько новых open-заявок брокера вставлено в БД")
+    upserted: int = Field(0, description="Сколько уже известных open-заявок обновлено из open list")
+    cancelled: int = Field(0, description="Сколько working заявок помечено cancelled (нет на брокере)")
+    history_updated: int = Field(0, description="Сколько известных заявок обновлено из history")
+    healed_open: int = Field(0, description="Сколько broker_import:* восстановлено как open-позиции")
+    healed_closed: int = Field(0, description="Сколько broker_import:* закрыто (нет позиции на брокере)")
+    orders_synced_at: Optional[datetime] = Field(
+        default=None,
+        description="Время успешного reconcile",
+    )
+    open_orders: List[Dict[str, Any]] = Field(default_factory=list)
+    order_history: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class RobotBacktestHistoryRequest(BaseModel):

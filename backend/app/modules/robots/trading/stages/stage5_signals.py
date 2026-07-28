@@ -4,12 +4,12 @@ Stage 5: Генерация сигналов на основе стратеги�
 #///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingStagesStage5Signals [1]
 #/// Исходный модуль `backend/app/modules/robots/trading/stages/stage5_signals.py` — автоматическая разметка для Obsidian Source Scanner.
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 from app.modules.robots.trading.brokers.base import BrokerFacade
 from app.modules.robots.trading.indicators.service import indicator_service
 from app.modules.robots.trading.strategies import get_strategy_class
-from app.modules.robots.trading.costs import calculate_position_size
+from app.modules.robots.trading.risk.manager import RiskManager
 from app.core.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -50,21 +50,19 @@ class Stage5Signals:
             current_prices: Optional[Dict[str, float]] = None,
             log_api_call_func=None,
             token_id: int = None,
-            user_id: int = None
+            user_id: int = None,
+            pending_order_figis: Optional[Set[str]] = None,
     ) -> List[Dict]:
         """
-        Генерирует сигналы на основе стратегии
+        Генерирует сигналы на основе стратегии.
+        В live-логи пишет только итоговый результат цикла Stage5.
         """
-        self._write_log("🎯 Генерация сигналов")
-        self._write_log(f"   Стратегия: {strategy_name}")
-        self._write_log(f"   FIGIs: {figis}")
-        self._write_log(f"   Открытые позиции: {len(open_positions)}")
-
         signals = []
         skip_summary: Dict[str, str] = {}
         create_summary: Dict[str, str] = {}
         holdings = {str(k or "").upper(): float(v or 0.0) for k, v in (account_positions or {}).items()}
         remaining_funds = float(free_funds or 0.0)
+        pending = {str(x or "").upper() for x in (pending_order_figis or set()) if str(x or "").strip()}
 
         try:
             # Получаем класс стратегии
@@ -85,8 +83,12 @@ class Stage5Signals:
 
             # Конвертируем сигналы в формат для Stage6
             for figi in figis:
+                figi_key = str(figi or "").upper()
+                if figi_key in pending:
+                    skip_summary[figi] = "ORDER_IN_FLIGHT"
+                    continue
+
                 candle_count = len(candles_data.get(figi, []) or [])
-                self._write_log(f"\n   📊 Анализ {figi} (свечей={candle_count}):")
 
                 # Получаем текущую цену
                 price_source = "ws"
@@ -101,7 +103,6 @@ class Stage5Signals:
                         current_price = self._parse_candle_price(last_candle.get("close"))
                         if current_price:
                             price_source = "candle"
-                            self._write_log(f"      📊 Цена из свечи: {current_price:.6f}")
 
                 if not current_price:
                     # REST fallback (ByBit ticker / T-Invest last price) when WS not yet warm.
@@ -111,9 +112,8 @@ class Stage5Signals:
                             if rest_px and float(rest_px) > 0:
                                 current_price = float(rest_px)
                                 price_source = "rest"
-                                self._write_log(f"      📊 Цена из REST: {current_price:.6f}")
-                        except Exception as e:
-                            self._write_log(f"      ⚠️ REST price failed: {e}")
+                        except Exception:
+                            pass
 
                 if not current_price:
                     if candle_count <= 0:
@@ -121,166 +121,91 @@ class Stage5Signals:
                     else:
                         reason = "NO_CURRENT_PRICE"
                     skip_summary[figi] = reason
-                    self._write_log(f"      ⏭️ Пропуск: {reason} (свечей={candle_count})")
                     continue
 
                 signal = raw_signals.get(figi)
-                has_asset = holdings.get(str(figi).upper(), 0.0) > 0
-                held_qty = float(holdings.get(str(figi).upper(), 0.0) or 0.0)
-                sell_only_if_has_asset = bool(strategy_params.get("sell_only_if_has_asset", True))
-
+                # Signed broker map: long>0, short<0. Strategy SELL needs long qty.
+                held_qty = max(0.0, float(holdings.get(str(figi).upper(), 0.0) or 0.0))
                 effective_signal = signal
-                downgrade_reason: Optional[str] = None
-                if effective_signal == "SELL" and sell_only_if_has_asset and not has_asset:
-                    downgrade_reason = "SELL_DOWNGRADED_NO_ASSET"
-                    effective_signal = None
-
-                self._write_log(
-                    f"      🔎 raw={signal or 'NONE'} effective={effective_signal or 'NONE'} "
-                    f"price={float(current_price):.6f} src={price_source} "
-                    f"has_asset={has_asset} held_qty={held_qty:.6f}"
-                )
                 strat_why = strategy_skip_reasons.get(figi)
-                if strat_why and not effective_signal:
-                    self._write_log(f"      📌 strategy_reason: {strat_why}")
 
                 if effective_signal:
-                    if effective_signal == "SELL" and not has_asset:
-                        reason = "SELL_NO_ASSET_SHORT_FORBIDDEN"
-                        skip_summary[figi] = reason
-                        self._write_log(f"      ⏭️ Пропуск SELL: {reason}")
+                    quantity, risk_skip = RiskManager.size_live_strategy_signal(
+                        side=str(effective_signal),
+                        current_price=float(current_price),
+                        portfolio_value=portfolio_value,
+                        free_funds=remaining_funds,
+                        held_qty=held_qty,
+                        risk_params=risk_params,
+                        strategy_params=strategy_params,
+                    )
+                    if risk_skip or quantity is None or quantity <= 0:
+                        skip_summary[figi] = risk_skip or "SIGNAL_FILTERED"
                         continue
-                    max_position_percent = risk_params.get("max_position_percent", 10)
-                    max_position_rub = risk_params.get("max_position_rub")
-                    existing_position_value = held_qty * float(current_price)
 
-                    if effective_signal == "SELL":
-                        # Close/reduce from broker holdings, not BUY-style % sizing.
-                        allow_short = bool(risk_params.get("allow_short", False))
-                        if has_asset:
-                            quantity = float(held_qty) if held_qty > 0 else 0.0
-                        elif allow_short:
-                            quantity = calculate_position_size(
-                                portfolio_value=portfolio_value,
-                                current_price=current_price,
-                                max_position_percent=max_position_percent,
-                                max_position_rub=max_position_rub,
-                                free_funds=remaining_funds,
-                                existing_position_value=0.0,
-                            )
-                        else:
-                            quantity = 0
-                    else:
-                        # BUY: cap coin notional vs total broker portfolio equity.
-                        quantity = calculate_position_size(
-                            portfolio_value=portfolio_value,
-                            current_price=current_price,
-                            max_position_percent=max_position_percent,
-                            max_position_rub=max_position_rub,
-                            free_funds=remaining_funds,
-                            existing_position_value=existing_position_value,
-                        )
-                    self._write_log(
-                        f"      🔎 sizing: qty={quantity} free_funds={remaining_funds:.2f} "
-                        f"portfolio={float(portfolio_value or 0):.2f} "
-                        f"existing_coin_value={existing_position_value:.2f} "
-                        f"max_pos_pct={float(max_position_percent):.2f} max_pos_rub={max_position_rub}"
+                    indicators = self._calculate_indicators_for_figi(
+                        strategy_name=strategy_name,
+                        candles=candles_data.get(figi, []),
+                        strategy_params=strategy_params,
+                    )
+                    target_price = self._calculate_target_price(
+                        signal=effective_signal,
+                        current_price=current_price,
+                        risk_params=risk_params,
                     )
 
-                    if quantity > 0:
-                        indicators = self._calculate_indicators_for_figi(
-                            strategy_name=strategy_name,
-                            candles=candles_data.get(figi, []),
-                            strategy_params=strategy_params,
-                        )
-                        target_price = self._calculate_target_price(
-                            signal=effective_signal,
-                            current_price=current_price,
-                            risk_params=risk_params,
-                        )
-                        if effective_signal == "BUY":
-                            gross_return = float(risk_params.get("take_profit_percent", 3)) / 100.0
-                            broker_commission = float(risk_params.get("broker_commission", 0.0005))
-                            exchange_fee = float(risk_params.get("exchange_fee", 0.0001))
-                            slippage = float(risk_params.get("slippage_bps", 0.0)) / 10000.0
-                            ndfl = float(risk_params.get("ndfl", 0.13))
-                            net_return = gross_return - broker_commission - exchange_fee - slippage - (ndfl * max(gross_return, 0))
-                            self._write_log(
-                                "      🔎 buy_economics: "
-                                f"gross={gross_return:.4f} commission={broker_commission:.4f} "
-                                f"exchange_fee={exchange_fee:.4f} slippage={slippage:.4f} "
-                                f"ndfl={ndfl:.4f} net={net_return:.4f}"
-                            )
-                            if net_return <= 0:
-                                reason = f"BUY_UNPROFITABLE net_return={net_return:.4f}"
-                                skip_summary[figi] = reason
-                                self._write_log(f"      ⏭️ Пропуск BUY: {reason}")
-                                continue
-
-                        create_reason = (
+                    create_reason = effective_signal
+                    if strat_why:
+                        create_reason = f"{effective_signal} · {strat_why}"
+                    signals.append({
+                        "figi": figi,
+                        "signal": effective_signal,
+                        "price": current_price,
+                        "target_price": target_price,
+                        "indicators": indicators,
+                        "quantity": quantity,
+                        "strategy": strategy_name,
+                        "strength": 100,
+                        "reduce_only": str(effective_signal).upper() == "SELL" and held_qty > 0,
+                        "intent_source": "exit_strategy" if str(effective_signal).upper() == "SELL" else "entry",
+                        "create_reason": (
                             f"{effective_signal} qty={quantity} @ {float(current_price):.6f} "
-                            f"src={price_source} candles={candle_count}"
-                        )
-                        if strat_why:
-                            create_reason = f"{create_reason}; strategy={strat_why}"
-                        signals.append({
-                            "figi": figi,
-                            "signal": effective_signal,
-                            "price": current_price,
-                            "target_price": target_price,
-                            "indicators": indicators,
-                            "quantity": quantity,
-                            "strategy": strategy_name,
-                            "strength": 100,
-                            "create_reason": create_reason,
-                        })
-                        create_summary[figi] = create_reason
-                        remaining_funds = max(0.0, remaining_funds - (quantity * current_price))
-                        self._write_log(f"      ✅ Создан сигнал: {create_reason}")
-                    else:
-                        reason = (
-                            "INSUFFICIENT_FUNDS_OR_SIZE_ZERO"
-                            if effective_signal == "BUY"
-                            else "SELL_QTY_ZERO"
-                        )
-                        skip_summary[figi] = reason
-                        self._write_log(
-                            f"      ⏭️ Пропуск: {reason} "
-                            f"(free_funds={remaining_funds:.2f}, held_qty={held_qty:.6f})"
-                        )
+                            f"src={price_source}"
+                            + (f"; strategy={strat_why}" if strat_why else "")
+                        ),
+                    })
+                    create_summary[figi] = create_reason
+                    remaining_funds = max(0.0, remaining_funds - (quantity * current_price))
                 else:
                     reason = (
-                        downgrade_reason
-                        or strategy_skip_reasons.get(figi)
+                        strategy_skip_reasons.get(figi)
                         or ("STRATEGY_NO_SIGNAL" if not signal else "SIGNAL_FILTERED")
                     )
                     skip_summary[figi] = reason
-                    self._write_log(f"      ⏭️ Сигнал не создан: {reason}")
 
         except ValueError as e:
-            self._write_log(f"   ❌ Неизвестная стратегия: {e}")
+            self._write_log(f"❌ Неизвестная стратегия: {e}")
         except Exception as e:
-            self._write_log(f"   ❌ Ошибка генерации сигналов: {e}")
+            self._write_log(f"❌ Ошибка генерации сигналов: {e}")
             import traceback
             self._write_log(traceback.format_exc())
 
-        self._write_log(f"\n   Итого сигналов: {len(signals)}")
-        if create_summary:
-            self._write_log(
-                f"   Созданы: {len(create_summary)} — "
-                + "; ".join(f"{sym}: {why}" for sym, why in create_summary.items())
-            )
-        if skip_summary:
-            # Group identical reasons for readability
-            by_reason: Dict[str, List[str]] = {}
-            for sym, why in skip_summary.items():
-                by_reason.setdefault(str(why), []).append(sym)
-            parts = [
-                f"{why} ×{len(syms)} [{', '.join(syms[:8])}{'…' if len(syms) > 8 else ''}]"
-                for why, syms in by_reason.items()
-            ]
-            self._write_log(f"   Без сигнала: {len(skip_summary)} — " + "; ".join(parts))
+        self._write_stage5_summary(create_summary, skip_summary)
         return signals
+
+    def _write_stage5_summary(
+        self,
+        create_summary: Dict[str, str],
+        skip_summary: Dict[str, str],
+    ) -> None:
+        """Короткий итог цикла: счётчики + строки «монета — причина»."""
+        self._write_log(
+            f"Создано сигналов: {len(create_summary)} / пропущено: {len(skip_summary)}"
+        )
+        for sym, why in create_summary.items():
+            self._write_log(f"{sym} — {why}")
+        for sym, why in skip_summary.items():
+            self._write_log(f"{sym} — {why}")
 
     def _extract_closes(self, candles: List[Dict]) -> List[float]:
         closes: List[float] = []
@@ -325,9 +250,6 @@ class Stage5Signals:
         if not interval:
             raise ValueError("strategy_params.interval is required")
 
-        days = strategy_params.get("candle_days", 60)
-
-        self._write_log(f"   📊 Получение индикаторных данных из кэша (интервал={interval}, дней={days})")
         return await indicator_service.get_candles_batch(
             self.broker,
             figis,

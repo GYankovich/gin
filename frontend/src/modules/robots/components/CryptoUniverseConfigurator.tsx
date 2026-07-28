@@ -10,12 +10,9 @@ import {
 import { getP1Field } from '@/modules/robots/config/p1ScreeningFields'
 import { CRYPTO_UNIVERSE_MODE_OPTIONS, type CryptoUniverseMode } from '@/utils/universeMode'
 import type { UniverseFilterPresetId } from '@/modules/robots/config/universeFilterPresets'
-import type { ValidationIssue } from '@/modules/robots/config/validate/collectIssues'
-
-export type CryptoUniverseConfiguratorStage = 'p1' | 'p2'
+import type { ConfigValidationIssue as ValidationIssue } from '@/modules/robots/config/validate/collectIssues'
 
 export type CryptoUniverseConfiguratorProps = {
-    stage: CryptoUniverseConfiguratorStage
     cryptoUniverseMode: CryptoUniverseMode
     onCryptoUniverseModeChange: (mode: CryptoUniverseMode) => void
     fixedTickersText: string
@@ -35,8 +32,8 @@ function fieldIssues(issues: ValidationIssue[] | undefined, field: string): Vali
     return (issues || []).filter(i => i.field === field)
 }
 
+/** Единая вкладка: поиск + отбор монет (та же сетка, что у MOEX). */
 export function CryptoUniverseConfigurator({
-    stage,
     cryptoUniverseMode,
     onCryptoUniverseModeChange,
     fixedTickersText,
@@ -54,125 +51,131 @@ export function CryptoUniverseConfigurator({
     const dirty = () => onConfigDirty?.()
     const universeField = getP1Field('universe_mode', 'crypto')
 
-    const universeSelect = (
-        <div className="form-group">
-            <label className="form-label">
-                {universeField?.label ?? 'Режим universe'}
-                <FormLabelTooltip
-                    text={
-                        universeField?.tooltip ??
-                        'Авто — отбор по фильтрам. Фиксированный — заданный список символов.'
-                    }
-                />
-            </label>
-            <div className="cyber-select-wrap">
-                <Select
-                    options={CRYPTO_UNIVERSE_MODE_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
-                    value={cryptoUniverseMode}
-                    onChange={v => {
-                        onCryptoUniverseModeChange((v as CryptoUniverseMode) || 'auto')
-                        dirty()
-                    }}
-                />
-            </div>
-        </div>
-    )
-
-    const fixedSymbolsField = (
-        <div className="form-group">
-            <label className="form-label">Символы ByBit</label>
-            <textarea
-                className="form-input cyber-input"
-                rows={3}
-                placeholder="BTCUSDT, ETHUSDT"
-                value={fixedTickersText}
-                onChange={e => {
-                    onFixedTickersTextChange(e.target.value)
-                    dirty()
-                }}
-            />
-            <p className="field-hint-below">Через запятую или с новой строки.</p>
-            {fieldIssues(universeFieldIssues, 'universe').map(issue => (
-                <p key={issue.id} className="field-inline-error">{issue.message}</p>
-            ))}
-        </div>
-    )
-
-    if (stage === 'p1') {
-        return (
-            <>
-                <p className="form-hint">
-                    Подбор торгуемых пар ByBit по ликвидности, спреду и funding. Результат — пул символов для стратегии.
-                </p>
-                {universeSelect}
-                {cryptoUniverseMode === 'fixed' ? (
-                    fixedSymbolsField
-                ) : (
-                    <CryptoScreeningFormFields
-                        filters={cryptoFilters}
-                        onFiltersChange={onCryptoFiltersChange}
-                        onConfigDirty={onConfigDirty}
-                    />
-                )}
-            </>
-        )
-    }
-
-    if (cryptoUniverseMode === 'fixed') {
-        return (
-            <>
-                <p className="form-hint">
-                    Фиксированный список символов — crypto-screening не используется.
-                </p>
-                {universeSelect}
-                {fixedSymbolsField}
-            </>
-        )
-    }
-
     return (
-        <>
+        <div className="robots-universe-tab">
             <p className="form-hint">
-                Пересчёт пула символов по фильтрам этапа «Поиск монет». Результат сохраняется в{' '}
+                Подбор торгуемых пар ByBit: режим universe, фильтры screening и пересчёт пула{' '}
                 <code>allowed_symbols</code>.
             </p>
-            {universeSelect}
-            {robotId != null && onRunCryptoScreening && (
+
+            <div className="form-row robots-universe-tab__controls">
                 <div className="form-group">
-                    <label className="form-label">Crypto screening</label>
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        disabled={cryptoScreeningLoading}
-                        onClick={onRunCryptoScreening}
-                    >
-                        {cryptoScreeningLoading ? 'Screening…' : 'Запустить crypto-screening'}
-                    </Button>
-                    {screeningPreview && (
-                        <p className="form-hint" style={{ marginTop: 8 }}>
-                            Принято: {screeningPreview.accepted} / {screeningPreview.scanned}
-                            {screeningPreview.symbols.length > 0 && (
-                                <>
-                                    {' '}
-                                    · {screeningPreview.symbols.slice(0, 8).join(', ')}
-                                    {screeningPreview.symbols.length > 8 ? '…' : ''}
-                                </>
-                            )}
-                            {screeningPreview.message ? ` · ${screeningPreview.message}` : ''}
-                        </p>
-                    )}
+                    <label className="form-label">
+                        {universeField?.label ?? 'Режим universe'}
+                        <FormLabelTooltip
+                            text={
+                                universeField?.tooltip ??
+                                'Авто — отбор по фильтрам. Фиксированный — заданный список символов.'
+                            }
+                        />
+                    </label>
+                    <div className="cyber-select-wrap">
+                        <Select
+                            options={CRYPTO_UNIVERSE_MODE_OPTIONS.map(o => ({
+                                value: o.value,
+                                label: o.label,
+                            }))}
+                            value={cryptoUniverseMode}
+                            onChange={v => {
+                                onCryptoUniverseModeChange((v as CryptoUniverseMode) || 'auto')
+                                dirty()
+                            }}
+                        />
+                    </div>
                 </div>
-            )}
-            {allowedSymbols.length > 0 && (
+            </div>
+
+            {cryptoUniverseMode === 'fixed' ? (
                 <div className="form-group">
-                    <label className="form-label">Текущий пул</label>
-                    <p className="form-readonly-value">
-                        {allowedSymbols.slice(0, 12).join(', ')}
-                        {allowedSymbols.length > 12 ? ` (+${allowedSymbols.length - 12})` : ''}
+                    <label className="form-label">Символы ByBit</label>
+                    <textarea
+                        className="form-input cyber-input"
+                        rows={3}
+                        placeholder="BTCUSDT, ETHUSDT"
+                        value={fixedTickersText}
+                        onChange={e => {
+                            onFixedTickersTextChange(e.target.value)
+                            dirty()
+                        }}
+                    />
+                    <p className="field-hint-below">
+                        Через запятую или с новой строки. Screening не используется.
                     </p>
+                    {fieldIssues(universeFieldIssues, 'universe').map(issue => (
+                        <p key={issue.id} className="field-inline-error">{issue.message}</p>
+                    ))}
                 </div>
+            ) : (
+                <>
+                    <div className="step-editor-panel__subsection">
+                        <h4 className="card__subsection-title">Фильтры screening</h4>
+                        <p className="form-hint">Пороги отбора в пул. Пресет можно править и дополнять полями.</p>
+                        <CryptoScreeningFormFields
+                            filters={cryptoFilters}
+                            onFiltersChange={onCryptoFiltersChange}
+                            onConfigDirty={onConfigDirty}
+                        />
+                    </div>
+
+                    <div className="step-editor-panel__subsection">
+                        <h4 className="card__subsection-title">Отбор / screening</h4>
+                        <p className="form-hint">
+                            Пересчёт пула по активным фильтрам. Результат сохраняется в{' '}
+                            <code>allowed_symbols</code>.
+                        </p>
+                        <div className="form-row robots-universe-tab__controls">
+                            <div className="form-group">
+                                <label className="form-label">Запуск</label>
+                                {robotId != null && onRunCryptoScreening ? (
+                                    <Button
+                                        type="button"
+                                        variant="secondary"
+                                        disabled={cryptoScreeningLoading}
+                                        onClick={onRunCryptoScreening}
+                                    >
+                                        {cryptoScreeningLoading ? 'Screening…' : 'Запустить crypto-screening'}
+                                    </Button>
+                                ) : (
+                                    <p className="form-hint" style={{ margin: 0 }}>
+                                        Сохраните робота, чтобы запустить screening.
+                                    </p>
+                                )}
+                                {screeningPreview && (
+                                    <p className="form-hint" style={{ marginTop: 8 }}>
+                                        {screeningPreview.scanned > 0 || screeningPreview.accepted > 0 ? (
+                                            <>
+                                                Принято: {screeningPreview.accepted} / {screeningPreview.scanned}
+                                                {screeningPreview.symbols.length > 0 && (
+                                                    <>
+                                                        {' '}
+                                                        · {screeningPreview.symbols.slice(0, 8).join(', ')}
+                                                        {screeningPreview.symbols.length > 8 ? '…' : ''}
+                                                    </>
+                                                )}
+                                                {screeningPreview.message ? ` · ${screeningPreview.message}` : ''}
+                                            </>
+                                        ) : (
+                                            screeningPreview.message || 'Ожидание результата…'
+                                        )}
+                                    </p>
+                                )}
+                            </div>
+                            {allowedSymbols.length > 0 && (
+                                <div className="form-group">
+                                    <label className="form-label">Текущий пул</label>
+                                    <p className="form-readonly-value">
+                                        {allowedSymbols.slice(0, 12).join(', ')}
+                                        {allowedSymbols.length > 12
+                                            ? ` (+${allowedSymbols.length - 12})`
+                                            : ''}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </>
             )}
-        </>
+        </div>
     )
 }
 

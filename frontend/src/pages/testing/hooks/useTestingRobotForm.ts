@@ -25,10 +25,11 @@ import {
     cryptoDefaultsFromConfig,
     isCryptoBroker,
 } from '@/modules/robots/config/builders/buildCryptoConfig'
+import { defaultCryptoUniverseFormFields } from '@/modules/robots/config/cryptoUniverseDefaults'
 import {
     createDefaultCryptoScreeningFilters,
     cryptoFieldsFromFilters,
-    cryptoFiltersFromFields,
+    cryptoFiltersFromConfigUniverse,
     cryptoScreeningFiltersFromPreset,
     defaultValueForCryptoFilterType,
     type CryptoScreeningFilter,
@@ -102,7 +103,13 @@ export function useTestingRobotForm() {
     const [universeMode, setUniverseMode] = useState<UniverseMode>('dms_pipeline')
     const [cryptoUniverseMode, setCryptoUniverseMode] = useState<'fixed' | 'auto'>('auto')
     const [cryptoFilters, setCryptoFilters] = useState<CryptoScreeningFilter[]>(() => createDefaultCryptoScreeningFilters())
-    const cryptoUniverseFields = useMemo(() => cryptoFieldsFromFilters(cryptoFilters), [cryptoFilters])
+    const cryptoUniverseFields = useMemo(
+        () => ({
+            ...defaultCryptoUniverseFormFields(),
+            ...cryptoFieldsFromFilters(cryptoFilters),
+        }),
+        [cryptoFilters],
+    )
     const [fixedTickersText, setFixedTickersText] = useState('')
     const [filters, setFilters] = useState<PipelineFilter[]>(() => createDefaultTestingPipelineFilters())
     const defaultPeriod = defaultBacktestPeriod()
@@ -266,22 +273,11 @@ export function useTestingRobotForm() {
             setMaintenanceMarginPct(crypto.maintenanceMarginPct ?? 0.5)
             setCryptoUniverseMode(crypto.cryptoUniverseMode)
             setCryptoFilters(
-                cryptoFiltersFromFields({
-                    cryptoMinVolume24hUsd: crypto.cryptoMinVolume24hUsd,
-                    cryptoMinLastPrice: crypto.cryptoMinLastPrice,
-                    cryptoMaxSpreadBps: crypto.cryptoMaxSpreadBps,
-                    cryptoMaxFundingRatePct: crypto.cryptoMaxFundingRatePct,
-                    cryptoMinFundingRatePct: crypto.cryptoMinFundingRatePct,
-                    cryptoMinOpenInterestUsd: crypto.cryptoMinOpenInterestUsd,
-                    cryptoMinLsr: crypto.cryptoMinLsr,
-                    cryptoMaxLsr: crypto.cryptoMaxLsr,
-                    cryptoMinRvol: crypto.cryptoMinRvol,
-                    cryptoMinAtrPercent: crypto.cryptoMinAtrPercent,
-                    cryptoMaxAtrPercent: crypto.cryptoMaxAtrPercent,
-                    cryptoLookbackDays: crypto.cryptoLookbackDays,
-                    cryptoFundingLookbackHours: crypto.cryptoFundingLookbackHours,
-                    cryptoRefreshEveryMinutes: crypto.cryptoRefreshEveryMinutes,
-                }),
+                cryptoFiltersFromConfigUniverse(
+                    (cfg.crypto_universe && typeof cfg.crypto_universe === 'object'
+                        ? cfg.crypto_universe
+                        : {}) as Record<string, unknown>,
+                ),
             )
             setNdflPct(0)
             const symbols = Array.isArray(cfg.allowed_symbols)

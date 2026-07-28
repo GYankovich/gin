@@ -9,10 +9,8 @@ import { P1ScreeningFieldSections } from '@/modules/robots/components/P1Screenin
 import { TRADING_UNIVERSE_MODE_OPTIONS, type UniverseMode } from '@/utils/universeMode'
 import { normalizeSignalInterval } from '@/pages/testing/testingPipeline'
 import type { PipelineFilter } from '@/pages/robots/pipelineFilterMeta'
-import type { ValidationIssue } from '@/modules/robots/config/validate/collectIssues'
+import type { ConfigValidationIssue as ValidationIssue } from '@/modules/robots/config/validate/collectIssues'
 import type { UniverseFilterPresetId } from '@/modules/robots/config/universeFilterPresets'
-
-export type MoexConfiguratorStage = 'p1' | 'p2'
 
 export type MoexPreviewRow = {
     ticker: string
@@ -25,7 +23,6 @@ export type MoexPreviewRow = {
 }
 
 export type MoexConfiguratorProps = {
-    stage: MoexConfiguratorStage
     universeMode: UniverseMode
     onUniverseModeChange: (raw: unknown) => void
     fixedTickersText: string
@@ -61,8 +58,8 @@ function fieldIssues(issues: ValidationIssue[] | undefined, field: string): Vali
     return (issues || []).filter(i => i.field === field)
 }
 
+/** Единая вкладка: поиск + отбор бумаг (historical screening + snapshot / fixed). */
 export function MoexConfigurator({
-    stage,
     universeMode,
     onUniverseModeChange,
     fixedTickersText,
@@ -90,117 +87,31 @@ export function MoexConfigurator({
 }: MoexConfiguratorProps) {
     const dirty = () => onConfigDirty?.()
 
-    if (stage === 'p1') {
-        return (
-            <>
-                <p className="form-hint">
-                    Подбор кандидатов для торгов. Результат — пул кандидатов.
-                    Пересчёт по расписанию до открытия сессии.
-                </p>
-                <P1ScreeningFieldSections
-                    market="moex"
-                    values={{
-                        lookbackDays: historicalLookbackDays,
-                        candleInterval: historicalInterval,
-                        refreshDailyAtMsk: historicalDailyAtMsk,
-                    }}
-                    handlers={{
-                        onLookbackDaysChange: onHistoricalLookbackDaysChange,
-                        onCandleIntervalChange: v => onHistoricalIntervalChange(normalizeSignalInterval(v)),
-                        onRefreshDailyAtMskChange: onHistoricalDailyAtMskChange,
-                        onDirty: dirty,
-                    }}
-                />
-                {isGrainSeed ? (
-                    <GrainSeedP1ScreeningParams
-                        params={strategyParams}
-                        onParamChange={(key, value) => {
-                            onStrategyParamChange(key, value)
-                            dirty()
-                        }}
-                        onAtrFilterSync={onAtrFilterSync}
-                    />
-                ) : (
-                    <SnapshotFiltersEditor
-                        scope="historical"
-                        filters={filters}
-                        onFiltersChange={v => {
-                            onFiltersChange(v)
-                            dirty()
-                        }}
-                        showPipelineMode={false}
-                        showPresets={false}
-                        sectionTitle="Фильтры отбора по истории"
-                    />
-                )}
-            </>
-        )
-    }
-
     return (
-        <>
-            {universeMode === 'fixed' ? (
-                <>
-                    <p className="form-hint">
-                        Фиксированный список тикеров — поиск идей и отбор по снапшоту не используются.
-                    </p>
-                    <div className="form-group">
-                        <label className="form-label">
-                            Режим universe
-                            <FormLabelTooltip text="Фиксированный список TQBR без автоматического отбора по MOEX и DMS." />
-                        </label>
-                        <div className="cyber-select-wrap">
-                            <Select
-                                options={TRADING_UNIVERSE_MODE_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
-                                value={universeMode === 'dms_pipeline' ? 'tqbr_scan' : universeMode}
-                                onChange={v => {
-                                    onUniverseModeChange(v)
-                                    dirty()
-                                }}
-                            />
-                        </div>
-                    </div>
-                    <div className="form-group">
-                        <label className="form-label">Тикеры TQBR</label>
-                        <textarea
-                            className="form-input cyber-input"
-                            rows={3}
-                            placeholder="SBER, GAZP, LKOH"
-                            value={fixedTickersText}
-                            onChange={e => {
-                                onFixedTickersTextChange(e.target.value)
+        <div className="robots-universe-tab">
+            <p className="form-hint">
+                Подбор кандидатов TQBR и отбор в торговую сессию. Результат — пул FIGI для стратегии.
+            </p>
+
+            <div className="form-row robots-universe-tab__controls">
+                <div className="form-group">
+                    <label className="form-label">
+                        Режим universe
+                        <FormLabelTooltip text="Источник universe: скан TQBR, pipeline MOEX+DMS или фиксированный список." />
+                    </label>
+                    <div className="cyber-select-wrap">
+                        <Select
+                            options={TRADING_UNIVERSE_MODE_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
+                            value={universeMode === 'tqbr_scan' ? 'dms_pipeline' : universeMode}
+                            onChange={v => {
+                                onUniverseModeChange(v)
                                 dirty()
                             }}
                         />
-                        <p className="field-hint-below">Через запятую или с новой строки.</p>
-                        {fieldIssues(universeFieldIssues, 'universe').map(issue => (
-                            <p key={issue.id} className="field-inline-error">{issue.message}</p>
-                        ))}
                     </div>
-                </>
-            ) : (
-                <>
-                    <p className="form-hint">
-                        Отбор по снапшоту DMS в торговую сессию. Результат — список FIGI для торговли.
-                        Пересчёт по интервалу в сессии или по кнопке «Запустить».
-                    </p>
-                    <div className="form-row">
-                        <div className="form-group">
-                            <label className="form-label">
-                                Режим universe
-                                <FormLabelTooltip text="Источник universe: скан TQBR, pipeline MOEX+DMS или фиксированный список." />
-                            </label>
-                            <div className="cyber-select-wrap">
-                                <Select
-                                    options={TRADING_UNIVERSE_MODE_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
-                                    value={universeMode === 'dms_pipeline' ? 'tqbr_scan' : universeMode}
-                                    onChange={v => {
-                                        onUniverseModeChange(v)
-                                        dirty()
-                                    }}
-                                />
-                            </div>
-                        </div>
+                </div>
+                {universeMode !== 'fixed' && (
+                    <>
                         <div className="form-group">
                             <label className="form-label">
                                 Пересчёт отбора (мин, в сессии)
@@ -236,72 +147,155 @@ export function MoexConfigurator({
                                 aria-label="Режим фильтров"
                             />
                         </div>
-                    </div>
-                    <SnapshotFiltersEditor
-                        scope="paper"
-                        filters={filters}
-                        pipelineMode={pipelineMode}
-                        onPipelineModeChange={onPipelineModeChange}
-                        onFiltersChange={v => {
-                            onFiltersChange(v)
+                    </>
+                )}
+            </div>
+
+            {universeMode === 'fixed' ? (
+                <div className="form-group">
+                    <label className="form-label">Тикеры TQBR</label>
+                    <textarea
+                        className="form-input cyber-input"
+                        rows={3}
+                        placeholder="SBER, GAZP, LKOH"
+                        value={fixedTickersText}
+                        onChange={e => {
+                            onFixedTickersTextChange(e.target.value)
                             dirty()
                         }}
-                        onApplyPreset={onApplyPreset}
-                        showPipelineMode={false}
                     />
+                    <p className="field-hint-below">
+                        Через запятую или с новой строки. Поиск бумаг и отбор по снапшоту не используются.
+                    </p>
+                    {fieldIssues(universeFieldIssues, 'universe').map(issue => (
+                        <p key={issue.id} className="field-inline-error">{issue.message}</p>
+                    ))}
+                </div>
+            ) : (
+                <>
+                    <div className="step-editor-panel__subsection">
+                        <h4 className="card__subsection-title">Поиск бумаг</h4>
+                        <p className="form-hint">
+                            Только фильтрация кандидатов по истории до открытия сессии. Пересчёт по расписанию.
+                        </p>
+                        <P1ScreeningFieldSections
+                            market="moex"
+                            values={{
+                                lookbackDays: historicalLookbackDays,
+                                candleInterval: historicalInterval,
+                                refreshDailyAtMsk: historicalDailyAtMsk,
+                            }}
+                            handlers={{
+                                onLookbackDaysChange: onHistoricalLookbackDaysChange,
+                                onCandleIntervalChange: v =>
+                                    onHistoricalIntervalChange(normalizeSignalInterval(v)),
+                                onRefreshDailyAtMskChange: onHistoricalDailyAtMskChange,
+                                onDirty: dirty,
+                            }}
+                        />
+                        {isGrainSeed ? (
+                            <GrainSeedP1ScreeningParams
+                                params={strategyParams}
+                                onParamChange={(key, value) => {
+                                    onStrategyParamChange(key, value)
+                                    dirty()
+                                }}
+                                onAtrFilterSync={onAtrFilterSync}
+                            />
+                        ) : (
+                            <SnapshotFiltersEditor
+                                scope="historical"
+                                filters={filters}
+                                onFiltersChange={v => {
+                                    onFiltersChange(v)
+                                    dirty()
+                                }}
+                                showPipelineMode={false}
+                                showPresets={false}
+                                sectionTitle="Фильтры поиска"
+                            />
+                        )}
+                    </div>
+
+                    <div className="step-editor-panel__subsection">
+                        <h4 className="card__subsection-title">Отбор по снапшоту</h4>
+                        <p className="form-hint">
+                            Отбор DMS в торговую сессию. Результат — список FIGI для торговли.
+                        </p>
+                        <SnapshotFiltersEditor
+                            scope="paper"
+                            filters={filters}
+                            pipelineMode={pipelineMode}
+                            onPipelineModeChange={onPipelineModeChange}
+                            onFiltersChange={v => {
+                                onFiltersChange(v)
+                                dirty()
+                            }}
+                            onApplyPreset={onApplyPreset}
+                            showPipelineMode={false}
+                        />
+                    </div>
+
+                    {preview && (
+                        <div style={{ marginTop: 12 }}>
+                            <div className="form-hint" style={{ marginBottom: 8 }}>
+                                Проверено: {preview.total_checked} · Прошли: {preview.passed} · Отклонено:{' '}
+                                {preview.rejected}
+                            </div>
+                            <DataTable
+                                columns={[
+                                    { key: 'ticker', header: 'Тикер', sortable: true } as Column<MoexPreviewRow>,
+                                    {
+                                        key: 'result',
+                                        header: 'Результат',
+                                        sortable: true,
+                                    } as Column<MoexPreviewRow>,
+                                    {
+                                        key: 'reason',
+                                        header: 'Причина',
+                                        sortable: true,
+                                        render: (r: MoexPreviewRow) => r.reason || '—',
+                                    } as Column<MoexPreviewRow>,
+                                    {
+                                        key: 'value_today',
+                                        header: 'Объем (руб)',
+                                        align: 'right',
+                                        render: (r: MoexPreviewRow) =>
+                                            Number(r.value_today || 0).toLocaleString('ru-RU'),
+                                    } as Column<MoexPreviewRow>,
+                                    {
+                                        key: 'gap_percent',
+                                        header: 'Гэп %',
+                                        align: 'right',
+                                        render: (r: MoexPreviewRow) =>
+                                            r.gap_percent != null ? Number(r.gap_percent).toFixed(2) : '—',
+                                    } as Column<MoexPreviewRow>,
+                                    {
+                                        key: 'spread_percent',
+                                        header: 'Спред %',
+                                        align: 'right',
+                                        render: (r: MoexPreviewRow) =>
+                                            r.spread_percent != null
+                                                ? Number(r.spread_percent).toFixed(3)
+                                                : '—',
+                                    } as Column<MoexPreviewRow>,
+                                    {
+                                        key: 'atr_percent',
+                                        header: 'ATR %',
+                                        align: 'right',
+                                        render: (r: MoexPreviewRow) =>
+                                            r.atr_percent != null ? Number(r.atr_percent).toFixed(2) : '—',
+                                    } as Column<MoexPreviewRow>,
+                                ]}
+                                data={preview.sample || []}
+                                keyField="ticker"
+                                emptyText="Нет данных preview"
+                                maxHeight={260}
+                            />
+                        </div>
+                    )}
                 </>
             )}
-
-            {preview && universeMode !== 'fixed' && (
-                <div style={{ marginTop: 12 }}>
-                    <div className="form-hint" style={{ marginBottom: 8 }}>
-                        Проверено: {preview.total_checked} · Прошли: {preview.passed} · Отклонено: {preview.rejected}
-                    </div>
-                    <DataTable
-                        columns={[
-                            { key: 'ticker', header: 'Тикер', sortable: true } as Column<MoexPreviewRow>,
-                            { key: 'result', header: 'Результат', sortable: true } as Column<MoexPreviewRow>,
-                            {
-                                key: 'reason',
-                                header: 'Причина',
-                                sortable: true,
-                                render: (r: MoexPreviewRow) => r.reason || '—',
-                            } as Column<MoexPreviewRow>,
-                            {
-                                key: 'value_today',
-                                header: 'Объем (руб)',
-                                align: 'right',
-                                render: (r: MoexPreviewRow) => Number(r.value_today || 0).toLocaleString('ru-RU'),
-                            } as Column<MoexPreviewRow>,
-                            {
-                                key: 'gap_percent',
-                                header: 'Гэп %',
-                                align: 'right',
-                                render: (r: MoexPreviewRow) =>
-                                    r.gap_percent != null ? Number(r.gap_percent).toFixed(2) : '—',
-                            } as Column<MoexPreviewRow>,
-                            {
-                                key: 'spread_percent',
-                                header: 'Спред %',
-                                align: 'right',
-                                render: (r: MoexPreviewRow) =>
-                                    r.spread_percent != null ? Number(r.spread_percent).toFixed(3) : '—',
-                            } as Column<MoexPreviewRow>,
-                            {
-                                key: 'atr_percent',
-                                header: 'ATR %',
-                                align: 'right',
-                                render: (r: MoexPreviewRow) =>
-                                    r.atr_percent != null ? Number(r.atr_percent).toFixed(2) : '—',
-                            } as Column<MoexPreviewRow>,
-                        ]}
-                        data={preview.sample || []}
-                        keyField="ticker"
-                        emptyText="Нет данных preview"
-                        maxHeight={260}
-                    />
-                </div>
-            )}
-        </>
+        </div>
     )
 }

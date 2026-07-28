@@ -8,7 +8,7 @@ export type GrainSeedP1ScreeningParamsProps = {
     onAtrFilterSync?: (period: number, minPercent: number) => void
 }
 
-/** ATR (common) + ADX (moex) — плоский form-row как у T-Invest P1. */
+/** ATR + ADX — та же 3-col сетка, что у universe-вкладок. */
 export function GrainSeedP1ScreeningParams({
     params,
     onParamChange,
@@ -31,73 +31,69 @@ export function GrainSeedP1ScreeningParams({
     }
 
     return (
-        <>
-            <div className="form-row">
-                <div className="form-group">
-                    <label className="form-label">
-                        {atrPeriodField?.label ?? 'Период ATR'}
-                        {atrPeriodField?.tooltip && <FormLabelTooltip text={atrPeriodField.tooltip} />}
-                    </label>
-                    <input
-                        className="form-input cyber-input"
-                        type="number"
-                        min={atrPeriodField?.min ?? 2}
-                        step={1}
-                        value={atrPeriod}
-                        onChange={e => {
-                            const period = Math.max(2, Number(e.target.value || 14))
-                            patchAtr(period, atrMinPct)
-                        }}
-                    />
-                </div>
-                <div className="form-group">
-                    <label className="form-label">
-                        {atrMinField?.label ?? 'Мин. ATR (%)'}
-                        {atrMinField?.tooltip && <FormLabelTooltip text={atrMinField.tooltip} />}
-                    </label>
-                    <input
-                        className="form-input cyber-input"
-                        type="number"
-                        min={atrMinField?.min ?? 0}
-                        step={atrMinField?.step ?? 0.1}
-                        value={atrMinPct}
-                        onChange={e => {
-                            const minPct = Math.max(0, Number(e.target.value || 0))
-                            patchAtr(atrPeriod, minPct)
-                        }}
-                    />
-                </div>
+        <div className="form-row grain-seed-p1-params">
+            <div className="form-group">
+                <label className="form-label">
+                    {atrPeriodField?.label ?? 'Период ATR'}
+                    {atrPeriodField?.tooltip && <FormLabelTooltip text={atrPeriodField.tooltip} />}
+                </label>
+                <input
+                    className="form-input cyber-input"
+                    type="number"
+                    min={atrPeriodField?.min ?? 2}
+                    step={1}
+                    value={atrPeriod}
+                    onChange={e => {
+                        const period = Math.max(2, Number(e.target.value || 14))
+                        patchAtr(period, atrMinPct)
+                    }}
+                />
             </div>
-            <div className="form-row">
-                <div className="form-group">
-                    <label className="form-label">
-                        {adxPeriodField?.label ?? 'Период ADX'}
-                        {adxPeriodField?.tooltip && <FormLabelTooltip text={adxPeriodField.tooltip} />}
-                    </label>
-                    <input
-                        className="form-input cyber-input"
-                        type="number"
-                        min={adxPeriodField?.min ?? 2}
-                        step={1}
-                        value={adxPeriod}
-                        onChange={e => onParamChange('adx_period', Math.max(2, Number(e.target.value || 14)))}
-                    />
-                </div>
-                <div className="form-group">
-                    <label className="form-label">
-                        {adxThresholdField?.label ?? 'Порог ADX'}
-                        {adxThresholdField?.tooltip && <FormLabelTooltip text={adxThresholdField.tooltip} />}
-                    </label>
-                    <input
-                        className="form-input cyber-input"
-                        type="number"
-                        min={adxThresholdField?.min ?? 0}
-                        step={adxThresholdField?.step ?? 0.5}
-                        value={adxThreshold}
-                        onChange={e => onParamChange('adx_threshold', Math.max(0, Number(e.target.value || 0)))}
-                    />
-                </div>
+            <div className="form-group">
+                <label className="form-label">
+                    {atrMinField?.label ?? 'Мин. ATR (%)'}
+                    {atrMinField?.tooltip && <FormLabelTooltip text={atrMinField.tooltip} />}
+                </label>
+                <input
+                    className="form-input cyber-input"
+                    type="number"
+                    min={atrMinField?.min ?? 0}
+                    step={atrMinField?.step ?? 0.1}
+                    value={atrMinPct}
+                    onChange={e => {
+                        const minPct = Math.max(0, Number(e.target.value || 0))
+                        patchAtr(atrPeriod, minPct)
+                    }}
+                />
             </div>
-        </>
+            <div className="form-group">
+                <label className="form-label">
+                    {adxPeriodField?.label ?? 'Период ADX'}
+                    {adxPeriodField?.tooltip && <FormLabelTooltip text={adxPeriodField.tooltip} />}
+                </label>
+                <input
+                    className="form-input cyber-input"
+                    type="number"
+                    min={adxPeriodField?.min ?? 2}
+                    step={1}
+                    value={adxPeriod}
+                    onChange={e => onParamChange('adx_period', Math.max(2, Number(e.target.value || 14)))}
+                />
+            </div>
+            <div className="form-group">
+                <label className="form-label">
+                    {adxThresholdField?.label ?? 'Порог ADX'}
+                    {adxThresholdField?.tooltip && <FormLabelTooltip text={adxThresholdField.tooltip} />}
+                </label>
+                <input
+                    className="form-input cyber-input"
+                    type="number"
+                    min={adxThresholdField?.min ?? 0}
+                    step={adxThresholdField?.step ?? 0.5}
+                    value={adxThreshold}
+                    onChange={e => onParamChange('adx_threshold', Math.max(0, Number(e.target.value || 0)))}
+                />
+            </div>
+        </div>
     )
 }

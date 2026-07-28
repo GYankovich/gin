@@ -27,8 +27,10 @@ class RobotLiveSnapshotUseCase:
         db: Session,
         user_id: int,
         robot_id: int,
+        *,
+        mode: str = "full",
     ) -> Dict[str, Any]:
-        return await robot_service.get_live_snapshot(db, robot_id, user_id)
+        return await robot_service.get_live_snapshot(db, robot_id, user_id, mode=mode)
 
 
 robot_backtest_usecase = RobotBacktestUseCase()

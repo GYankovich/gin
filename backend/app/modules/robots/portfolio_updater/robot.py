@@ -158,6 +158,14 @@ class PortfolioUpdaterRobot(BaseRobot):
                                     account=account,
                                     max_operation_pages=max_operation_pages,
                                 )
+                                await self._sync_orders_for_account(
+                                    facade=facade,
+                                    portfolio_svc=portfolio_svc,
+                                    broker_type=broker_type,
+                                    user_id=user_id,
+                                    robot_id=robot_id,
+                                    account=account,
+                                )
                             else:
                                 self.log.info("    ↻ Синхронизация операций пропущена (быстрый режим)")
                         if write_daily_universe:
@@ -291,6 +299,172 @@ class PortfolioUpdaterRobot(BaseRobot):
             )
             self.log.warning("    ⚠️ Не удалось синхронизировать операции: %s", e)
             self.db.commit()
+
+    async def _sync_orders_for_account(
+            self,
+            *,
+            facade,
+            portfolio_svc: TInvestService,
+            broker_type: str,
+            user_id: int,
+            robot_id: int,
+            account: Dict[str, Any],
+    ) -> None:
+        """Upsert open + history orders into portfolio_orders; Filled → portfolio_operations."""
+        from app.modules.portfolio.order_registry import (
+            SOURCE_EXTERNAL,
+            parse_broker_order_date,
+            resolve_portfolio_account_pk,
+            upsert_broker_order,
+        )
+
+        def _side(row: Dict[str, Any]) -> str:
+            s = str(row.get("side") or "").strip().lower()
+            if s in {"sell", "order_direction_sell"}:
+                return "sell"
+            return "buy"
+
+        def _floats(row: Dict[str, Any]):
+            try:
+                qty = float(row.get("quantity") if row.get("quantity") is not None else row.get("qty") or 0)
+            except Exception:
+                qty = 0.0
+            try:
+                price = float(row.get("price") or 0)
+            except Exception:
+                price = 0.0
+            filled = row.get("filled_qty")
+            if filled is None:
+                filled = row.get("cumExecQty")
+            try:
+                filled_f = float(filled) if filled is not None else None
+            except Exception:
+                filled_f = None
+            avg = row.get("avg_price")
+            if avg is None:
+                avg = row.get("avgPrice")
+            try:
+                avg_f = float(avg) if avg is not None else None
+            except Exception:
+                avg_f = None
+            return qty, price, filled_f, avg_f
+
+        account_in_db = portfolio_svc._execute(
+            tinvest_queries.build_get_account_by_id_query(),
+            {"user_id": user_id, "account_id": account["id"]},
+            fetch_one=True,
+        )
+        if not account_in_db:
+            pa_id = resolve_portfolio_account_pk(
+                self.db, user_id=int(user_id), broker_account_id=str(account["id"])
+            )
+        else:
+            pa_id = int(account_in_db[0])
+        if not pa_id:
+            return
+
+        broker_prefix = "tinvest" if str(broker_type).lower() == "tinvest" else "bybit"
+        imported = 0
+        upserted = 0
+
+        get_orders = getattr(facade, "get_orders", None)
+        if callable(get_orders):
+            try:
+                raw_open = await get_orders(str(account["id"]))
+            except Exception as exc:
+                self.log.warning("    ⚠️ get_orders failed: %s", exc)
+                raw_open = []
+            for row in raw_open or []:
+                if not isinstance(row, dict):
+                    continue
+                oid = str(row.get("order_id") or row.get("orderId") or "").strip()
+                figi = str(row.get("figi") or row.get("symbol") or "").strip().upper()
+                if not oid or not figi:
+                    continue
+                qty, price, filled_f, avg_f = _floats(row)
+                result = upsert_broker_order(
+                    self.db,
+                    portfolio_account_id=pa_id,
+                    order_id=oid,
+                    figi=figi,
+                    side=_side(row),
+                    quantity=qty,
+                    status=str(row.get("executionReportStatus") or row.get("status") or "New"),
+                    price=price if price > 0 else None,
+                    filled_qty=filled_f,
+                    avg_price=avg_f,
+                    source=SOURCE_EXTERNAL,
+                    robot_id=int(robot_id),
+                    order_date=parse_broker_order_date(
+                        row.get("created_at") or row.get("createdTime") or row.get("updatedTime")
+                    ),
+                    commit=False,
+                    promote_filled=True,
+                    broker_prefix=broker_prefix,
+                )
+                if result == "inserted":
+                    imported += 1
+                elif result == "updated":
+                    upserted += 1
+
+        get_hist = getattr(facade, "get_order_history", None)
+        if callable(get_hist):
+            try:
+                raw_hist = await get_hist(str(account["id"]), limit=50)
+            except TypeError:
+                try:
+                    raw_hist = await get_hist(str(account["id"]))
+                except Exception as exc:
+                    self.log.warning("    ⚠️ get_order_history failed: %s", exc)
+                    raw_hist = []
+            except Exception as exc:
+                self.log.warning("    ⚠️ get_order_history failed: %s", exc)
+                raw_hist = []
+            for row in raw_hist or []:
+                if not isinstance(row, dict):
+                    continue
+                oid = str(row.get("order_id") or row.get("orderId") or "").strip()
+                figi = str(row.get("figi") or row.get("symbol") or "").strip().upper()
+                if not oid or not figi:
+                    continue
+                qty, price, filled_f, avg_f = _floats(row)
+                result = upsert_broker_order(
+                    self.db,
+                    portfolio_account_id=pa_id,
+                    order_id=oid,
+                    figi=figi,
+                    side=_side(row),
+                    quantity=qty,
+                    status=str(row.get("executionReportStatus") or row.get("status") or ""),
+                    price=price if price > 0 else None,
+                    filled_qty=filled_f,
+                    avg_price=avg_f,
+                    source=SOURCE_EXTERNAL,
+                    robot_id=int(robot_id),
+                    order_date=parse_broker_order_date(
+                        row.get("created_at") or row.get("createdTime") or row.get("updatedTime")
+                    ),
+                    commit=False,
+                    promote_filled=True,
+                    broker_prefix=broker_prefix,
+                )
+                if result == "inserted":
+                    imported += 1
+                elif result == "updated":
+                    upserted += 1
+
+        try:
+            self.db.commit()
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+        self.log.info(
+            "    ↻ Заявки синхронизированы: imported=%s upserted=%s",
+            imported,
+            upserted,
+        )
 
     def _sync_daily_universe_from_portfolio(self, robot_id: int, portfolio_data: Dict[str, Any], snapshot_id: int) -> None:
         positions = list(portfolio_data.get("positions") or [])

@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Select } from '@/components/ui/Select'
+import { Toggle } from '@/components/ui/Toggle'
 import { DataTable, type Column } from '@/components/ui/DataTable'
-import { EventFeed, type FeedEvent } from '@/components/ui/EventFeed'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { Modal } from '@/components/ui/Modal'
 import { Chart, type IChartApi, type Time } from '@/components/ui/Chart'
 import { CandlestickSeries, LineSeries } from 'lightweight-charts'
 import cyberHero from '@/assets/dashboard/cyber-hero.png'
@@ -19,6 +19,30 @@ import { formatDmsUniverseReason } from '@/utils/dmsUniverseDisplay'
 import { universeModeLabel, CRYPTO_UNIVERSE_MODE_OPTIONS, normalizeCryptoUniverseMode } from '@/utils/universeMode'
 import { deriveMarketProfile, resolveBybitEnvironment } from '@/modules/robots/config/resolveProfile'
 import { buildTickerByFigiMap, instrumentTitle, tickerFromFigi } from '@/utils/instrumentLabel'
+import { buildLiveWsUrl } from '@/utils/liveWsUrl'
+import {
+    buildPipelineFromSnapshot,
+    buildSignalSummaryRows,
+    upsertPipelineFromOrder,
+    upsertPipelineFromSignal,
+    type TradePipelineItem,
+} from '@/pages/live/tradePipeline'
+import { buildCryptoScreeningRecommendations } from '@/modules/robots/live/cryptoScreeningRecommendations'
+import {
+    formatCryptoScreeningToggleLabel,
+    isCryptoScreeningInProgress,
+} from '@/modules/robots/live/cryptoScreeningStatus'
+import { buildLiveCandidates } from '@/modules/robots/live/buildLiveCandidates'
+import type { LiveCandidateRow } from '@/modules/robots/live/buildLiveCandidates'
+import type { RobotCryptoScreeningStatus } from '@/types/robot'
+import { analyticsService } from '@/services/analyticsService'
+import type { AccountSummary } from '@/types/api'
+import { PortfolioComposition } from '@/components/portfolio/PortfolioComposition'
+import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
+import {
+    isBybitPortfolioAccount,
+    matchPortfolioAccountByBrokerId,
+} from '@/utils/portfolioFormat'
 
 ///@EPIC Frontend.ITEM LiveMonitoring.TOPIC Realtime Robot Screen [1]
 ///@ Экран live-мониторинга: WebSocket события, статус робота, поток сигналов/ордеров,
@@ -30,6 +54,8 @@ const SERIES_COLORS = [
 const MAX_PRICE_POINTS = 3000
 const MAX_TARGET_POINTS = 1000
 const MAX_CANDLE_POINTS = 1000
+/** Сколько последних событий держим в live-side-card «Лента». */
+const FEED_LIMIT = 30
 
 function isUniverseAccepted(row: { filter_result?: string }): boolean {
     const v = String(row.filter_result || '').toLowerCase()
@@ -46,6 +72,7 @@ interface LogLine {
     level: string
     text: string
     time: string
+    backendId?: number
 }
 
 interface LiveSnapshotState {
@@ -61,36 +88,50 @@ interface LiveSnapshotState {
     portfolio_source?: string | null
     recent_signals: any[]
     recent_orders: any[]
+    open_orders?: any[]
+    order_history?: any[]
+    recent_logs?: any[]
     stream_health: Record<string, any>
 }
 
-function instrumentsFromRobotConfig(robot: Robot | null | undefined): string[] {
-    if (!robot?.config || typeof robot.config !== 'object') return []
-    const cfg = robot.config as Record<string, unknown>
-    const broker = String(cfg.broker_type || 'tinvest').trim().toLowerCase()
-    const strategyParams = cfg.strategy_params
-    const strategyFigis = strategyParams && typeof strategyParams === 'object'
-        ? (strategyParams as Record<string, unknown>).figis
-        : undefined
-    const raw = broker === 'bybit'
-        ? (cfg.allowed_symbols ?? cfg.instruments)
-        : (cfg.allowed_figis ?? cfg.figis ?? strategyFigis)
-    if (!Array.isArray(raw)) return []
-    return raw.map(x => String(x).trim().toUpperCase()).filter(Boolean)
+/** Дата + время для live-side-card / ленты / консоли. */
+function formatLiveTs(value?: string | number | Date | null): string {
+    const opts: Intl.DateTimeFormatOptions = {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    }
+    if (value == null || value === '') {
+        return new Date().toLocaleString('ru-RU', opts)
+    }
+    if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? '—' : value.toLocaleString('ru-RU', opts)
+    }
+    if (typeof value === 'number') {
+        const d = new Date(value)
+        return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('ru-RU', opts)
+    }
+    const raw = String(value).trim()
+    const d = new Date(raw)
+    if (!Number.isNaN(d.getTime())) {
+        return d.toLocaleString('ru-RU', opts)
+    }
+    // Уже отформатированная строка (например только время) — оставляем как есть.
+    return raw || '—'
 }
 
-function formatPortfolioMoney(value: unknown): string {
-    if (value == null) return '—'
-    if (typeof value === 'number' && Number.isFinite(value)) {
-        return value.toLocaleString('ru-RU', { maximumFractionDigits: 4 })
+function pushLogLine(
+    prev: LogLine[],
+    line: Omit<LogLine, 'id'> & { id?: number },
+    nextId: () => number,
+): LogLine[] {
+    if (line.backendId != null && prev.some(l => l.backendId === line.backendId)) {
+        return prev
     }
-    if (typeof value === 'object' && value !== null && 'decimal' in value) {
-        const d = Number((value as { decimal?: unknown }).decimal)
-        if (Number.isFinite(d)) {
-            return d.toLocaleString('ru-RU', { maximumFractionDigits: 4 })
-        }
-    }
-    return '—'
+    return [{ id: line.id ?? nextId(), level: line.level, text: line.text, time: line.time, backendId: line.backendId }, ...prev].slice(0, 500)
 }
 
 function extractApiErrorMessage(error: unknown, fallback: string): string {
@@ -103,41 +144,27 @@ function extractApiErrorMessage(error: unknown, fallback: string): string {
     return fallback
 }
 
-function parseSignalResultFromLogMessage(message: string): { figi: string; status: 'SIGNAL' | 'SKIPPED'; reason: string } | null {
-    const text = String(message || '').trim()
-    if (!text) return null
-    let m = text.match(/Сигнала нет:\s*([A-Z0-9_]+)\s*[—-]\s*(.+)$/i)
-    if (m) {
-        return { figi: String(m[1]).toUpperCase(), status: 'SKIPPED', reason: String(m[2]).trim() }
-    }
-    m = text.match(/\[SIGNAL_SKIPPED\]\s*([A-Z0-9_]+)\s*[—-]\s*(.+)$/i)
-    if (m) {
-        return { figi: String(m[1]).toUpperCase(), status: 'SKIPPED', reason: String(m[2]).trim() }
-    }
-    m = text.match(/\[REVERSION_TO_MA\]\s*([A-Z0-9_]+)\s+raw_signal=(BUY|SELL|NONE)\s+reason=(.+)$/i)
-    if (m) {
-        const side = String(m[2]).toUpperCase()
-        return {
-            figi: String(m[1]).toUpperCase(),
-            status: side === 'NONE' ? 'SKIPPED' : 'SIGNAL',
-            reason: String(m[3]).trim(),
-        }
-    }
-    return null
-}
-
 export default function LivePage() {
     const toast = useToast()
+    const [searchParams, setSearchParams] = useSearchParams()
     const [robots, setRobots] = useState<Robot[]>([])
-    const [selectedRobot, setSelectedRobot] = useState<number | null>(null)
+    const [selectedRobot, setSelectedRobot] = useState<number | null>(() => {
+        const raw = searchParams.get('robotId')
+        const parsed = raw ? Number(raw) : null
+        return parsed && Number.isFinite(parsed) && parsed > 0 ? parsed : null
+    })
+    const selectedRobotRef = useRef<number | null>(null)
+    selectedRobotRef.current = selectedRobot
+    const robotsRef = useRef(robots)
+    robotsRef.current = robots
     const [selectedBroker, setSelectedBroker] = useState<string>('tinvest')
     const [loading, setLoading] = useState(true)
     const [softLoading, setSoftLoading] = useState(false)
-    const [signals, setSignals] = useState<FeedEvent[]>([])
-    const [orders, setOrders] = useState<FeedEvent[]>([])
+    /** True from robot select until first full snapshot + universe settle. */
+    const [robotHydrating, setRobotHydrating] = useState(false)
+    const [pipeline, setPipeline] = useState<TradePipelineItem[]>([])
     const [prices, setPrices] = useState<Record<string, { price: number; change: number; time: string }>>({})
     const [signalMeta, setSignalMeta] = useState<Record<string, { targetPrice?: number; indicators?: Record<string, number>; signalType?: string }>>({})
-    const [signalResultByFigi, setSignalResultByFigi] = useState<Record<string, { status: 'SIGNAL' | 'SKIPPED'; reason: string; time: string }>>({})
     const [lastPriceEventAt, setLastPriceEventAt] = useState<number | null>(null)
     const [lastHeartbeatAt, setLastHeartbeatAt] = useState<number | null>(null)
     const [nowTs, setNowTs] = useState<number>(() => Date.now())
@@ -146,14 +173,31 @@ export default function LivePage() {
     const [dmsSubscriptions, setDmsSubscriptions] = useState<any[]>([])
     const [dmsSnapshots, setDmsSnapshots] = useState<any[]>([])
     const [dailyUniverse, setDailyUniverse] = useState<any[]>([])
-    const [snapshotOpen, setSnapshotOpen] = useState(false)
     const [logFilter, setLogFilter] = useState('ALL')
     const [chartMode, setChartMode] = useState<'candles' | 'lines' | 'both'>('both')
-    const [sidePanel, setSidePanel] = useState<'prices' | 'feed'>('prices')
-    const [dmsOpen, setDmsOpen] = useState(true)
+    const [portfolioOpen, setPortfolioOpen] = useState(true)
+    const [compositionPositions, setCompositionPositions] = useState<any[]>([])
+    const [compositionLoading, setCompositionLoading] = useState(false)
+    const [portfolioAccounts, setPortfolioAccounts] = useState<AccountSummary[]>([])
+    const [matchedPortfolioAccount, setMatchedPortfolioAccount] = useState<AccountSummary | null>(null)
+    const [ordersOpen, setOrdersOpen] = useState(true)
+    const [universeOpen, setUniverseOpen] = useState(false)
+    const [candidatesOpen, setCandidatesOpen] = useState(true)
+    const [cryptoScreeningStatus, setCryptoScreeningStatus] = useState<RobotCryptoScreeningStatus | null>(null)
+    const [cryptoScreeningStarting, setCryptoScreeningStarting] = useState(false)
     const [logsOpen, setLogsOpen] = useState(true)
+    const [ordersActiveOnly, setOrdersActiveOnly] = useState(true)
+    const [ordersSyncing, setOrdersSyncing] = useState(false)
     const [liveIssue, setLiveIssue] = useState<string | null>(null)
     const logIdRef = useRef(0)
+
+    const [manualFigi, setManualFigi] = useState('')
+    const [manualSide, setManualSide] = useState<'BUY' | 'SELL'>('BUY')
+    const [manualPrice, setManualPrice] = useState('')
+    const [manualSizeMode, setManualSizeMode] = useState<'qty' | 'notional'>('notional')
+    const [manualSize, setManualSize] = useState('')
+    const [manualReduceOnly, setManualReduceOnly] = useState(false)
+    const [manualSubmitting, setManualSubmitting] = useState(false)
 
     const [availableFigis, setAvailableFigis] = useState<string[]>([])
     const [selectedFigis, setSelectedFigis] = useState<string[]>([])
@@ -181,7 +225,8 @@ export default function LivePage() {
             const r = await robotService.list()
             const trading = r.items.filter(rb => rb.type === 2)
             setRobots(trading)
-            if (selectedRobot && !trading.some(x => x.id === selectedRobot)) {
+            const currentId = selectedRobotRef.current
+            if (currentId && !trading.some(x => x.id === currentId)) {
                 setSelectedRobot(null)
             }
         } catch {
@@ -189,21 +234,20 @@ export default function LivePage() {
         } finally {
             setLoading(false)
         }
-    }, [selectedRobot, toast])
+    }, [toast])
 
     useEffect(() => {
-        loadRobots()
-    }, [loadRobots])
+        void loadRobots()
+        // Mount-only: list is for the robot picker; avoid re-fetch on selection/toast identity churn.
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+    }, [])
 
     useEffect(() => {
         if (!selectedRobot) return
         const robot = robots.find(r => r.id === selectedRobot)
-        const instruments = instrumentsFromRobotConfig(robot)
-        if (instruments.length === 0) return
-        setAvailableFigis(prev => (prev.length > 0 ? prev : instruments))
-        setSelectedFigis(prev => (prev.length > 0 ? prev : instruments))
         const broker = String((robot?.config as Record<string, unknown> | undefined)?.broker_type || 'tinvest')
         setSelectedBroker(broker)
+        // Do not seed figi bar from config allowed_symbols (full universe).
     }, [selectedRobot, robots])
 
     const clearRobotScopedState = useCallback(() => {
@@ -211,6 +255,7 @@ export default function LivePage() {
         setDmsSubscriptions([])
         setDmsSnapshots([])
         setDailyUniverse([])
+        setCryptoScreeningStatus(null)
         setLiveIssue(null)
     }, [])
 
@@ -255,16 +300,13 @@ export default function LivePage() {
     }, [selectedRobot, robots])
 
     useEffect(() => {
-        void loadDms({ processQueue: true })
-    }, [loadDms])
-
-    useEffect(() => {
-        if (!selectedRobot || !dmsOpen) return
-        const timer = window.setInterval(() => {
-            void loadDms({ processQueue: true })
-        }, 20000)
-        return () => window.clearInterval(timer)
-    }, [selectedRobot, dmsOpen, loadDms])
+        // Initial empty-state clear when list callback identity changes without a robot.
+        if (!selectedRobot) {
+            setDmsSubscriptions([])
+            setDmsSnapshots([])
+            setDailyUniverse([])
+        }
+    }, [selectedRobot])
 
     useEffect(() => {
         const timer = window.setInterval(() => setNowTs(Date.now()), 1000)
@@ -272,11 +314,9 @@ export default function LivePage() {
     }, [])
 
     const resetChartState = useCallback(() => {
-        setSignals([])
-        setOrders([])
+        setPipeline([])
         setPrices({})
         setSignalMeta({})
-        setSignalResultByFigi({})
         setLastPriceEventAt(null)
         setLastHeartbeatAt(null)
         setLogs([])
@@ -292,13 +332,12 @@ export default function LivePage() {
         targetSeriesMapRef.current.clear()
         targetHistoryRef.current.clear()
         lastPriceTsByFigiRef.current.clear()
-        chartRef.current = null
+        // chartRef is owned by <Chart onReady> — do not null here (avoids missed ticks mid-remount)
     }, [])
 
     const wsUrl = useMemo(() => {
         if (!selectedRobot || !token) return ''
-        const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-        return `${proto}://${window.location.host}/ws/live?robot_id=${selectedRobot}&token=${encodeURIComponent(token)}`
+        return buildLiveWsUrl(selectedRobot, token)
     }, [selectedRobot, token])
 
     const normalizeLineHistory = useCallback((points: { time: Time; value: number }[]) => {
@@ -437,10 +476,15 @@ export default function LivePage() {
         if (!chartRef.current) return
         if (!selectedFigisRef.current.includes(figi)) return
 
-        const series = ensurePriceSeries(figi)
-        series?.update(point)
-        const candleSeries = ensureCandleSeries(figi)
-        candleSeries?.update(candleCurrentRef.current.get(figi)!)
+        try {
+            const series = ensurePriceSeries(figi)
+            series?.update(point)
+            const candleSeries = ensureCandleSeries(figi)
+            const candle = candleCurrentRef.current.get(figi)
+            if (candle) candleSeries?.update(candle)
+        } catch {
+            // Chart may have been disposed between tick and update (StrictMode / remount).
+        }
     }, [ensurePriceSeries, ensureCandleSeries])
 
     const appendTargetToChart = useCallback((figi: string, targetPrice: number) => {
@@ -570,27 +614,18 @@ export default function LivePage() {
     const onWsMessage = useCallback((data: any) => {
         if (!data || !data.type) return
 
-        const envelopeEventKey = (kind: 'signal' | 'order' | 'skipped', payload: any): string => {
-            const eventId = payload?.event_id != null ? String(payload.event_id) : ''
-            const runId = payload?.run_id != null ? String(payload.run_id) : ''
-            const cycleId = payload?.cycle_id != null ? String(payload.cycle_id) : ''
-            const decisionId = payload?.decision_id != null ? String(payload.decision_id) : ''
-            if (eventId) {
-                return `${kind}:${runId}:${cycleId}:${decisionId}:${eventId}`
-            }
-            // Защита от некорректного/старого payload без envelope полей.
-            const figi = String(payload?.figi || '')
-            const ts = String(payload?.time || Date.now())
-            return `${kind}:${runId}:${cycleId}:${decisionId}:${figi}:${ts}`
-        }
+        const tickerOf = (figi: string) => tickerFromFigi(figi, tickerByFigiRef.current)
 
         if (data.type === 'init') {
-            const instruments: string[] = data.instruments ?? data.figis ?? []
+            const instruments: string[] = (data.instruments ?? data.figis ?? [])
+                .map((x: unknown) => String(x || '').trim().toUpperCase())
+                .filter(Boolean)
             setAvailableFigis(instruments)
-            // Reset selection on every init to avoid stale single-figi selection
-            // after reconnects or backend/ws process restarts.
-            setSelectedFigis(instruments)
-            selectedFigisRef.current = instruments
+            // Keep prior selection across reconnects; default = all (toggle «Все символы» on).
+            const keep = selectedFigisRef.current.filter(f => instruments.includes(f))
+            const next = keep.length > 0 ? keep : instruments
+            setSelectedFigis(next)
+            selectedFigisRef.current = next
             setSelectedBroker(data.broker_type || 'tinvest')
             setSoftLoading(false)
             setLiveIssue(null)
@@ -604,13 +639,12 @@ export default function LivePage() {
         }
 
         if (data.type === 'price') {
-            const figi = data.figi as string
+            const figi = String(data.figi || '').trim().toUpperCase()
+            if (!figi) return
             const rawPrice = typeof data.price === 'number' ? data.price : Number(data.price)
             if (!Number.isFinite(rawPrice)) return
             const price = rawPrice
-            const ts = data.time
-                ? new Date(data.time).toLocaleTimeString('ru-RU')
-                : new Date().toLocaleTimeString('ru-RU')
+            const ts = formatLiveTs(data.time)
 
             setPrices(prev => {
                 const prevPrice = prev[figi]?.price ?? price
@@ -625,7 +659,7 @@ export default function LivePage() {
         if (data.type === 'signal') {
             const side = (data.signal_type || data.side || '').toLowerCase()
             const tk = data.figi ? tickerFromFigi(String(data.figi), tickerByFigiRef.current) : '—'
-            const ts = data.time ?? new Date().toLocaleTimeString('ru-RU')
+            const ts = formatLiveTs(data.time)
             if (data.figi) {
                 setSignalMeta(prev => ({
                     ...prev,
@@ -638,122 +672,209 @@ export default function LivePage() {
                 if (typeof data.target_price === 'number') {
                     appendTargetToChart(data.figi, data.target_price)
                 }
-                const reason = side
-                    ? `${side.toUpperCase()} @ ${data.price}${data.target_price ? ` -> target ${data.target_price}` : ''}`
-                    : `@ ${data.price}${data.target_price ? ` -> target ${data.target_price}` : ''}`
-                setSignalResultByFigi(prev => ({
-                    ...prev,
-                    [String(data.figi)]: { status: 'SIGNAL', reason, time: ts },
-                }))
             }
-            setSignals(prev => [{
-                id: envelopeEventKey('signal', data),
-                type: (side === 'buy' ? 'buy' : side === 'sell' ? 'sell' : 'info') as FeedEvent['type'],
-                text: `${tk} @ ${data.price}${data.target_price ? ` → target ${data.target_price}` : ''}`,
+            const signalText = `${tk} @ ${data.price}${data.target_price ? ` в†’ target ${data.target_price}` : ''}`
+            setPipeline(prev => upsertPipelineFromSignal(prev, data, tickerOf, formatLiveTs, FEED_LIMIT))
+            setLogs(prev => pushLogLine(prev, {
+                level: 'INFO',
+                text: `[SIGNAL] ${(side || 'info').toUpperCase()} ${signalText}`,
                 time: ts,
-            }, ...prev].slice(0, 100))
+            }, () => ++logIdRef.current))
         }
 
         if (data.type === 'order') {
             const tk = data.figi ? tickerFromFigi(String(data.figi), tickerByFigiRef.current) : '—'
-            setOrders(prev => [{
-                id: envelopeEventKey('order', data),
-                type: (data.status === 'filled' ? 'buy' : 'info') as FeedEvent['type'],
-                text: `${data.side?.toUpperCase()} ${tk} x${data.quantity} — ${data.status}`,
-                time: data.time ?? new Date().toLocaleTimeString('ru-RU'),
-            }, ...prev].slice(0, 100))
+            const ts = formatLiveTs(data.time)
+            const orderText = `${data.side?.toUpperCase()} ${tk} x${data.quantity} — ${data.status}`
+            setPipeline(prev => upsertPipelineFromOrder(prev, data, tickerOf, formatLiveTs, FEED_LIMIT, false))
+            setLogs(prev => pushLogLine(prev, {
+                level: 'INFO',
+                text: `[ORDER] ${orderText}`,
+                time: ts,
+            }, () => ++logIdRef.current))
+        }
+
+        if (data.type === 'orders_snapshot') {
+            setSnapshot(prev => {
+                if (!prev) {
+                    return {
+                        robot_id: Number(data.robot_id) || 0,
+                        status: 0,
+                        broker_type: String(data.broker_type || 'tinvest'),
+                        strategy: '',
+                        active_positions: [],
+                        portfolio_positions: [],
+                        portfolio_summary: {},
+                        recent_signals: [],
+                        recent_orders: [],
+                        open_orders: Array.isArray(data.open_orders) ? data.open_orders : [],
+                        order_history: Array.isArray(data.order_history) ? data.order_history : [],
+                        stream_health: {},
+                    }
+                }
+                return {
+                    ...prev,
+                    open_orders: Array.isArray(data.open_orders) ? data.open_orders : prev.open_orders,
+                    order_history: Array.isArray(data.order_history) ? data.order_history : prev.order_history,
+                }
+            })
         }
 
         if (data.type === 'skipped') {
             const tk = data.figi ? tickerFromFigi(String(data.figi), tickerByFigiRef.current) : '—'
             const reason = String(data.reason || data.status || 'UNKNOWN_REASON')
-            const ts = data.time ?? new Date().toLocaleTimeString('ru-RU')
-            if (data.figi) {
-                setSignalResultByFigi(prev => ({
-                    ...prev,
-                    [String(data.figi)]: { status: 'SKIPPED', reason, time: ts },
-                }))
-            }
-            setOrders(prev => [{
-                id: envelopeEventKey('skipped', data),
-                type: 'info' as FeedEvent['type'],
-                text: `SKIPPED ${tk} — ${reason}`,
-                time: ts,
-            }, ...prev].slice(0, 100))
-            setLogs(prev => [{
-                id: ++logIdRef.current,
+            const ts = formatLiveTs(data.time)
+            setPipeline(prev => upsertPipelineFromOrder(prev, data, tickerOf, formatLiveTs, FEED_LIMIT, true))
+            setLogs(prev => pushLogLine(prev, {
                 level: 'INFO',
                 text: `[SIGNAL_SKIPPED] ${tk} — ${reason}`,
                 time: ts,
-            }, ...prev].slice(0, 500))
+            }, () => ++logIdRef.current))
         }
 
         if (data.type === 'log') {
-            const ts = data.time ?? new Date().toLocaleTimeString('ru-RU')
+            const ts = formatLiveTs(data.time)
             const msg = String(data.message ?? JSON.stringify(data))
-            const parsed = parseSignalResultFromLogMessage(msg)
-            if (parsed) {
-                setSignalResultByFigi(prev => ({
-                    ...prev,
-                    [parsed.figi]: { status: parsed.status, reason: parsed.reason, time: ts },
-                }))
-            }
-            setLogs(prev => [{
-                id: ++logIdRef.current,
+            const backendId = data.id != null && Number.isFinite(Number(data.id)) ? Number(data.id) : undefined
+            setLogs(prev => pushLogLine(prev, {
                 level: data.level ?? 'INFO',
                 text: msg,
                 time: ts,
-            }, ...prev].slice(0, 500))
+                backendId,
+            }, () => ++logIdRef.current))
         }
 
         if (data.type === 'error') {
             const message = String(data.message || 'Unknown error')
             setSoftLoading(false)
             setLiveIssue(message)
-            setLogs(prev => [{
-                id: ++logIdRef.current,
+            setLogs(prev => pushLogLine(prev, {
                 level: 'ERROR',
                 text: message,
-                time: new Date().toLocaleTimeString('ru-RU'),
-            }, ...prev].slice(0, 500))
+                time: formatLiveTs(null),
+            }, () => ++logIdRef.current))
         }
     }, [appendPriceToChart, appendTargetToChart])
 
-    const { connected, send } = useWebSocket({ url: wsUrl, onMessage: onWsMessage, enabled: !!selectedRobot })
+    const { connected, send } = useWebSocket({
+        url: wsUrl,
+        onMessage: onWsMessage,
+        enabled: !!selectedRobot && !!token && !!wsUrl,
+    })
+
+    useEffect(() => {
+        if (connected) {
+            setLiveIssue(null)
+            setSoftLoading(false)
+        }
+    }, [connected])
 
     useEffect(() => {
         if (!selectedRobot || !softLoading) return
         const timer = window.setTimeout(() => {
             setSoftLoading(false)
             setLiveIssue(prev => prev || (
-                connected
-                    ? 'Live WebSocket подключён, но init не получен — проверьте allowed_symbols / universe робота'
-                    : 'Live WebSocket не подключился — перезапустите backend (run.py server) и dev-сервер Vite'
+                !token
+                    ? 'Нужна авторизация в UI для Live-мониторинга. Торговый WS робота при этом работает в фоне по расписанию (heavy worker).'
+                    : connected
+                        ? 'Мониторинг WS подключён, но init не получен — проверьте allowed_symbols / universe робота'
+                        : `Мониторинг WS не подключился (${wsUrl || '—'}). Нужны: run.py ws (:8001) и перезапуск Vite (proxy /ws). Открой UI как http://localhost:5173 — WS должен идти на тот же host, не напрямую на :8001.`
             ))
         }, 12000)
         return () => window.clearTimeout(timer)
-    }, [selectedRobot, softLoading, connected])
+    }, [selectedRobot, softLoading, connected, token, wsUrl])
 
     const handleRobotChange = (val: string) => {
         const num = val ? Number(val) : null
+        const nextId = num && Number.isFinite(num) && num > 0 ? num : null
         resetChartState()
-        setSoftLoading(!!num)
+        setSoftLoading(!!nextId)
         setLiveIssue(null)
-        setSelectedRobot(num)
-        if (!num) {
-            clearRobotScopedState()
-        }
+        clearRobotScopedState()
+        setRobotHydrating(!!nextId)
+        setSelectedRobot(nextId)
+        setSearchParams(
+            (prev) => {
+                const next = new URLSearchParams(prev)
+                if (nextId != null) next.set('robotId', String(nextId))
+                else next.delete('robotId')
+                return next
+            },
+            { replace: true },
+        )
     }
 
-    const loadSnapshot = useCallback(async () => {
+    // Browser back/forward or shared link → restore robot from URL
+    useEffect(() => {
+        const raw = searchParams.get('robotId')
+        const fromUrl = raw ? Number(raw) : null
+        const nextId = fromUrl && Number.isFinite(fromUrl) && fromUrl > 0 ? fromUrl : null
+        if (nextId === selectedRobotRef.current) return
+        resetChartState()
+        setSoftLoading(!!nextId)
+        setLiveIssue(null)
+        clearRobotScopedState()
+        setRobotHydrating(!!nextId)
+        setSelectedRobot(nextId)
+    }, [searchParams, clearRobotScopedState, resetChartState])
+
+    const mergeRecentLogsFromSnapshot = useCallback((snap: LiveSnapshotState | null | undefined) => {
+        const seededLogs = (snap?.recent_logs || []).slice(-150).map((x: any) => ({
+            id: ++logIdRef.current,
+            level: String(x.level || 'INFO'),
+            text: String(x.message || ''),
+            time: formatLiveTs(x.time || x.created_at),
+            backendId: x.id != null && Number.isFinite(Number(x.id)) ? Number(x.id) : undefined,
+        }))
+        if (!seededLogs.length) return
+        setLogs(prev => {
+            const known = new Set(prev.map(l => l.backendId).filter((id): id is number => id != null))
+            const fresh = seededLogs.filter(l => l.backendId == null || !known.has(l.backendId))
+            if (!fresh.length) return prev
+            // recent_logs уже oldest→newest; в консоли newest сверху
+            return [...[...fresh].reverse(), ...prev].slice(0, 500)
+        })
+    }, [])
+
+    const applyFeedFromSnapshot = useCallback((snap: LiveSnapshotState | null | undefined) => {
+        if (!snap) return
+        setPipeline(buildPipelineFromSnapshot(
+            snap.recent_signals,
+            snap.recent_orders,
+            (figi) => tickerFromFigi(figi, tickerByFigiRef.current),
+            formatLiveTs,
+            FEED_LIMIT,
+        ))
+    }, [])
+
+    const loadSnapshot = useCallback(async (opts?: {
+        mergeLogs?: boolean
+        mergeFeed?: boolean
+        mode?: 'ops' | 'full'
+    }) => {
         if (!selectedRobot) {
             setSnapshot(null)
             return null
         }
+        const mode = opts?.mode ?? 'full'
         try {
-            const snap = await robotService.getLiveSnapshot(selectedRobot)
+            const snap = await robotService.getLiveSnapshot(selectedRobot, { mode })
             setSnapshot(prev => {
                 const next = snap as LiveSnapshotState
+                if (mode === 'ops' && prev) {
+                    return {
+                        ...next,
+                        portfolio_positions: prev.portfolio_positions?.length
+                            ? prev.portfolio_positions
+                            : next.portfolio_positions,
+                        portfolio_summary: Object.keys(prev.portfolio_summary || {}).length
+                            ? prev.portfolio_summary
+                            : next.portfolio_summary,
+                        portfolio_fetch_error: prev.portfolio_fetch_error ?? next.portfolio_fetch_error,
+                        portfolio_source: prev.portfolio_source ?? next.portfolio_source,
+                        account_id: next.account_id || prev.account_id,
+                    }
+                }
                 if (
                     (!next.portfolio_positions || next.portfolio_positions.length === 0)
                     && prev?.portfolio_positions?.length
@@ -765,101 +886,161 @@ export default function LivePage() {
             })
             setSelectedBroker(snap.broker_type || 'tinvest')
             setLiveIssue(null)
-            return snap as LiveSnapshotState
+            const typed = snap as LiveSnapshotState
+            if (opts?.mergeLogs) {
+                mergeRecentLogsFromSnapshot(typed)
+            }
+            if (opts?.mergeFeed) {
+                applyFeedFromSnapshot(typed)
+            }
+            return typed
         } catch (error) {
             setLiveIssue(extractApiErrorMessage(error, 'Не удалось загрузить snapshot робота'))
             return null
         }
-    }, [selectedRobot])
+    }, [selectedRobot, mergeRecentLogsFromSnapshot, applyFeedFromSnapshot])
+
+    const refreshFullLive = useCallback(async (options?: { processQueue?: boolean }) => {
+        await loadSnapshot({ mode: 'full', mergeLogs: true, mergeFeed: true })
+        await loadDms(
+            options?.processQueue
+                ? { processQueue: true }
+                : undefined,
+        )
+    }, [loadSnapshot, loadDms])
 
     useEffect(() => {
-        const hydrate = async () => {
-            if (!selectedRobot) return
-            try {
-                const snap = await loadSnapshot()
-                if (!snap) {
-                    setSnapshot(null)
-                    return
-                }
-                const nextSignals: FeedEvent[] = (snap.recent_signals || []).slice(0, 100).map((x: any) => ({
-                    id: x.id,
-                    type: String(x.signal_type || '').toLowerCase() === 'buy' ? 'buy' : String(x.signal_type || '').toLowerCase() === 'sell' ? 'sell' : 'info',
-                    text: `${tickerFromFigi(String(x.figi || ''), tickerByFigiRef.current)} @ ${Number(x.price_at_signal || 0).toLocaleString('ru-RU', { maximumFractionDigits: 4 })}`,
-                    time: x.created_at ? new Date(x.created_at).toLocaleTimeString('ru-RU') : '—',
-                }))
-                const nextOrders: FeedEvent[] = (snap.recent_orders || []).slice(0, 100).map((x: any) => ({
-                    id: x.id,
-                    type: String(x.side || '').toLowerCase() === 'buy' ? 'buy' : 'info',
-                    text: `${String(x.side || '').toUpperCase()} ${tickerFromFigi(String(x.figi || ''), tickerByFigiRef.current)} x${x.quantity} — ${x.status}`,
-                    time: x.created_at ? new Date(x.created_at).toLocaleTimeString('ru-RU') : '—',
-                }))
-                setSignals(nextSignals)
-                setOrders(nextOrders)
-                setSignalResultByFigi(() => {
-                    const next: Record<string, { status: 'SIGNAL' | 'SKIPPED'; reason: string; time: string }> = {}
-                    for (const s of (snap.recent_signals || [])) {
-                        const figi = String(s?.figi || '').toUpperCase()
-                        if (!figi) continue
-                        const side = String(s?.signal_type || '').toUpperCase() || 'SIGNAL'
-                        next[figi] = {
-                            status: 'SIGNAL',
-                            reason: `${side} @ ${s?.price_at_signal ?? '—'}`,
-                            time: s?.created_at ? new Date(s.created_at).toLocaleTimeString('ru-RU') : '—',
-                        }
-                    }
-                    for (const o of (snap.recent_orders || [])) {
-                        const status = String(o?.status || '').toLowerCase()
-                        if (status !== 'skipped') continue
-                        const figi = String(o?.figi || '').toUpperCase()
-                        if (!figi) continue
-                        next[figi] = {
-                            status: 'SKIPPED',
-                            reason: String(o?.error || o?.reason || o?.status || 'skipped'),
-                            time: o?.created_at ? new Date(o.created_at).toLocaleTimeString('ru-RU') : '—',
-                        }
-                    }
-                    return next
-                })
-            } catch {
-                // best effort hydration
-                setSnapshot(null)
-            }
+        if (!selectedRobot) {
+            setRobotHydrating(false)
+            return
         }
-        hydrate()
-    }, [selectedRobot, loadSnapshot])
+        let cancelled = false
+        setRobotHydrating(true)
+        const robot = robotsRef.current.find(r => r.id === selectedRobot)
+        const isCrypto = robot ? deriveMarketProfile(robot) === 'crypto' : false
+        ;(async () => {
+            try {
+                await Promise.all([
+                    loadSnapshot({ mode: 'full', mergeLogs: true, mergeFeed: true }),
+                    loadDms(isCrypto ? undefined : { processQueue: true }),
+                ])
+            } catch {
+                // hydrate best-effort; skeleton clears in finally
+            } finally {
+                if (!cancelled) setRobotHydrating(false)
+            }
+        })()
+        return () => {
+            cancelled = true
+        }
+    }, [selectedRobot, loadSnapshot, loadDms])
 
     useEffect(() => {
         if (!selectedRobot) return
         const timer = window.setInterval(() => {
-            void loadSnapshot()
+            void loadSnapshot({ mode: 'ops', mergeLogs: true, mergeFeed: true })
         }, 15000)
         return () => window.clearInterval(timer)
     }, [selectedRobot, loadSnapshot])
 
     useEffect(() => {
-        if (!selectedRobot || !dmsOpen) return
-        void loadSnapshot()
-    }, [selectedRobot, dmsOpen, loadSnapshot])
-
-    const handleStart = async () => {
         if (!selectedRobot) return
+        const timer = window.setInterval(() => {
+            void refreshFullLive({ processQueue: true })
+        }, 5 * 60 * 1000)
+        return () => window.clearInterval(timer)
+    }, [selectedRobot, refreshFullLive])
+
+    const handleSyncOrders = async () => {
+        if (!selectedRobot || ordersSyncing) return
+        setOrdersSyncing(true)
         try {
-            await robotService.changeStatus(selectedRobot, 1)
-            toast.show('Робот запущен', 'success')
-            await loadRobots()
+            const res = await robotService.syncLiveOrders(selectedRobot)
+            toast.show(
+                `Заявки: +${res.imported} импорт · ${res.upserted} upsert · `
+                + `${res.cancelled} закрыто · hist ${res.history_updated}`
+                + ((res.healed_open || res.healed_closed)
+                    ? ` · seed ${res.healed_open}/${res.healed_closed}`
+                    : ''),
+                'success',
+            )
+            await loadSnapshot({ mode: 'full', mergeLogs: true, mergeFeed: true })
         } catch {
-            toast.show('Не удалось запустить робота', 'error')
+            toast.show('Не удалось синхронизировать заявки с брокером', 'error')
+        } finally {
+            setOrdersSyncing(false)
         }
     }
 
-    const handleStop = async () => {
-        if (!selectedRobot) return
+    const handleManualOrder = async () => {
+        if (!selectedRobot || manualSubmitting) return
+        const figi = String(manualFigi || '').trim().toUpperCase()
+        const price = Number(String(manualPrice).replace(',', '.'))
+        const size = Number(String(manualSize).replace(',', '.'))
+        if (!figi) {
+            toast.show('Выберите символ', 'error')
+            return
+        }
+        if (!Number.isFinite(price) || price <= 0) {
+            toast.show('Укажите лимит-цену > 0', 'error')
+            return
+        }
+        if (!Number.isFinite(size) || size <= 0) {
+            toast.show(manualSizeMode === 'qty' ? 'Укажите количество > 0' : 'Укажите сумму USDT > 0', 'error')
+            return
+        }
+        const approxQty = manualSizeMode === 'notional' ? size / price : size
+        const confirmText = manualSizeMode === 'notional'
+            ? `Сумма ${size} USDT → ≈${approxQty.toPrecision(6)} ${figi} @ ${price}`
+            : `Qty ${size} ${figi} @ ${price} (в‰€${(size * price).toFixed(4)} USDT)`
+        const ok = window.confirm(
+            `Выставить лимит ${manualSide} ${figi}?\n${confirmText}`
+            + `${manualReduceOnly ? '\nreduce-only' : ''}\n\nЗаявка уйдёт напрямую брокеру.`,
+        )
+        if (!ok) return
+        setManualSubmitting(true)
         try {
-            await robotService.changeStatus(selectedRobot, 2)
-            toast.show('Робот остановлен', 'success')
-            await loadRobots()
-        } catch {
-            toast.show('Не удалось остановить робота', 'error')
+            // Explicit fields only — never send both quantity and notional.
+            const payload: {
+                robotId: number
+                figi: string
+                side: 'BUY' | 'SELL'
+                price: number
+                quantity?: number
+                notional?: number
+                reduceOnly?: boolean
+            } = {
+                robotId: selectedRobot,
+                figi,
+                side: manualSide,
+                price,
+                reduceOnly: manualReduceOnly,
+            }
+            if (manualSizeMode === 'notional') {
+                payload.notional = size
+            } else {
+                payload.quantity = size
+            }
+            const result = await robotService.placeManualOrder(payload)
+            const placed = result.quantity != null ? ` qty=${result.quantity}` : ''
+            const notion = result.notional != null ? ` sum=${result.notional}USDT` : ''
+            toast.show(
+                `Заявка ${result.side} ${result.figi}:${notion}${placed} — ${result.order_id || result.status}`,
+                'success',
+            )
+            setManualSize('')
+            void loadSnapshot({ mode: 'ops', mergeLogs: true, mergeFeed: true })
+        } catch (err: unknown) {
+            let msg = ''
+            if (err && typeof err === 'object' && 'response' in err) {
+                const detail = (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
+                if (typeof detail === 'string') msg = detail
+                else if (Array.isArray(detail) && detail[0]?.msg) msg = String(detail[0].msg)
+            }
+            if (!msg && err instanceof Error) msg = err.message
+            toast.show(msg || 'Не удалось выставить заявку', 'error')
+        } finally {
+            setManualSubmitting(false)
         }
     }
 
@@ -906,7 +1087,12 @@ export default function LivePage() {
         targetSeriesMapRef.current.clear()
     }, [])
 
-    const onChartReady = useCallback((chart: IChartApi) => {
+    const onChartReady = useCallback((chart: IChartApi | null) => {
+        if (!chart) {
+            chartRef.current = null
+            resetChartSeriesMaps()
+            return
+        }
         chartRef.current = chart
         resetChartSeriesMaps()
         chart.timeScale().applyOptions({
@@ -922,25 +1108,124 @@ export default function LivePage() {
     }, [selectedFigis, chartMode, syncChartToSelection])
 
     const portfolioRows = useMemo(() => {
-        const rows = snapshot?.portfolio_positions || []
-        return rows.map((row) => {
-            const figi = String((row as { figi?: string }).figi || '').trim().toUpperCase()
-            const live = figi ? prices[figi] : undefined
-            if (!live || !Number.isFinite(live.price)) {
-                return row
+        const moneyNum = (v: unknown): number | null => {
+            if (v == null) return null
+            if (typeof v === 'number' && Number.isFinite(v)) return v
+            if (typeof v === 'object' && v !== null && 'decimal' in v) {
+                const d = Number((v as { decimal?: unknown }).decimal)
+                return Number.isFinite(d) ? d : null
             }
+            const n = Number(v)
+            return Number.isFinite(n) ? n : null
+        }
+
+        const snapRows = (snapshot?.portfolio_positions || []).filter(
+            (row) => Math.abs(Number((row as { quantity?: number }).quantity) || 0) > 1e-9,
+        )
+        const source = snapRows.length > 0 ? snapRows : compositionPositions.filter(
+            (row) => Math.abs(Number((row as { quantity?: number }).quantity) || 0) > 1e-9,
+        )
+
+        return source.map((row) => {
+            const figi = String((row as { figi?: string }).figi || '').trim().toUpperCase()
+            const qty = Number((row as { quantity?: number }).quantity ?? 0)
+            const avg =
+                moneyNum((row as { avg_price?: unknown }).avg_price)
+                ?? moneyNum((row as { average_position_price?: unknown }).average_position_price)
+                ?? 0
+            const live = figi ? prices[figi] : undefined
+            const current =
+                (live && Number.isFinite(live.price) ? live.price : null)
+                ?? moneyNum((row as { current_price?: unknown }).current_price)
+                ?? 0
+            const expected =
+                live && Number.isFinite(avg) && avg > 0
+                    ? (current - avg) * qty
+                    : moneyNum((row as { expected_yield?: unknown }).expected_yield)
+            const total =
+                moneyNum((row as { total_value?: unknown }).total_value)
+                ?? (current * Math.abs(qty))
             return {
-                ...row,
-                current_price: { decimal: live.price, currency: 'USDT' },
-                current_price_live: true,
-                current_price_time: live.time,
+                figi,
+                ticker: String((row as { ticker?: string }).ticker || figi),
+                instrument_type: String((row as { instrument_type?: string }).instrument_type || ''),
+                type_name: String(
+                    (row as { type_name?: string }).type_name
+                    || (row as { instrument_type?: string }).instrument_type
+                    || '',
+                ) || null,
+                quantity: qty,
+                avg_price: avg,
+                current_price: current,
+                expected_yield: expected,
+                total_value: total,
             }
         })
-    }, [snapshot?.portfolio_positions, prices])
+    }, [compositionPositions, prices, snapshot?.portfolio_positions])
+
+    const loadCompositionPositions = useCallback(async (accountPk: number | null) => {
+        if (!accountPk) {
+            setCompositionPositions([])
+            return
+        }
+        setCompositionLoading(true)
+        try {
+            const pos = await analyticsService.getAccountPositions(accountPk)
+            setCompositionPositions(Array.isArray(pos) ? pos : [])
+        } catch {
+            setCompositionPositions([])
+        } finally {
+            setCompositionLoading(false)
+        }
+    }, [])
+
+    useEffect(() => {
+        if (!selectedRobot) {
+            setPortfolioAccounts([])
+            return
+        }
+        let cancelled = false
+        ;(async () => {
+            try {
+                const summary = await analyticsService.getSummary(true)
+                if (!cancelled) setPortfolioAccounts(summary.accounts ?? [])
+            } catch {
+                if (!cancelled) setPortfolioAccounts([])
+            }
+        })()
+        return () => {
+            cancelled = true
+        }
+    }, [selectedRobot])
+
+    const openOrderRows = useMemo(() => snapshot?.open_orders || [], [snapshot?.open_orders])
+    const filledOrderRows = useMemo(() => snapshot?.order_history || [], [snapshot?.order_history])
     const selectedRobotEntity = useMemo(
         () => robots.find(r => r.id === selectedRobot) ?? null,
         [robots, selectedRobot],
     )
+
+    useEffect(() => {
+        if (!selectedRobot) {
+            setMatchedPortfolioAccount(null)
+            setCompositionPositions([])
+            return
+        }
+        const brokerId =
+            snapshot?.account_id
+            || String((selectedRobotEntity?.config as { account_id?: string } | undefined)?.account_id || '')
+            || null
+        const matched = matchPortfolioAccountByBrokerId(portfolioAccounts, brokerId)
+        setMatchedPortfolioAccount(matched)
+        void loadCompositionPositions(matched?.id ?? null)
+    }, [
+        selectedRobot,
+        snapshot?.account_id,
+        selectedRobotEntity?.config,
+        portfolioAccounts,
+        loadCompositionPositions,
+    ])
+
     const isCryptoRobot = useMemo(
         () => (selectedRobotEntity ? deriveMarketProfile(selectedRobotEntity) === 'crypto' : false),
         [selectedRobotEntity],
@@ -967,7 +1252,7 @@ export default function LivePage() {
         const cfg = (selectedRobotEntity?.config ?? {}) as Record<string, unknown>
         const im = (cfg.instrument_map ?? {}) as Record<string, unknown>
         const fromPortfolio = new Map<string, string>()
-        for (const p of snapshot?.portfolio_positions || []) {
+        for (const p of [...(snapshot?.portfolio_positions || []), ...compositionPositions]) {
             const fg = String((p as { figi?: string }).figi || '').trim().toUpperCase()
             const tk = String((p as { ticker?: string }).ticker || '').trim().toUpperCase()
             if (fg && tk) fromPortfolio.set(fg, tk)
@@ -986,8 +1271,64 @@ export default function LivePage() {
             fromFigiByTicker,
             fromPortfolio,
         )
-    }, [selectedRobotEntity, snapshot?.portfolio_positions])
+    }, [selectedRobotEntity, snapshot?.portfolio_positions, compositionPositions])
     tickerByFigiRef.current = tickerByFigi
+
+    const wsInstrumentUnion = useMemo(() => {
+        const ids: string[] = []
+        const seen = new Set<string>()
+        const add = (value: unknown) => {
+            const s = String(value || '').trim().toUpperCase()
+            if (!s || seen.has(s)) return
+            seen.add(s)
+            ids.push(s)
+        }
+        for (const p of [...(snapshot?.portfolio_positions || []), ...compositionPositions]) {
+            const row = p as { figi?: string; ticker?: string }
+            add(row.figi || row.ticker)
+        }
+        const cfg = (selectedRobotEntity?.config ?? {}) as Record<string, unknown>
+        const im = (cfg.instrument_map ?? {}) as Record<string, unknown>
+        const figiByTicker =
+            im.figi_by_ticker && typeof im.figi_by_ticker === 'object' && !Array.isArray(im.figi_by_ticker)
+                ? (im.figi_by_ticker as Record<string, unknown>)
+                : {}
+        for (const row of dailyUniverse) {
+            if (!isUniverseAccepted(row)) continue
+            const item = row as { figi?: string; ticker?: string }
+            const figi = String(item.figi || '').trim().toUpperCase()
+            const ticker = String(item.ticker || '').trim().toUpperCase()
+            if (figi) {
+                add(figi)
+                continue
+            }
+            if (!ticker) continue
+            const mapped = String(
+                figiByTicker[ticker] || figiByTicker[ticker.toLowerCase()] || '',
+            ).trim().toUpperCase()
+            add(mapped || ticker)
+        }
+        return ids
+    }, [
+        snapshot?.portfolio_positions,
+        compositionPositions,
+        dailyUniverse,
+        selectedRobotEntity,
+    ])
+
+    useEffect(() => {
+        if (wsInstrumentUnion.length === 0) return
+        setAvailableFigis(wsInstrumentUnion)
+        const unionSet = new Set(wsInstrumentUnion)
+        const prev = selectedFigisRef.current
+        const keep = prev.filter((f) => unionSet.has(f))
+        const next = keep.length > 0 ? keep : wsInstrumentUnion
+        const same =
+            next.length === prev.length
+            && next.every((f, i) => f === prev[i])
+        if (same) return
+        applyBulkFigiSelection(next)
+    }, [wsInstrumentUnion, applyBulkFigiSelection])
 
     const instrLabel = (figi: string) => tickerFromFigi(figi, tickerByFigi)
 
@@ -998,6 +1339,26 @@ export default function LivePage() {
         }),
         [availableFigis, tickerByFigi],
     )
+
+    useEffect(() => {
+        if (sortedAvailableFigis.length === 0) {
+            setManualFigi('')
+            return
+        }
+        setManualFigi(prev => (
+            prev && sortedAvailableFigis.includes(prev)
+                ? prev
+                : (selectedFigis.find(f => sortedAvailableFigis.includes(f)) || sortedAvailableFigis[0])
+        ))
+    }, [sortedAvailableFigis, selectedFigis])
+
+    useEffect(() => {
+        if (!manualFigi) return
+        const livePx = prices[manualFigi]?.price
+        if (livePx != null && Number.isFinite(livePx) && livePx > 0) {
+            setManualPrice(prev => (prev.trim() ? prev : String(livePx)))
+        }
+    }, [manualFigi, prices])
 
     const figiColorIndex = useMemo(() => {
         const m = new Map<string, number>()
@@ -1016,7 +1377,6 @@ export default function LivePage() {
 
     const allFigisSelected = sortedAvailableFigis.length > 0
         && sortedAvailableFigis.every(f => selectedFigis.includes(f))
-    const noFigisSelected = selectedFigis.length === 0
 
     const priceRows = sortedAvailableFigis.length > 0
         ? sortedAvailableFigis.map((figi) => {
@@ -1056,82 +1416,132 @@ export default function LivePage() {
             key: 'change', header: 'Изм. %', align: 'right' as const,
             render: r => <span className={r.price == null ? '' : (r.change >= 0 ? 'color-up' : 'color-down')}>{r.price == null ? '—' : `${r.change >= 0 ? '+' : ''}${r.change?.toFixed(4)}%`}</span>,
         },
-        { key: 'time', header: 'Время', render: r => <span className="mono">{r.time}</span> },
+        { key: 'time', header: 'Дата / время', render: r => <span className="mono">{r.time}</span> },
     ]
 
-    const indicatorRows = (sortedAvailableFigis.length > 0 ? sortedAvailableFigis : Object.keys(signalMeta)).map((figi) => {
-        const m = signalMeta[figi] || {}
-        return {
-            figi,
-            signal: (m.signalType || '—').toUpperCase(),
-            target: m.targetPrice ?? null,
-            indicators: m.indicators || {},
-        }
-    })
-    const indicatorColumns: Column<any>[] = [
+    const signalSummaryRows = useMemo(() => buildSignalSummaryRows(pipeline), [pipeline])
+
+    const brokerOrderColumns: Column<any>[] = [
         {
             key: 'figi',
-            header: 'Тикер',
+            header: 'Символ',
+            render: r => instrLabel(String(r.figi || r.symbol || '')),
+        },
+        {
+            key: 'source',
+            header: 'Источник',
+            render: r => String(r.source_name || r.source || r.order_type || '—'),
+        },
+        {
+            key: 'side',
+            header: 'Сторона',
+            render: r => String(r.side_name || r.side || '—'),
+        },
+        {
+            key: 'quantity',
+            header: 'Кол-во',
+            align: 'right',
+            render: r => Number(r.quantity || 0).toLocaleString('ru-RU'),
+        },
+        {
+            key: 'filled_qty',
+            header: 'Исполн.',
+            align: 'right',
+            render: r => (r.filled_qty != null ? Number(r.filled_qty).toLocaleString('ru-RU') : '—'),
+        },
+        {
+            key: 'price',
+            header: 'Цена',
+            align: 'right',
+            render: r => (Number(r.price || 0) > 0 ? Number(r.price).toLocaleString('ru-RU') : '—'),
+        },
+        {
+            key: 'status',
+            header: 'Статус',
+            render: r => String(r.status_name || r.status || '—'),
+        },
+        {
+            key: 'order_id',
+            header: 'Order ID',
             render: r => (
-                <span className="mono" title={instrumentTitle(r.figi, tickerByFigi)}>
-                    {instrLabel(r.figi)}
+                <span className="mono" style={{ fontSize: '0.85em' }} title={String(r.order_id || '')}>
+                    {r.order_id ? String(r.order_id).slice(0, 10) : '—'}
                 </span>
             ),
         },
-        { key: 'signal', header: 'Сигнал' },
-        { key: 'target', header: 'Target', align: 'right' as const, render: r => r.target == null ? '—' : r.target.toLocaleString('ru-RU', { maximumFractionDigits: 4 }) },
         {
-            key: 'indicators',
-            header: 'Индикаторы',
-            render: r => {
-                const items = Object.entries(r.indicators || {}) as [string, any][]
-                if (items.length === 0) return '—'
-                return items.slice(0, 4).map(([k, v]) => `${k}=${Number(v).toFixed(4)}`).join(' | ')
-            },
+            key: 'created_at',
+            header: 'Время',
+            render: r => (r.created_at ? formatLiveTs(r.created_at) : '—'),
         },
     ]
 
-    const snapshotPositionColumns: Column<any>[] = [
+    const candidateColumns: Column<LiveCandidateRow>[] = [
         {
             key: 'ticker',
-            header: 'Тикер',
-            render: r => r.ticker || instrLabel(String(r.figi || '')),
-        },
-        {
-            key: 'figi',
-            header: 'FIGI',
+            header: 'Символ',
+            sortable: true,
             render: r => (
-                <span className="mono" style={{ opacity: 0.65, fontSize: '0.85em' }} title={String(r.figi || '')}>
-                    {r.figi ? String(r.figi).slice(-8) : '—'}
+                <span className="mono" title={instrumentTitle(r.figi, tickerByFigi)}>
+                    {r.ticker || instrLabel(r.figi)}
+                    {r.hasOpenOrder ? (
+                        <span className="live-candidate-order-dot" title="Есть открытая заявка"> · ord</span>
+                    ) : null}
                 </span>
             ),
         },
-        { key: 'instrument_type', header: 'Тип', render: r => r.instrument_type || '—' },
-        { key: 'quantity', header: 'Кол-во', align: 'right', render: r => Number(r.quantity || 0).toLocaleString('ru-RU') },
         {
-            key: 'average_position_price',
-            header: 'Средняя',
-            align: 'right',
-            render: r => formatPortfolioMoney(r.average_position_price),
+            key: 'sourceLabel',
+            header: 'Откуда',
+            sortable: true,
+            render: r => <span style={{ opacity: 0.85 }}>{r.sourceLabel}</span>,
         },
         {
-            key: 'current_price',
-            header: 'Текущая',
-            align: 'right',
-            render: r => {
-                const live = Boolean((r as { current_price_live?: boolean }).current_price_live)
-                const liveTime = (r as { current_price_time?: string }).current_price_time
-                const formatted = formatPortfolioMoney(r.current_price)
-                if (!live) return formatted
-                return (
-                    <span title={liveTime ? `live WS · ${liveTime}` : 'live WS'}>
-                        {formatted}
-                        <span className="mono" style={{ opacity: 0.55, fontSize: '0.75em', marginLeft: 4 }}>live</span>
-                    </span>
-                )
-            },
+            key: '_sortTs',
+            header: 'Дата сигнала',
+            sortable: true,
+            render: r => <span className="mono">{r.signalAtLabel}</span>,
         },
-        { key: 'blocked', header: 'Блок', render: r => r.blocked ? 'да' : '—' },
+        {
+            key: 'lastSignalLabel',
+            header: 'Последний сигнал',
+            sortable: true,
+            render: r => (
+                <span
+                    className={
+                        r.lastKind === 'filled' || r.lastKind === 'open' || r.lastKind === 'partial'
+                            ? 'color-up'
+                            : r.lastKind === 'failed' || r.lastKind === 'rejected' || r.lastKind === 'error'
+                                ? 'color-down'
+                                : ''
+                    }
+                    style={r.lastKind === 'none' ? { opacity: 0.65 } : undefined}
+                    title={r.lastReason || undefined}
+                >
+                    {r.lastSignalLabel}
+                </span>
+            ),
+        },
+        {
+            key: 'lastReason',
+            header: 'Причина / описание',
+            sortable: true,
+            render: r => (
+                <span
+                    title={r.lastReason}
+                    style={{
+                        display: 'inline-block',
+                        maxWidth: 360,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        opacity: 0.85,
+                    }}
+                >
+                    {r.lastReason || '—'}
+                </span>
+            ),
+        },
     ]
 
     const filteredLogs = logFilter === 'ALL' ? logs : logs.filter(l => l.level === logFilter)
@@ -1141,11 +1551,16 @@ export default function LivePage() {
         : (secondsSinceLastPrice == null || secondsSinceLastPrice <= 5 ? 'fresh' : 'stale')
     const streamVariant = streamState === 'offline' ? 'neutral' : (streamState === 'fresh' ? 'up' : 'down')
     const lastPriceText = lastPriceEventAt
-        ? new Date(lastPriceEventAt).toLocaleTimeString('ru-RU')
+        ? formatLiveTs(lastPriceEventAt)
         : '—'
     const lastHeartbeatText = lastHeartbeatAt
-        ? new Date(lastHeartbeatAt).toLocaleTimeString('ru-RU')
+        ? formatLiveTs(lastHeartbeatAt)
         : '—'
+    const tradingSessionActive = Boolean(snapshot?.stream_health?.trading_session_active)
+    const tradingSessionStatus = String(snapshot?.stream_health?.trading_session_status || '')
+    const robotLiveHint = tradingSessionActive
+        ? (tradingSessionStatus === 'queued' ? 'QUEUE' : 'LIVE')
+        : (snapshot?.status === 1 ? 'ON' : 'OFF')
 
     const downloadLog = () => {
         const text = [...logs].reverse().map(l => `[${l.time}] [${l.level}] ${l.text}`).join('\n')
@@ -1184,12 +1599,94 @@ export default function LivePage() {
         () => dailyUniverse.filter(isUniverseRejected),
         [dailyUniverse],
     )
+    const candidateRows = useMemo(
+        () =>
+            buildLiveCandidates({
+                acceptedUniverse: universeAccepted,
+                portfolio: portfolioRows,
+                signalSummary: signalSummaryRows,
+                recentSignals: snapshot?.recent_signals,
+                openOrders: openOrderRows,
+            }),
+        [universeAccepted, portfolioRows, signalSummaryRows, snapshot?.recent_signals, openOrderRows],
+    )
 
     const positionCount = selectedRobot
         ? portfolioRows.filter(
             (p: { quantity?: number }) => Math.abs(Number(p.quantity) || 0) > 1e-9,
         ).length
         : 0
+
+    const showRobotSkeleton = Boolean(selectedRobot && robotHydrating)
+
+    const cryptoScreeningTips = useMemo(() => {
+        if (!isCryptoRobot) return []
+        const cfg = (selectedRobotEntity?.config ?? {}) as Record<string, unknown>
+        const cu = (cfg.crypto_universe && typeof cfg.crypto_universe === 'object')
+            ? (cfg.crypto_universe as Record<string, unknown>)
+            : {}
+        return buildCryptoScreeningRecommendations(dailyUniverse, cu)
+    }, [isCryptoRobot, selectedRobotEntity, dailyUniverse])
+
+    const cryptoScreeningToggleLabel = useMemo(
+        () => (isCryptoRobot ? formatCryptoScreeningToggleLabel(cryptoScreeningStatus) : null),
+        [isCryptoRobot, cryptoScreeningStatus],
+    )
+    const cryptoScreeningBusy = isCryptoScreeningInProgress(cryptoScreeningStatus) || cryptoScreeningStarting
+
+    const cryptoScreeningWasBusyRef = useRef(false)
+
+    const refreshCryptoScreeningStatus = useCallback(async () => {
+        if (!selectedRobot) {
+            setCryptoScreeningStatus(null)
+            return null
+        }
+        try {
+            const st = await robotService.getCryptoScreeningStatus(selectedRobot)
+            setCryptoScreeningStatus(st)
+            return st
+        } catch {
+            return null
+        }
+    }, [selectedRobot])
+
+    useEffect(() => {
+        if (!selectedRobot || !isCryptoRobot) {
+            setCryptoScreeningStatus(null)
+            cryptoScreeningWasBusyRef.current = false
+            return
+        }
+        let cancelled = false
+        const tick = async () => {
+            if (cancelled) return
+            const st = await refreshCryptoScreeningStatus()
+            if (cancelled || !st) return
+            const busy = isCryptoScreeningInProgress(st)
+            if (cryptoScreeningWasBusyRef.current && !busy) {
+                if (st.status === 'failed') {
+                    toast.show(st.error || st.message || 'Crypto-screening завершился с ошибкой', 'error')
+                } else {
+                    toast.show(st.message || 'Crypto-screening завершён', 'success')
+                }
+                await loadDms()
+            }
+            cryptoScreeningWasBusyRef.current = busy
+        }
+        void tick()
+        const inProgress = isCryptoScreeningInProgress(cryptoScreeningStatus)
+        const timer = window.setInterval(() => { void tick() }, inProgress ? 4000 : 20000)
+        return () => {
+            cancelled = true
+            window.clearInterval(timer)
+        }
+    }, [
+        selectedRobot,
+        isCryptoRobot,
+        refreshCryptoScreeningStatus,
+        cryptoScreeningStatus?.status,
+        loadDms,
+        toast,
+    ])
 
     if (loading) {
         return (
@@ -1201,15 +1698,21 @@ export default function LivePage() {
     }
 
     const dailyUniverseColumns: Column<any>[] = [
-        { key: 'ticker', header: 'Тикер' },
-        { key: 'source', header: 'Источник' },
-        { key: 'filter_result', header: 'Статус' },
+        { key: 'ticker', header: 'Тикер', sortable: true },
+        { key: 'source', header: 'Источник', sortable: true },
+        { key: 'filter_result', header: 'Статус', sortable: true },
         {
-            key: 'reason',
+            key: 'reject_reason',
             header: 'Причина',
+            sortable: true,
             render: r => formatDmsUniverseReason(r),
         },
-        { key: 'created_at', header: 'Время', render: r => r.created_at ? new Date(r.created_at).toLocaleTimeString('ru-RU') : '—' },
+        {
+            key: 'created_at',
+            header: 'Дата / время',
+            sortable: true,
+            render: r => r.created_at ? formatLiveTs(r.created_at) : '—',
+        },
     ]
     const robotSnapshotColumns: Column<any>[] = [
         { key: 'snapshot_id', header: 'Снимок', render: r => r.snapshot_id ? `#${r.snapshot_id}` : '—' },
@@ -1221,7 +1724,6 @@ export default function LivePage() {
         { key: 'snapshot_time', header: 'Время снимка', render: r => r.snapshot_time ? new Date(r.snapshot_time).toLocaleString('ru-RU') : '—' },
     ]
 
-    const hasIndicatorData = selectedRobot && indicatorRows.some(r => Object.keys(r.indicators || {}).length > 0)
     const displayLogs = selectedRobot ? filteredLogs : []
 
     return (
@@ -1258,67 +1760,160 @@ export default function LivePage() {
                         onChange={handleRobotChange}
                         placeholder="Робот"
                     />
-                    <Badge variant={connected ? 'up' : 'neutral'}>
-                        <span className={`status-dot status-dot--${connected ? 'active' : 'inactive'}`} />
-                        {connected ? 'WS' : '—'}
-                    </Badge>
+                    <span title="Фоновая торговая сессия (Stage2/ByBit WS). Не зависит от логина в UI.">
+                        <Badge variant={tradingSessionActive ? 'up' : (snapshot?.status === 1 ? 'warn' : 'neutral')}>
+                            Робот {robotLiveHint}
+                        </Badge>
+                    </span>
+                    <span title="Мониторинг UI → /ws/live (:8001). Нужна авторизация в браузере.">
+                        <Badge variant={connected ? 'up' : 'neutral'}>
+                            <span className={`status-dot status-dot--${connected ? 'active' : 'inactive'}`} />
+                            {connected ? 'Monitor' : 'Monitor —'}
+                        </Badge>
+                    </span>
                     <Badge variant={streamVariant}>{streamState === 'fresh' ? 'OK' : streamState === 'stale' ? 'LAG' : 'OFF'}</Badge>
                     <span className="live-toolbar__meta mono">
                         {lastPriceText} · ping {lastHeartbeatText}
                     </span>
                 </div>
-                <div className="live-toolbar__actions">
+            </div>
+
+            {robots.length === 0 && (
+                <Card className="live-empty-card">
+                    <div className="event-feed__empty">Нет торговых роботов (тип 2)</div>
+                </Card>
+            )}
+
+            {!selectedRobot && (
+                <Card className="live-compact-grid live-compact-grid--empty">
+                    <div className="event-feed__empty">Выберите робота для графика и цен</div>
+                </Card>
+            )}
+
+            {selectedRobot && showRobotSkeleton && (
+                <div className="live-boot-skeleton" aria-busy="true" aria-label="Загрузка данных робота">
+                    <Skeleton height="56px" borderRadius="10px" />
+                    <div className="live-compact-grid">
+                        <Skeleton height="280px" borderRadius="12px" />
+                        <Skeleton height="280px" borderRadius="12px" />
+                    </div>
+                    <Skeleton height="140px" borderRadius="12px" />
+                    <Skeleton height="120px" borderRadius="12px" count={3} />
+                </div>
+            )}
+
+            {selectedRobot && !showRobotSkeleton && (
+                <>
+                <div className="live-manual-order" data-testid="live-manual-order">
+                    <span className="live-manual-order__label">Ручная заявка</span>
+                    <Select
+                        className="live-manual-order__symbol"
+                        size="sm"
+                        options={[
+                            { value: '', label: 'Символ…' },
+                            ...sortedAvailableFigis.map(f => ({
+                                value: f,
+                                label: instrLabel(f),
+                            })),
+                        ]}
+                        value={manualFigi}
+                        onChange={(v) => {
+                            setManualFigi(v)
+                            setManualPrice('')
+                        }}
+                        placeholder="Символ"
+                    />
                     <div className="ios-segment ios-segment--sm">
-                        {(['candles', 'lines', 'both'] as const).map(mode => (
+                        {(['BUY', 'SELL'] as const).map(side => (
                             <button
-                                key={mode}
+                                key={side}
                                 type="button"
-                                className={`ios-segment__btn ${chartMode === mode ? 'ios-segment__btn--active' : ''}`}
-                                onClick={() => setChartMode(mode)}
+                                className={`ios-segment__btn ${manualSide === side ? 'ios-segment__btn--active' : ''}`}
+                                onClick={() => setManualSide(side)}
                             >
-                                {mode === 'candles' ? 'Свечи' : mode === 'lines' ? 'Линии' : 'Оба'}
+                                {side}
                             </button>
                         ))}
                     </div>
-                    <Button variant="primary" size="sm" onClick={handleStart} disabled={!selectedRobot}>Старт</Button>
-                    <Button variant="danger" size="sm" onClick={handleStop} disabled={!selectedRobot}>Стоп</Button>
-                    <Button variant="ghost" size="sm" onClick={() => setSnapshotOpen(true)} disabled={!snapshot} title="Snapshot">
-                        Snapshot
+                    <input
+                        className="form-input cyber-input live-manual-order__input"
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="Лимит-цена"
+                        value={manualPrice}
+                        onChange={(e) => setManualPrice(e.target.value)}
+                        aria-label="Лимит-цена"
+                    />
+                    <div className="ios-segment ios-segment--sm">
+                        <button
+                            type="button"
+                            className={`ios-segment__btn ${manualSizeMode === 'notional' ? 'ios-segment__btn--active' : ''}`}
+                            onClick={() => setManualSizeMode('notional')}
+                        >
+                            USDT
+                        </button>
+                        <button
+                            type="button"
+                            className={`ios-segment__btn ${manualSizeMode === 'qty' ? 'ios-segment__btn--active' : ''}`}
+                            onClick={() => setManualSizeMode('qty')}
+                        >
+                            Qty
+                        </button>
+                    </div>
+                    <input
+                        className="form-input cyber-input live-manual-order__input"
+                        type="text"
+                        inputMode="decimal"
+                        placeholder={manualSizeMode === 'qty' ? 'Кол-во монет' : 'Сумма USDT'}
+                        value={manualSize}
+                        onChange={(e) => setManualSize(e.target.value)}
+                        aria-label={manualSizeMode === 'qty' ? 'Количество монет' : 'Сумма USDT'}
+                    />
+                    <label className="live-manual-order__reduce">
+                        <input
+                            type="checkbox"
+                            checked={manualReduceOnly}
+                            onChange={(e) => setManualReduceOnly(e.target.checked)}
+                        />
+                        reduce-only
+                    </label>
+                    <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => void handleManualOrder()}
+                        disabled={!selectedRobot || manualSubmitting || !manualFigi}
+                    >
+                        {manualSubmitting ? '…' : 'Выставить'}
                     </Button>
                 </div>
-            </div>
 
-            {selectedRobot && liveIssue && (
+            {liveIssue && (
                 <Card className="live-empty-card">
                     <div className="event-feed__empty">
-                        Не удалось отобразить live-данные: {liveIssue}
+                        {liveIssue.startsWith('HALT')
+                            ? liveIssue
+                            : `Не удалось отобразить live-данные: ${liveIssue}`}
                     </div>
                 </Card>
             )}
 
-            {selectedRobot && sortedAvailableFigis.length > 1 && (
+            {sortedAvailableFigis.length > 1 && (
                 <div className="live-figi-bar-wrap">
                     <div className="live-figi-bar__head">
                         <span className="live-figi-bar__meta">
                             Выбрано {selectedFigis.length} / {sortedAvailableFigis.length}
                         </span>
                         <div className="live-figi-bar__actions">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                disabled={allFigisSelected}
-                                onClick={selectAllFigis}
-                            >
-                                Выделить все
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                disabled={noFigisSelected}
-                                onClick={deselectAllFigis}
-                            >
-                                Снять все
-                            </Button>
+                            <Toggle
+                                checked={allFigisSelected}
+                                onChange={(on) => {
+                                    if (on) selectAllFigis()
+                                    else deselectAllFigis()
+                                }}
+                                label={allFigisSelected ? 'Все символы' : 'Выбрать все'}
+                                title="Вкл — все символы на графике; выкл — снять выделение"
+                                aria-label="Выбрать все символы"
+                            />
                         </div>
                     </div>
                     <div className="live-figi-bar">
@@ -1358,442 +1953,356 @@ export default function LivePage() {
                 </div>
             )}
 
-            {robots.length === 0 && (
-                <Card className="live-empty-card">
-                    <div className="event-feed__empty">Нет торговых роботов (тип 2)</div>
-                </Card>
-            )}
-
-            {!selectedRobot && (
-                <Card className="live-compact-grid live-compact-grid--empty">
-                    <div className="event-feed__empty">Выберите робота для графика, цен и ленты событий</div>
-                </Card>
-            )}
-
-            {selectedRobot && (
-                <div className="live-compact-grid">
+            <div className="live-compact-grid">
                     <Card className="live-chart-card">
+                        <div className="live-chart-card__toolbar">
+                            <div className="ios-segment ios-segment--sm">
+                                {(['candles', 'lines', 'both'] as const).map(mode => (
+                                    <button
+                                        key={mode}
+                                        type="button"
+                                        className={`ios-segment__btn ${chartMode === mode ? 'ios-segment__btn--active' : ''}`}
+                                        onClick={() => setChartMode(mode)}
+                                    >
+                                        {mode === 'candles' ? 'Свечи' : mode === 'lines' ? 'Линии' : 'Оба'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                         <Chart height={280} onReady={onChartReady} key={selectedRobot ?? 'empty'} />
                     </Card>
 
                     <Card className="live-side-card">
-                        <div className="live-side-tabs">
-                            {([
-                                ['prices', `Цены (${priceRows.length})`],
-                                ['feed', `Лента (${signals.length + orders.length})`],
-                            ] as const).map(([id, label]) => (
-                                <button
-                                    key={id}
-                                    type="button"
-                                    className={`live-side-tabs__btn ${sidePanel === id ? 'live-side-tabs__btn--active' : ''}`}
-                                    onClick={() => setSidePanel(id)}
-                                >
-                                    {label}
-                                </button>
-                            ))}
-                        </div>
-
+                        <h4 className="card__section-title">Цены ({priceRows.length})</h4>
                         <div className="live-side-panel">
-                            {sidePanel === 'prices' && (
-                                <DataTable
-                                    columns={priceColumns}
-                                    data={priceRows}
-                                    keyField="figi"
-                                    emptyText="Ожидание…"
-                                    maxHeight={220}
-                                />
-                            )}
-                            {sidePanel === 'feed' && (
-                                <div className="live-feed-split">
-                                    <div className="live-feed-split__col">
-                                        <span className="live-feed-split__label">Сигналы</span>
-                                        <EventFeed events={signals} maxHeight="140px" />
-                                    </div>
-                                    <div className="live-feed-split__col">
-                                        <span className="live-feed-split__label">Заявки</span>
-                                        <EventFeed events={orders} maxHeight="140px" />
-                                    </div>
-                                    {hasIndicatorData && (
-                                        <div className="live-feed-split__indicators">
-                                            <DataTable
-                                                columns={indicatorColumns}
-                                                data={indicatorRows}
-                                                keyField="figi"
-                                                emptyText="—"
-                                                maxHeight={100}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                            <DataTable
+                                columns={priceColumns}
+                                data={priceRows}
+                                keyField="figi"
+                                emptyText="Ожидание…"
+                                maxHeight={260}
+                            />
                         </div>
                     </Card>
                 </div>
-            )}
 
-            <details
-                className="live-accordion"
-                open={dmsOpen}
-                onToggle={e => setDmsOpen((e.target as HTMLDetailsElement).open)}
-            >
-                <summary className="live-accordion__summary">
-                    <span>{isCryptoRobot ? 'Universe / screening' : 'DMS / выборка'}</span>
-                    <span className="live-accordion__hint mono">
-                        {selectedRobot
-                            ? isCryptoRobot
-                                ? `поз. ${positionCount} · ✓${universeAccepted.length} / ✗${universeRejected.length}`
-                                : `поз. ${positionCount} · ✓${universeAccepted.length} / ✗${universeRejected.length} · снимки ${robotSnapshotRows.length}`
-                            : 'робот не выбран'}
+            <PortfolioComposition
+                positions={portfolioRows}
+                loading={Boolean(selectedRobot) && compositionLoading}
+                currency={matchedPortfolioAccount?.currency || (isCryptoRobot ? 'USDT' : 'RUB')}
+                bybitAccount={
+                    matchedPortfolioAccount
+                        ? isBybitPortfolioAccount(matchedPortfolioAccount)
+                        : isCryptoRobot
+                }
+                open={portfolioOpen}
+                onOpenChange={setPortfolioOpen}
+                emptyText={
+                    !selectedRobot
+                        ? 'Выберите робота'
+                        : matchedPortfolioAccount
+                            ? 'Нет позиций'
+                            : 'Нет счёта портфеля для этого робота — дождитесь снимка portfolio updater'
+                }
+            />
+
+            <CollapsibleSection
+                className="portfolio-collapse"
+                title={
+                    isCryptoRobot
+                        ? 'Результаты crypto-screening (сегодня)'
+                        : 'Результаты отбора DMS (сегодня)'
+                }
+                badge={
+                    <span className="portfolio-collapse__count">
+                        ✓{universeAccepted.length} / ✗{universeRejected.length}
                     </span>
-                </summary>
-                <Card className="live-accordion__body">
-                    {!selectedRobot ? (
-                        <div className="event-feed__empty">Выберите робота</div>
-                    ) : (
-                        <>
-                            <div className="live-dms-info">
-                                <strong>Как формируется блок</strong>
-                                {isCryptoRobot ? (
-                                    <ol>
-                                        <li>
-                                            Режим universe — в{' '}
-                                            <span className="mono">Настройки робота → Отбор монет</span>: auto-screening
-                                            ByBit или фиксированный список символов.
-                                        </li>
-                                        <li>
-                                            <span className="mono">Запустить crypto-screening</span> — отбор пар →{' '}
-                                            <span className="mono">crypto_universe_daily</span>.
-                                        </li>
-                                        <li>
-                                            <span className="mono">Пересобрать universe</span> —{' '}
-                                            <span className="mono">allowed_symbols</span> в конфиге.
-                                        </li>
-                                        <li>
-                                            <em>Портфель</em> — позиции ByBit-счёта (не universe).
-                                        </li>
-                                    </ol>
-                                ) : (
-                                    <ol>
-                                        <li>
-                                            Режим universe задаётся в{' '}
-                                            <span className="mono">Настройки робота → Отбор бумаг</span>: фиксированный список,
-                                            DMS pipeline или вся TQBR.
-                                        </li>
-                                        <li>
-                                            <span className="mono">Подписать DMS</span> → snapshot MOEX и пересчёт{' '}
-                                            <span className="mono">daily_universe</span> по выбранному режиму.
-                                        </li>
-                                        <li>
-                                            <span className="mono">Пересобрать universe</span> — обновление{' '}
-                                            <span className="mono">allowed_figis</span> в конфиге (live подхватит за ~10 с).
-                                        </li>
-                                        <li>
-                                            <em>Портфель</em> — позиции брокерского счёта (не universe).
-                                        </li>
-                                    </ol>
-                                )}
-                            </div>
-                            <div className="live-accordion__toolbar live-accordion__toolbar--end">
-                                {!isCryptoRobot && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={async () => {
-                                            try {
-                                                await robotService.subscribeDms({
-                                                    robot_id: selectedRobot,
-                                                    board: 'TQBR',
-                                                    ttl_minutes: 5,
-                                                })
-                                                toast.show('Подписка DMS создана', 'success')
-                                                await loadDms({ processQueue: true })
-                                            } catch {
-                                                toast.show('Не удалось создать подписку DMS', 'error')
-                                            }
-                                        }}
-                                    >
-                                        Подписать DMS
-                                    </Button>
-                                )}
-                                {isCryptoRobot && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={async () => {
-                                            if (!selectedRobot) return
-                                            try {
-                                                const res = await robotService.runCryptoScreening(selectedRobot)
-                                                toast.show(
-                                                    res.message
-                                                    || `Screening: ${res.accepted} из ${res.scanned} символов`,
-                                                    'success',
-                                                )
-                                                await loadDms()
-                                            } catch {
-                                                toast.show('Не удалось запустить crypto-screening', 'error')
-                                            }
-                                        }}
-                                    >
-                                        Запустить crypto-screening
-                                    </Button>
-                                )}
+                }
+                headerEnd={
+                    cryptoScreeningToggleLabel ? (
+                        <span
+                            className={
+                                cryptoScreeningBusy
+                                    ? 'portfolio-collapse__count live-screening-status live-screening-status--busy'
+                                    : 'portfolio-collapse__count live-screening-status'
+                            }
+                        >
+                            {cryptoScreeningToggleLabel}
+                        </span>
+                    ) : null
+                }
+                open={universeOpen}
+                onOpenChange={setUniverseOpen}
+            >
+                    <>
+                        <div className="portfolio-collapse__actions">
+                            {!isCryptoRobot && (
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    disabled={!selectedRobot}
                                     onClick={async () => {
-                                        if (!selectedRobot) return
                                         try {
-                                            const res = await robotService.syncUniverse(selectedRobot)
-                                            toast.show(
-                                                isCryptoRobot
-                                                    ? `Universe пересобран: ${res.accepted_tickers.length} символов`
-                                                    : `Universe пересобран: ${res.accepted_tickers.length} тикеров → ${res.allowed_figis.length} FIGI в конфиге`,
-                                                'success',
-                                            )
-                                            await loadDms(isCryptoRobot ? undefined : { processQueue: true })
+                                            await robotService.subscribeDms({
+                                                robot_id: selectedRobot,
+                                                board: 'TQBR',
+                                                ttl_minutes: 5,
+                                            })
+                                            toast.show('Подписка DMS создана', 'success')
+                                            await refreshFullLive({ processQueue: true })
                                         } catch {
-                                            toast.show('Не удалось пересобрать universe', 'error')
+                                            toast.show('Не удалось создать подписку DMS', 'error')
                                         }
                                     }}
                                 >
-                                    Пересобрать universe
+                                    Подписать DMS
                                 </Button>
+                            )}
+                            {isCryptoRobot && (
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => void loadDms(isCryptoRobot ? undefined : { processQueue: true })}
+                                    disabled={!selectedRobot || cryptoScreeningBusy}
+                                    onClick={async () => {
+                                        if (!selectedRobot || cryptoScreeningBusy) return
+                                        setCryptoScreeningStarting(true)
+                                        try {
+                                            const res = await robotService.runCryptoScreening(selectedRobot)
+                                            const nextStatus: RobotCryptoScreeningStatus = {
+                                                robot_id: selectedRobot,
+                                                status: res.status || 'queued',
+                                                job_id: res.job_id,
+                                                started_at: res.started_at,
+                                                message: res.message,
+                                            }
+                                            setCryptoScreeningStatus(nextStatus)
+                                            cryptoScreeningWasBusyRef.current = true
+                                            toast.show(
+                                                res.message || 'Crypto-screening поставлен в очередь',
+                                                'info',
+                                            )
+                                        } catch {
+                                            toast.show('Не удалось запустить crypto-screening', 'error')
+                                        } finally {
+                                            setCryptoScreeningStarting(false)
+                                        }
+                                    }}
                                 >
-                                    Обновить
+                                    {cryptoScreeningBusy ? 'Screening…' : 'Запустить crypto-screening'}
                                 </Button>
-                            </div>
-                            <h4 className="card__section-title">
-                                Портфель (все позиции)
-                                {selectedRobot && (
-                                    <span className="live-dms-section-hint">
-                                        {' '}· {positionCount} на счёте
-                                        {snapshot?.portfolio_source ? ` · ${snapshot.portfolio_source}` : ''}
-                                    </span>
-                                )}
-                            </h4>
-                            {snapshot?.portfolio_fetch_error && (
-                                <p className="live-dms-section-hint">
-                                    Портфель брокера: {snapshot.portfolio_fetch_error}
-                                    {!isCryptoRobot && !snapshot.account_id
-                                        ? ' · укажите токен T-Invest и счёт в настройках робота'
-                                        : ''}
-                                    {isCryptoRobot && !snapshot.account_id
-                                        ? ' · укажите токен ByBit в настройках робота'
-                                        : ''}
-                                </p>
                             )}
-                            <div className="live-accordion__toolbar live-accordion__toolbar--end">
-                                <Button variant="ghost" size="sm" onClick={() => void loadSnapshot()}>
-                                    Обновить портфель
-                                </Button>
-                            </div>
-                            <DataTable
-                                columns={snapshotPositionColumns}
-                                data={portfolioRows}
-                                keyField="id"
-                                emptyText={
-                                    snapshot?.account_id
-                                        ? 'Нет позиций на счёте'
-                                        : 'Нет данных — счёт подберётся автоматически при обновлении'
-                                }
-                                maxHeight={220}
-                            />
-                            <h4 className="card__section-title">
-                                {isCryptoRobot ? 'Результаты crypto-screening (сегодня)' : 'Результаты отбора DMS (сегодня)'}
-                            </h4>
-                            <p className="live-dms-section-hint">
-                                Принято: {universeAccepted.length} · отклонено: {universeRejected.length}
-                                {!isCryptoRobot && dailyUniverse[0]?.snapshot_id != null && (
-                                    <> · snapshot #{dailyUniverse[0].snapshot_id}</>
-                                )}
-                            </p>
-                            <DataTable
-                                columns={dailyUniverseColumns}
-                                data={dailyUniverse}
-                                keyField="id"
-                                emptyText={
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={!selectedRobot}
+                                title={
                                     isCryptoRobot
-                                        ? 'Нет данных за сегодня — запустите crypto-screening или пересоберите universe'
-                                        : 'Нет данных за сегодня — нажмите «Подписать DMS» и дождитесь обработки очереди'
+                                        ? 'Прогнать screening по текущим фильтрам crypto_universe и записать accepted в allowed_symbols конфига робота'
+                                        : 'Пересчитать daily_universe за сегодня и записать accepted FIGI в allowed_figis конфига робота'
                                 }
-                                maxHeight={380}
-                            />
-                            {!isCryptoRobot && (
-                                <>
-                                    <h4 className="card__section-title">Подписки и снимки робота</h4>
-                                    <DataTable
-                                        columns={robotSnapshotColumns}
-                                        data={robotSnapshotRows}
-                                        keyField="id"
-                                        emptyText="Нет подписок DMS для этого робота"
-                                        maxHeight={160}
-                                    />
-                                </>
-                            )}
-                        </>
-                    )}
-                </Card>
-            </details>
-
-            <details
-                className="live-accordion"
-                open={logsOpen}
-                onToggle={e => setLogsOpen((e.target as HTMLDetailsElement).open)}
-            >
-                <summary className="live-accordion__summary">
-                    <span>Консоль логов</span>
-                    <span className="live-accordion__hint mono">
-                        {selectedRobot ? `${displayLogs.length} строк` : 'робот не выбран'}
-                    </span>
-                </summary>
-                <Card className="live-accordion__body">
-                    {!selectedRobot ? (
-                        <div className="event-feed__empty">Выберите робота</div>
-                    ) : (
-                        <>
-                            <div className="live-accordion__toolbar live-accordion__toolbar--end">
-                                {['ALL', 'INFO', 'ERROR', 'DEBUG'].map(f => (
-                                    <button
-                                        key={f}
-                                        type="button"
-                                        className={`tf-btn tf-btn--sm ${f === logFilter ? 'tf-btn--active' : ''}`}
-                                        onClick={() => setLogFilter(f)}
-                                    >
-                                        {f}
-                                    </button>
-                                ))}
-                                <Button variant="ghost" size="sm" onClick={clearLogs}>
-                                    Очистить
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={downloadLog}>
-                                    Скачать
-                                </Button>
-                            </div>
-                            <h4 className="card__section-title">Результат генерации сигналов</h4>
-                            <div className="live-signal-results">
-                                {(sortedAvailableFigis.length > 0 ? sortedAvailableFigis : Object.keys(signalResultByFigi)).map((figi) => {
-                                    const row = signalResultByFigi[figi]
-                                    const tk = instrLabel(figi)
-                                    if (!row) {
-                                        return (
-                                            <div key={figi} className="live-signal-results__row">
-                                                <span className="mono">{tk}</span>
-                                                <span className="live-signal-results__status live-signal-results__status--wait">WAIT</span>
-                                                <span className="live-signal-results__reason">нет решения</span>
-                                            </div>
+                                onClick={async () => {
+                                    if (!selectedRobot) return
+                                    try {
+                                        const res = await robotService.syncUniverse(selectedRobot)
+                                        toast.show(
+                                            isCryptoRobot
+                                                ? `Universe пересобран: ${res.accepted_tickers.length} символов`
+                                                : `Universe пересобран: ${res.accepted_tickers.length} тикеров → ${res.allowed_figis.length} FIGI в конфиге`,
+                                            'success',
                                         )
+                                        await refreshFullLive(
+                                            isCryptoRobot ? undefined : { processQueue: true },
+                                        )
+                                    } catch {
+                                        toast.show('Не удалось пересобрать universe', 'error')
                                     }
-                                    const isSkipped = row.status === 'SKIPPED'
-                                    return (
-                                        <div key={figi} className="live-signal-results__row">
-                                            <span className="mono">{tk}</span>
-                                            <span className={`live-signal-results__status ${isSkipped ? 'live-signal-results__status--skip' : 'live-signal-results__status--ok'}`}>
-                                                {row.status}
-                                            </span>
-                                            <span className="live-signal-results__reason">{row.reason}</span>
-                                            <span className="live-signal-results__time mono">{row.time}</span>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                            <div className="log-console log-console--compact">
-                                {displayLogs.length === 0 && (
-                                    <div className="log-console__empty">Пусто — события WS появятся при работе сессии</div>
+                                }}
+                            >
+                                Пересобрать universe
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                title={
+                                    isCryptoRobot
+                                        ? 'Только обновить UI: полный snapshot + таблица screening за сегодня (без пересчёта фильтров)'
+                                        : 'Обновить UI: snapshot + строки daily_universe; для MOEX ещё process DMS queue'
+                                }
+                                onClick={() => void refreshFullLive(
+                                    isCryptoRobot ? undefined : { processQueue: true },
                                 )}
-                                {displayLogs.map(l => (
-                                    <div key={l.id} className={`log-console__line--${l.level.toLowerCase()}`}>
-                                        [{l.time}] [{l.level}] {l.text}
-                                    </div>
-                                ))}
-                            </div>
-                        </>
-                    )}
-                </Card>
-            </details>
-
-            <Modal
-                open={snapshotOpen}
-                onClose={() => setSnapshotOpen(false)}
-                title="Snapshot робота"
-                width="900px"
-            >
-                {!snapshot ? (
-                    <div className="event-feed__empty">Нет snapshot-данных</div>
-                ) : (
-                    <>
-                        <div className="grid-kpi mb-6">
-                            <div className="kpi-tile"><span className="kpi-tile__label">Робот</span><span className="kpi-tile__value mono">#{snapshot.robot_id}</span></div>
-                            <div className="kpi-tile"><span className="kpi-tile__label">Статус</span><span className="kpi-tile__value mono">{snapshot.status}</span></div>
-                            <div className="kpi-tile"><span className="kpi-tile__label">Брокер</span><span className="kpi-tile__value mono">{snapshot.broker_type}</span></div>
-                            <div className="kpi-tile"><span className="kpi-tile__label">Стратегия</span><span className="kpi-tile__value mono">{snapshot.strategy}</span></div>
+                            >
+                                Обновить
+                            </Button>
                         </div>
-                        <Card className="mb-6">
-                            <h3 className="card__section-title">Открытые позиции</h3>
-                            <DataTable
-                                columns={snapshotPositionColumns}
-                                data={snapshot.active_positions || []}
-                                keyField="id"
-                                emptyText="Нет открытых позиций"
-                                maxHeight={260}
-                            />
-                        </Card>
-                        <Card className="mb-6">
-                            <h3 className="card__section-title">Последние сигналы (snapshot)</h3>
-                            <DataTable
-                                columns={[
-                                    { key: 'created_at', header: 'Время', render: r => r.created_at ? new Date(r.created_at).toLocaleString('ru-RU') : '—' },
-                                    {
-                                        key: 'figi',
-                                        header: 'Тикер',
-                                        render: r => (
-                                            <span className="mono" title={instrumentTitle(String(r.figi || ''), tickerByFigi)}>
-                                                {instrLabel(String(r.figi || ''))}
-                                            </span>
-                                        ),
-                                    },
-                                    { key: 'signal_type', header: 'Сигнал' },
-                                    { key: 'price_at_signal', header: 'Цена', align: 'right', render: r => Number(r.price_at_signal || 0).toLocaleString('ru-RU', { maximumFractionDigits: 4 }) },
-                                    { key: 'was_executed', header: 'Исполнен', render: r => Number(r.was_executed || 0) === 1 ? 'Да' : 'Нет' },
-                                ]}
-                                data={snapshot.recent_signals || []}
-                                keyField="id"
-                                emptyText="Нет сигналов"
-                                maxHeight={260}
-                            />
-                        </Card>
-                        <Card>
-                            <h3 className="card__section-title">Последние ордера (snapshot)</h3>
-                            <DataTable
-                                columns={[
-                                    { key: 'created_at', header: 'Время', render: r => r.created_at ? new Date(r.created_at).toLocaleString('ru-RU') : '—' },
-                                    {
-                                        key: 'figi',
-                                        header: 'Тикер',
-                                        render: r => (
-                                            <span className="mono" title={instrumentTitle(String(r.figi || ''), tickerByFigi)}>
-                                                {instrLabel(String(r.figi || ''))}
-                                            </span>
-                                        ),
-                                    },
-                                    { key: 'side', header: 'Сторона' },
-                                    { key: 'quantity', header: 'Кол-во', align: 'right', render: r => Number(r.quantity || 0).toLocaleString('ru-RU') },
-                                    { key: 'price', header: 'Цена', align: 'right', render: r => Number(r.price || 0).toLocaleString('ru-RU', { maximumFractionDigits: 4 }) },
-                                    { key: 'status', header: 'Статус' },
-                                ]}
-                                data={snapshot.recent_orders || []}
-                                keyField="id"
-                                emptyText="Нет ордеров"
-                                maxHeight={260}
-                            />
-                        </Card>
+                        {isCryptoRobot && cryptoScreeningTips.length > 0 && (
+                            <div className="live-dms-info live-screening-tips">
+                                <strong>Рекомендации: какие поля ослабить</strong>
+                                <ol>
+                                    {cryptoScreeningTips.map((tip) => (
+                                        <li key={tip.id}>
+                                            <span className="live-screening-tips__title">{tip.title}</span>
+                                            {tip.rejectCount != null && tip.rejectCount > 0 && (
+                                                <span className="live-screening-tips__count">
+                                                    {' '}· {tip.rejectCount} reject
+                                                </span>
+                                            )}
+                                            <div className="live-screening-tips__change mono">{tip.change}</div>
+                                            <div className="live-screening-tips__detail">
+                                                Зачем: {tip.why}
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ol>
+                                <p className="live-screening-tips__footer">
+                                    Правки в настройках робота → screening / <code>crypto_universe</code>,
+                                    затем «Запустить crypto-screening» или «Пересобрать universe».
+                                </p>
+                            </div>
+                        )}
+                        <DataTable
+                            columns={dailyUniverseColumns}
+                            data={dailyUniverse}
+                            keyField="id"
+                            defaultSortKey="filter_result"
+                            defaultSortDir="asc"
+                            secondarySortKey="ticker"
+                            emptyText={
+                                isCryptoRobot
+                                    ? 'Нет данных за сегодня — запустите crypto-screening или пересоберите universe'
+                                    : 'Нет данных за сегодня — нажмите «Подписать DMS» и дождитесь обработки очереди'
+                            }
+                            maxHeight={380}
+                        />
+                        {!isCryptoRobot && (
+                            <>
+                                <h4 className="card__section-title">Подписки и снимки робота</h4>
+                                <DataTable
+                                    columns={robotSnapshotColumns}
+                                    data={robotSnapshotRows}
+                                    keyField="id"
+                                    emptyText="Нет подписок DMS для этого робота"
+                                    maxHeight={160}
+                                />
+                            </>
+                        )}
                     </>
-                )}
-            </Modal>
+            </CollapsibleSection>
+
+            <CollapsibleSection
+                className="portfolio-collapse"
+                title="Кандидаты"
+                badge={
+                    <span className="portfolio-collapse__count">{candidateRows.length}</span>
+                }
+                open={candidatesOpen}
+                onOpenChange={setCandidatesOpen}
+            >
+                <DataTable
+                    columns={candidateColumns}
+                    data={candidateRows}
+                    keyField="key"
+                    defaultSortKey="_sortTs"
+                    defaultSortDir="desc"
+                    secondarySortKey="ticker"
+                    emptyText={
+                        selectedRobot
+                            ? 'Нет accepted screening и позиций в портфеле'
+                            : 'Выберите робота'
+                    }
+                    maxHeight={280}
+                />
+            </CollapsibleSection>
+
+            <CollapsibleSection
+                className="portfolio-collapse"
+                title="Заявки"
+                badge={
+                    <span className="portfolio-collapse__count">
+                        {ordersActiveOnly ? openOrderRows.length : filledOrderRows.length}
+                    </span>
+                }
+                headerEnd={
+                    <Toggle
+                        checked={ordersActiveOnly}
+                        onChange={setOrdersActiveOnly}
+                        label="Только активные"
+                        aria-label="Только активные заявки"
+                    />
+                }
+                open={ordersOpen}
+                onOpenChange={setOrdersOpen}
+            >
+                    <>
+                        {/* <div className="portfolio-collapse__actions">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={ordersSyncing}
+                                onClick={() => void handleSyncOrders()}
+                            >
+                                {ordersSyncing ? 'Синхронизация…' : 'Синхронизировать'}
+                            </Button>
+                        </div> */}
+                        <DataTable
+                            columns={brokerOrderColumns}
+                            data={ordersActiveOnly ? openOrderRows : filledOrderRows}
+                            keyField="id"
+                            emptyText={
+                                ordersActiveOnly
+                                    ? 'Нет активных заявок'
+                                    : 'Нет исполненных / отменённых заявок'
+                            }
+                            maxHeight={220}
+                        />
+                    </>
+            </CollapsibleSection>
+
+            <CollapsibleSection
+                className="portfolio-collapse"
+                title="Консоль логов"
+                badge={
+                    <span className="portfolio-collapse__count">{displayLogs.length}</span>
+                }
+                open={logsOpen}
+                onOpenChange={setLogsOpen}
+            >
+                    <>
+                        <div className="portfolio-collapse__actions">
+                            {['ALL', 'INFO', 'ERROR', 'DEBUG'].map(f => (
+                                <button
+                                    key={f}
+                                    type="button"
+                                    className={`tf-btn tf-btn--sm ${f === logFilter ? 'tf-btn--active' : ''}`}
+                                    onClick={() => setLogFilter(f)}
+                                >
+                                    {f}
+                                </button>
+                            ))}
+                            <Button variant="ghost" size="sm" onClick={clearLogs}>
+                                Очистить
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={downloadLog}>
+                                Скачать
+                            </Button>
+                        </div>
+                        <div className="log-console log-console--compact">
+                            {displayLogs.length === 0 && (
+                                <div className="log-console__empty">
+                                    {connected
+                                        ? 'Пока нет строк — дождитесь цикла сессии или переподключите WS'
+                                        : 'Нет соединения WS — логи появятся после подключения'}
+                                </div>
+                            )}
+                            {displayLogs.map(l => (
+                                <div key={l.id} className={`log-console__line--${l.level.toLowerCase()}`}>
+                                    [{l.time}] [{l.level}] {l.text}
+                                </div>
+                            ))}
+                        </div>
+                    </>
+            </CollapsibleSection>
+                </>
+            )}
         </div>
     )
 }

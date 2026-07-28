@@ -35,3 +35,21 @@ export function formatPortfolioAccountLabel(account: AccountSummary): string {
               : 'нет снимков'
     return [idPart, name, meta, value].filter(Boolean).join(' — ')
 }
+
+/** Match Live/broker account_id to portfolio_accounts row from analytics summary. */
+export function matchPortfolioAccountByBrokerId(
+    accounts: AccountSummary[],
+    brokerAccountId: string | null | undefined,
+): AccountSummary | null {
+    const aid = String(brokerAccountId || '').trim()
+    if (!aid || !accounts.length) return null
+    const exact = accounts.find(a => a.account_id === aid)
+    if (exact) return exact
+    const upper = aid.toUpperCase()
+    const caseInsensitive = accounts.find(a => String(a.account_id || '').toUpperCase() === upper)
+    if (caseInsensitive) return caseInsensitive
+    if (upper === 'BYBIT_UNIFIED' || upper.endsWith(':UNIFIED')) {
+        return accounts.find(a => isBybitPortfolioAccount(a)) ?? null
+    }
+    return null
+}

@@ -250,6 +250,7 @@ class ByBitBrokerFacade(BrokerFacade):
                     mark = self._safe_float(row.get("markPrice"))
                     avg = self._safe_float(row.get("avgPrice"))
                     upnl = self._safe_float(row.get("unrealisedPnl"))
+                    liq = self._safe_float(row.get("liqPrice"))
                     notional = size * (mark or avg)
                     futures_total += abs(notional)
                     expected_yield += upnl
@@ -264,6 +265,8 @@ class ByBitBrokerFacade(BrokerFacade):
                             "average_position_price": {"decimal": avg, "currency": "USDT"},
                             "expected_yield": {"decimal": upnl, "currency": "USDT"},
                             "daily_yield": {"decimal": 0.0, "currency": "USDT"},
+                            "liq_price": liq,
+                            "mark_price": mark or avg,
                             "blocked": False,
                             "class_code": "BYBIT",
                             "position_uid": f"BYBIT:{symbol}:{side}",
@@ -273,7 +276,15 @@ class ByBitBrokerFacade(BrokerFacade):
             except Exception as exc:
                 logger.warning("ByBit position list failed: %s", exc)
 
-        return self._canonical_portfolio(
+        from app.modules.robots.trading.account_health import (
+            extract_wallet_margin_health,
+            min_liq_distance_pct,
+        )
+
+        margin_health = extract_wallet_margin_health(wallet if isinstance(wallet, dict) else {})
+        margin_health["min_liq_distance_pct"] = min_liq_distance_pct(positions)
+
+        out = self._canonical_portfolio(
             account_id=account_id,
             total=total_equity,
             currency="USDT",
@@ -284,6 +295,8 @@ class ByBitBrokerFacade(BrokerFacade):
             expected_yield=expected_yield,
             wallet_balance=wallets,
         )
+        out["margin_health"] = margin_health
+        return out
 
     async def _portfolio_fund(self, account_id: str) -> Dict[str, Any]:
         data = await self._http.get_all_coins_balance(account_type="FUND")
@@ -814,6 +827,22 @@ class ByBitBrokerFacade(BrokerFacade):
         out.sort(key=lambda x: x["time"])
         return out
 
+    async def set_leverage(self, figi: str, leverage: int | float) -> Dict[str, Any]:
+        """Set isolated/cross leverage for symbol. No-op when leverage<=0 or spot."""
+        symbol = str(figi or "").upper()
+        lev = int(float(leverage or 0))
+        if not symbol or lev <= 0:
+            return {"skipped": True, "reason": "leverage_disabled"}
+        if str(self._instrument_category or "").lower() == "spot":
+            return {"skipped": True, "reason": "spot"}
+        resp = await self._http.set_leverage(
+            category=self._instrument_category,
+            symbol=symbol,
+            buy_leverage=lev,
+            sell_leverage=lev,
+        )
+        return {"symbol": symbol, "leverage": lev, "raw": resp}
+
     async def post_order(
         self,
         figi: str,
@@ -821,12 +850,20 @@ class ByBitBrokerFacade(BrokerFacade):
         price: float,
         direction: str,
         account_id: str,
+        *,
+        reduce_only: bool = False,
+        qty_round_up: bool = False,
     ) -> Dict[str, Any]:
         _ = account_id
         symbol = str(figi or "").upper()
         side = self._map_side(direction)
         px = float(price or 0.0)
-        qty = await self._format_order_qty(symbol, quantity)
+        qty = await self._format_order_qty(
+            symbol,
+            quantity,
+            round_up=bool(qty_round_up),
+            price=px,
+        )
         if not symbol or px <= 0 or float(qty) <= 0:
             raise ValueError("invalid order payload")
         resp = await self._http.create_order(
@@ -837,6 +874,7 @@ class ByBitBrokerFacade(BrokerFacade):
             qty=qty,
             price=str(px),
             time_in_force="GTC",
+            reduce_only=bool(reduce_only),
         )
         result = (resp.get("result") or {}) if isinstance(resp, dict) else {}
         order_id = str(result.get("orderId") or "")
@@ -846,6 +884,8 @@ class ByBitBrokerFacade(BrokerFacade):
             "orderId": result.get("orderId"),
             "executionReportStatus": "EXECUTION_REPORT_STATUS_NEW",
             "raw": resp,
+            "qty": qty,
+            "price": px,
         }
 
     async def get_order_state(self, account_id: str, order_id: str) -> Dict[str, Any]:
@@ -863,6 +903,7 @@ class ByBitBrokerFacade(BrokerFacade):
             "executedOrderPrice": self._as_float(row.get("avgPrice")),
             "executedCommission": self._as_float(row.get("cumExecFee")),
             "symbol": row.get("symbol") or self._order_symbols.get(oid),
+            "side": row.get("side"),
             "stages": [row] if row else [],
         }
 
@@ -898,7 +939,11 @@ class ByBitBrokerFacade(BrokerFacade):
 
     async def get_orders(self, account_id: str) -> List[Dict[str, Any]]:
         _ = account_id
-        resp = await self._http.get_open_orders(category=self._instrument_category)
+        settle = "USDT" if str(self._instrument_category or "").lower() == "linear" else None
+        resp = await self._http.get_open_orders(
+            category=self._instrument_category,
+            settle_coin=settle,
+        )
         rows = list(((resp.get("result") or {}).get("list") or [])) if isinstance(resp, dict) else []
         out: List[Dict[str, Any]] = []
         for row in rows:
@@ -906,16 +951,54 @@ class ByBitBrokerFacade(BrokerFacade):
             sym = str(row.get("symbol") or "").upper()
             if oid and sym:
                 self._order_symbols[oid] = sym
-            out.append(
-                {
-                    "orderId": row.get("orderId"),
-                    "executionReportStatus": self._map_order_status(str(row.get("orderStatus") or "New")),
-                    "symbol": row.get("symbol"),
-                    "qty": row.get("qty"),
-                    "cumExecQty": row.get("cumExecQty"),
-                }
-            )
+            out.append(self._normalize_order_row(row))
         return out
+
+    async def get_order_history(self, account_id: str, *, limit: int = 50) -> List[Dict[str, Any]]:
+        """Closed / filled / cancelled orders from ByBit history."""
+        _ = account_id
+        lim = max(1, min(int(limit or 50), 50))
+        resp = await self._http.get_order_history(
+            category=self._instrument_category,
+            limit=lim,
+        )
+        rows = list(((resp.get("result") or {}).get("list") or [])) if isinstance(resp, dict) else []
+        out: List[Dict[str, Any]] = []
+        for row in rows:
+            oid = str(row.get("orderId") or "")
+            sym = str(row.get("symbol") or "").upper()
+            if oid and sym:
+                self._order_symbols[oid] = sym
+            out.append(self._normalize_order_row(row))
+        return out
+
+    def _normalize_order_row(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        oid = str(row.get("orderId") or "")
+        sym = str(row.get("symbol") or "").upper()
+        status_raw = str(row.get("orderStatus") or "New")
+        created_ms = row.get("createdTime") or row.get("updatedTime")
+        created_at = None
+        try:
+            if created_ms is not None and str(created_ms).strip() != "":
+                created_at = datetime.fromtimestamp(float(created_ms) / 1000.0, tz=timezone.utc).isoformat()
+        except Exception:
+            created_at = None
+        return {
+            "id": oid or f"{sym}:{row.get('orderLinkId') or ''}",
+            "order_id": oid,
+            "figi": sym,
+            "symbol": sym,
+            "side": str(row.get("side") or ""),
+            "quantity": self._as_float(row.get("qty")),
+            "filled_qty": self._as_float(row.get("cumExecQty")),
+            "price": self._as_float(row.get("price")),
+            "avg_price": self._as_float(row.get("avgPrice")),
+            "status": status_raw,
+            "executionReportStatus": self._map_order_status(status_raw),
+            "order_type": str(row.get("orderType") or ""),
+            "reduce_only": bool(row.get("reduceOnly")),
+            "created_at": created_at,
+        }
 
     async def cancel_order(self, account_id: str, order_id: str) -> Dict[str, Any]:
         oid = str(order_id or "")
@@ -1158,6 +1241,8 @@ class ByBitBrokerFacade(BrokerFacade):
             return self._lot_filters[sym]
         qty_step = 0.001
         min_qty = 0.001
+        # Linear USDT perps typically require minOrderAmt >= 5.
+        min_order_amt = 5.0 if self._instrument_category == "linear" else 0.0
         try:
             resp = await self._http.get_instruments_info(
                 category=self._instrument_category,
@@ -1169,24 +1254,56 @@ class ByBitBrokerFacade(BrokerFacade):
             lot = row.get("lotSizeFilter") if isinstance(row.get("lotSizeFilter"), dict) else {}
             qty_step = self._as_float(lot.get("qtyStep")) or qty_step
             min_qty = self._as_float(lot.get("minOrderQty")) or min_qty
+            amt = self._as_float(lot.get("minOrderAmt") or lot.get("minNotionalValue"))
+            if amt > 0:
+                min_order_amt = amt
         except Exception:
             logger.debug("ByBit instruments-info unavailable for %s; using defaults", sym, exc_info=True)
-        filt = {"qty_step": max(qty_step, 1e-12), "min_qty": max(min_qty, 0.0)}
+        filt = {
+            "qty_step": max(qty_step, 1e-12),
+            "min_qty": max(min_qty, 0.0),
+            "min_order_amt": max(min_order_amt, 0.0),
+        }
         if sym:
             self._lot_filters[sym] = filt
         return filt
 
-    async def _format_order_qty(self, symbol: str, quantity: float | int) -> str:
+    async def _format_order_qty(
+        self,
+        symbol: str,
+        quantity: float | int,
+        *,
+        round_up: bool = False,
+        price: float | None = None,
+    ) -> str:
         raw = float(quantity or 0.0)
         if raw <= 0:
             return "0"
         filt = await self._lot_filter_for(symbol)
         step = float(filt["qty_step"])
         min_qty = float(filt["min_qty"])
-        steps = math.floor((raw / step) + 1e-12)
-        qty = steps * step
+        min_amt = float(filt.get("min_order_amt") or 0.0)
+        if round_up:
+            steps = math.ceil((raw / step) - 1e-12)
+        else:
+            steps = math.floor((raw / step) + 1e-12)
+        qty = max(0.0, steps * step)
         if qty + 1e-12 < min_qty:
-            return "0"
+            if round_up or min_qty > 0:
+                # Bump to min lot when sizing up (notional path); else reject as before.
+                if round_up:
+                    qty = math.ceil((min_qty / step) - 1e-12) * step
+                else:
+                    return "0"
+            else:
+                return "0"
+        px = float(price or 0.0)
+        if round_up and px > 0 and min_amt > 0:
+            # Ensure qty * price meets ByBit minOrderAmt after step rounding.
+            guard = 0
+            while qty * px + 1e-12 < min_amt and guard < 10_000:
+                qty += step
+                guard += 1
         return self._qty_to_str(qty, step)
 
     @staticmethod

@@ -35,6 +35,7 @@ export interface GrainSeedStrategyParams {
     max_position_size_pct: number
     force_close_time_msk: string
     force_market_flatten: boolean
+    sell_only_if_has_asset?: boolean
     interval: string
     candle_days?: number
     signal_profile?: 'legacy' | 'tz_signals_v1'
@@ -82,6 +83,8 @@ export interface GrainSeedRiskConfig {
     max_position_percent: number
     max_position_rub: number
     max_daily_loss: number
+    /** Риск на сделку (% капитала), зеркало GrainSeedRisk.risk_per_trade_pct. */
+    risk_per_trade_pct?: number
     /** Мин. нотионал сделки (₽ / USDT). */
     min_trade_amount_rub?: number
     trading_hours_start: string
@@ -122,7 +125,36 @@ export interface GrainSeedConfig {
 export type RobotConfig = GrainSeedConfig
 
 export interface PortfolioUpdaterConfig {
-    [key: string]: any
+    config_version?: number
+    schema_profile?: string
+    broker_type?: string
+    bybit?: {
+        testnet?: boolean
+        account_type?: string
+    }
+    [key: string]: unknown
+}
+
+/** v3 config + legacy flat GrainSeedConfig / portfolio updater. */
+export type RobotConfigPayload =
+    | GrainSeedConfig
+    | PortfolioUpdaterConfig
+    | (Record<string, unknown> & {
+          config_version?: number
+          schema_profile?: string
+          broker_type?: string
+      })
+
+export interface RobotScheduleInfo {
+    id: number
+    schedule_type?: number | null
+    interval_seconds?: number | null
+    start_time?: string | null
+    end_time?: string | null
+    weekdays?: number | null
+    is_active?: number | null
+    priority?: number | null
+    description?: string | null
 }
 
 export interface Robot {
@@ -134,18 +166,9 @@ export interface Robot {
     typeName: string
     status: number
     statusName: string
-    config: GrainSeedConfig | PortfolioUpdaterConfig | null
-    schedule?: {
-        id: number
-        schedule_type?: number | null
-        interval_seconds?: number | null
-        start_time?: string | null
-        end_time?: string | null
-        weekdays?: number | null
-        is_active?: number | null
-        priority?: number | null
-        description?: string | null
-    } | null
+    config: RobotConfigPayload | null
+    /** Присутствует на GET /robots/id/{id}; в list может отсутствовать. */
+    schedule?: RobotScheduleInfo | null
     last_started: string | null
     last_error: string | null
     last_error_at: string | null
@@ -156,11 +179,32 @@ export interface Robot {
     date_modification: string | null
 }
 
+/** Тело POST /robots/data — зеркало RobotListRequest. */
+export interface RobotListRequest {
+    robot_status?: number[]
+    robot_type?: number[]
+    robot_name?: string
+    token_type?: number[]
+    limit?: number
+    offset?: number
+    sort_by?: string
+    sort_order?: 'asc' | 'desc' | string
+}
+
 export interface RobotListResponse {
     total: number
     items: Robot[]
     limit: number
     offset: number
+}
+
+export interface RobotUniverseActiveCounts {
+    robot_id: number
+    today: string
+    today_active: number
+    yesterday: string
+    yesterday_active: number
+    source: string
 }
 
 export interface StrategyParam {
@@ -397,12 +441,30 @@ export interface RobotPaperSelectionResponse {
     candidate_pool_size: number
 }
 
-/** Ответ POST /robots/jobs/crypto-screening. */
+/** Ответ POST /robots/jobs/crypto-screening (async enqueue). */
 export interface RobotCryptoScreeningResponse {
     robot_id: number
+    status?: string
+    job_id?: string | null
+    started_at?: string | null
     symbols: string[]
     accepted: number
     scanned: number
+    rejected?: number
     message?: string | null
     skipped?: boolean
+    reused?: boolean
+}
+
+/** GET /robots/{id}/crypto-screening/status */
+export interface RobotCryptoScreeningStatus {
+    robot_id: number
+    status: 'idle' | 'queued' | 'running' | 'success' | 'failed' | string
+    job_id?: string | null
+    started_at?: string | null
+    finished_at?: string | null
+    error?: string | null
+    message?: string | null
+    last_completed_at?: string | null
+    universe_updated_at?: string | null
 }

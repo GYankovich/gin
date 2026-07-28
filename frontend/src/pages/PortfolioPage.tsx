@@ -17,6 +17,7 @@ import {
     formatPortfolioMoneySigned,
     isBybitPortfolioAccount,
 } from '@/utils/portfolioFormat'
+import { PortfolioComposition } from '@/components/portfolio/PortfolioComposition'
 import cyberHero from '@/assets/dashboard/cyber-hero.png'
 
 ///@EPIC Frontend.ITEM Portfolio.TOPIC Account Performance Screen [1]
@@ -236,7 +237,14 @@ export default function PortfolioPage() {
         return normalizeSeriesByTime(points)
     }, [chartData?.drawdown_series])
 
-    const onChartReady = useCallback((chart: IChartApi) => {
+    const onChartReady = useCallback((chart: IChartApi | null) => {
+        if (!chart) {
+            chartApiRef.current = null
+            seriesRef.current = null
+            instrumentSeriesRef.current = []
+            instrumentPriceLinesRef.current = {}
+            return
+        }
         chartApiRef.current = chart
         instrumentSeriesRef.current = []
         instrumentPriceLinesRef.current = {}
@@ -383,7 +391,11 @@ export default function PortfolioPage() {
         })
     }, [chartHistory, period, chartMode, chartData?.instruments_series, selectedFigis])
 
-    const onDrawdownChartReady = useCallback((chart: IChartApi) => {
+    const onDrawdownChartReady = useCallback((chart: IChartApi | null) => {
+        if (!chart) {
+            drawdownChartRef.current = null
+            return
+        }
         drawdownChartRef.current = chart
         const data = drawdownHistory()
         if (!data.length) return
@@ -414,26 +426,6 @@ export default function PortfolioPage() {
             loadPositions(selectedAccountId, snapshot.snapshot_id)
         }
     }
-
-    const posColumns: Column<any>[] = [
-        { key: 'figi', header: bybitAccount ? 'Символ' : 'FIGI', sortable: true, width: '140px' },
-        { key: 'ticker', header: 'Тикер', sortable: true, width: '80px', render: r => r.ticker || '—' },
-        { key: 'instrument_type', header: 'Тип', sortable: true, width: '80px' },
-        { key: 'quantity', header: 'Кол-во', sortable: true, align: 'right', render: r => Number(r.quantity ?? 0).toLocaleString('ru-RU') },
-        { key: 'avg_price', header: 'Средняя', sortable: true, align: 'right', render: r => money(r.avg_price) },
-        { key: 'current_price', header: 'Текущая', align: 'right', render: r => money(r.current_price) },
-        {
-            key: 'expected_yield', header: 'P&L', sortable: true, align: 'right',
-            render: r => {
-                const v = Number(r.expected_yield ?? 0)
-                return <span className={v >= 0 ? 'color-up' : 'color-down'}>{moneySigned(v)}</span>
-            },
-        },
-        {
-            key: 'total_value', header: 'Стоимость', sortable: true, align: 'right',
-            render: r => money(r.total_value),
-        },
-    ]
 
     const historyColumns: Column<PortfolioSnapshotSummary>[] = [
         {
@@ -756,51 +748,13 @@ export default function PortfolioPage() {
                 )}
             </Card>
 
-            <CollapsibleSection
-                className="portfolio-collapse"
-                title="Состав портфеля "
-                badge={
-                    <span className="portfolio-collapse__count">
-                        {positions.length}
-                    </span>
-                }
+            <PortfolioComposition
+                positions={positions}
+                loading={posLoading}
+                currency={accountCurrency}
+                bybitAccount={bybitAccount}
                 defaultOpen
-            >
-                {posLoading ? (
-                    <div className="ops-loader">
-                        <div className="soft-loading-bar" />
-                        <div className="ops-loader__text">Загрузка состава портфеля...</div>
-                    </div>
-                ) : (
-                    <DataTable
-                        columns={posColumns}
-                        data={positions}
-                        keyField="figi"
-                        emptyText="Нет позиций"
-                        mobilePrimary={(r) => `${r.ticker || '—'} (${r.figi || '—'})`}
-                        mobileSecondary={(r) => `${Number(r.quantity ?? 0).toLocaleString('ru-RU')} шт. | ${money(r.total_value)}`}
-                        mobileDetails={(r) => (
-                            <>
-                                <div>Тип: {r.instrument_type || '—'}</div>
-                                <div>Средняя цена: {money(r.avg_price)}</div>
-                                <div>
-                                    Текущая цена: {money(r.current_price)}{' '}
-                                    <span className={Number(r.expected_yield ?? 0) >= 0 ? 'color-up' : 'color-down'}>
-                                        ({Number(r.expected_yield ?? 0) >= 0 ? '+' : ''}
-                                        {money(r.expected_yield ?? 0)})
-                                    </span>
-                                </div>
-                                <div>
-                                    P&amp;L:{' '}
-                                    <span className={Number(r.expected_yield ?? 0) >= 0 ? 'color-up' : 'color-down'}>
-                                        {money(r.expected_yield ?? 0)}
-                                    </span>
-                                </div>
-                            </>
-                        )}
-                    />
-                )}
-            </CollapsibleSection>
+            />
 
             <CollapsibleSection
                 className="portfolio-collapse"

@@ -130,8 +130,9 @@ class _FakeBybitHttp:
         qty: str,
         price: str | None = None,
         time_in_force: str | None = None,
+        reduce_only: bool = False,
     ):
-        _ = (category, time_in_force)
+        _ = (category, time_in_force, reduce_only)
         self._seq += 1
         oid = f"oid-{self._seq}"
         self._orders[oid] = {
@@ -144,6 +145,7 @@ class _FakeBybitHttp:
             "cumExecQty": "0",
             "avgPrice": price or "0",
             "cumExecFee": "0",
+            "reduceOnly": bool(reduce_only),
         }
         return {"retCode": 0, "result": {"orderId": oid}}
 

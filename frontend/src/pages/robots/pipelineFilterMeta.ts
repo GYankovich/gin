@@ -47,6 +47,16 @@ export const FILTER_META: Record<PipelineFilterType, { label: string }> = {
     opening_range: { label: 'Диапазон открытия' },
 }
 
+/** Единицы в скобках у form-label (не рядом с инпутом). */
+export const FILTER_UNIT: Partial<Record<PipelineFilterType, string>> = {
+    volume: '₽',
+    gap: '%',
+    spread: '%',
+    turnover: '% выпуска',
+    price_vs_open: 'доля от OPEN',
+    opening_range: '%',
+}
+
 /** Пояснение под полем — человеческий язык вместо tooltip. */
 export const FILTER_FIELD_HINT: Record<PipelineFilterType, string> = {
     security_status: 'Бумага должна быть активна и допущена к торгам на MOEX.',
@@ -137,13 +147,13 @@ export const FILTER_DEFAULTS: Partial<Record<PipelineFilterType, Omit<PipelineFi
     excluded_tickers: { type: 'excluded_tickers', list: [] },
 }
 
-/** Типы, которые можно добавить кнопкой «+ Добавить фильтр». */
+/** Типы, которые можно добавить кнопкой «+ Добавить фильтр» в отборе по снапшоту.
+ * ATR — только historical (см. HISTORICAL_FILTER_TYPES / ADDABLE_HISTORICAL). */
 export const ADDABLE_SNAPSHOT_FILTER_TYPES: PipelineFilterType[] = [
     'volume',
     'num_trades',
     'gap',
     'spread',
-    'atr',
     'capitalization',
     'turnover',
     'gap_retention',

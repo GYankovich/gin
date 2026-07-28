@@ -189,7 +189,7 @@ def migrate_legacy_to_v2(raw: Dict[str, Any]) -> Dict[str, Any]:
     signal = SignalGenerationConfig(
         strategy=strategy,
         params=sp,
-        data_source=broker if broker in ("tinvest", "vtb", "alfa") else "tinvest",
+        data_source=broker if broker in ("tinvest", "vtb", "alfa", "bybit") else "tinvest",
         update_interval_seconds=max(1, int(data.get("update_interval_seconds") or 10)),
         indicator_update_schedule=dict(
             data.get("indicator_update_schedule")
@@ -419,5 +419,19 @@ def paper_selection_from_config(config: Dict[str, Any]) -> PaperSelectionConfig:
 
 
 def signal_generation_from_config(config: Dict[str, Any]) -> SignalGenerationConfig:
+    """П3 из config. Для type2_bybit валидирует crypto SG, затем мапит в общий reader."""
+    from app.modules.robots.universe import is_crypto_type2_config
+
     cfg = ensure_config_v2(config)
-    return SignalGenerationConfig.model_validate(cfg.get("signal_generation") or {})
+    sg_raw = cfg.get("signal_generation") or {}
+    if is_crypto_type2_config(cfg):
+        from app.modules.robots.config.profiles.type2_bybit import CryptoSignalGenerationConfig
+
+        crypto_sg = CryptoSignalGenerationConfig.model_validate(sg_raw)
+        return SignalGenerationConfig(
+            strategy=crypto_sg.strategy,
+            params=dict(crypto_sg.params or {}),
+            data_source="bybit",
+            update_interval_seconds=int(crypto_sg.update_interval_seconds),
+        )
+    return SignalGenerationConfig.model_validate(sg_raw)

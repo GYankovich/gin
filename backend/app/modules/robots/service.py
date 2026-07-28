@@ -151,7 +151,38 @@ def _position_row_key(pos: Dict[str, Any]) -> str:
     return ""
 
 
-def _normalize_portfolio_positions(raw: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _instrument_type_label_map(db: Session) -> Dict[str, str]:
+    """PORTFOLIO_POSITIONS.INSTRUMENT_TYPE → {string_value → name}."""
+    out: Dict[str, str] = {}
+    try:
+        rows = db.execute(
+            text(
+                f"""
+                SELECT string_value, name
+                FROM {settings.DB_SCHEMA}.dictionary
+                WHERE table_name = 'PORTFOLIO_POSITIONS'
+                  AND column_name = 'INSTRUMENT_TYPE'
+                  AND hide_from_ui = 0
+                """
+            )
+        ).fetchall()
+    except Exception as exc:
+        logger.debug("instrument type labels load failed: %s", exc)
+        return out
+    for string_value, name in rows:
+        key = str(string_value or "").strip().lower()
+        label = str(name or "").strip()
+        if key and label:
+            out[key] = label
+    return out
+
+
+def _normalize_portfolio_positions(
+    raw: List[Dict[str, Any]],
+    *,
+    type_names: Optional[Dict[str, str]] = None,
+) -> List[Dict[str, Any]]:
+    labels = type_names or {}
     out: List[Dict[str, Any]] = []
     for pos in raw or []:
         row_key = _position_row_key(pos)
@@ -163,12 +194,15 @@ def _normalize_portfolio_positions(raw: List[Dict[str, Any]]) -> List[Dict[str, 
         side = str(pos.get("side") or "").strip()
         if not side:
             side = "Sell" if qty < 0 else "Buy" if qty > 0 else ""
+        instrument_type = str(pos.get("instrument_type") or "").strip()
+        type_key = instrument_type.lower()
         out.append(
             {
                 "id": row_key,
                 "figi": figi,
                 "ticker": ticker or figi,
-                "instrument_type": str(pos.get("instrument_type") or ""),
+                "instrument_type": instrument_type,
+                "type_name": labels.get(type_key) or instrument_type or None,
                 "quantity": qty,
                 "side": side or None,
                 "average_position_price": pos.get("average_position_price"),
@@ -177,8 +211,745 @@ def _normalize_portfolio_positions(raw: List[Dict[str, Any]]) -> List[Dict[str, 
                 "blocked": bool(pos.get("blocked")),
             }
         )
+    # Only non-zero holdings that exist on the broker account.
+    out = [p for p in out if abs(float(p.get("quantity") or 0)) > 1e-12]
     out.sort(key=lambda p: (str(p.get("ticker") or ""), str(p.get("figi") or "")))
     return out
+
+
+def _is_synthetic_broker_order_id(order_id: Any) -> bool:
+    """True for non-exchange ids like broker_import:XLMUSDT:buy (position seeds)."""
+    oid = str(order_id or "").strip().lower()
+    return oid.startswith("broker_import:")
+
+
+def _is_db_working_order(row: Dict[str, Any]) -> bool:
+    """Resting / partial order (not yet filled / cancelled)."""
+    oid = str(row.get("order_id") or "").strip()
+    if _is_synthetic_broker_order_id(oid):
+        return False
+    st = str(row.get("status") or "").strip().lower()
+    if st in {"pending", "new", "partial"}:
+        return True
+    if st in {"filled", "cancelled", "canceled", "rejected", "closed", "failed"}:
+        return False
+    if st != "open":
+        return False
+    # Legacy: unfilled "open" treated as resting.
+    try:
+        filled = float(row.get("filled_qty") if row.get("filled_qty") is not None else 0)
+    except Exception:
+        filled = 0.0
+    return bool(oid) and filled <= 1e-12 and not str(oid).startswith("pending:")
+
+
+def _split_db_orders(
+    rows: List[Dict[str, Any]],
+) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Split portfolio_orders into active working vs history."""
+    open_orders: List[Dict[str, Any]] = []
+    order_history: List[Dict[str, Any]] = []
+    for row in rows or []:
+        if _is_synthetic_broker_order_id(row.get("order_id")):
+            continue
+        if _is_db_working_order(row):
+            open_orders.append(row)
+        else:
+            order_history.append(row)
+    return open_orders, order_history
+
+
+def _map_broker_order_status_to_db(status: str, *, closing: bool = False) -> str:
+    """Map ByBit raw / EXECUTION_REPORT_* statuses to robot_trades.status."""
+    from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
+
+    raw = str(status or "").strip()
+    if not raw:
+        return "pending"
+    if raw.startswith("EXECUTION_REPORT_"):
+        return Stage6Orders.map_execution_status_to_trade_status(raw, closing=closing)
+    key = raw.lower().replace(" ", "").replace("_", "")
+    bybit_map = {
+        "new": "pending",
+        "created": "pending",
+        "untriggered": "pending",
+        "triggered": "pending",
+        "active": "pending",
+        "partiallyfilled": "partial",
+        "partialfill": "partial",
+        "filled": "open" if not closing else "closed",
+        "cancelled": "cancelled",
+        "canceled": "cancelled",
+        "deactivated": "cancelled",
+        "rejected": "rejected",
+    }
+    if key in bybit_map:
+        return bybit_map[key]
+    # Already a DB status?
+    if key in {"pending", "new", "partial", "open", "closed", "cancelled", "canceled", "rejected", "failed", "skipped"}:
+        return "cancelled" if key == "canceled" else key
+    return "pending"
+
+
+def _broker_row_order_date(row: Dict[str, Any]) -> Optional[datetime]:
+    from app.modules.portfolio.order_registry import parse_broker_order_date
+
+    return parse_broker_order_date(
+        row.get("created_at")
+        or row.get("createdTime")
+        or row.get("order_date")
+        or row.get("updatedTime")
+    )
+
+
+def _broker_row_side(row: Dict[str, Any]) -> str:
+    side = str(row.get("side") or "").strip().lower()
+    if side in {"buy", "order_direction_buy"}:
+        return "buy"
+    if side in {"sell", "order_direction_sell"}:
+        return "sell"
+    return side or "buy"
+
+
+def _broker_row_floats(row: Dict[str, Any]) -> tuple[float, float, Optional[float], Optional[float]]:
+    try:
+        qty = float(row.get("quantity") if row.get("quantity") is not None else row.get("qty") or 0)
+    except Exception:
+        qty = 0.0
+    try:
+        price = float(row.get("price") or 0)
+    except Exception:
+        price = 0.0
+    filled = row.get("filled_qty")
+    if filled is None:
+        filled = row.get("cumExecQty")
+    if filled is None:
+        filled = row.get("lotsExecuted")
+    try:
+        filled_f = float(filled) if filled is not None else None
+    except Exception:
+        filled_f = None
+    avg = row.get("avg_price")
+    if avg is None:
+        avg = row.get("avgPrice")
+    if avg is None:
+        avg = row.get("executedOrderPrice")
+    try:
+        avg_f = float(avg) if avg is not None else None
+    except Exception:
+        avg_f = None
+    return qty, price, filled_f, avg_f
+
+
+def _update_trade_row_by_order_id(
+    db: Session,
+    *,
+    robot_id: int,
+    order_id: str,
+    status: str,
+    quantity: Optional[float] = None,
+    price: Optional[float] = None,
+    filled_qty: Optional[float] = None,
+    avg_price: Optional[float] = None,
+    now: Optional[datetime] = None,
+) -> bool:
+    """Legacy update for robot_trades (synthetic broker_import heal only)."""
+    ts = now or datetime.now(timezone.utc)
+    try:
+        db.execute(
+            text(
+                f"""
+                UPDATE {settings.DB_SCHEMA}.robot_trades
+                SET status = :status,
+                    quantity = COALESCE(:quantity, quantity),
+                    price = COALESCE(:price, price),
+                    total_amount = CASE
+                        WHEN :quantity IS NOT NULL AND :price IS NOT NULL THEN :quantity * :price
+                        WHEN :quantity IS NOT NULL THEN :quantity * COALESCE(price, 0)
+                        WHEN :price IS NOT NULL THEN COALESCE(quantity, 0) * :price
+                        ELSE total_amount
+                    END,
+                    filled_quantity = COALESCE(:filled_quantity, filled_quantity),
+                    avg_fill_price = COALESCE(:avg_fill_price, avg_fill_price),
+                    updated_at = :now
+                WHERE robot_id = :robot_id
+                  AND order_id = :order_id
+                """
+            ),
+            {
+                "status": status,
+                "quantity": quantity,
+                "price": price if price is not None and price > 0 else None,
+                "filled_quantity": filled_qty,
+                "avg_fill_price": avg_price,
+                "now": ts,
+                "robot_id": int(robot_id),
+                "order_id": order_id,
+            },
+        )
+        return True
+    except Exception as exc:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        logger.warning(
+            "sync order update failed robot_id=%s order_id=%s: %s",
+            robot_id,
+            order_id,
+            exc,
+        )
+        return False
+
+
+async def _upsert_broker_open_orders_into_db(
+    db: Session,
+    *,
+    robot_id: int,
+    broker: Any,
+    account_id: str,
+    portfolio_account_id: Optional[int] = None,
+    user_id: Optional[int] = None,
+    broker_prefix: str = "bybit",
+) -> Dict[str, Any]:
+    """Upsert broker open orders into portfolio_orders."""
+    from app.modules.portfolio.order_registry import (
+        SOURCE_EXTERNAL,
+        resolve_portfolio_account_pk,
+        upsert_broker_order,
+    )
+
+    get_orders = getattr(broker, "get_orders", None)
+    empty = {"imported": 0, "upserted": 0, "skipped": 0, "open_order_ids": set()}
+    if not callable(get_orders) or not account_id:
+        return empty
+
+    pa_id = portfolio_account_id
+    if pa_id is None and user_id is not None:
+        pa_id = resolve_portfolio_account_pk(
+            db, user_id=int(user_id), broker_account_id=str(account_id)
+        )
+    if not pa_id:
+        logger.warning(
+            "upsert open orders: no portfolio_account_id robot_id=%s account=%s",
+            robot_id,
+            account_id,
+        )
+        return empty
+
+    try:
+        raw_open = await get_orders(str(account_id))
+    except Exception as exc:
+        logger.warning("upsert open orders failed robot_id=%s: %s", robot_id, exc)
+        return empty
+    if not isinstance(raw_open, list):
+        return empty
+
+    imported = 0
+    upserted = 0
+    skipped = 0
+    open_order_ids: set[str] = set()
+    dirty = False
+
+    for row in raw_open:
+        if not isinstance(row, dict):
+            continue
+        oid = str(row.get("order_id") or row.get("orderId") or "").strip()
+        figi = str(row.get("figi") or row.get("symbol") or "").strip().upper()
+        if not oid or not figi:
+            continue
+        open_order_ids.add(oid)
+        exec_status = str(
+            row.get("executionReportStatus") or row.get("status") or "New"
+        )
+        qty, price, filled_f, avg_f = _broker_row_floats(row)
+        side = _broker_row_side(row)
+        result = upsert_broker_order(
+            db,
+            portfolio_account_id=int(pa_id),
+            order_id=oid,
+            figi=figi,
+            side=side,
+            quantity=qty,
+            status=exec_status,
+            price=price if price > 0 else None,
+            filled_qty=filled_f,
+            avg_price=avg_f,
+            source=SOURCE_EXTERNAL,
+            robot_id=int(robot_id),
+            order_date=_broker_row_order_date(row),
+            commit=False,
+            promote_filled=True,
+            broker_prefix=broker_prefix,
+        )
+        if result == "inserted":
+            imported += 1
+            dirty = True
+        elif result == "updated":
+            upserted += 1
+            dirty = True
+        else:
+            skipped += 1
+
+    if dirty:
+        try:
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return {"imported": 0, "upserted": 0, "skipped": skipped, "open_order_ids": open_order_ids}
+    return {
+        "imported": int(imported),
+        "upserted": int(upserted),
+        "skipped": int(skipped),
+        "open_order_ids": open_order_ids,
+        "portfolio_account_id": int(pa_id),
+    }
+
+
+async def _sync_working_trade_statuses_from_broker(
+    db: Session,
+    *,
+    robot_id: int,
+    broker: Any,
+    account_id: str,
+    working_rows: List[Dict[str, Any]],
+    open_order_ids: Optional[set[str]] = None,
+    portfolio_account_id: Optional[int] = None,
+    broker_prefix: str = "bybit",
+) -> Dict[str, int]:
+    """Poll broker for working portfolio_orders not in open set; missing → cancelled."""
+    from app.modules.portfolio.order_registry import upsert_broker_order
+
+    if not working_rows or not account_id or not portfolio_account_id:
+        return {"updated": 0, "cancelled": 0}
+    get_state = getattr(broker, "get_order_state", None)
+    if not callable(get_state):
+        return {"updated": 0, "cancelled": 0}
+
+    open_ids = open_order_ids or set()
+    updated = 0
+    cancelled = 0
+    dirty = False
+
+    for row in working_rows:
+        oid = str(row.get("order_id") or "").strip()
+        if not oid or _is_synthetic_broker_order_id(oid) or oid.startswith("pending:"):
+            continue
+        if oid in open_ids:
+            continue
+        try:
+            state = await get_state(str(account_id), oid)
+        except Exception as exc:
+            logger.debug(
+                "sync order status skipped robot_id=%s order_id=%s: %s",
+                robot_id,
+                oid,
+                exc,
+            )
+            continue
+        if not isinstance(state, dict):
+            continue
+
+        stages = state.get("stages")
+        missing = isinstance(stages, list) and len(stages) == 0 and not state.get("symbol")
+        if missing:
+            exec_status = "Cancelled"
+            filled_f = None
+            avg_f = None
+        else:
+            exec_status = str(
+                state.get("executionReportStatus") or state.get("status") or ""
+            )
+            if not exec_status:
+                exec_status = "Cancelled"
+                filled_f = None
+                avg_f = None
+            else:
+                try:
+                    filled_qty = state.get("lotsExecuted")
+                    if filled_qty is None:
+                        filled_qty = state.get("filled_qty")
+                    filled_f = float(filled_qty) if filled_qty is not None else None
+                except Exception:
+                    filled_f = None
+                try:
+                    avg_px = state.get("executedOrderPrice")
+                    if avg_px is None:
+                        avg_px = state.get("avg_price")
+                    avg_f = float(avg_px) if avg_px is not None else None
+                except Exception:
+                    avg_f = None
+
+        figi = str(row.get("figi") or state.get("symbol") or "").strip().upper()
+        side = str(row.get("side") or "buy")
+        result = upsert_broker_order(
+            db,
+            portfolio_account_id=int(portfolio_account_id),
+            order_id=oid,
+            figi=figi or "UNKNOWN",
+            side=side,
+            quantity=float(row.get("quantity") or 0),
+            status=exec_status,
+            filled_qty=filled_f,
+            avg_price=avg_f,
+            source="external",
+            robot_id=int(robot_id),
+            commit=False,
+            promote_filled=True,
+            broker_prefix=broker_prefix,
+        )
+        if result in {"inserted", "updated"}:
+            dirty = True
+            updated += 1
+            st_u = str(exec_status).upper()
+            if "CANCEL" in st_u:
+                cancelled += 1
+
+    if dirty:
+        try:
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return {"updated": 0, "cancelled": 0}
+    return {"updated": int(updated), "cancelled": int(cancelled)}
+
+
+async def _apply_broker_history_statuses_to_db(
+    db: Session,
+    *,
+    robot_id: int,
+    broker: Any,
+    account_id: str,
+    portfolio_account_id: Optional[int] = None,
+    insert_missing: bool = False,
+    broker_prefix: str = "bybit",
+) -> int:
+    """Update known portfolio_orders from history; optionally insert missing (updater)."""
+    from app.modules.portfolio.order_registry import (
+        SOURCE_EXTERNAL,
+        load_portfolio_orders,
+        upsert_broker_order,
+    )
+
+    get_hist = getattr(broker, "get_order_history", None)
+    if not callable(get_hist) or not account_id or not portfolio_account_id:
+        return 0
+    try:
+        raw_hist = await get_hist(str(account_id), limit=50)
+    except TypeError:
+        try:
+            raw_hist = await get_hist(str(account_id))
+        except Exception as exc:
+            logger.warning("history status sync failed robot_id=%s: %s", robot_id, exc)
+            return 0
+    except Exception as exc:
+        logger.warning("history status sync failed robot_id=%s: %s", robot_id, exc)
+        return 0
+    if not isinstance(raw_hist, list) or not raw_hist:
+        return 0
+
+    known = {
+        str(o.get("order_id") or "").strip()
+        for o in load_portfolio_orders(db, portfolio_account_id=int(portfolio_account_id), limit=200)
+        if str(o.get("order_id") or "").strip()
+    }
+
+    updated = 0
+    dirty = False
+    for row in raw_hist:
+        if not isinstance(row, dict):
+            continue
+        oid = str(row.get("order_id") or row.get("orderId") or "").strip()
+        if not oid:
+            continue
+        if not insert_missing and oid not in known:
+            continue
+        exec_status = str(row.get("executionReportStatus") or row.get("status") or "")
+        if not exec_status:
+            continue
+        figi = str(row.get("figi") or row.get("symbol") or "").strip().upper()
+        if not figi:
+            continue
+        qty, price, filled_f, avg_f = _broker_row_floats(row)
+        side = _broker_row_side(row)
+        result = upsert_broker_order(
+            db,
+            portfolio_account_id=int(portfolio_account_id),
+            order_id=oid,
+            figi=figi,
+            side=side,
+            quantity=qty,
+            status=exec_status,
+            price=price if price > 0 else None,
+            filled_qty=filled_f,
+            avg_price=avg_f,
+            source=SOURCE_EXTERNAL,
+            robot_id=int(robot_id),
+            order_date=_broker_row_order_date(row),
+            commit=False,
+            promote_filled=True,
+            broker_prefix=broker_prefix,
+        )
+        if result in {"inserted", "updated"}:
+            updated += 1
+            dirty = True
+
+    if dirty:
+        try:
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return 0
+    return int(updated)
+
+
+async def _heal_synthetic_broker_imports(
+    db: Session,
+    *,
+    robot_id: int,
+    broker: Any,
+    account_id: str,
+) -> Dict[str, int]:
+    """Fix broker_import:* rows in robot_trades only (not portfolio_orders)."""
+    from app.modules.robots.trading.broker_position_sync import extract_account_position_meta
+
+    rows = [
+        o for o in _load_robot_trade_orders(db, robot_id)
+        if _is_synthetic_broker_order_id(o.get("order_id"))
+    ]
+    if not rows or not account_id:
+        return {"healed_open": 0, "healed_closed": 0}
+
+    get_pf = getattr(broker, "get_portfolio", None)
+    meta: Dict[str, Dict[str, Any]] = {}
+    if callable(get_pf):
+        try:
+            pf = await get_pf(str(account_id))
+            positions = list((pf or {}).get("positions") or []) if isinstance(pf, dict) else []
+            meta = extract_account_position_meta(positions)
+        except Exception as exc:
+            logger.warning(
+                "heal synthetic imports: portfolio failed robot_id=%s: %s",
+                robot_id,
+                exc,
+            )
+
+    healed_open = 0
+    healed_closed = 0
+    now = datetime.now(timezone.utc)
+    dirty = False
+    for row in rows:
+        figi = str(row.get("figi") or "").strip().upper()
+        side = str(row.get("side") or "").strip().lower()
+        try:
+            qty = float(row.get("quantity") or 0)
+        except Exception:
+            qty = 0.0
+        broker_row = meta.get(figi) if figi else None
+        has_pos = False
+        if broker_row:
+            bq = float(broker_row.get("qty") or 0)
+            if side in {"buy", "long"}:
+                has_pos = bq > 1e-12
+            elif side in {"sell", "short"}:
+                has_pos = bq < -1e-12
+            else:
+                has_pos = abs(bq) > 1e-12
+        if has_pos:
+            fill_qty = abs(float(broker_row.get("qty") or qty))
+            avg = float(broker_row.get("avg_price") or row.get("price") or 0) or None
+            ok = _update_trade_row_by_order_id(
+                db,
+                robot_id=int(robot_id),
+                order_id=str(row.get("order_id")),
+                status="open",
+                quantity=fill_qty if fill_qty > 0 else None,
+                filled_qty=fill_qty if fill_qty > 0 else qty,
+                avg_price=avg,
+                now=now,
+            )
+            if ok:
+                healed_open += 1
+                dirty = True
+        else:
+            ok = _update_trade_row_by_order_id(
+                db,
+                robot_id=int(robot_id),
+                order_id=str(row.get("order_id")),
+                status="closed",
+                filled_qty=qty if qty > 0 else None,
+                now=now,
+            )
+            if ok:
+                healed_closed += 1
+                dirty = True
+
+    if dirty:
+        try:
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return {"healed_open": 0, "healed_closed": 0}
+    return {"healed_open": int(healed_open), "healed_closed": int(healed_closed)}
+
+
+async def _reconcile_robot_orders_with_broker(
+    db: Session,
+    *,
+    robot_id: int,
+    broker: Any,
+    account_id: str,
+    user_id: Optional[int] = None,
+    insert_history: bool = False,
+) -> Dict[str, int]:
+    """Two-way sync into portfolio_orders; heal seeds on robot_trades."""
+    from app.modules.portfolio.order_registry import (
+        load_portfolio_orders,
+        resolve_portfolio_account_pk,
+    )
+    from app.modules.robots.trading.brokers.routing import normalize_broker_type
+
+    broker_prefix = "bybit"
+    try:
+        bt = normalize_broker_type(str(getattr(broker, "broker_type", None) or "bybit"))
+        broker_prefix = "tinvest" if bt == "tinvest" else "bybit"
+    except Exception:
+        broker_prefix = "bybit"
+
+    healed = await _heal_synthetic_broker_imports(
+        db,
+        robot_id=robot_id,
+        broker=broker,
+        account_id=account_id,
+    )
+
+    pa_id: Optional[int] = None
+    if user_id is not None:
+        pa_id = resolve_portfolio_account_pk(
+            db, user_id=int(user_id), broker_account_id=str(account_id)
+        )
+
+    upsert = await _upsert_broker_open_orders_into_db(
+        db,
+        robot_id=robot_id,
+        broker=broker,
+        account_id=account_id,
+        portfolio_account_id=pa_id,
+        user_id=user_id,
+        broker_prefix=broker_prefix,
+    )
+    if pa_id is None:
+        pa_id = upsert.get("portfolio_account_id")
+    open_ids = upsert.get("open_order_ids") or set()
+    working: List[Dict[str, Any]] = []
+    if pa_id:
+        working = [
+            o for o in load_portfolio_orders(db, portfolio_account_id=int(pa_id), limit=200)
+            if _is_db_working_order(o) and str(o.get("order_id") or "").strip()
+            and not str(o.get("order_id") or "").startswith("pending:")
+        ]
+    refreshed = await _sync_working_trade_statuses_from_broker(
+        db,
+        robot_id=robot_id,
+        broker=broker,
+        account_id=account_id,
+        working_rows=working,
+        open_order_ids=open_ids if isinstance(open_ids, set) else set(open_ids),
+        portfolio_account_id=int(pa_id) if pa_id else None,
+        broker_prefix=broker_prefix,
+    )
+    hist_updated = await _apply_broker_history_statuses_to_db(
+        db,
+        robot_id=robot_id,
+        broker=broker,
+        account_id=account_id,
+        portfolio_account_id=int(pa_id) if pa_id else None,
+        insert_missing=bool(insert_history),
+        broker_prefix=broker_prefix,
+    )
+    updated = (
+        int(upsert.get("upserted") or 0)
+        + int(refreshed.get("updated") or 0)
+        + int(hist_updated)
+        + int(healed.get("healed_open") or 0)
+        + int(healed.get("healed_closed") or 0)
+    )
+    return {
+        "updated": updated,
+        "imported": int(upsert.get("imported") or 0),
+        "upserted": int(upsert.get("upserted") or 0),
+        "cancelled": int(refreshed.get("cancelled") or 0),
+        "history_updated": int(hist_updated),
+        "healed_open": int(healed.get("healed_open") or 0),
+        "healed_closed": int(healed.get("healed_closed") or 0),
+        "portfolio_account_id": int(pa_id) if pa_id else None,
+    }
+
+
+def _load_robot_trade_orders(db: Session, robot_id: int) -> List[Dict[str, Any]]:
+    """Legacy loader for robot_trades (heal synthetic seeds)."""
+    orders_q = f"""
+        SELECT id, figi, side, quantity, price, order_id, status, created_at,
+               filled_quantity, avg_fill_price, updated_at
+        FROM {settings.DB_SCHEMA}.robot_trades
+        WHERE robot_id = :robot_id
+        ORDER BY created_at DESC
+        LIMIT 100
+    """
+    orders_rows = db.execute(text(orders_q), {"robot_id": robot_id}).fetchall()
+    return [
+        {
+            "id": int(r[0]),
+            "figi": str(r[1]),
+            "side": str(r[2]),
+            "quantity": float(r[3] or 0),
+            "price": float(r[4] or 0),
+            "order_id": r[5],
+            "status": str(r[6]),
+            "created_at": r[7],
+            "filled_qty": float(r[8]) if r[8] is not None else None,
+            "avg_price": float(r[9]) if r[9] is not None else None,
+            "updated_at": r[10],
+        }
+        for r in orders_rows
+    ]
+
+
+def _load_live_account_orders(
+    db: Session,
+    *,
+    user_id: int,
+    broker_account_id: Optional[str],
+) -> List[Dict[str, Any]]:
+    """Live orders from portfolio_orders for the robot's broker account."""
+    from app.modules.portfolio.order_registry import (
+        load_portfolio_orders,
+        resolve_portfolio_account_pk,
+    )
+
+    if not broker_account_id:
+        return []
+    pa_id = resolve_portfolio_account_pk(
+        db,
+        user_id=int(user_id),
+        broker_account_id=str(broker_account_id),
+        create_if_missing=False,
+    )
+    if not pa_id:
+        return []
+    return load_portfolio_orders(db, portfolio_account_id=int(pa_id), limit=100)
 
 
 def _load_portfolio_positions_from_db(
@@ -226,7 +997,7 @@ def _load_portfolio_positions_from_db(
                 "instrument_uid": r[7],
             }
         )
-    return _normalize_portfolio_positions(raw)
+    return _normalize_portfolio_positions(raw, type_names=_instrument_type_label_map(db))
 
 
 def _persist_robot_account_id(
@@ -1851,6 +2622,165 @@ class RobotService:
             db, self, robot_id=robot_id, user_id=user_id, force=force
         )
 
+    async def enqueue_crypto_screening_job(
+        self,
+        db: Session,
+        robot_id: int,
+        user_id: int,
+        *,
+        force: bool = True,
+    ) -> Dict[str, Any]:
+        """Queue crypto screening on heavy lane; returns immediately."""
+        from app.core.background_jobs.repository import (
+            enqueue_background_job,
+            find_latest_job_for_robot,
+        )
+        from app.core.background_jobs.worker import LANE_HEAVY
+
+        await self.get_robot_by_id(db, robot_id, user_id)
+        ik = f"crypto_screening:{int(robot_id)}"
+        active = find_latest_job_for_robot(
+            db,
+            job_type="crypto_screening",
+            robot_id=int(robot_id),
+            statuses=("queued", "running"),
+        )
+        if active:
+            return {
+                "robot_id": int(robot_id),
+                "status": "already_running" if str(active.get("status")) == "running" else "queued",
+                "job_id": str(active.get("id")),
+                "started_at": active.get("started_at") or active.get("created_at"),
+                "message": "Crypto-screening уже выполняется",
+                "symbols": [],
+                "accepted": 0,
+                "scanned": 0,
+                "rejected": 0,
+                "skipped": False,
+                "reused": False,
+            }
+
+        job_id = enqueue_background_job(
+            db,
+            lane=LANE_HEAVY,
+            job_type="crypto_screening",
+            payload={
+                "robot_id": int(robot_id),
+                "user_id": int(user_id),
+                "force": bool(force),
+            },
+            idempotency_key=ik,
+            priority=5,
+        )
+        db.commit()
+        if job_id is None:
+            # Race: another request inserted between check and insert
+            active = find_latest_job_for_robot(
+                db,
+                job_type="crypto_screening",
+                robot_id=int(robot_id),
+                statuses=("queued", "running"),
+            )
+            return {
+                "robot_id": int(robot_id),
+                "status": str((active or {}).get("status") or "queued"),
+                "job_id": str((active or {}).get("id")) if active else None,
+                "started_at": (active or {}).get("started_at") or (active or {}).get("created_at"),
+                "message": "Crypto-screening уже в очереди",
+                "symbols": [],
+                "accepted": 0,
+                "scanned": 0,
+                "rejected": 0,
+                "skipped": False,
+                "reused": False,
+            }
+        return {
+            "robot_id": int(robot_id),
+            "status": "queued",
+            "job_id": str(job_id),
+            "started_at": datetime.now(timezone.utc),
+            "message": "Crypto-screening поставлен в очередь",
+            "symbols": [],
+            "accepted": 0,
+            "scanned": 0,
+            "rejected": 0,
+            "skipped": False,
+            "reused": False,
+        }
+
+    async def get_crypto_screening_status(
+        self,
+        db: Session,
+        robot_id: int,
+        user_id: int,
+    ) -> Dict[str, Any]:
+        """Active/last crypto_screening job + last universe refresh time."""
+        from app.core.background_jobs.repository import find_latest_job_for_robot
+
+        await self.get_robot_by_id(db, robot_id, user_id)
+
+        latest = find_latest_job_for_robot(
+            db, job_type="crypto_screening", robot_id=int(robot_id),
+        )
+        last_ok = find_latest_job_for_robot(
+            db,
+            job_type="crypto_screening",
+            robot_id=int(robot_id),
+            statuses=("success",),
+        )
+
+        universe_updated_at = None
+        try:
+            row = db.execute(
+                text(
+                    f"""
+                    SELECT MAX(created_at)
+                    FROM {settings.DB_SCHEMA}.crypto_universe_daily
+                    WHERE robot_id = :rid
+                    """
+                ),
+                {"rid": int(robot_id)},
+            ).first()
+            universe_updated_at = row[0] if row else None
+        except Exception:
+            universe_updated_at = None
+
+        status = "idle"
+        job_id = None
+        started_at = None
+        finished_at = None
+        error = None
+        message = None
+        if latest:
+            st = str(latest.get("status") or "").strip().lower()
+            job_id = str(latest.get("id"))
+            started_at = latest.get("started_at") or latest.get("created_at")
+            finished_at = latest.get("finished_at")
+            error = latest.get("error")
+            message = latest.get("message")
+            if st in {"queued", "running", "success", "failed"}:
+                status = st
+            else:
+                status = st or "idle"
+
+        last_completed_at = None
+        if last_ok and last_ok.get("finished_at"):
+            last_completed_at = last_ok.get("finished_at")
+        elif universe_updated_at is not None:
+            last_completed_at = universe_updated_at
+
+        return {
+            "robot_id": int(robot_id),
+            "status": status,
+            "job_id": job_id,
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "error": str(error)[:500] if error else None,
+            "message": message,
+            "last_completed_at": last_completed_at,
+            "universe_updated_at": universe_updated_at,
+        }
+
     async def get_universe_active_counts(
         self,
         db: Session,
@@ -2702,6 +3632,33 @@ class RobotService:
 
         db.commit()
 
+        if new_status == 2 and int(robot.get("type") or 0) == 2:
+            try:
+                from app.core.background_jobs.repository import cancel_live_session_jobs_for_robot
+
+                n = cancel_live_session_jobs_for_robot(
+                    db,
+                    robot_id=int(robot_id),
+                    reason=f"robot {robot_id} disabled by user {user_id}",
+                )
+                db.commit()
+                if n:
+                    logger.info(
+                        "cancelled %s live_trading_session job(s) robot_id=%s",
+                        n,
+                        robot_id,
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "failed to cancel live sessions on disable robot_id=%s: %s",
+                    robot_id,
+                    exc,
+                )
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+
         # Получаем обновленного робота
         updated_robot = await self.get_robot_by_id(db, robot_id, user_id)
 
@@ -3024,10 +3981,18 @@ class RobotService:
 
         config = dict(config)
         broker = normalize_broker_type(str(config.get("broker_type") or "tinvest"))
-        pipeline = effective_pipeline_from_config(config)
-        pipeline_filters = list(pipeline.get("filters") or [])
-        _hist = historical_screening_from_config(config)
-        _sig = signal_generation_from_config(config)
+        is_crypto = broker == "bybit"
+        if is_crypto:
+            # type2_bybit: не гоняем MOEX П1/П2 (иначе data_source=bybit → 422).
+            pipeline = {"mode": "ALL", "filters": []}
+            pipeline_filters: List[Any] = []
+            _hist = None
+            _sig = signal_generation_from_config(config)
+        else:
+            pipeline = effective_pipeline_from_config(config)
+            pipeline_filters = list(pipeline.get("filters") or [])
+            _hist = historical_screening_from_config(config)
+            _sig = signal_generation_from_config(config)
         # Как в DMS: до загрузки D1 для ATR% отфильтровать всё, что не требует свечей
         # (turnover/min_step_ratio — только поля снапшота; раньше они шли в «финал» и раздували fast_pass).
         fast_pipeline_filters = [
@@ -3036,7 +4001,7 @@ class RobotService:
         ]
         universe_mode = (
             normalize_crypto_universe_mode(config)
-            if broker == "bybit"
+            if is_crypto
             else normalize_universe_mode(config)
         )
         effective_pipeline_filters = universe_pipeline_filters(config, pipeline_filters)
@@ -3050,10 +4015,11 @@ class RobotService:
                 detail="Указанная стратегия не найдена",
             )
         strategy_params = dict(_sig.params or config.get("strategy_params") or {})
-        if _hist.interval and not strategy_params.get("moex_analysis_interval"):
-            strategy_params["moex_analysis_interval"] = _hist.interval
-        if _hist.lookback_days and not strategy_params.get("candle_days"):
-            strategy_params["candle_days"] = _hist.lookback_days
+        if _hist is not None:
+            if _hist.interval and not strategy_params.get("moex_analysis_interval"):
+                strategy_params["moex_analysis_interval"] = _hist.interval
+            if _hist.lookback_days and not strategy_params.get("candle_days"):
+                strategy_params["candle_days"] = _hist.lookback_days
         from app.modules.robots.trading.intervals import resolve_candle_interval_roles
 
         interval_roles = resolve_candle_interval_roles(strategy_params)
@@ -4703,8 +5669,17 @@ class RobotService:
             db: Session,
             robot_id: int,
             user_id: int,
+            *,
+            mode: str = "full",
     ) -> Dict[str, Any]:
-        """REST snapshot для Live-экрана (на случай реконнекта/перезагрузки)."""
+        """REST snapshot для Live-экрана.
+
+        mode=ops  — сигналы/заявки/логи из БД (без брокера и reconcile).
+        mode=full — + портфель брокера и reconcile заявок.
+        """
+        snap_mode = str(mode or "full").strip().lower()
+        if snap_mode not in {"ops", "full"}:
+            snap_mode = "full"
         robot = await self.get_robot_by_id(db, robot_id, user_id)
         if int(robot.get("type") or 0) != 2:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Робот не является торговым")
@@ -4764,7 +5739,8 @@ class RobotService:
         ]
 
         signals_q = f"""
-            SELECT id, figi, signal_type, signal_strength, price_at_signal, was_executed, created_at
+            SELECT id, figi, signal_type, signal_strength, price_at_signal, was_executed,
+                   executed_trade_id, created_at
             FROM {settings.DB_SCHEMA}.robot_signals
             WHERE robot_id = :robot_id
             ORDER BY created_at DESC
@@ -4779,156 +5755,192 @@ class RobotService:
                 "signal_strength": int(r[3] or 0),
                 "price_at_signal": float(r[4] or 0),
                 "was_executed": int(r[5] or 0),
-                "created_at": r[6],
-            }
-            for r in signals_rows
-        ]
-
-        orders_q = f"""
-            SELECT id, figi, side, quantity, price, order_id, status, created_at
-            FROM {settings.DB_SCHEMA}.robot_trades
-            WHERE robot_id = :robot_id
-            ORDER BY created_at DESC
-            LIMIT 100
-        """
-        orders_rows = db.execute(text(orders_q), {"robot_id": robot_id}).fetchall()
-        recent_orders = [
-            {
-                "id": int(r[0]),
-                "figi": str(r[1]),
-                "side": str(r[2]),
-                "quantity": float(r[3] or 0),
-                "price": float(r[4] or 0),
-                "order_id": r[5],
-                "status": str(r[6]),
+                "executed_trade_id": int(r[6]) if r[6] is not None else None,
                 "created_at": r[7],
             }
-            for r in orders_rows
+            for r in signals_rows
         ]
 
         portfolio_positions: List[Dict[str, Any]] = []
         portfolio_summary: Dict[str, Any] = {}
         portfolio_fetch_error: Optional[str] = None
         portfolio_source: Optional[str] = None
-        try:
-            from app.modules.robots.trading.brokers import create_broker_facade
-            from app.modules.tinvest.service import tinvest_service
+        broker_for_orders = None
+        resolved_account_for_orders: Optional[str] = (
+            str(account_id).strip() if account_id else None
+        ) or None
+        orders_synced_at = None
 
-            token_row = robot.get("token") or {}
-            token_str: Optional[str] = None
-            token_id = token_row.get("id")
-            if token_id:
-                td = await token_service.get_token_by_id(db, int(token_id), user_id)
-                token_str = (td or {}).get("token")
-            if not token_str:
-                portfolio_fetch_error = "no_broker_token"
-            else:
-                token_extra = (td or {}).get("extra_data") if isinstance((td or {}).get("extra_data"), dict) else {}
-                broker = create_broker_facade(
-                    broker_type,
-                    token_str,
-                    token_extra_data=token_extra,
-                    robot_config=config,
-                )
-                resolved_account_id = await _resolve_robot_account_id(broker, account_id)
-                if not resolved_account_id:
-                    portfolio_fetch_error = "no_account_id"
+        if snap_mode == "ops":
+            # Fast path: DB-only orders/signals; keep portfolio empty for client merge.
+            recent_orders = _load_live_account_orders(
+                db,
+                user_id=int(user_id),
+                broker_account_id=resolved_account_for_orders,
+            )
+            open_orders, order_history = _split_db_orders(recent_orders)
+        else:
+            try:
+                from app.modules.robots.trading.brokers import create_broker_facade
+                from app.modules.tinvest.service import tinvest_service
+
+                token_row = robot.get("token") or {}
+                token_str: Optional[str] = None
+                token_id = token_row.get("id")
+                if token_id:
+                    td = await token_service.get_token_by_id(db, int(token_id), user_id)
+                    token_str = (td or {}).get("token")
+                if not token_str:
+                    portfolio_fetch_error = "no_broker_token"
                 else:
-                    account_id = resolved_account_id
-                    if not str(config.get("account_id") or "").strip():
-                        try:
-                            _persist_robot_account_id(db, robot_id, user_id, resolved_account_id)
-                            config = {**config, "account_id": resolved_account_id}
-                        except Exception as persist_exc:
+                    token_extra = (td or {}).get("extra_data") if isinstance((td or {}).get("extra_data"), dict) else {}
+                    broker = create_broker_facade(
+                        broker_type,
+                        token_str,
+                        token_extra_data=token_extra,
+                        robot_config=config,
+                    )
+                    resolved_account_id = await _resolve_robot_account_id(broker, account_id)
+                    if not resolved_account_id:
+                        portfolio_fetch_error = "no_account_id"
+                    else:
+                        account_id = resolved_account_id
+                        broker_for_orders = broker
+                        resolved_account_for_orders = str(resolved_account_id)
+                        if not str(config.get("account_id") or "").strip():
                             try:
-                                db.rollback()
-                            except Exception:
-                                pass
-                            logger.warning(
-                                "live snapshot account_id persist failed robot_id=%s: %s",
-                                robot_id,
-                                persist_exc,
-                            )
-
-                    broker_exc: Optional[Exception] = None
-                    is_bybit = broker_type.strip().lower() == "bybit"
-                    fetch_modes = ("broker",) if is_bybit else ("broker", "tinvest_service")
-                    for fetch_mode in fetch_modes:
-                        try:
-                            if fetch_mode == "broker":
-                                pf = await broker.get_portfolio(str(account_id))
-                            else:
-                                pdata = await tinvest_service.get_portfolio_data(
-                                    token_str,
-                                    account_id=str(account_id),
-                                    db=db,
-                                    token_id=int(token_id) if token_id is not None else None,
-                                    user_id=int(user_id),
+                                _persist_robot_account_id(db, robot_id, user_id, resolved_account_id)
+                                config = {**config, "account_id": resolved_account_id}
+                            except Exception as persist_exc:
+                                try:
+                                    db.rollback()
+                                except Exception:
+                                    pass
+                                logger.warning(
+                                    "live snapshot account_id persist failed robot_id=%s: %s",
+                                    robot_id,
+                                    persist_exc,
                                 )
-                                pf = dict((pdata or {}).get("portfolio") or {})
-                            positions_raw = list(pf.get("positions") or [])
-                            portfolio_positions = _normalize_portfolio_positions(positions_raw)
-                            portfolio_summary = {k: v for k, v in pf.items() if k != "positions"}
-                            if portfolio_positions:
+
+                        broker_exc: Optional[Exception] = None
+                        is_bybit = broker_type.strip().lower() == "bybit"
+                        fetch_modes = ("broker",) if is_bybit else ("broker", "tinvest_service")
+                        for fetch_mode in fetch_modes:
+                            try:
+                                if fetch_mode == "broker":
+                                    pf = await broker.get_portfolio(str(account_id))
+                                else:
+                                    pdata = await tinvest_service.get_portfolio_data(
+                                        token_str,
+                                        account_id=str(account_id),
+                                        db=db,
+                                        token_id=int(token_id) if token_id is not None else None,
+                                        user_id=int(user_id),
+                                    )
+                                    pf = dict((pdata or {}).get("portfolio") or {})
+                                positions_raw = list(pf.get("positions") or [])
+                                portfolio_positions = _normalize_portfolio_positions(
+                                    positions_raw,
+                                    type_names=_instrument_type_label_map(db),
+                                )
+                                portfolio_summary = {k: v for k, v in pf.items() if k != "positions"}
                                 portfolio_source = fetch_mode
                                 portfolio_fetch_error = None
-                                break
-                        except Exception as exc:
-                            broker_exc = exc
-                            if (
-                                is_bybit
-                                and token_id is not None
-                                and _is_bybit_auth_error(exc)
-                            ):
-                                try:
+                                if portfolio_positions or fetch_mode == "broker":
+                                    break
+                            except Exception as exc:
+                                broker_exc = exc
+                                if (
+                                    is_bybit
+                                    and token_id is not None
+                                    and _is_bybit_auth_error(exc)
+                                ):
                                     try:
-                                        db.rollback()
-                                    except Exception:
-                                        pass
-                                    _expire_token_and_disable_robots(
-                                        db,
-                                        token_id=int(token_id),
-                                        user_id=int(user_id),
-                                        error_message=str(exc),
-                                    )
-                                    logger.warning(
-                                        "ByBit token expired/invalid -> deactivated token_id=%s and disabled robots for user_id=%s",
-                                        token_id,
-                                        user_id,
-                                    )
-                                except Exception as deact_exc:
-                                    logger.error(
-                                        "Failed to deactivate ByBit token token_id=%s user_id=%s: %s",
-                                        token_id,
-                                        user_id,
-                                        deact_exc,
-                                        exc_info=True,
-                                    )
-                            logger.warning(
-                                "live snapshot portfolio fetch (%s) robot_id=%s: %s",
-                                fetch_mode,
-                                robot_id,
-                                exc,
-                            )
+                                        try:
+                                            db.rollback()
+                                        except Exception:
+                                            pass
+                                        _expire_token_and_disable_robots(
+                                            db,
+                                            token_id=int(token_id),
+                                            user_id=int(user_id),
+                                            error_message=str(exc),
+                                        )
+                                        logger.warning(
+                                            "ByBit token expired/invalid -> deactivated token_id=%s and disabled robots for user_id=%s",
+                                            token_id,
+                                            user_id,
+                                        )
+                                    except Exception as deact_exc:
+                                        logger.error(
+                                            "Failed to deactivate ByBit token token_id=%s user_id=%s: %s",
+                                            token_id,
+                                            user_id,
+                                            deact_exc,
+                                            exc_info=True,
+                                        )
+                                logger.warning(
+                                    "live snapshot portfolio fetch (%s) robot_id=%s: %s",
+                                    fetch_mode,
+                                    robot_id,
+                                    exc,
+                                )
 
-                    if not portfolio_positions:
-                        db_positions = _load_portfolio_positions_from_db(
-                            db, user_id, str(account_id)
-                        )
-                        if db_positions:
-                            portfolio_positions = db_positions
-                            portfolio_source = "db_snapshot"
-                            portfolio_fetch_error = None
-                        elif broker_exc is not None:
-                            portfolio_fetch_error = str(broker_exc)[:200] or "portfolio_fetch_failed"
-        except Exception as exc:
-            portfolio_fetch_error = str(exc)[:200] or "portfolio_fetch_failed"
-            logger.warning(
-                "live snapshot portfolio fetch failed robot_id=%s: %s",
-                robot_id,
-                exc,
-                exc_info=True,
+                        if not portfolio_positions and portfolio_source != "broker":
+                            db_positions = _load_portfolio_positions_from_db(
+                                db, user_id, str(account_id)
+                            )
+                            if db_positions:
+                                portfolio_positions = db_positions
+                                portfolio_source = "db_snapshot"
+                                portfolio_fetch_error = None
+                            elif broker_exc is not None:
+                                portfolio_fetch_error = str(broker_exc)[:200] or "portfolio_fetch_failed"
+            except Exception as exc:
+                portfolio_fetch_error = str(exc)[:200] or "portfolio_fetch_failed"
+                logger.warning(
+                    "live snapshot portfolio fetch failed robot_id=%s: %s",
+                    robot_id,
+                    exc,
+                    exc_info=True,
+                )
+
+            # Orders from portfolio_orders; two-way reconcile with broker when possible.
+            recent_orders = _load_live_account_orders(
+                db, user_id=int(user_id), broker_account_id=resolved_account_for_orders or account_id
             )
+            if broker_for_orders is not None and resolved_account_for_orders:
+                try:
+                    await _reconcile_robot_orders_with_broker(
+                        db,
+                        robot_id=int(robot_id),
+                        broker=broker_for_orders,
+                        account_id=resolved_account_for_orders,
+                        user_id=int(user_id),
+                    )
+                    orders_synced_at = datetime.now(timezone.utc)
+                    recent_orders = _load_live_account_orders(
+                        db,
+                        user_id=int(user_id),
+                        broker_account_id=resolved_account_for_orders,
+                    )
+                    try:
+                        from app.modules.robots.live_events import notify_live_orders_refresh
+
+                        notify_live_orders_refresh(
+                            int(robot_id),
+                            user_id=int(user_id),
+                            account_id=str(resolved_account_for_orders),
+                        )
+                    except Exception:
+                        pass
+                except Exception as exc:
+                    logger.warning(
+                        "live snapshot order reconcile failed robot_id=%s: %s",
+                        robot_id,
+                        exc,
+                    )
+            open_orders, order_history = _split_db_orders(recent_orders)
 
         stream_q = f"""
             SELECT MAX(created_at) AS last_event_at
@@ -4936,10 +5948,35 @@ class RobotService:
             WHERE robot_id = :robot_id
         """
         stream_row = db.execute(text(stream_q), {"robot_id": robot_id}).first()
+
+        # Active background trading session (independent of Live UI /ws/live).
+        session_q = f"""
+            SELECT id, status, started_at, updated_at
+            FROM {settings.DB_SCHEMA}.background_jobs
+            WHERE job_type = 'live_trading_session'
+              AND (payload->>'robot_id')::text = :robot_id
+              AND status IN ('queued', 'running')
+            ORDER BY id DESC
+            LIMIT 1
+        """
+        session_row = None
+        try:
+            session_row = db.execute(text(session_q), {"robot_id": str(robot_id)}).first()
+        except Exception:
+            session_row = None
+
         stream_health = {
             "last_event_at": stream_row[0] if stream_row else None,
             "connected_hint": int(robot.get("status") or 0) == 1,
+            "trading_session_active": bool(session_row),
+            "trading_session_status": str(session_row[1]) if session_row else None,
+            "trading_session_started_at": session_row[2] if session_row else None,
+            "trading_session_heartbeat_at": session_row[3] if session_row else None,
         }
+
+        from app.modules.robots.live_events import fetch_recent_session_logs
+
+        recent_logs = fetch_recent_session_logs(db, robot_id, limit=150)
 
         return {
             "robot_id": int(robot_id),
@@ -4954,7 +5991,363 @@ class RobotService:
             "portfolio_source": portfolio_source,
             "recent_signals": recent_signals,
             "recent_orders": recent_orders,
+            "open_orders": open_orders,
+            "order_history": order_history,
+            "orders_synced_at": orders_synced_at,
+            "recent_logs": recent_logs,
             "stream_health": stream_health,
+        }
+
+    async def place_manual_live_order(
+            self,
+            db: Session,
+            *,
+            user_id: int,
+            robot_id: int,
+            figi: str,
+            side: str,
+            price: float,
+            quantity: Optional[float] = None,
+            notional: Optional[float] = None,
+            reduce_only: bool = False,
+    ) -> Dict[str, Any]:
+        """Place a limit order via robot broker token (bypasses Stage6 risk gates)."""
+        from app.modules.robots.live_events import insert_session_log, notify_live_orders_refresh
+        from app.modules.robots.trading.brokers import create_broker_facade
+        from app.modules.robots.trading.brokers.routing import (
+            BrokerTokenMismatchError,
+            enforce_broker_for_token,
+        )
+        from app.modules.robots.trading.manual_order import (
+            format_manual_broker_reject,
+            resolve_manual_order_quantity,
+        )
+
+        robot = await self.get_robot_by_id(db, robot_id, user_id)
+        if int(robot.get("type") or 0) != 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Робот не является торговым",
+            )
+        token_meta = robot.get("token") or {}
+        if not token_meta.get("id") or int(token_meta.get("status") or 0) != 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="У робота нет активного токена доступа",
+            )
+
+        config = dict(robot.get("config") or {})
+        try:
+            token_type = int(token_meta.get("type")) if token_meta.get("type") is not None else None
+        except (TypeError, ValueError):
+            token_type = None
+        try:
+            broker_type = enforce_broker_for_token(
+                config,
+                token_type=token_type,
+                mutate=True,
+                require_token=True,
+            )
+        except BrokerTokenMismatchError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+        symbol = str(figi or "").strip().upper()
+        if not symbol:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="figi обязателен")
+        side_u = str(side or "").strip().upper()
+        if side_u not in {"BUY", "SELL"}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="side должен быть BUY или SELL")
+        px = float(price or 0)
+        if px <= 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="price must be > 0")
+
+        try:
+            qty = resolve_manual_order_quantity(price=px, quantity=quantity, notional=notional)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        if qty <= 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="quantity must be > 0")
+
+        # T-Invest facade expects integer lots.
+        order_qty: float | int = int(qty) if str(broker_type).lower() == "tinvest" else qty
+        if str(broker_type).lower() == "tinvest" and int(order_qty) <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="для T-Invest quantity должен быть целым лотом >= 1",
+            )
+
+        token_id = int(token_meta["id"])
+        td = await token_service.get_token_by_id(db, token_id, user_id)
+        token_str = (td or {}).get("token")
+        if not token_str:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="не удалось загрузить токен брокера",
+            )
+        token_extra = (td or {}).get("extra_data") if isinstance((td or {}).get("extra_data"), dict) else {}
+        broker = create_broker_facade(
+            broker_type,
+            token_str,
+            token_extra_data=token_extra,
+            robot_config=config,
+        )
+        account_id = await _resolve_robot_account_id(broker, config.get("account_id"))
+        if not account_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="у робота не задан account_id",
+            )
+        if not str(config.get("account_id") or "").strip():
+            try:
+                _persist_robot_account_id(db, robot_id, user_id, str(account_id))
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+
+        direction = "ORDER_DIRECTION_BUY" if side_u == "BUY" else "ORDER_DIRECTION_SELL"
+        size_from_notional = notional is not None and float(notional) > 0
+        requested_notional = float(notional) if size_from_notional else None
+
+        from app.modules.portfolio.order_registry import (
+            SOURCE_MANUAL,
+            insert_pending_order,
+            resolve_portfolio_account_pk,
+            update_order_by_pk,
+        )
+        from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
+
+        pa_id = resolve_portfolio_account_pk(
+            db, user_id=int(user_id), broker_account_id=str(account_id)
+        )
+        if not pa_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="не удалось привязать заявку к portfolio_accounts",
+            )
+
+        portfolio_order_id = insert_pending_order(
+            db,
+            portfolio_account_id=int(pa_id),
+            robot_id=int(robot_id),
+            figi=symbol,
+            side=side_u.lower(),
+            quantity=float(order_qty),
+            price=px,
+            source=SOURCE_MANUAL,
+            commit=True,
+        )
+        if portfolio_order_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="не удалось сохранить заявку в portfolio_orders",
+            )
+
+        try:
+            order = await broker.post_order(
+                figi=symbol,
+                quantity=order_qty,
+                price=px,
+                direction=direction,
+                account_id=str(account_id),
+                reduce_only=bool(reduce_only),
+                qty_round_up=bool(size_from_notional),
+            )
+        except Exception as exc:
+            logger.warning(
+                "manual order failed robot_id=%s figi=%s side=%s: %s",
+                robot_id,
+                symbol,
+                side_u,
+                exc,
+            )
+            update_order_by_pk(
+                db,
+                row_id=int(portfolio_order_id),
+                status="rejected",
+                commit=True,
+            )
+            free_hint: Optional[float] = None
+            try:
+                free_hint = float(await broker.get_free_funds(str(account_id)))
+            except Exception:
+                free_hint = None
+            detail = format_manual_broker_reject(exc, free_funds=free_hint)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"брокер отклонил заявку: {detail}",
+            ) from exc
+
+        order_id = str((order or {}).get("orderId") or "").strip()
+        order_status = str(
+            (order or {}).get("executionReportStatus") or "EXECUTION_REPORT_STATUS_NEW"
+        )
+        db_status = Stage6Orders.map_execution_status_to_trade_status(order_status)
+        if db_status == "open":
+            db_status = "filled"
+        placed_qty = float(order_qty)
+        try:
+            if order and order.get("qty") is not None:
+                placed_qty = float(order.get("qty"))
+        except Exception:
+            placed_qty = float(order_qty)
+
+        update_order_by_pk(
+            db,
+            row_id=int(portfolio_order_id),
+            order_id=order_id or None,
+            status=db_status if db_status in {"pending", "partial", "filled", "cancelled", "rejected"} else "pending",
+            quantity=placed_qty,
+            price=px,
+            commit=True,
+        )
+
+        if size_from_notional and requested_notional is not None:
+            log_msg = (
+                f"[MANUAL] {side_u} {symbol} sum={requested_notional:g}USDT "
+                f"→ qty={placed_qty:g} @ {px:g} order_id={order_id or '—'} "
+                f"reduce_only={bool(reduce_only)}"
+            )
+        else:
+            log_msg = (
+                f"[MANUAL] {side_u} {symbol} qty={placed_qty:g} @ {px:g} "
+                f"order_id={order_id or '—'} reduce_only={bool(reduce_only)}"
+            )
+        try:
+            insert_session_log(db, robot_id=int(robot_id), message=log_msg, level="INFO")
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+        if portfolio_order_id is not None:
+            try:
+                notify_live_orders_refresh(
+                    int(robot_id),
+                    user_id=int(user_id),
+                    account_id=str(account_id) if account_id else None,
+                )
+            except Exception:
+                pass
+
+        return {
+            "order_id": order_id,
+            "figi": symbol,
+            "side": side_u,
+            "quantity": placed_qty,
+            "price": px,
+            "status": db_status,
+            "broker_type": str(broker_type),
+            "reduce_only": bool(reduce_only),
+            "notional": requested_notional,
+            "size_mode": "notional" if size_from_notional else "quantity",
+            "event_id": int(portfolio_order_id) if portfolio_order_id is not None else None,
+            "account_order_id": int(portfolio_order_id) if portfolio_order_id is not None else None,
+        }
+
+    async def sync_live_orders(
+            self,
+            db: Session,
+            *,
+            user_id: int,
+            robot_id: int,
+    ) -> Dict[str, Any]:
+        """Reconcile portfolio_orders with broker open orders (statuses + import)."""
+        from app.modules.robots.trading.brokers import create_broker_facade
+        from app.modules.robots.trading.brokers.routing import (
+            BrokerTokenMismatchError,
+            enforce_broker_for_token,
+        )
+
+        robot = await self.get_robot_by_id(db, robot_id, user_id)
+        if int(robot.get("type") or 0) != 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="синхронизация заявок доступна только для торговых роботов",
+            )
+        token_meta = robot.get("token") or {}
+        if not token_meta.get("id"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="У робота нет активного токена доступа",
+            )
+        config = dict(robot.get("config") or {})
+        try:
+            token_type = int(token_meta.get("type")) if token_meta.get("type") is not None else None
+        except (TypeError, ValueError):
+            token_type = None
+        try:
+            broker_type = enforce_broker_for_token(
+                config,
+                token_type=token_type,
+                mutate=True,
+                require_token=True,
+            )
+        except BrokerTokenMismatchError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+        td = await token_service.get_token_by_id(db, int(token_meta["id"]), user_id)
+        token_str = (td or {}).get("token")
+        if not token_str:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="не удалось загрузить токен брокера",
+            )
+        token_extra = (td or {}).get("extra_data") if isinstance((td or {}).get("extra_data"), dict) else {}
+        broker = create_broker_facade(
+            broker_type,
+            token_str,
+            token_extra_data=token_extra,
+            robot_config=config,
+        )
+        account_id = await _resolve_robot_account_id(broker, config.get("account_id"))
+        if not account_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="у робота не задан account_id",
+            )
+
+        # Manual sync must insert missing history (snapshot keeps insert_history=False).
+        stats = await _reconcile_robot_orders_with_broker(
+            db,
+            robot_id=int(robot_id),
+            broker=broker,
+            account_id=str(account_id),
+            user_id=int(user_id),
+            insert_history=True,
+        )
+        recent = _load_live_account_orders(
+            db, user_id=int(user_id), broker_account_id=str(account_id)
+        )
+        open_orders, order_history = _split_db_orders(recent)
+        try:
+            from app.modules.robots.live_events import notify_live_orders_refresh
+
+            notify_live_orders_refresh(
+                int(robot_id),
+                user_id=int(user_id),
+                account_id=str(account_id),
+            )
+        except Exception:
+            pass
+        return {
+            "robot_id": int(robot_id),
+            "updated": int(stats.get("updated") or 0),
+            "imported": int(stats.get("imported") or 0),
+            "upserted": int(stats.get("upserted") or 0),
+            "cancelled": int(stats.get("cancelled") or 0),
+            "history_updated": int(stats.get("history_updated") or 0),
+            "healed_open": int(stats.get("healed_open") or 0),
+            "healed_closed": int(stats.get("healed_closed") or 0),
+            "orders_synced_at": datetime.now(timezone.utc),
+            "open_orders": open_orders,
+            "order_history": order_history,
         }
 
     async def get_backtest_history(

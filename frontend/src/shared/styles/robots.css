@@ -1,3 +1,7 @@
+/* OBSOLETE: legacy card-grid robots UI. Not imported by the React app.
+ * Active robots styles live in frontend/src/styles/global.css ([data-page='robots']).
+ * Do not extend this file — delete when safe.
+ */
 /* robots.css - изолированные стили только для страницы роботов */
 
 /* Основной контейнер страницы */

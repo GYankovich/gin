@@ -190,28 +190,77 @@ export function createDefaultCryptoScreeningFilters(): CryptoScreeningFilter[] {
     return cryptoScreeningFiltersFromPreset('moderate')
 }
 
-/** Всегда полный набор полей crypto_universe (как на бэке). */
-export function cryptoFieldsFromFilters(filters: CryptoScreeningFilter[]): CryptoUniverseFormFields {
-    const byType = new Map(filters.map(f => [f.type, f.value]))
-    const result = {} as CryptoUniverseFormFields
-    for (const type of CRYPTO_SCREENING_FILTER_TYPES) {
-        result[TYPE_TO_FIELD[type]] = byType.has(type)
-            ? (byType.get(type) as number)
-            : CRYPTO_FILTER_META[type].defaultValue
+/** Частичный набор полей crypto_universe из активных UI-фильтров (без force-complete). */
+export function cryptoFieldsFromFilters(filters: CryptoScreeningFilter[]): Partial<CryptoUniverseFormFields> {
+    const result: Partial<CryptoUniverseFormFields> = {}
+    for (const f of filters) {
+        result[TYPE_TO_FIELD[f.type]] = f.value
     }
     return result
 }
 
-/** Гидратация: всегда все типы, без отбрасывания «inactive». */
-export function cryptoFiltersFromFields(fields: CryptoUniverseFormFields): CryptoScreeningFilter[] {
-    const defs = CRYPTO_SCREENING_FILTER_TYPES.map(type => ({
-        type,
-        value: Number(fields[TYPE_TO_FIELD[type]] ?? CRYPTO_FILTER_META[type].defaultValue),
-    }))
+/**
+ * Гидратация из form-fields: только типы, явно присутствующие в `fields`
+ * (undefined / null → не показываем в UI).
+ */
+export function cryptoFiltersFromFields(
+    fields: Partial<CryptoUniverseFormFields>,
+): CryptoScreeningFilter[] {
+    const defs: Array<{ type: CryptoScreeningFilterType; value: number }> = []
+    for (const type of CRYPTO_SCREENING_FILTER_TYPES) {
+        const key = TYPE_TO_FIELD[type]
+        const raw = fields[key]
+        if (raw === undefined || raw === null || !Number.isFinite(Number(raw))) continue
+        defs.push({ type, value: Number(raw) })
+    }
     return cryptoFiltersWithIds(defs, 'hydrate')
 }
 
-/** Дополнить список до полного набора crypto_universe (после старых сейвов). */
+/**
+ * Гидратация из raw `crypto_universe` config: только ключи, реально записанные в объекте.
+ * Старые сейвы с полным объектом → все поля активны; частичные — только заданные.
+ */
+export function cryptoFiltersFromConfigUniverse(cu: Record<string, unknown>): CryptoScreeningFilter[] {
+    const refresh = (cu.refresh && typeof cu.refresh === 'object' ? cu.refresh : {}) as Record<
+        string,
+        unknown
+    >
+    const defs: Array<{ type: CryptoScreeningFilterType; value: number }> = []
+
+    const push = (type: CryptoScreeningFilterType, value: number) => {
+        if (!Number.isFinite(value)) return
+        defs.push({ type, value })
+    }
+
+    if ('min_volume_24h_usd' in cu) push('min_volume_24h_usd', Number(cu.min_volume_24h_usd))
+    if ('min_last_price' in cu) push('min_last_price', Number(cu.min_last_price))
+    if ('max_spread_bps' in cu) push('max_spread_bps', Number(cu.max_spread_bps))
+    if ('min_funding_rate' in cu) {
+        push('min_funding_rate_pct', Number((Number(cu.min_funding_rate) * 100).toFixed(6)))
+    }
+    if ('max_funding_rate' in cu) {
+        push('max_funding_rate_pct', Number((Number(cu.max_funding_rate) * 100).toFixed(6)))
+    }
+    if ('min_open_interest_usd' in cu) push('min_open_interest_usd', Number(cu.min_open_interest_usd))
+    if ('min_lsr' in cu) push('min_lsr', Number(cu.min_lsr))
+    if ('max_lsr' in cu) push('max_lsr', Number(cu.max_lsr))
+    if ('min_rvol' in cu) push('min_rvol', Number(cu.min_rvol))
+    if ('min_atr_percent' in cu) push('min_atr_percent', Number(cu.min_atr_percent))
+    if ('max_atr_percent' in cu) push('max_atr_percent', Number(cu.max_atr_percent))
+    if ('lookback_days' in cu) push('lookback_days', Number(cu.lookback_days))
+    if ('funding_lookback_hours' in cu) push('funding_lookback_hours', Number(cu.funding_lookback_hours))
+    if ('every_minutes' in refresh || (cu.refresh && typeof cu.refresh === 'object' && 'every_minutes' in refresh)) {
+        push('refresh_every_minutes', Number(refresh.every_minutes ?? 60))
+    }
+
+    // Legacy full configs without sparse keys: if enabled auto and empty → moderate preset
+    if (defs.length === 0 && cu.enabled !== false) {
+        return createDefaultCryptoScreeningFilters()
+    }
+    return cryptoFiltersWithIds(defs, 'cfg')
+}
+
+/** @deprecated Prefer explicit add/remove; kept for callers that still pad. */
 export function ensureCompleteCryptoFilters(filters: CryptoScreeningFilter[]): CryptoScreeningFilter[] {
     const byType = new Map(filters.map(f => [f.type, f]))
     const stamp = Date.now()
@@ -231,12 +280,16 @@ export function upsertCryptoFilterValue(
     type: CryptoScreeningFilterType,
     value: number,
 ): CryptoScreeningFilter[] {
-    const complete = ensureCompleteCryptoFilters(filters)
-    const idx = complete.findIndex(f => f.type === type)
-    if (idx < 0) return complete
-    if (Math.abs(complete[idx].value - value) < 1e-9) return complete
-    const next = [...complete]
-    next[idx] = { ...complete[idx], value }
+    const idx = filters.findIndex(f => f.type === type)
+    if (idx < 0) {
+        return [
+            ...filters,
+            { id: `upsert-${type}-${Date.now()}`, type, value },
+        ]
+    }
+    if (Math.abs(filters[idx].value - value) < 1e-9) return filters
+    const next = [...filters]
+    next[idx] = { ...filters[idx], value }
     return next
 }
 
