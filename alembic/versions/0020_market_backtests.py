@@ -33,16 +33,15 @@ def upgrade():
         sa.Column("initial_capital", sa.Numeric(20, 4), nullable=False),
         sa.Column("request_payload", sa.JSON(), nullable=False),
         sa.Column("result_payload", sa.JSON(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
-        schema=SCHEMA,
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False)
     )
-    op.create_index("ix_market_backtests_user_created", "market_backtests", ["user_id", "created_at"], schema=SCHEMA)
-    op.create_index("ix_market_backtests_strategy", "market_backtests", ["strategy"], schema=SCHEMA)
-    op.create_index("ix_market_backtests_figi", "market_backtests", ["figi"], schema=SCHEMA)
+    op.create_index("ix_market_backtests_user_created", "market_backtests", ["user_id", "created_at"])
+    op.create_index("ix_market_backtests_strategy", "market_backtests", ["strategy"])
+    op.create_index("ix_market_backtests_figi", "market_backtests", ["figi"])
 
 
 def downgrade():
-    op.drop_index("ix_market_backtests_figi", table_name="market_backtests", schema=SCHEMA)
-    op.drop_index("ix_market_backtests_strategy", table_name="market_backtests", schema=SCHEMA)
-    op.drop_index("ix_market_backtests_user_created", table_name="market_backtests", schema=SCHEMA)
-    op.drop_table("market_backtests", schema=SCHEMA)
+    op.drop_index("ix_market_backtests_figi", table_name="market_backtests")
+    op.drop_index("ix_market_backtests_strategy", table_name="market_backtests")
+    op.drop_index("ix_market_backtests_user_created", table_name="market_backtests")
+    op.drop_table("market_backtests")

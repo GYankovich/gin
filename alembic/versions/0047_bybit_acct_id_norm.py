@@ -29,12 +29,12 @@ def upgrade() -> None:
     op.execute(
         sa.text(
             f"""
-            UPDATE {SCHEMA}.portfolio_accounts pa
+            UPDATE portfolio_accounts pa
             SET account_id = 'bybit:' || upper(split_part(pa.account_id, ':', 3))
             WHERE pa.account_id ~* '^bybit:[^:]+:(UNIFIED|FUND|COPY)$'
               AND NOT EXISTS (
                   SELECT 1
-                  FROM {SCHEMA}.portfolio_accounts other
+                  FROM portfolio_accounts other
                   WHERE other.user_id = pa.user_id
                     AND other.account_id = 'bybit:' || upper(split_part(pa.account_id, ':', 3))
                     AND other.id <> pa.id
@@ -49,10 +49,10 @@ def upgrade() -> None:
         op.execute(
             sa.text(
                 f"""
-                UPDATE {SCHEMA}.{child} child
+                UPDATE {child} child
                 SET account_id = canon.id
-                FROM {SCHEMA}.portfolio_accounts legacy
-                JOIN {SCHEMA}.portfolio_accounts canon
+                FROM portfolio_accounts legacy
+                JOIN portfolio_accounts canon
                   ON canon.user_id = legacy.user_id
                  AND canon.account_id = 'bybit:' || upper(split_part(legacy.account_id, ':', 3))
                  AND canon.id <> legacy.id
@@ -65,11 +65,11 @@ def upgrade() -> None:
     op.execute(
         sa.text(
             f"""
-            DELETE FROM {SCHEMA}.portfolio_accounts legacy
+            DELETE FROM portfolio_accounts legacy
             WHERE legacy.account_id ~* '^bybit:[^:]+:(UNIFIED|FUND|COPY)$'
               AND EXISTS (
                   SELECT 1
-                  FROM {SCHEMA}.portfolio_accounts canon
+                  FROM portfolio_accounts canon
                   WHERE canon.user_id = legacy.user_id
                     AND canon.account_id = 'bybit:' || upper(split_part(legacy.account_id, ':', 3))
                     AND canon.id <> legacy.id

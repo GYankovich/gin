@@ -48,7 +48,7 @@ class TradePersistenceMixin:
                 indicators["target_price"] = signal.get("target_price")
             indicators_json = safe_json_dumps(indicators) if indicators else None
             query = f"""
-                INSERT INTO {schema}.robot_signals
+                INSERT INTO robot_signals
                 (robot_id, figi, signal_type, signal_strength, price_at_signal,
                  indicators, was_executed, created_at)
                 VALUES
@@ -105,7 +105,7 @@ class TradePersistenceMixin:
             return 0
         try:
             query = f"""
-                UPDATE {schema}.robot_signals
+                UPDATE robot_signals
                 SET was_executed = 1,
                     executed_trade_id = COALESCE(:executed_trade_id, executed_trade_id)
                 WHERE id = :signal_id
@@ -166,7 +166,7 @@ class TradePersistenceMixin:
                     text(
                         f"""
                         SELECT id, order_id
-                        FROM {schema}.robot_trades
+                        FROM robot_trades
                         WHERE robot_id = :robot_id
                           AND order_id = ANY(:order_ids)
                         ORDER BY
@@ -182,7 +182,7 @@ class TradePersistenceMixin:
                     db.execute(
                         text(
                             f"""
-                            UPDATE {schema}.robot_trades
+                            UPDATE robot_trades
                             SET status = :status,
                                 figi = :figi,
                                 side = :side,
@@ -218,7 +218,7 @@ class TradePersistenceMixin:
                     continue
 
             query = f"""
-                INSERT INTO {schema}.robot_trades
+                INSERT INTO robot_trades
                 (robot_id, figi, side, quantity, price, total_amount,
                  entry_price, commission, status, order_id,
                  filled_quantity, avg_fill_price, created_at)
@@ -302,7 +302,7 @@ class TradePersistenceMixin:
         db_status = status_mapping.get(status, status.lower())
 
         query = f"""
-            UPDATE {schema}.robot_trades
+            UPDATE robot_trades
             SET status = :status,
                 filled_quantity = COALESCE(:filled_quantity, filled_quantity),
                 avg_fill_price = COALESCE(:executed_price, avg_fill_price),
@@ -351,7 +351,7 @@ class TradePersistenceMixin:
         if not db:
             return None
         q = f"""
-            INSERT INTO {schema}.robot_order_events
+            INSERT INTO robot_order_events
             (robot_id, trade_id, order_id, status, event_type, payload, created_at)
             VALUES
             (:robot_id, :trade_id, :order_id, :status, :event_type, CAST(:payload AS jsonb), :now)
@@ -410,7 +410,7 @@ class TradePersistenceMixin:
         if not db:
             return None
         q = f"""
-            INSERT INTO {schema}.robot_decisions
+            INSERT INTO robot_decisions
             (robot_id, execution_log_id, cycle_id, figi, stage, decision_type, decision, reason_code, payload, created_at)
             VALUES
             (:robot_id, :execution_log_id, :cycle_id, :figi, :stage, :decision_type, :decision, :reason_code, CAST(:payload AS jsonb), :now)
@@ -450,7 +450,7 @@ class TradePersistenceMixin:
         if not db:
             return None
         q = f"""
-            INSERT INTO {schema}.robot_run_cycles
+            INSERT INTO robot_run_cycles
             (robot_id, execution_log_id, status, started_at, context)
             VALUES
             (:robot_id, :execution_log_id, 'running', :started_at, CAST(:context AS jsonb))
@@ -484,7 +484,7 @@ class TradePersistenceMixin:
         if not db:
             return
         q = f"""
-            UPDATE {schema}.robot_run_cycles
+            UPDATE robot_run_cycles
             SET status = :status,
                 finished_at = :finished_at,
                 context = COALESCE(CAST(:context AS jsonb), context)
@@ -516,7 +516,7 @@ class TradePersistenceMixin:
     ):
         """Обновляет цену входа и количество для полностью исполненной заявки"""
         query = f"""
-            UPDATE {schema}.robot_trades
+            UPDATE robot_trades
             SET entry_price = :entry_price,
                 quantity = :quantity,
                 total_amount = :total_amount,

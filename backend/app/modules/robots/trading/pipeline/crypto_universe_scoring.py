@@ -66,7 +66,7 @@ def _load_cached_symbols_by_date(
         text(
             f"""
             SELECT trade_date, symbol
-            FROM {settings.DB_SCHEMA}.crypto_universe_daily
+            FROM crypto_universe_daily
             WHERE robot_id = :rid
               AND trade_date >= :d_from
               AND trade_date <= :d_to

@@ -39,7 +39,7 @@ def get_active_worker_lease(db: Session, *, lane: str) -> Optional[Dict[str, Any
     row = db.execute(
         text(f"""
             SELECT lane, worker_id, hostname, pid, status, started_at, heartbeat_at
-            FROM {Schema}.background_worker_leases
+            FROM background_worker_leases
             WHERE lane = :lane
               AND status = 'running'
               AND heartbeat_at >= :fresh_after
@@ -48,7 +48,7 @@ def get_active_worker_lease(db: Session, *, lane: str) -> Optional[Dict[str, Any
         {
             "lane": str(lane),
             "fresh_after": _now() - timedelta(seconds=max(15, stale_sec)),
-        },
+        }
     ).mappings().first()
     return dict(row) if row else None
 
@@ -60,7 +60,7 @@ def try_acquire_worker_lease(
     force: bool = False,
     worker_id: Optional[UUID] = None,
     hostname: Optional[str] = None,
-    pid: Optional[int] = None,
+    pid: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Acquire exclusive lease for lane.
@@ -76,18 +76,18 @@ def try_acquire_worker_lease(
     # Serialize acquire per lane across processes.
     db.execute(
         text("SELECT pg_advisory_xact_lock(hashtext(:k))"),
-        {"k": f"bg_worker_lease:{lane}"},
+        {"k": f"bg_worker_lease:{lane}"}
     )
 
     # Lock row (or absence) for this lane.
     existing = db.execute(
         text(f"""
             SELECT lane, worker_id, hostname, pid, status, started_at, heartbeat_at
-            FROM {Schema}.background_worker_leases
+            FROM background_worker_leases
             WHERE lane = :lane
             FOR UPDATE
         """),
-        {"lane": str(lane)},
+        {"lane": str(lane)}
     ).mappings().first()
 
     if existing:
@@ -103,11 +103,11 @@ def try_acquire_worker_lease(
                     "pid": existing.get("pid"),
                     "heartbeat_at": existing.get("heartbeat_at"),
                     "started_at": existing.get("started_at"),
-                },
+                }
             )
         db.execute(
             text(f"""
-                UPDATE {Schema}.background_worker_leases
+                UPDATE background_worker_leases
                 SET worker_id = :wid,
                     hostname = :hostname,
                     pid = :pid,
@@ -123,12 +123,12 @@ def try_acquire_worker_lease(
                 "hostname": host,
                 "pid": process_id,
                 "now": now,
-            },
+            }
         )
     else:
         db.execute(
             text(f"""
-                INSERT INTO {Schema}.background_worker_leases
+                INSERT INTO background_worker_leases
                     (lane, worker_id, hostname, pid, status, started_at, heartbeat_at, updated_at)
                 VALUES
                     (:lane, :wid, :hostname, :pid, 'running', :now, :now, :now)
@@ -139,7 +139,7 @@ def try_acquire_worker_lease(
                 "hostname": host,
                 "pid": process_id,
                 "now": now,
-            },
+            }
         )
 
     return {
@@ -157,14 +157,14 @@ def touch_worker_lease(db: Session, *, lane: str, worker_id: UUID) -> bool:
     """Heartbeat; returns False if lease no longer owned."""
     result = db.execute(
         text(f"""
-            UPDATE {Schema}.background_worker_leases
+            UPDATE background_worker_leases
             SET heartbeat_at = :now,
                 updated_at = :now
             WHERE lane = :lane
               AND worker_id = :wid
               AND status = 'running'
         """),
-        {"lane": str(lane), "wid": worker_id, "now": _now()},
+        {"lane": str(lane), "wid": worker_id, "now": _now()}
     )
     try:
         return int(result.rowcount or 0) > 0
@@ -175,14 +175,14 @@ def touch_worker_lease(db: Session, *, lane: str, worker_id: UUID) -> bool:
 def release_worker_lease(db: Session, *, lane: str, worker_id: UUID) -> bool:
     result = db.execute(
         text(f"""
-            UPDATE {Schema}.background_worker_leases
+            UPDATE background_worker_leases
             SET status = 'stopped',
                 updated_at = :now
             WHERE lane = :lane
               AND worker_id = :wid
               AND status = 'running'
         """),
-        {"lane": str(lane), "wid": worker_id, "now": _now()},
+        {"lane": str(lane), "wid": worker_id, "now": _now()}
     )
     try:
         return int(result.rowcount or 0) > 0

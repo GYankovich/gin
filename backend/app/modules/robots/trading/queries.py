@@ -19,8 +19,8 @@ def build_get_active_trading_robots_query() -> str:
                r.token_id,
                r.config,
                at.token as token_value
-           FROM {schema}.robots r
-        INNER JOIN {schema}.api_tokens at ON r.token_id = at.id
+           FROM robots r
+        INNER JOIN api_tokens at ON r.token_id = at.id
            WHERE r.type = :robot_type
              AND r.status = :status_active
              AND at.status = 1 \
@@ -45,9 +45,9 @@ def build_collect_scheduled_trading_robots_query() -> str:
                rs.end_time,
                rs.weekdays,
                at.token_type
-           FROM {schema}.robots r
-        INNER JOIN {schema}.api_tokens at ON r.token_id = at.id
-         LEFT JOIN {schema}.robot_schedules rs ON r.id = rs.robot_id AND rs.is_active = 1
+           FROM robots r
+        INNER JOIN api_tokens at ON r.token_id = at.id
+         LEFT JOIN robot_schedules rs ON r.id = rs.robot_id AND rs.is_active = 1
            WHERE r.type = 2
              AND r.status = 1
              AND at.status = 1 \
@@ -59,7 +59,7 @@ def build_get_robot_config_query() -> str:
     Получение конфигурации робота из БД
     """
     return """
-           SELECT config FROM {schema}.robots
+           SELECT config FROM robots
            WHERE id = :robot_id AND status = 1 \
            """
 
@@ -67,7 +67,7 @@ def build_get_robot_config_query() -> str:
 def build_get_robot_status_query() -> str:
     """Текущий status робота (1=on, 2=off, 0=deleted)."""
     return """
-           SELECT status FROM {schema}.robots
+           SELECT status FROM robots
            WHERE id = :robot_id
            LIMIT 1 \
            """
@@ -78,7 +78,7 @@ def build_update_robot_status_query() -> str:
     Обновление статуса робота
     """
     return """
-           UPDATE {schema}.robots
+           UPDATE robots
            SET status = :status, date_modification = :now
            WHERE id = :robot_id
                RETURNING id \
@@ -90,7 +90,7 @@ def build_create_execution_log_query() -> str:
     Создание записи о запуске сессии
     """
     return """
-           INSERT INTO {schema}.robot_execution_logs
+           INSERT INTO robot_execution_logs
                (robot_id, action_type, status, created_at)
            VALUES (:robot_id, :action_type, :status, :now)
                RETURNING id \
@@ -102,7 +102,7 @@ def build_update_execution_log_query() -> str:
     Обновление записи выполнения
     """
     return """
-           UPDATE {schema}.robot_execution_logs
+           UPDATE robot_execution_logs
            SET status = :status,
                message = :message,
                execution_time_ms = :execution_time_ms,
@@ -117,7 +117,7 @@ def build_create_api_log_query() -> str:
     Создание записи об API вызове
     """
     return """
-           INSERT INTO {schema}.robot_logs
+           INSERT INTO robot_logs
            (robot_name, robot_version, token_id, user_id, endpoint,
             request_data, started_at, execution_log_id)
            VALUES
@@ -132,7 +132,7 @@ def build_update_api_log_success_query() -> str:
     Обновление успешного API вызова
     """
     return """
-           UPDATE {schema}.robot_logs
+           UPDATE robot_logs
            SET finished_at = :finished_at,
                duration_ms = :duration_ms,
                response_data = :response_data,
@@ -148,7 +148,7 @@ def build_update_api_log_error_query() -> str:
     Обновление ошибочного API вызова
     """
     return """
-           UPDATE {schema}.robot_logs
+           UPDATE robot_logs
            SET finished_at = :finished_at,
                duration_ms = :duration_ms,
                error_message = :error_message,
@@ -163,7 +163,7 @@ def build_save_signals_query() -> str:
     Сохранение сигналов в БД
     """
     return """
-           INSERT INTO {schema}.robot_signals
+           INSERT INTO robot_signals
            (robot_id, figi, signal_type, signal_strength, price_at_signal,
             was_executed, created_at)
            VALUES
@@ -178,7 +178,7 @@ def build_save_trades_query() -> str:
     Сохранение сделок в БД
     """
     return """
-           INSERT INTO {schema}.robot_trades
+           INSERT INTO robot_trades
            (robot_id, figi, side, quantity, price, total_amount,
             entry_price, commission, status, order_id, created_at)
            VALUES
@@ -193,7 +193,7 @@ def build_update_trade_status_query() -> str:
     Обновление статуса сделки
     """
     return """
-           UPDATE {schema}.robot_trades
+           UPDATE robot_trades
            SET status = :status,
                filled_quantity = COALESCE(:filled_quantity, filled_quantity),
                avg_fill_price = COALESCE(:executed_price, avg_fill_price),
@@ -209,7 +209,7 @@ def build_update_trade_entry_price_query() -> str:
     Обновление цены входа для исполненной заявки
     """
     return """
-           UPDATE {schema}.robot_trades
+           UPDATE robot_trades
            SET entry_price = :entry_price,
                quantity = :quantity,
                total_amount = :total_amount,
@@ -225,7 +225,7 @@ def build_get_open_positions_query() -> str:
     """
     return """
            SELECT id, figi, side, quantity, entry_price, status, created_at
-           FROM {schema}.robot_trades
+           FROM robot_trades
            WHERE robot_id = :robot_id AND status IN ('open', 'partial') \
            """
 
@@ -235,7 +235,7 @@ def build_close_trade_query() -> str:
     Закрытие сделки в БД.
     """
     return """
-           UPDATE {schema}.robot_trades
+           UPDATE robot_trades
            SET status = 'closed',
                exit_price = :exit_price,
                closed_at = :now,

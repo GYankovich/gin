@@ -257,7 +257,7 @@ class DmsService:
                     text(
                         f"""
                         SELECT COUNT(*)
-                        FROM {settings.DB_SCHEMA}.candles_cache
+                        FROM candles_cache
                         WHERE market='moex'
                           AND instrument_id=:instrument_id
                           AND interval=:interval
@@ -280,7 +280,7 @@ class DmsService:
                     SELECT
                         MIN(candle_time) AS min_ct,
                         MAX(candle_time) AS max_ct
-                    FROM {settings.DB_SCHEMA}.candles_cache
+                    FROM candles_cache
                     WHERE market='moex'
                       AND instrument_id=:instrument_id
                       AND interval=:interval
@@ -315,7 +315,7 @@ class DmsService:
                         text(
                             f"""
                             SELECT MAX(updated_at)
-                            FROM {settings.DB_SCHEMA}.candles_cache
+                            FROM candles_cache
                             WHERE market='moex'
                               AND instrument_id=:instrument_id
                               AND interval=:interval
@@ -383,7 +383,7 @@ class DmsService:
             db.execute(
                 text(
                     f"""
-                    INSERT INTO {settings.DB_SCHEMA}.external_api_logs
+                    INSERT INTO external_api_logs
                     (user_id, token_id, broker, context_type, context_ref, endpoint, request_data, response_status, response_data,
                      started_at, finished_at, duration_ms, success, error_message)
                     VALUES
@@ -739,7 +739,7 @@ class DmsService:
         d1_stmt = text(
             f"""
             SELECT instrument_id, high, low, close
-            FROM {settings.DB_SCHEMA}.candles_cache
+            FROM candles_cache
             WHERE market = 'moex'
               AND interval = 'D1'
               AND instrument_id IN :tickers
@@ -990,7 +990,7 @@ class DmsService:
     ) -> Dict[str, Any]:
         now = datetime.now(timezone.utc)
         insert_snapshot_q = f"""
-            INSERT INTO {settings.DB_SCHEMA}.market_snapshot
+            INSERT INTO market_snapshot
             (snapshot_time, board, status, is_manual, ttl_minutes, created_at)
             VALUES (:snapshot_time, :board, 'PROCESSING', :is_manual, :ttl_minutes, :created_at)
             RETURNING id
@@ -1007,7 +1007,7 @@ class DmsService:
                 db.execute(
                     text(
                         f"""
-                        UPDATE {settings.DB_SCHEMA}.market_snapshot
+                        UPDATE market_snapshot
                         SET status='MARKET_CLOSED',
                             error_message=:msg
                         WHERE id=:id
@@ -1018,7 +1018,7 @@ class DmsService:
                 db.commit()
                 return {"snapshot_id": snapshot_id, "status": "MARKET_CLOSED", "securities_count": 0, "message": "Биржа закрыта"}
             insert_data_q = f"""
-                INSERT INTO {settings.DB_SCHEMA}.market_snapshot_data
+                INSERT INTO market_snapshot_data
                 (snapshot_id, ticker, board_id, short_name, sec_name, isin, sec_type, list_level, face_value, board_name, decimals, remarks, market_code, instr_id, sector_id, face_unit, prev_date, lat_name, reg_number, currency_id, settle_date, lot_size,
                  last_price, open_price, low_price, high_price, prev_price, prev_wa_price, prev_legal_close_price, close_price, value, value_usd, wa_price, last_change, last_change_prcnt, market_price_today, market_price, last_to_prev_price,
                  value_today, val_today_rur, volume_lots, security_status, trading_status, num_trades, min_step, issue_size, bid, ask, spread, market_update_time, trading_session, seq_num, sys_time, issue_capitalization, trend_issue_capitalization,
@@ -1154,14 +1154,14 @@ class DmsService:
                     },
                 )
             db.execute(
-                text(f"UPDATE {settings.DB_SCHEMA}.market_snapshot SET status='SUCCESS' WHERE id=:id"),
+                text(f"UPDATE market_snapshot SET status='SUCCESS' WHERE id=:id"),
                 {"id": snapshot_id},
             )
             db.commit()
             return {"snapshot_id": snapshot_id, "status": "SUCCESS", "securities_count": len(raw_rows), "message": None}
         except Exception as e:
             db.execute(
-                text(f"UPDATE {settings.DB_SCHEMA}.market_snapshot SET status='ERROR', error_message=:msg WHERE id=:id"),
+                text(f"UPDATE market_snapshot SET status='ERROR', error_message=:msg WHERE id=:id"),
                 {"id": snapshot_id, "msg": str(e)},
             )
             db.commit()
@@ -1182,7 +1182,7 @@ class DmsService:
                 text(
                     f"""
                     SELECT id
-                    FROM {settings.DB_SCHEMA}.robots
+                    FROM robots
                     WHERE id=:robot_id AND status != 0
                     LIMIT 1
                     """
@@ -1194,7 +1194,7 @@ class DmsService:
                 text(
                     f"""
                     SELECT id
-                    FROM {settings.DB_SCHEMA}.robots
+                    FROM robots
                     WHERE id=:robot_id AND user_id=:user_id AND status != 0
                     LIMIT 1
                     """
@@ -1209,7 +1209,7 @@ class DmsService:
             text(
                 f"""
                 SELECT snapshot_id
-                FROM {settings.DB_SCHEMA}.daily_universe
+                FROM daily_universe
                 WHERE robot_id=:robot_id
                   AND trade_date=:trade_date
                 ORDER BY created_at DESC
@@ -1235,7 +1235,7 @@ class DmsService:
             db.execute(
                 text(
                     f"""
-                    DELETE FROM {settings.DB_SCHEMA}.daily_universe
+                    DELETE FROM daily_universe
                     WHERE robot_id = :robot_id AND trade_date = :trade_date
                     """
                 ),
@@ -1247,7 +1247,7 @@ class DmsService:
             text(
                 f"""
                 SELECT id, snapshot_time
-                FROM {settings.DB_SCHEMA}.market_snapshot
+                FROM market_snapshot
                 WHERE board=:board AND status='SUCCESS'
                 ORDER BY snapshot_time DESC
                 LIMIT 1
@@ -1300,7 +1300,7 @@ class DmsService:
             text(
                 f"""
                 SELECT id
-                FROM {settings.DB_SCHEMA}.market_snapshot
+                FROM market_snapshot
                 WHERE snapshot_time < :threshold
                 ORDER BY snapshot_time ASC
                 LIMIT 10000
@@ -1314,8 +1314,8 @@ class DmsService:
         db.execute(
             text(
                 f"""
-                INSERT INTO {settings.DB_SCHEMA}.market_snapshot_history
-                SELECT * FROM {settings.DB_SCHEMA}.market_snapshot
+                INSERT INTO market_snapshot_history
+                SELECT * FROM market_snapshot
                 WHERE id = ANY(:ids)
                 ON CONFLICT DO NOTHING
                 """
@@ -1325,8 +1325,8 @@ class DmsService:
         moved_rows = db.execute(
             text(
                 f"""
-                INSERT INTO {settings.DB_SCHEMA}.market_snapshot_data_history
-                SELECT * FROM {settings.DB_SCHEMA}.market_snapshot_data
+                INSERT INTO market_snapshot_data_history
+                SELECT * FROM market_snapshot_data
                 WHERE snapshot_id = ANY(:ids)
                 ON CONFLICT DO NOTHING
                 RETURNING id
@@ -1335,11 +1335,11 @@ class DmsService:
             {"ids": ids},
         ).fetchall()
         db.execute(
-            text(f"DELETE FROM {settings.DB_SCHEMA}.market_snapshot_data WHERE snapshot_id = ANY(:ids)"),
+            text(f"DELETE FROM market_snapshot_data WHERE snapshot_id = ANY(:ids)"),
             {"ids": ids},
         )
         deleted_snapshots = db.execute(
-            text(f"DELETE FROM {settings.DB_SCHEMA}.market_snapshot WHERE id = ANY(:ids) RETURNING id"),
+            text(f"DELETE FROM market_snapshot WHERE id = ANY(:ids) RETURNING id"),
             {"ids": ids},
         ).fetchall()
         db.commit()
@@ -1363,7 +1363,7 @@ class DmsService:
                 text(
                     f"""
                     SELECT 1
-                    FROM {settings.DB_SCHEMA}.daily_universe
+                    FROM daily_universe
                     WHERE robot_id = :robot_id
                       AND trade_date = :trade_date
                     LIMIT 1
@@ -1375,7 +1375,7 @@ class DmsService:
                 return 0
 
         robot_row = db.execute(
-            text(f"SELECT config FROM {settings.DB_SCHEMA}.robots WHERE id=:robot_id"),
+            text(f"SELECT config FROM robots WHERE id=:robot_id"),
             {"robot_id": robot_id},
         ).first()
         config = dict(robot_row[0] or {}) if robot_row else {}
@@ -1383,7 +1383,7 @@ class DmsService:
             text(
                 f"""
                 SELECT start_time, end_time, weekdays
-                FROM {settings.DB_SCHEMA}.robot_schedules
+                FROM robot_schedules
                 WHERE robot_id=:robot_id AND COALESCE(is_active,1)=1
                 ORDER BY priority DESC, id DESC
                 LIMIT 1
@@ -1410,7 +1410,7 @@ class DmsService:
             text(
                 f"""
                 SELECT ticker, last_price, open_price, high_price, low_price, prev_price, value_today, volume_lots, security_status, trading_status, num_trades, min_step, issue_size, spread, bid, ask, prev_legal_close_price
-                FROM {settings.DB_SCHEMA}.market_snapshot_data
+                FROM market_snapshot_data
                 WHERE snapshot_id = :snapshot_id
                 """
             ),
@@ -1456,7 +1456,7 @@ class DmsService:
         atr_map, _ = await self._load_atr_percent_map(db=db, board="TQBR", rows=pre_candidates if atr_filter_enabled else [], filters=filters)
         upsert_q = text(
             f"""
-            INSERT INTO {settings.DB_SCHEMA}.daily_universe
+            INSERT INTO daily_universe
             (robot_id, trade_date, ticker, source, filter_result, reject_reason, snapshot_id,
              price_at_filter, volume_at_filter, gap_percent, applied_filters, created_at)
             VALUES
@@ -1476,7 +1476,7 @@ class DmsService:
         )
         decision_q = text(
             f"""
-            INSERT INTO {settings.DB_SCHEMA}.robot_decisions
+            INSERT INTO robot_decisions
             (robot_id, figi, stage, decision_type, decision, reason_code, payload, created_at)
             VALUES
             (:robot_id, :figi, 'dms_init', 'paper_selection', :decision, :reason_code, CAST(:payload AS jsonb), :created_at)
@@ -1555,7 +1555,7 @@ class DmsService:
             text(
                 f"""
                 SELECT DISTINCT COALESCE(NULLIF(ticker, ''), figi) AS ticker
-                FROM {settings.DB_SCHEMA}.robot_trades
+                FROM robot_trades
                 WHERE robot_id = :robot_id
                   AND status = 'open'
                 """
@@ -1617,7 +1617,7 @@ class DmsService:
             text(
                 f"""
                 SELECT id, robot_id, board
-                FROM {settings.DB_SCHEMA}.dms_subscriptions
+                FROM dms_subscriptions
                 WHERE status = 'PENDING'
                 ORDER BY requested_at ASC
                 LIMIT 200
@@ -1640,7 +1640,7 @@ class DmsService:
                 errors.append(err)
                 for s in subs:
                     db.execute(
-                        text(f"UPDATE {settings.DB_SCHEMA}.dms_subscriptions SET status='ERROR' WHERE id=:id"),
+                        text(f"UPDATE dms_subscriptions SET status='ERROR' WHERE id=:id"),
                         {"id": int(s[0])},
                     )
                 db.commit()
@@ -1653,7 +1653,7 @@ class DmsService:
                 db.execute(
                     text(
                         f"""
-                        UPDATE {settings.DB_SCHEMA}.dms_subscriptions
+                        UPDATE dms_subscriptions
                         SET status='READY', snapshot_id=:snapshot_id
                         WHERE id=:id
                         """
@@ -1677,7 +1677,7 @@ class DmsService:
     async def subscribe(self, db: Session, user_id: int, body) -> Dict[str, Any]:
         robot_q = f"""
             SELECT id, type
-            FROM {settings.DB_SCHEMA}.robots
+            FROM robots
             WHERE id = :robot_id AND user_id = :user_id AND status != 0
             LIMIT 1
         """
@@ -1698,7 +1698,7 @@ class DmsService:
 
         fresh_snapshot_q = f"""
             SELECT id
-            FROM {settings.DB_SCHEMA}.market_snapshot
+            FROM market_snapshot
             WHERE board = :board
               AND status = 'SUCCESS'
               AND snapshot_time >= :min_time
@@ -1711,7 +1711,7 @@ class DmsService:
         sub_status = "READY" if snapshot_id else "PENDING"
 
         insert_q = f"""
-            INSERT INTO {settings.DB_SCHEMA}.dms_subscriptions
+            INSERT INTO dms_subscriptions
             (robot_id, subscription_key, board, include_candles, candle_interval, candle_depth,
              requested_at, request_date, snapshot_hour, status, snapshot_id, created_at)
             VALUES
@@ -1759,8 +1759,8 @@ class DmsService:
     async def list_subscriptions(self, db: Session, user_id: int):
         q = f"""
             SELECT s.id, s.robot_id, s.subscription_key, s.board, s.status, s.requested_at, s.snapshot_hour, s.snapshot_id
-            FROM {settings.DB_SCHEMA}.dms_subscriptions s
-            JOIN {settings.DB_SCHEMA}.robots r ON r.id = s.robot_id
+            FROM dms_subscriptions s
+            JOIN robots r ON r.id = s.robot_id
             WHERE r.user_id = :user_id
             ORDER BY s.requested_at DESC
             LIMIT 200
@@ -1784,10 +1784,10 @@ class DmsService:
         q = f"""
             SELECT s.id, s.snapshot_time, s.board, s.status, s.error_message, s.ttl_minutes, s.created_at,
                    COALESCE(d.cnt, 0) AS securities_count
-            FROM {settings.DB_SCHEMA}.market_snapshot s
+            FROM market_snapshot s
             LEFT JOIN (
                 SELECT snapshot_id, COUNT(*) AS cnt
-                FROM {settings.DB_SCHEMA}.market_snapshot_data
+                FROM market_snapshot_data
                 GROUP BY snapshot_id
             ) d ON d.snapshot_id = s.id
             WHERE (:board IS NULL OR s.board = :board)
@@ -1813,8 +1813,8 @@ class DmsService:
         q = f"""
             SELECT u.id, u.robot_id, u.trade_date, u.ticker, u.source, u.filter_result, u.reject_reason,
                    u.snapshot_id, u.price_at_filter, u.volume_at_filter, u.atr_value, u.gap_percent, u.applied_filters, u.created_at
-            FROM {settings.DB_SCHEMA}.daily_universe u
-            JOIN {settings.DB_SCHEMA}.robots r ON r.id = u.robot_id
+            FROM daily_universe u
+            JOIN robots r ON r.id = u.robot_id
             WHERE r.user_id = :user_id
               AND (:robot_id IS NULL OR u.robot_id = :robot_id)
               AND (:trade_date IS NULL OR u.trade_date = :trade_date)
@@ -1857,8 +1857,8 @@ class DmsService:
         q = f"""
             SELECT u.id, u.robot_id, u.trade_date, u.ticker, u.source, u.filter_result, u.reject_reason,
                    u.snapshot_id, u.price_at_filter, u.volume_at_filter, u.atr_value, u.gap_percent, u.applied_filters, u.created_at
-            FROM {settings.DB_SCHEMA}.daily_universe u
-            JOIN {settings.DB_SCHEMA}.robots r ON r.id = u.robot_id
+            FROM daily_universe u
+            JOIN robots r ON r.id = u.robot_id
             WHERE r.user_id = :user_id
               AND (:robot_id IS NULL OR u.robot_id = :robot_id)
               AND (:trade_date IS NULL OR u.trade_date = :trade_date)
@@ -1952,7 +1952,7 @@ class DmsService:
             robot_config = dict(config_override)
         else:
             robot = db.execute(
-                text(f"SELECT id, config FROM {settings.DB_SCHEMA}.robots WHERE id=:robot_id AND user_id=:user_id AND status != 0"),
+                text(f"SELECT id, config FROM robots WHERE id=:robot_id AND user_id=:user_id AND status != 0"),
                 {"robot_id": robot_id, "user_id": user_id},
             ).first()
             if not robot:
@@ -1970,7 +1970,7 @@ class DmsService:
             text(
                 f"""
                 SELECT id, snapshot_time
-                FROM {settings.DB_SCHEMA}.market_snapshot
+                FROM market_snapshot
                 WHERE board=:board AND status='SUCCESS'
                 ORDER BY snapshot_time DESC
                 LIMIT 1
@@ -2002,7 +2002,7 @@ class DmsService:
             text(
                 f"""
                 SELECT ticker, last_price, open_price, high_price, low_price, prev_price, value_today, volume_lots, security_status, trading_status, num_trades, min_step, issue_size, spread, bid, ask, prev_legal_close_price
-                FROM {settings.DB_SCHEMA}.market_snapshot_data
+                FROM market_snapshot_data
                 WHERE snapshot_id=:snapshot_id
                 ORDER BY ticker
                 """

@@ -23,7 +23,7 @@ CCI_MAX_PAGES = 150
 def _bulk_upsert_tqbr_securities(
     db: Session,
     schema: str,
-    batch: List[Tuple[str, Optional[str], Optional[str]]],
+    batch: List[Tuple[str, Optional[str], Optional[str]]]
 ) -> int:
     """Один INSERT … VALUES (…), (…) … ON CONFLICT вместо построчных execute."""
     if not batch:
@@ -40,7 +40,7 @@ def _bulk_upsert_tqbr_securities(
         params[f"sn_{i}"] = sn
         params[f"isin_{i}"] = isin
     sql = f"""
-        INSERT INTO {schema}.tqbr_securities (secid, shortname, isin, updated_at)
+        INSERT INTO tqbr_securities (secid, shortname, isin, updated_at)
         VALUES {", ".join(parts)}
         ON CONFLICT (secid) DO UPDATE SET
             shortname = EXCLUDED.shortname,
@@ -73,7 +73,7 @@ async def fetch_cci_dividends_page(
         updated_after: Optional[datetime] = None,
         date_from: Optional[date] = None,
         date_to: Optional[date] = None,
-        start: int = 0,
+        start: int = 0
 ) -> Dict[str, Any]:
     params: Dict[str, Any] = {"iss.meta": "off", "start": start}
     if updated_after:
@@ -101,12 +101,12 @@ def upsert_equity_dividend_row(
         amount_per_share: Optional[Decimal],
         currency: Optional[str],
         source_updated_at: Optional[datetime],
-        raw_payload: Dict[str, Any],
+        raw_payload: Dict[str, Any]
 ) -> None:
     schema = settings.DB_SCHEMA
     db.execute(
         text(f"""
-            INSERT INTO {schema}.equity_dividend_events
+            INSERT INTO equity_dividend_events
                 (source, external_corp_action_id, secid, ticker, ex_date,
                  amount_per_share, currency, source_updated_at, raw_payload)
             VALUES
@@ -131,7 +131,7 @@ def upsert_equity_dividend_row(
             "currency": (currency or "")[:12] or None,
             "src_upd": source_updated_at,
             "raw": json.dumps(raw_payload, ensure_ascii=False, default=str),
-        },
+        }
     )
 
 
@@ -168,7 +168,7 @@ def ingest_security_dividends_payload(db: Session, secid: str, payload: Dict[str
                 amount_per_share=amt,
                 currency=cur,
                 source_updated_at=datetime.now(timezone.utc),
-                raw_payload=raw,
+                raw_payload=raw
             )
             n += 1
         except Exception as ex:
@@ -181,9 +181,9 @@ def _securities_dividends_fallback_is_fresh(db: Session, *, schema: str) -> bool
     row = db.execute(
         text(f"""
             SELECT MAX(source_updated_at) AS mx
-            FROM {schema}.equity_dividend_events
+            FROM equity_dividend_events
             WHERE source = 'securities_dividends'
-        """),
+        """)
     ).scalar()
     if row is None or not isinstance(row, datetime):
         return False
@@ -215,7 +215,7 @@ async def sync_dividends_cci_incremental(db: Session) -> Tuple[int, bool]:
     """
     schema = settings.DB_SCHEMA
     row = db.execute(
-        text(f"SELECT MAX(source_updated_at) FROM {schema}.equity_dividend_events WHERE source = 'cci'"),
+        text(f"SELECT MAX(source_updated_at) FROM equity_dividend_events WHERE source = 'cci'")
     ).scalar()
     updated_after = row if isinstance(row, datetime) else None
     written = 0
@@ -272,7 +272,7 @@ async def sync_dividends_cci_incremental(db: Session) -> Tuple[int, bool]:
                         amount_per_share=amt,
                         currency=cur,
                         source_updated_at=src_upd,
-                        raw_payload={"columns": cols, "row": row},
+                        raw_payload={"columns": cols, "row": row}
                     )
                     written += 1
                 except Exception as ex:
@@ -280,7 +280,7 @@ async def sync_dividends_cci_incremental(db: Session) -> Tuple[int, bool]:
             if page_first_key is not None and page_first_key == last_page_first_key:
                 logger.warning(
                     "CCI dividends pagination stuck at start=%s (repeated first row); stopping",
-                    start,
+                    start
                 )
                 break
             last_page_first_key = page_first_key
@@ -306,7 +306,7 @@ async def run_scheduled_dividend_etl(db: Session) -> Dict[str, Any]:
         db.commit()
         return {"source": "cci", "upserted": 0, "detail": "no_new_cci_rows"}
     rows = db.execute(
-        text(f"SELECT secid FROM {schema}.tqbr_securities ORDER BY secid LIMIT 400"),
+        text(f"SELECT secid FROM tqbr_securities ORDER BY secid LIMIT 400")
     ).fetchall()
     secids = [str(r[0]) for r in rows if r and r[0]]
     if not secids:
@@ -317,7 +317,7 @@ async def run_scheduled_dividend_etl(db: Session) -> Dict[str, Any]:
         logger.info(
             "securities dividends fallback skipped (last securities_dividends sync < %.1fh; "
             "set CORP_ACTIONS_FORCE_SECURITIES_DIVIDENDS_SYNC=1 to force)",
-            settings.CORP_ACTIONS_SECURITIES_DIVIDENDS_MIN_INTERVAL_HOURS,
+            settings.CORP_ACTIONS_SECURITIES_DIVIDENDS_MIN_INTERVAL_HOURS
         )
         db.commit()
         return {"source": "securities_dividends_skipped", "upserted": 0}
@@ -337,8 +337,8 @@ def _tqbr_reference_is_fresh(db: Session, *, schema: str) -> bool:
     row = db.execute(
         text(f"""
             SELECT COUNT(*)::bigint AS n, MAX(updated_at) AS mx
-            FROM {schema}.tqbr_securities
-        """),
+            FROM tqbr_securities
+        """)
     ).mappings().first()
     if not row:
         return False
@@ -357,7 +357,7 @@ def _tqbr_reference_is_fresh(db: Session, *, schema: str) -> bool:
 
 
 async def sync_tqbr_securities_reference(db: Session) -> int:
-    """Один запрос к ISS: список бумаг доски TQBR → `ganaly.tqbr_securities`.
+    """Один запрос к ISS: список бумаг доски TQBR → `tqbr_securities`.
 
     Доска TQBR целиком умещается в один ответ; параметр `start` для этого URL
     фактически не режет выборку — старый цикл с пагинацией давал N одинаковых
@@ -368,7 +368,7 @@ async def sync_tqbr_securities_reference(db: Session) -> int:
         logger.info(
             "tqbr_securities: skip MOEX sync (%s+ rows, max(updated_at) < %.1fh)",
             _TQBR_SYNC_MIN_ROWS,
-            _TQBR_SYNC_MAX_AGE_HOURS,
+            _TQBR_SYNC_MAX_AGE_HOURS
         )
         return 0
     params = {

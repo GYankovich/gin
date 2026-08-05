@@ -29,36 +29,34 @@ def upgrade() -> None:
             "status",
             sa.String(20),
             nullable=False,
-            server_default="running",
+            server_default="running"
         ),
         sa.Column(
             "started_at",
             sa.DateTime(timezone=True),
             server_default=sa.text("CURRENT_TIMESTAMP"),
-            nullable=False,
+            nullable=False
         ),
         sa.Column(
             "heartbeat_at",
             sa.DateTime(timezone=True),
             server_default=sa.text("CURRENT_TIMESTAMP"),
-            nullable=False,
+            nullable=False
         ),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
             server_default=sa.text("CURRENT_TIMESTAMP"),
-            nullable=False,
-        ),
-        schema=SCHEMA,
+            nullable=False
+        )
     )
     op.create_index(
         "ix_bg_worker_leases_status_hb",
         "background_worker_leases",
-        ["status", "heartbeat_at"],
-        schema=SCHEMA,
+        ["status", "heartbeat_at"]
     )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_bg_worker_leases_status_hb", table_name="background_worker_leases", schema=SCHEMA)
-    op.drop_table("background_worker_leases", schema=SCHEMA)
+    op.drop_index("ix_bg_worker_leases_status_hb", table_name="background_worker_leases")
+    op.drop_table("background_worker_leases")

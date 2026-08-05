@@ -25,14 +25,14 @@ def build_accounts_summary_query(
                      ps.snapshot_date as last_snapshot_date,
                      ps.total_amount_portfolio as total_value,
                      COALESCE(ps.currency, 'RUB') as currency,  -- Значение по умолчанию
-                     (SELECT COUNT(*) FROM ganaly.portfolio_positions WHERE snapshot_id = ps.id) as positions_count,
+                     (SELECT COUNT(*) FROM portfolio_positions WHERE snapshot_id = ps.id) as positions_count,
                      pa.last_token_id,
                      ps.daily_yield,
                      ps.expected_yield
-                 FROM ganaly.portfolio_accounts pa
+                 FROM portfolio_accounts pa
                           LEFT JOIN LATERAL (
                      SELECT id, snapshot_date, total_amount_portfolio, currency, daily_yield, expected_yield
-                     FROM ganaly.portfolio_snapshots
+                     FROM portfolio_snapshots
                      WHERE account_id = pa.id
                      ORDER BY snapshot_date DESC
                          LIMIT 1
@@ -128,7 +128,7 @@ def build_account_history_query(
     if group_by:
         query = f"""
             SELECT {select_fields}
-            FROM ganaly.portfolio_snapshots
+            FROM portfolio_snapshots
             WHERE {' AND '.join(conditions)}
             GROUP BY {group_by}
             ORDER BY {order_by}
@@ -136,7 +136,7 @@ def build_account_history_query(
     else:
         query = f"""
             SELECT {select_fields}
-            FROM ganaly.portfolio_snapshots
+            FROM portfolio_snapshots
             WHERE {' AND '.join(conditions)}
             ORDER BY {order_by}
         """
@@ -167,7 +167,7 @@ def build_distribution_query(
     # Если не указан snapshot_id, берем последний
     if snapshot_id is None:
         snapshot_subquery = """
-                            SELECT id FROM ganaly.portfolio_snapshots
+                            SELECT id FROM portfolio_snapshots
                             WHERE account_id = :account_id
                             ORDER BY snapshot_date DESC
                                 LIMIT 1 \
@@ -186,7 +186,7 @@ def build_distribution_query(
             AVG(current_price) as avg_price,
             MIN(current_price) as min_price,
             MAX(current_price) as max_price
-        FROM ganaly.portfolio_positions
+        FROM portfolio_positions
         WHERE snapshot_id = {snapshot_id_placeholder}
     """
 
@@ -212,21 +212,21 @@ def build_account_ownership_check_query() -> str:
     """Возвращает запрос для проверки принадлежности счета пользователю"""
     return """
            SELECT id, account_id, account_name, account_type, account_status
-           FROM ganaly.portfolio_accounts
+           FROM portfolio_accounts
            WHERE id = :account_id AND user_id = :user_id \
            """
 
 
-def build_robot_ownership_query(schema: str = "ganaly") -> str:
+def build_robot_ownership_query(schema: str = "public") -> str:
     """Проверка: робот принадлежит пользователю."""
     return f"""
-        SELECT 1 FROM {schema}.robots
+        SELECT 1 FROM robots
         WHERE id = :robot_id AND user_id = :user_id
         LIMIT 1
     """
 
 
-def build_robot_trades_summary_query(schema: str = "ganaly") -> str:
+def build_robot_trades_summary_query(schema: str = "public") -> str:
     """Агрегированные метрики по сделкам робота."""
     return f"""
         SELECT
@@ -243,22 +243,22 @@ def build_robot_trades_summary_query(schema: str = "ganaly") -> str:
             AVG(EXTRACT(EPOCH FROM (closed_at - created_at)) / 3600)
                 FILTER (WHERE status = 'closed' AND closed_at IS NOT NULL) as avg_duration_hours,
             COALESCE(SUM(commission) FILTER (WHERE status = 'closed'), 0) as total_commission
-        FROM {schema}.robot_trades
+        FROM robot_trades
         WHERE robot_id = :robot_id
     """
 
 
-def build_robot_closed_pnl_series_query(schema: str = "ganaly") -> str:
+def build_robot_closed_pnl_series_query(schema: str = "public") -> str:
     """Кумулятивный PnL по закрытым сделкам (для расчёта drawdown)."""
     return f"""
         SELECT profit
-        FROM {schema}.robot_trades
+        FROM robot_trades
         WHERE robot_id = :robot_id AND status = 'closed'
         ORDER BY closed_at ASC
     """
 
 
-def build_user_robots_trades_aggregate_query(schema: str = "ganaly") -> str:
+def build_user_robots_trades_aggregate_query(schema: str = "public") -> str:
     """Сводка по сделкам всех роботов пользователя (для дашборда)."""
     return f"""
         SELECT
@@ -272,28 +272,28 @@ def build_user_robots_trades_aggregate_query(schema: str = "ganaly") -> str:
             COUNT(DISTINCT t.robot_id) FILTER (WHERE t.status = 'closed')::int as robots_with_closed_trades,
             COALESCE(SUM(t.profit) FILTER (WHERE t.status = 'closed' AND t.profit > 0), 0) as sum_winning_profit,
             COALESCE(SUM(ABS(t.profit)) FILTER (WHERE t.status = 'closed' AND t.profit < 0), 0) as sum_losing_loss
-        FROM {schema}.robot_trades t
-        INNER JOIN {schema}.robots r ON r.id = t.robot_id AND r.user_id = :user_id
+        FROM robot_trades t
+        INNER JOIN robots r ON r.id = t.robot_id AND r.user_id = :user_id
     """
 
 
-def build_user_robots_closed_pnl_series_query(schema: str = "ganaly") -> str:
+def build_user_robots_closed_pnl_series_query(schema: str = "public") -> str:
     """Закрытые сделки всех роботов пользователя по времени (drawdown / risk)."""
     return f"""
         SELECT t.profit
-        FROM {schema}.robot_trades t
-        INNER JOIN {schema}.robots r ON r.id = t.robot_id AND r.user_id = :user_id
+        FROM robot_trades t
+        INNER JOIN robots r ON r.id = t.robot_id AND r.user_id = :user_id
         WHERE t.status = 'closed'
         ORDER BY t.closed_at ASC NULLS LAST, t.id ASC
     """
 
 
-def build_robot_recent_trades_query(schema: str = "ganaly") -> str:
+def build_robot_recent_trades_query(schema: str = "public") -> str:
     """Последние сделки робота."""
     return f"""
         SELECT id, figi, side, quantity, entry_price, exit_price,
                profit, profit_percent, status, created_at, closed_at
-        FROM {schema}.robot_trades
+        FROM robot_trades
         WHERE robot_id = :robot_id
         ORDER BY created_at DESC
         LIMIT :limit
@@ -326,7 +326,7 @@ def build_last_snapshot_query(
 
     query = f"""
         SELECT {select_fields}
-        FROM ganaly.portfolio_snapshots
+        FROM portfolio_snapshots
         WHERE account_id = :account_id
         ORDER BY snapshot_date DESC
         LIMIT 1

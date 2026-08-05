@@ -330,7 +330,7 @@ async def run_history_universe_scoring(
 
                            securities_payload
 
-                    FROM {settings.DB_SCHEMA}.market_snapshot_data_history
+                    FROM market_snapshot_data_history
 
                     WHERE snapshot_id = :snapshot_id
 

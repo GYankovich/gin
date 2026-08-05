@@ -97,7 +97,7 @@ def fetch_consecutive_loss_days(
         SELECT
             ((closed_at AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Moscow')::date AS trade_day,
             COALESCE(SUM(CAST(profit AS DOUBLE PRECISION)), 0) AS pnl
-        FROM {schema}.robot_trades
+        FROM robot_trades
         WHERE robot_id = :robot_id
           AND status = 'closed'
           AND closed_at IS NOT NULL

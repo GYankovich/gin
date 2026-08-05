@@ -125,7 +125,7 @@ class BacktestPersistence:
             column("price_at_signal", Float),
             column("quantity_lots", Integer),
             column("reason", String),
-            schema="backtest",
+            schema=None,
         )
         rows: List[Dict[str, Any]] = []
         for s in getattr(res, "signals", None) or []:
@@ -175,7 +175,7 @@ class BacktestPersistence:
             column("status", String),
             column("placed_at", DateTime(timezone=True)),
             column("filled_at", DateTime(timezone=True)),
-            schema="backtest",
+            schema=None,
         )
         trades_tbl = table(
             "backtest_trades",
@@ -187,7 +187,7 @@ class BacktestPersistence:
             column("price", Float),
             column("commission", Float),
             column("trade_time", DateTime(timezone=True)),
-            schema="backtest",
+            schema=None,
         )
         order_rows: List[Dict[str, Any]] = []
         trade_meta: List[Dict[str, Any]] = []
@@ -315,7 +315,7 @@ class BacktestPersistence:
             column("trades_count", Integer),
             column("drawdown", Float),
             column("drawdown_percent", Float),
-            schema="backtest",
+            schema=None,
         )
         positions_tbl = table(
             "backtest_positions",
@@ -328,7 +328,7 @@ class BacktestPersistence:
             column("unrealized_pnl", Float),
             column("realized_pnl", Float),
             column("updated_at", DateTime(timezone=True)),
-            schema="backtest",
+            schema=None,
         )
 
         prev_equity = float(res.initial_capital or 0)
@@ -431,7 +431,7 @@ class BacktestPersistence:
         self.db.execute(
             text(
                 """
-                INSERT INTO backtest.backtest_metrics
+                INSERT INTO backtest_metrics
                 (backtest_run_id, start_date, end_date, trading_days, total_trades, winning_trades, losing_trades,
                  win_rate, total_return_percent, annualized_return_percent, max_drawdown_percent, max_drawdown_duration,
                  sharpe_ratio, sortino_ratio, calmar_ratio, volatility_annual, initial_capital, final_equity,
@@ -501,7 +501,7 @@ class BacktestPersistence:
         self.db.execute(
             text(
                 """
-                UPDATE backtest.backtest_runs
+                UPDATE backtest_runs
                 SET status='COMPLETED',
                     progress_percent=100,
                     completed_at=:completed_at

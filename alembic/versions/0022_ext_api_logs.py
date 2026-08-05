@@ -41,18 +41,17 @@ def upgrade():
         sa.Column("success", sa.Integer(), nullable=False, server_default="1"),
         sa.Column("error_message", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
-        sa.ForeignKeyConstraint(["user_id"], [f"{SCHEMA}.user.id"], ondelete="SET NULL"),
-        schema=SCHEMA,
+        sa.ForeignKeyConstraint(["user_id"], [f"user.id"], ondelete="SET NULL")
     )
-    op.create_index("ix_external_api_logs_user_created", "external_api_logs", ["user_id", "created_at"], schema=SCHEMA)
-    op.create_index("ix_external_api_logs_endpoint", "external_api_logs", ["endpoint"], schema=SCHEMA)
-    op.create_index("ix_external_api_logs_success", "external_api_logs", ["success"], schema=SCHEMA)
-    op.create_index("ix_external_api_logs_broker", "external_api_logs", ["broker"], schema=SCHEMA)
+    op.create_index("ix_external_api_logs_user_created", "external_api_logs", ["user_id", "created_at"])
+    op.create_index("ix_external_api_logs_endpoint", "external_api_logs", ["endpoint"])
+    op.create_index("ix_external_api_logs_success", "external_api_logs", ["success"])
+    op.create_index("ix_external_api_logs_broker", "external_api_logs", ["broker"])
 
 
 def downgrade():
-    op.drop_index("ix_external_api_logs_broker", table_name="external_api_logs", schema=SCHEMA)
-    op.drop_index("ix_external_api_logs_success", table_name="external_api_logs", schema=SCHEMA)
-    op.drop_index("ix_external_api_logs_endpoint", table_name="external_api_logs", schema=SCHEMA)
-    op.drop_index("ix_external_api_logs_user_created", table_name="external_api_logs", schema=SCHEMA)
-    op.drop_table("external_api_logs", schema=SCHEMA)
+    op.drop_index("ix_external_api_logs_broker", table_name="external_api_logs")
+    op.drop_index("ix_external_api_logs_success", table_name="external_api_logs")
+    op.drop_index("ix_external_api_logs_endpoint", table_name="external_api_logs")
+    op.drop_index("ix_external_api_logs_user_created", table_name="external_api_logs")
+    op.drop_table("external_api_logs")

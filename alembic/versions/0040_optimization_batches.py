@@ -35,14 +35,12 @@ def upgrade() -> None:
         sa.Column("error_message", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
-        schema=SCHEMA,
+        sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True)
     )
     op.create_index(
         "ix_optimization_batches_robot_status",
         "optimization_batches",
-        ["robot_id", "status"],
-        schema=SCHEMA,
+        ["robot_id", "status"]
     )
     op.create_table(
         "optimization_batch_items",
@@ -56,29 +54,26 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
         sa.ForeignKeyConstraint(
             ["batch_id"],
-            [f"{SCHEMA}.optimization_batches.id"],
-            ondelete="CASCADE",
-        ),
-        schema=SCHEMA,
+            [f"optimization_batches.id"],
+            ondelete="CASCADE"
+        )
     )
     op.create_index(
         "ix_optimization_batch_items_batch",
         "optimization_batch_items",
-        ["batch_id", "candidate_index"],
-        schema=SCHEMA,
+        ["batch_id", "candidate_index"]
     )
     op.create_index(
         "ix_optimization_batch_items_run",
         "optimization_batch_items",
         ["run_id"],
-        unique=False,
-        schema=SCHEMA,
+        unique=False
     )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_optimization_batch_items_run", table_name="optimization_batch_items", schema=SCHEMA)
-    op.drop_index("ix_optimization_batch_items_batch", table_name="optimization_batch_items", schema=SCHEMA)
-    op.drop_table("optimization_batch_items", schema=SCHEMA)
-    op.drop_index("ix_optimization_batches_robot_status", table_name="optimization_batches", schema=SCHEMA)
-    op.drop_table("optimization_batches", schema=SCHEMA)
+    op.drop_index("ix_optimization_batch_items_run", table_name="optimization_batch_items")
+    op.drop_index("ix_optimization_batch_items_batch", table_name="optimization_batch_items")
+    op.drop_table("optimization_batch_items")
+    op.drop_index("ix_optimization_batches_robot_status", table_name="optimization_batches")
+    op.drop_table("optimization_batches")

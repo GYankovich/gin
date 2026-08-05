@@ -23,10 +23,9 @@ depends_on = None
 def upgrade():
     op.add_column(
         'api_tokens',
-        sa.Column('refresh_interval_minutes', sa.Integer(), nullable=False, server_default='60'),
-        schema=SCHEMA
+        sa.Column('refresh_interval_minutes', sa.Integer(), nullable=False, server_default='60')
     )
 
 
 def downgrade():
-    op.drop_column('api_tokens', 'refresh_interval_minutes', schema=SCHEMA)
+    op.drop_column('api_tokens', 'refresh_interval_minutes')

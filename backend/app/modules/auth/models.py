@@ -20,8 +20,6 @@ SCHEMA = settings.DB_SCHEMA
 
 class User(Base):
     __tablename__ = "user"
-    __table_args__ = {"schema": SCHEMA}
-
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     login = Column(String(128), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
@@ -55,10 +53,8 @@ class User(Base):
 
 class UserEmail(Base):
     __tablename__ = "user_email"
-    __table_args__ = {"schema": SCHEMA}
-
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.user.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     email = Column(String(255), nullable=False)
     is_primary = Column(Boolean, nullable=False, default=True)
     valid_from = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
@@ -69,10 +65,8 @@ class UserEmail(Base):
 
 class UserPhone(Base):
     __tablename__ = "user_phone"
-    __table_args__ = {"schema": SCHEMA}
-
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.user.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     phone = Column(String(32), nullable=False)
     is_primary = Column(Boolean, nullable=False, default=True)
     valid_from = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
@@ -89,10 +83,8 @@ class UserTokenStatus:
 
 class UserToken(Base):
     __tablename__ = "user_token"
-    __table_args__ = {"schema": SCHEMA}
-
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.user.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     token = Column(Text, nullable=False, unique=True)
     status = Column(Integer, nullable=False, default=UserTokenStatus.ACTIVE)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
@@ -104,8 +96,6 @@ class UserToken(Base):
 
 class AppConfig(Base):
     __tablename__ = "app_config"
-    __table_args__ = {"schema": SCHEMA}
-
     key = Column(String(128), primary_key=True)
     value = Column(String(512), nullable=False)
     description = Column(String(1024), nullable=True)

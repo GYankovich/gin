@@ -16,7 +16,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    JSON,
+    JSON
 )
 
 from app.core.config import settings
@@ -27,10 +27,6 @@ SCHEMA = settings.DB_SCHEMA
 
 class SecurityStatic(Base):
     __tablename__ = "securities_static"
-    __table_args__ = (
-        {"schema": SCHEMA},
-    )
-
     ticker = Column(String(20), primary_key=True)
     shortname = Column(String(100), nullable=True)
     lot_size = Column(Integer, nullable=True)
@@ -48,15 +44,14 @@ class DmsSubscription(Base):
             "subscription_key",
             "request_date",
             "snapshot_hour",
-            name="uq_dms_subscriptions_robot_key_date_hour",
+            name="uq_dms_subscriptions_robot_key_date_hour"
         ),
         Index("ix_dms_subscriptions_status", "status"),
-        Index("ix_dms_subscriptions_requested_at", "requested_at"),
-        {"schema": SCHEMA},
+        Index("ix_dms_subscriptions_requested_at", "requested_at")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    robot_id = Column(BigInteger, ForeignKey(f"robots.id", ondelete="CASCADE"), nullable=False)
     subscription_key = Column(String(100), nullable=False)
     board = Column(String(20), nullable=False, default="TQBR")
     include_candles = Column(Boolean, nullable=False, default=False)
@@ -66,7 +61,7 @@ class DmsSubscription(Base):
     request_date = Column(Date, nullable=False, default=datetime.utcnow)
     snapshot_hour = Column(Integer, nullable=True)
     status = Column(String(20), nullable=False, default="PENDING")
-    snapshot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.market_snapshot.id", ondelete="SET NULL"), nullable=True)
+    snapshot_id = Column(BigInteger, ForeignKey(f"market_snapshot.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
 
@@ -74,8 +69,7 @@ class MarketSnapshot(Base):
     __tablename__ = "market_snapshot"
     __table_args__ = (
         Index("ix_market_snapshot_board_time", "board", "snapshot_time"),
-        Index("ix_market_snapshot_status", "status"),
-        {"schema": SCHEMA},
+        Index("ix_market_snapshot_status", "status")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -93,12 +87,11 @@ class MarketSnapshotData(Base):
     __tablename__ = "market_snapshot_data"
     __table_args__ = (
         UniqueConstraint("snapshot_id", "ticker", name="uq_market_snapshot_data_snapshot_ticker"),
-        Index("idx_snapshot_data_ticker_time", "ticker", "snapshot_id"),
-        {"schema": SCHEMA},
+        Index("idx_snapshot_data_ticker_time", "ticker", "snapshot_id")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    snapshot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.market_snapshot.id", ondelete="CASCADE"), nullable=False)
+    snapshot_id = Column(BigInteger, ForeignKey(f"market_snapshot.id", ondelete="CASCADE"), nullable=False)
     ticker = Column(String(20), nullable=False)
     board_id = Column(String(12), nullable=True)
     short_name = Column(String(255), nullable=True)
@@ -165,16 +158,15 @@ class CandleCache(Base):
             "instrument_id",
             "interval",
             "candle_time",
-            name="uq_candles_cache_market_instrument_interval_time",
+            name="uq_candles_cache_market_instrument_interval_time"
         ),
         Index(
             "idx_candles_market_instrument_interval_time",
             "market",
             "instrument_id",
             "interval",
-            "candle_time",
-        ),
-        {"schema": SCHEMA},
+            "candle_time"
+        )
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -198,18 +190,17 @@ class DailyUniverse(Base):
         UniqueConstraint("robot_id", "trade_date", "ticker", name="uq_daily_universe_robot_date_ticker"),
         Index("idx_daily_universe_robot_date", "robot_id", "trade_date"),
         Index("idx_daily_universe_result", "filter_result"),
-        Index("idx_daily_universe_snapshot", "snapshot_id"),
-        {"schema": SCHEMA},
+        Index("idx_daily_universe_snapshot", "snapshot_id")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    robot_id = Column(BigInteger, ForeignKey(f"robots.id", ondelete="CASCADE"), nullable=False)
     trade_date = Column(Date, nullable=False)
     ticker = Column(String(20), nullable=False)
     source = Column(String(30), nullable=False)
     filter_result = Column(String(20), nullable=True)
     reject_reason = Column(Text, nullable=True)
-    snapshot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.market_snapshot.id", ondelete="SET NULL"), nullable=True)
+    snapshot_id = Column(BigInteger, ForeignKey(f"market_snapshot.id", ondelete="SET NULL"), nullable=True)
     price_at_filter = Column(Numeric(12, 4), nullable=True)
     volume_at_filter = Column(BigInteger, nullable=True)
     atr_value = Column(Numeric(12, 4), nullable=True)
@@ -223,12 +214,11 @@ class CryptoUniverseDaily(Base):
     __table_args__ = (
         UniqueConstraint("robot_id", "trade_date", "symbol", name="uq_crypto_universe_daily_robot_date_symbol"),
         Index("idx_crypto_universe_daily_robot_date", "robot_id", "trade_date"),
-        Index("idx_crypto_universe_daily_result", "filter_result"),
-        {"schema": SCHEMA},
+        Index("idx_crypto_universe_daily_result", "filter_result")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    robot_id = Column(BigInteger, ForeignKey(f"robots.id", ondelete="CASCADE"), nullable=False)
     trade_date = Column(Date, nullable=False)
     symbol = Column(String(32), nullable=False)
     source = Column(String(30), nullable=False, default="crypto_screening")

@@ -28,7 +28,7 @@ def main() -> int:
             text(
                 f"""
                 SELECT id, user_id, token_type, is_active
-                FROM {settings.DB_SCHEMA}.api_tokens
+                FROM api_tokens
                 WHERE id = :tid
                 """
             ),
@@ -42,7 +42,7 @@ def main() -> int:
         db.execute(
             text(
                 f"""
-                UPDATE {settings.DB_SCHEMA}.api_tokens
+                UPDATE api_tokens
                 SET token = :token,
                     token_type = 'bybit',
                     is_active = 1,

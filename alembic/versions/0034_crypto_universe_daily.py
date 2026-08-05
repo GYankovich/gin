@@ -21,9 +21,9 @@ def upgrade() -> None:
     op.execute(
         sa.text(
             f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA}.crypto_universe_daily (
+            CREATE TABLE IF NOT EXISTS crypto_universe_daily (
                 id BIGSERIAL PRIMARY KEY,
-                robot_id BIGINT NOT NULL REFERENCES {SCHEMA}.robots(id) ON DELETE CASCADE,
+                robot_id BIGINT NOT NULL REFERENCES robots(id) ON DELETE CASCADE,
                 trade_date DATE NOT NULL,
                 symbol VARCHAR(32) NOT NULL,
                 source VARCHAR(30) NOT NULL DEFAULT 'crypto_screening',
@@ -42,7 +42,7 @@ def upgrade() -> None:
         sa.text(
             f"""
             CREATE UNIQUE INDEX IF NOT EXISTS uq_crypto_universe_daily_robot_date_symbol
-            ON {SCHEMA}.crypto_universe_daily(robot_id, trade_date, symbol)
+            ON crypto_universe_daily(robot_id, trade_date, symbol)
             """
         )
     )
@@ -50,7 +50,7 @@ def upgrade() -> None:
         sa.text(
             f"""
             CREATE INDEX IF NOT EXISTS idx_crypto_universe_daily_robot_date
-            ON {SCHEMA}.crypto_universe_daily(robot_id, trade_date)
+            ON crypto_universe_daily(robot_id, trade_date)
             """
         )
     )
@@ -58,12 +58,12 @@ def upgrade() -> None:
         sa.text(
             f"""
             CREATE INDEX IF NOT EXISTS idx_crypto_universe_daily_result
-            ON {SCHEMA}.crypto_universe_daily(filter_result)
+            ON crypto_universe_daily(filter_result)
             """
         )
     )
 
 
 def downgrade() -> None:
-    op.execute(sa.text(f"DROP TABLE IF EXISTS {SCHEMA}.crypto_universe_daily"))
+    op.execute(sa.text(f"DROP TABLE IF EXISTS crypto_universe_daily"))
 

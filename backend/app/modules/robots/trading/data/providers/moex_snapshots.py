@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 _MOEX_RETRYABLE_HTTP_ERRORS = (
     httpx.TimeoutException,
     httpx.NetworkError,
-    httpx.ProtocolError,
+    httpx.ProtocolError
 )
 
 
@@ -78,7 +78,7 @@ def log_moex_external_api_isolated(
     started_at: datetime,
     finished_at: datetime,
     success: bool,
-    error_message: Optional[str] = None,
+    error_message: Optional[str] = None
 ) -> None:
     duration_ms = int(max(0.0, (finished_at - started_at).total_seconds() * 1000))
     schema = settings.DB_SCHEMA
@@ -87,7 +87,7 @@ def log_moex_external_api_isolated(
         log_db.execute(
             text(
                 f"""
-                INSERT INTO {schema}.external_api_logs
+                INSERT INTO external_api_logs
                 (user_id, token_id, broker, context_type, context_ref, endpoint, request_data, response_status, response_data,
                  started_at, finished_at, duration_ms, success, error_message)
                 VALUES
@@ -107,7 +107,7 @@ def log_moex_external_api_isolated(
                 "duration_ms": duration_ms,
                 "success": 1 if success else 0,
                 "error_message": error_message,
-            },
+            }
         )
         log_db.commit()
     except Exception as ex:
@@ -133,7 +133,7 @@ async def fetch_board_issuesize_map(*, board: str) -> Dict[str, float]:
         async with moex_http_acquire():
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(30.0, connect=8.0, read=25.0),
-                verify=False,
+                verify=False
             ) as client:
                 resp = await client.get(url, params=params)
         if resp.status_code != 200:
@@ -166,7 +166,7 @@ async def fetch_moex_history_snapshot_day(
     board: str = "TQBR",
     user_id: Optional[int] = None,
     run_id: Optional[int] = None,
-    is_cancelled: Optional[Callable[[], bool]] = None,
+    is_cancelled: Optional[Callable[[], bool]] = None
 ) -> Optional[List[Dict[str, Any]]]:
     from app.modules.robots.service import is_history_backtest_cancelled
 
@@ -184,7 +184,7 @@ async def fetch_moex_history_snapshot_day(
 
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(60.0, connect=8.0, read=20.0, write=20.0, pool=20.0),
-        verify=False,
+        verify=False
     ) as client:
         from app.modules.robots.backtest_progress import touch_backtest_progress_runtime
 
@@ -216,13 +216,13 @@ async def fetch_moex_history_snapshot_day(
                                 started_at=page_started,
                                 finished_at=fin,
                                 success=False,
-                                error_message=str(e)[:2000],
+                                error_message=str(e)[:2000]
                             )
                         history_backtest_moex_log(
                             "[history-backtest] MOEX iss GET failed day=%s start=%s err=%s",
                             day.isoformat(),
                             start,
-                            str(e),
+                            str(e)
                         )
                         return None
                     await asyncio.sleep(0.6 * attempt)
@@ -239,13 +239,13 @@ async def fetch_moex_history_snapshot_day(
                             started_at=page_started,
                             finished_at=fin,
                             success=False,
-                            error_message=str(ex)[:2000],
+                            error_message=str(ex)[:2000]
                         )
                     history_backtest_moex_log(
                         "[history-backtest] MOEX iss GET unexpected error day=%s start=%s err=%s",
                         day.isoformat(),
                         start,
-                        str(ex),
+                        str(ex)
                     )
                     return None
             if resp is None or resp.status_code != 200:
@@ -261,7 +261,7 @@ async def fetch_moex_history_snapshot_day(
                         started_at=page_started,
                         finished_at=fin,
                         success=False,
-                        error_message=None if resp is None else f"HTTP {resp.status_code}",
+                        error_message=None if resp is None else f"HTTP {resp.status_code}"
                     )
                 return None
 
@@ -285,7 +285,7 @@ async def fetch_moex_history_snapshot_day(
                     started_at=page_started,
                     finished_at=fin,
                     success=(resp.status_code == 200),
-                    error_message=None,
+                    error_message=None
                 )
             if not rows:
                 break
@@ -402,7 +402,7 @@ async def ensure_daily_snapshot_history(
     day: date,
     board: str = "TQBR",
     user_id: Optional[int] = None,
-    run_id: Optional[int] = None,
+    run_id: Optional[int] = None
 ) -> Optional[int]:
     """DB-first snapshot; MOEX ISS только при cache miss."""
     from app.modules.robots.service import is_history_backtest_cancelled
@@ -416,8 +416,8 @@ async def ensure_daily_snapshot_history(
         text(
             f"""
             SELECT h.id,
-                   (SELECT COUNT(*) FROM {schema}.market_snapshot_data_history d WHERE d.snapshot_id = h.id) AS data_rows
-            FROM {schema}.market_snapshot_history h
+                   (SELECT COUNT(*) FROM market_snapshot_data_history d WHERE d.snapshot_id = h.id) AS data_rows
+            FROM market_snapshot_history h
             WHERE h.board=:board
               AND h.status='SUCCESS'
               AND h.snapshot_time >= :day_start
@@ -426,7 +426,7 @@ async def ensure_daily_snapshot_history(
             LIMIT 1
             """
         ),
-        {"board": board, "day_start": day_start, "day_end": day_end_exclusive},
+        {"board": board, "day_start": day_start, "day_end": day_end_exclusive}
     ).first()
     existing_id = int(existing[0]) if existing else None
     existing_rows = int(existing[1] or 0) if existing else 0
@@ -443,30 +443,30 @@ async def ensure_daily_snapshot_history(
             day.isoformat(),
             board,
             existing_id,
-            existing_rows,
+            existing_rows
         )
         history_backtest_moex_log(
             "skip fetch (cache): day=%s board=%s snapshot_id=%s data_rows=%s",
             day.isoformat(),
             board,
             existing_id,
-            existing_rows,
+            existing_rows
         )
         return existing_id
 
     if existing_id:
         db.execute(
-            text(f"DELETE FROM {schema}.market_snapshot_data_history WHERE snapshot_id=:sid"),
-            {"sid": existing_id},
+            text(f"DELETE FROM market_snapshot_data_history WHERE snapshot_id=:sid"),
+            {"sid": existing_id}
         )
         db.execute(
-            text(f"DELETE FROM {schema}.market_snapshot_history WHERE id=:sid"),
-            {"sid": existing_id},
+            text(f"DELETE FROM market_snapshot_history WHERE id=:sid"),
+            {"sid": existing_id}
         )
         db.commit()
 
     rows = await fetch_moex_history_snapshot_day(
-        day=day, board=board, user_id=user_id, run_id=run_id,
+        day=day, board=board, user_id=user_id, run_id=run_id
     )
     if run_id is not None:
         from app.modules.robots.backtest_progress import touch_backtest_progress_runtime
@@ -482,14 +482,14 @@ async def ensure_daily_snapshot_history(
     def _next_pk(table_name: str) -> int:
         seq_name = db.execute(
             text("SELECT pg_get_serial_sequence(:tbl, 'id')"),
-            {"tbl": f"{schema}.{table_name}"},
+            {"tbl": f"{table_name}"}
         ).scalar()
         if seq_name:
             try:
                 return int(db.execute(text("SELECT nextval(:seq)"), {"seq": seq_name}).scalar())
             except Exception:
                 pass
-        mx = db.execute(text(f"SELECT COALESCE(MAX(id), 0) FROM {schema}.{table_name}")).scalar()
+        mx = db.execute(text(f"SELECT COALESCE(MAX(id), 0) FROM {table_name}")).scalar()
         return int(mx or 0) + 1
 
     snapshot_id = _next_pk("market_snapshot_history")
@@ -497,12 +497,12 @@ async def ensure_daily_snapshot_history(
     db.execute(
         text(
             f"""
-            INSERT INTO {schema}.market_snapshot_history
+            INSERT INTO market_snapshot_history
             (id, snapshot_time, board, status, is_manual, ttl_minutes, created_at)
             VALUES (:id, :snapshot_time, :board, 'SUCCESS', TRUE, 0, :created_at)
             """
         ),
-        {"id": snapshot_id, "snapshot_time": day_start, "board": board, "created_at": now_utc},
+        {"id": snapshot_id, "snapshot_time": day_start, "board": board, "created_at": now_utc}
     )
 
     next_data_id = _next_pk("market_snapshot_data_history")
@@ -512,7 +512,7 @@ async def ensure_daily_snapshot_history(
         db.execute(
             text(
                 f"""
-                INSERT INTO {schema}.market_snapshot_data_history
+                INSERT INTO market_snapshot_data_history
                 (id, snapshot_id, ticker, last_price, open_price, prev_price, volume_today, value_today, volume_lots,
                  bid, ask, spread, security_status, trading_status, num_trades, min_step, issue_size, board_id,
                  short_name, low_price, high_price, close_price, value, isin, lot_size, prev_legal_close_price,
@@ -553,7 +553,7 @@ async def ensure_daily_snapshot_history(
                 "prev_legal_close_price": r.get("prev_legal_close_price"),
                 "securities_payload": json.dumps(raw, ensure_ascii=False),
                 "marketdata_payload": json.dumps(raw, ensure_ascii=False),
-            },
+            }
         )
     db.commit()
     return snapshot_id

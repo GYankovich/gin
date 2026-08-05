@@ -5,12 +5,26 @@
 #///EPIC Platform.ITEM Core.TOPIC BackendAppCoreConfig [1]
 #/// Исходный модуль `backend/app/core/config.py` — автоматическая разметка для Obsidian Source Scanner.
 
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from urllib.parse import quote_plus
+
+# backend/app/core/config.py → repo root
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _resolve_env_file() -> str:
+    """GIN_ENV=production → .env.production (if present), else .env (absolute paths)."""
+    mode = (os.environ.get("GIN_ENV") or "").strip().lower()
+    if mode == "production":
+        prod = _REPO_ROOT / ".env.production"
+        if prod.is_file():
+            return str(prod)
+    return str(_REPO_ROOT / ".env")
 
 
 class RobotsSettings(BaseModel):
@@ -31,7 +45,8 @@ class Settings(BaseSettings):
     DB_NAME: str
     DB_USER: str
     DB_PASSWORD: str
-    DB_SCHEMA: str = "ganaly"
+    # Legacy: kept for callers; all tables live in public (no schema-qualified SQL).
+    DB_SCHEMA: str = "public"
     DB_SSL_MODE: str = "require"
     DB_CONNECT_TIMEOUT_SECONDS: int = Field(
         default=5,
@@ -47,14 +62,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
-    # ---- CORS (кто может обращаться к API) ----
+    # ---- CORS ----
     CORS_ORIGINS: List[str] = [
-        "http://localhost:5173",  # Vite frontend
-        "http://localhost:8000",  # Local backend
-        "http://localhost:8001",  # Live WS gateway
+        "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "http://127.0.0.1:8000",
-        "http://127.0.0.1:8001",
     ]
 
     # ---- Режим работы ----
@@ -74,7 +85,7 @@ class Settings(BaseSettings):
         default=24.0,
         ge=1.0,
         le=168.0,
-        description="Интервал для MOEX per-ticker dividends fallback",
+        description="Интервал для MOEX per-ticker dividends fallback"
     )
     # Одноразово: true → проигнорировать интервал и снова дернуть все dividends.json.
     CORP_ACTIONS_FORCE_SECURITIES_DIVIDENDS_SYNC: bool = False
@@ -86,7 +97,7 @@ class Settings(BaseSettings):
     CANDLE_LOAD_SCHEDULER_STALE_SWEEP_INTERVAL_SECONDS: float = Field(
         default=60.0,
         ge=10.0,
-        le=3600.0,
+        le=3600.0
     )
 
     # Пауза перед первым циклом фоновых планировщиков после старта uvicorn.
@@ -94,7 +105,7 @@ class Settings(BaseSettings):
         default=15.0,
         ge=0.0,
         le=300.0,
-        description="Секунды до первого тика portfolio/trading/MOEX/candle schedulers",
+        description="Секунды до первого тика portfolio/trading/MOEX/candle schedulers"
     )
 
     # ---- Background job lanes (portfolio / heavy) ----
@@ -102,7 +113,7 @@ class Settings(BaseSettings):
     LANE_HEAVY_CONCURRENCY: int = Field(default=1, ge=1, le=8)
     WORKER_EMBEDDED_ENABLED: bool = Field(
         default=False,
-        description="Запускать lane workers внутри uvicorn (dev/single-process)",
+        description="Запускать lane workers внутри uvicorn (dev/single-process)"
     )
     WORKER_POLL_INTERVAL_SECONDS: float = Field(default=1.0, ge=0.2, le=30.0)
     BACKGROUND_JOB_STALE_SECONDS: int = Field(default=7200, ge=60, le=86400)
@@ -110,44 +121,44 @@ class Settings(BaseSettings):
         default=30.0,
         ge=5.0,
         le=300.0,
-        description="Интервал touch updated_at для live_trading_session (анти-залипание)",
+        description="Интервал touch updated_at для live_trading_session (анти-залипание)"
     )
     LIVE_SESSION_STALE_SECONDS: int = Field(
         default=180,
         ge=60,
         le=3600,
-        description="Если live_trading_session running без heartbeat дольше — fail и разрешить re-enqueue",
+        description="Если live_trading_session running без heartbeat дольше — fail и разрешить re-enqueue"
     )
     WORKER_LEASE_STALE_SECONDS: int = Field(
         default=90,
         ge=30,
         le=3600,
-        description="Lease lane-worker считается мёртвым, если heartbeat старше N секунд",
+        description="Lease lane-worker считается мёртвым, если heartbeat старше N секунд"
     )
     WORKER_LEASE_HEARTBEAT_SECONDS: float = Field(
         default=20.0,
         ge=5.0,
         le=120.0,
-        description="Интервал heartbeat в background_worker_leases",
+        description="Интервал heartbeat в background_worker_leases"
     )
     EMBEDDED_BACKGROUND_MAX_CONCURRENT: int = Field(
         default=1,
         ge=1,
         le=8,
-        description="Макс. одновременных фоновых job в embedded-режиме (общий лимит для всех lane)",
+        description="Макс. одновременных фоновых job в embedded-режиме (общий лимит для всех lane)"
     )
     BACKTEST_LOG_DIR: Optional[str] = Field(
         default=None,
-        description="Корень файловых логов history-backtest (по умолчанию <repo>/logs/backtest)",
+        description="Корень файловых логов history-backtest (по умолчанию <repo>/logs/backtest)"
     )
     WORKER_DEFER_WHILE_REST_BUSY: bool = Field(
         default=True,
-        description="Не брать новые job из очереди, пока идут REST-запросы (embedded)",
+        description="Не брать новые job из очереди, пока идут REST-запросы (embedded)"
     )
 
     LIVE_EVENTS_BACKEND: str = Field(
         default="postgres",
-        description="postgres: NOTIFY + DB; memory: in-process live_event_hub",
+        description="postgres: NOTIFY + DB; memory: in-process live_event_hub"
     )
     WS_PORT: int = Field(default=8001, ge=1024, le=65535)
     LIVE_EVENTS_POLL_FALLBACK_MS: int = Field(default=500, ge=100, le=10000)
@@ -161,12 +172,16 @@ class Settings(BaseSettings):
         return f"{base_url}?sslmode={self.DB_SSL_MODE}&client_encoding=utf8&connect_timeout={int(self.DB_CONNECT_TIMEOUT_SECONDS)}"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_resolve_env_file(),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
         env_nested_delimiter="__",
     )
+
+    @property
+    def is_production(self) -> bool:
+        return self.ENVIRONMENT.strip().lower() == "production"
 
 
 @lru_cache

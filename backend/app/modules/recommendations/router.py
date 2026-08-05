@@ -18,7 +18,7 @@ from .schemas import (
     OptimizationRunRequest,
     OptimizationSessionFailuresResponse,
     RobotRecommendationsResponse,
-    StrategyTipsResponse,
+    StrategyTipsResponse
 )
 from .service import recommendations_service
 
@@ -30,7 +30,7 @@ async def get_robot_recommendations(
     robot_id: int,
     backtest_limit: int = Query(15, ge=1, le=50, description="Сколько успешных бэктестов анализировать"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Рекомендации по стратегии и настройкам робота:
@@ -41,7 +41,7 @@ async def get_robot_recommendations(
         robot_id=robot_id,
         user_id=current_user.id,
         schema=settings.DB_SCHEMA,
-        backtest_limit=backtest_limit,
+        backtest_limit=backtest_limit
     )
     if not result:
         raise HTTPException(status_code=404, detail="Торговый робот не найден")
@@ -51,7 +51,7 @@ async def get_robot_recommendations(
 @router.get("/strategies/{strategy_name}", response_model=StrategyTipsResponse)
 def get_strategy_tips(
     strategy_name: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user)
 ):
     """Общие подсказки по выбранной стратегии (без привязки к роботу)."""
     result = recommendations_service.get_strategy_tips(strategy_name.strip().lower())
@@ -62,17 +62,17 @@ def get_strategy_tips(
 
 @router.get(
     "/robots/{robot_id}/optimize/rank",
-    response_model=OptimizationRankResponse,
+    response_model=OptimizationRankResponse
 )
 async def rank_robot_backtests(
     robot_id: int,
     goal: OptimizationGoal = Query(
         OptimizationGoal.BALANCED,
-        description="Цель скоринга: balanced | max_return | min_drawdown | max_sharpe",
+        description="Цель скоринга: balanced | max_return | min_drawdown | max_sharpe"
     ),
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user)
 ):
     """Ранжирование успешных бэктестов робота по composite score."""
     result = await recommendations_service.rank_backtest_runs(
@@ -81,7 +81,7 @@ async def rank_robot_backtests(
         user_id=current_user.id,
         schema=settings.DB_SCHEMA,
         goal=goal,
-        limit=limit,
+        limit=limit
     )
     if not result:
         raise HTTPException(status_code=404, detail="Торговый робот не найден")
@@ -90,31 +90,31 @@ async def rank_robot_backtests(
 
 @router.get(
     "/optimize/session-failures",
-    response_model=OptimizationSessionFailuresResponse,
+    response_model=OptimizationSessionFailuresResponse
 )
 async def session_optimization_failures(
     limit: int = Query(20, ge=1, le=50),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user)
 ):
     """Неуспешные прогоны тестирования без robot_id (crypto/MOEX из формы)."""
     return await recommendations_service.session_optimization_failures(
         db,
         user_id=current_user.id,
         schema=settings.DB_SCHEMA,
-        limit=limit,
+        limit=limit
     )
 
 
 @router.post(
     "/robots/{robot_id}/optimize/plan",
-    response_model=OptimizationPlanResponse,
+    response_model=OptimizationPlanResponse
 )
 async def plan_robot_optimization(
     robot_id: int,
     body: OptimizationPlanRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user)
 ):
     """Сетка кандидатов конфигурации для оптимизации."""
     result = await recommendations_service.plan_optimization(
@@ -122,7 +122,7 @@ async def plan_robot_optimization(
         robot_id=robot_id,
         user_id=current_user.id,
         goal=body.goal,
-        mode=body.mode,
+        mode=body.mode
     )
     if not result:
         raise HTTPException(status_code=404, detail="Торговый робот не найден")
@@ -132,13 +132,13 @@ async def plan_robot_optimization(
 @router.post(
     "/robots/{robot_id}/optimize/run",
     response_model=OptimizationBatchStartedResponse,
-    status_code=202,
+    status_code=202
 )
 async def run_robot_optimization_batch(
     robot_id: int,
     body: OptimizationRunRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user)
 ):
     """Асинхронный массовый прогон сетки параметров (N бэктестов в очереди heavy)."""
     result = await recommendations_service.run_optimization_batch(
@@ -146,7 +146,7 @@ async def run_robot_optimization_batch(
         robot_id=robot_id,
         user_id=current_user.id,
         schema=settings.DB_SCHEMA,
-        body=body,
+        body=body
     )
     if not result:
         raise HTTPException(status_code=404, detail="Торговый робот не найден")
@@ -155,36 +155,36 @@ async def run_robot_optimization_batch(
 
 @router.get(
     "/robots/{robot_id}/optimize/batches/active",
-    response_model=OptimizationBatchStatusResponse | None,
+    response_model=OptimizationBatchStatusResponse | None
 )
 def get_active_optimization_batch(
     robot_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user)
 ):
     return recommendations_service.get_active_optimization_batch(
         db,
         robot_id=robot_id,
         user_id=current_user.id,
-        schema=settings.DB_SCHEMA,
+        schema=settings.DB_SCHEMA
     )
 
 
 @router.get(
     "/robots/{robot_id}/optimize/batches/{batch_id}",
-    response_model=OptimizationBatchStatusResponse,
+    response_model=OptimizationBatchStatusResponse
 )
 def get_optimization_batch_status_endpoint(
     robot_id: int,
     batch_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user)
 ):
     result = recommendations_service.get_optimization_batch(
         db,
         batch_id=batch_id,
         user_id=current_user.id,
-        schema=settings.DB_SCHEMA,
+        schema=settings.DB_SCHEMA
     )
     if not result or result.robot_id != robot_id:
         raise HTTPException(status_code=404, detail="Пакет оптимизации не найден")
@@ -193,19 +193,19 @@ def get_optimization_batch_status_endpoint(
 
 @router.post(
     "/robots/{robot_id}/optimize/batches/{batch_id}/cancel",
-    response_model=OptimizationBatchCancelResponse,
+    response_model=OptimizationBatchCancelResponse
 )
 async def cancel_optimization_batch_endpoint(
     robot_id: int,
     batch_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user)
 ):
     existing = recommendations_service.get_optimization_batch(
         db,
         batch_id=batch_id,
         user_id=current_user.id,
-        schema=settings.DB_SCHEMA,
+        schema=settings.DB_SCHEMA
     )
     if not existing or existing.robot_id != robot_id:
         raise HTTPException(status_code=404, detail="Пакет оптимизации не найден")
@@ -213,7 +213,7 @@ async def cancel_optimization_batch_endpoint(
         db,
         batch_id=batch_id,
         user_id=current_user.id,
-        schema=settings.DB_SCHEMA,
+        schema=settings.DB_SCHEMA
     )
     if not result:
         raise HTTPException(status_code=404, detail="Пакет оптимизации не найден")

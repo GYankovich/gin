@@ -72,7 +72,7 @@ def run_server():
             host="0.0.0.0",
             port=8000,
             reload=False,
-            log_level="info",
+            log_level="info"
         )
     except ImportError as e:
         print(f"[ERR] Import error: {e}")
@@ -94,7 +94,7 @@ def run_ws():
             host="0.0.0.0",
             port=port,
             reload=False,
-            log_level="info",
+            log_level="info"
         )
     except ImportError as e:
         print(f"[ERR] Import error: {e}")
@@ -121,7 +121,7 @@ def _find_listening_pids(port: int) -> list[int]:
             ["netstat", "-ano"],
             text=True,
             encoding="utf-8",
-            errors="replace",
+            errors="replace"
         )
     except Exception:
         return []
@@ -162,7 +162,7 @@ def _ensure_ports_free(ports: list[int], *, kill_existing: bool = False) -> None
                         ["taskkill", "/PID", str(pid), "/F"],
                         check=False,
                         capture_output=True,
-                        text=True,
+                        text=True
                     )
                     killed.add(pid)
                     print(f"[INFO] Stopped pid={pid} (was listening on :{port})")
@@ -208,7 +208,7 @@ def run_all(skip_migrate: bool = False, kill_ports: bool = False):
         return subprocess.Popen(
             cmd,
             cwd=str(root_path),
-            creationflags=creation_flags,
+            creationflags=creation_flags
         )
 
     worker_labels = {"Heavy worker", "Portfolio worker"}
@@ -258,7 +258,7 @@ def run_all(skip_migrate: bool = False, kill_ports: bool = False):
                         worker_force_on_restart[label] = True
                         worker_next_restart_at[label] = max(
                             worker_next_restart_at[label],
-                            now + worker_conflict_backoff_sec,
+                            now + worker_conflict_backoff_sec
                         )
                     if now >= worker_next_restart_at[label]:
                         try:
@@ -368,12 +368,12 @@ def main():
     parser.add_argument(
         "--skip-migrate",
         action="store_true",
-        help="Пропустить применение миграций перед запуском (для multi-process старта).",
+        help="Пропустить применение миграций перед запуском (для multi-process старта)."
     )
     parser.add_argument(
         "--kill-ports",
         action="store_true",
-        help="Перед all: завершить процессы, занимающие порты API/WS (8000, WS_PORT).",
+        help="Перед all: завершить процессы, занимающие порты API/WS (8000, WS_PORT)."
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -382,18 +382,28 @@ def main():
         "--lane",
         required=True,
         choices=["portfolio", "heavy"],
-        help="Worker lane to process",
+        help="Worker lane to process"
     )
     worker_parser.add_argument(
         "--force-lease",
         action="store_true",
-        help="Steal lane lease even if another worker heartbeat is fresh",
+        help="Steal lane lease even if another worker heartbeat is fresh"
     )
 
     sub.add_parser("server", help="Run API server (default)")
     sub.add_parser("ws", help="Run Live WebSocket gateway")
     sub.add_parser("migrate", help="Apply migrations only")
-    sub.add_parser("all", help="Run API + workers + WS gateway")
+    all_parser = sub.add_parser("all", help="Run API + workers + WS gateway")
+    all_parser.add_argument(
+        "--kill-ports",
+        action="store_true",
+        help="Перед стартом завершить процессы на портах API/WS (8000, WS_PORT).",
+    )
+    all_parser.add_argument(
+        "--skip-migrate",
+        action="store_true",
+        help="Пропустить миграции.",
+    )
 
     args = parser.parse_args()
     command = args.command or "server"

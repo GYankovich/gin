@@ -53,7 +53,7 @@ class DividendCalendarService:
             *,
             ticker: str,
             trade_date: date,
-            policy: DividendExclusionPolicy,
+            policy: DividendExclusionPolicy
     ) -> Optional[str]:
         """
         Returns a stable machine reason if the ticker must be excluded on trade_date, else None.
@@ -67,14 +67,14 @@ class DividendCalendarService:
         rows = self._db.execute(
             text(f"""
                 SELECT ex_date
-                FROM {self._schema}.equity_dividend_events
+                FROM equity_dividend_events
                 WHERE ticker = :ticker
                   AND ex_date > :lo
                   AND ex_date <= :hi
             """),
-            {"ticker": tk, "lo": lo, "hi": hi},
+            {"ticker": tk, "lo": lo, "hi": hi}
         ).fetchall()
-        for (ex_d,) in rows:
+        for (ex_d) in rows:
             if not isinstance(ex_d, date):
                 continue
             if policy.strict_exclude_on_ex_date and trade_date == ex_d:
@@ -89,7 +89,7 @@ class DividendCalendarService:
             self,
             tickers: List[str],
             from_d: date,
-            to_d: date,
+            to_d: date
     ) -> Dict[str, List[date]]:
         """Один запрос на все тикеры диапазона — вместо N×M запросов в цикле scoring."""
         uniq = sorted({str(t).strip().upper() for t in tickers if t})
@@ -100,13 +100,13 @@ class DividendCalendarService:
         rows = self._db.execute(
             text(f"""
                 SELECT ticker, ex_date
-                FROM {self._schema}.equity_dividend_events
+                FROM equity_dividend_events
                 WHERE ticker = ANY(:tickers)
                   AND ex_date > :lo
                   AND ex_date <= :hi
                 ORDER BY ticker, ex_date
             """),
-            {"tickers": uniq, "lo": lo, "hi": hi},
+            {"tickers": uniq, "lo": lo, "hi": hi}
         ).fetchall()
         out: Dict[str, List[date]] = {t: [] for t in uniq}
         for tk, ex_d in rows:
@@ -120,7 +120,7 @@ class DividendCalendarService:
             ticker: str,
             trade_date: date,
             policy: DividendExclusionPolicy,
-            ex_dates: Optional[List[date]] = None,
+            ex_dates: Optional[List[date]] = None
     ) -> Optional[str]:
         tk = ticker.strip().upper()
         if not tk:
@@ -140,11 +140,11 @@ class DividendCalendarService:
         rows = self._db.execute(
             text(f"""
                 SELECT ex_date, amount_per_share
-                FROM {self._schema}.equity_dividend_events
+                FROM equity_dividend_events
                 WHERE ticker = :ticker AND ex_date >= :f AND ex_date <= :t
                 ORDER BY ex_date ASC
             """),
-            {"ticker": tk, "f": from_d, "t": to_d},
+            {"ticker": tk, "f": from_d, "t": to_d}
         ).fetchall()
         out: List[Tuple[date, Optional[float]]] = []
         for ex_d, amt in rows:

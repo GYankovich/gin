@@ -5,7 +5,8 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
-import { Toggle } from '@/components/ui/Toggle'
+import { FormLabelTooltip } from '@/components/ui/FormLabelTooltip'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { dashboardService } from '@/services/dashboardService'
 import type {
     DashboardAccountItem,
@@ -56,10 +57,48 @@ export default function DashboardPage() {
         void load()
     }, [load])
 
+    const isMobile = useMediaQuery('(max-width: 767px)')
+    const [mobileView, setMobileView] = useState<string | null>(null)
+
     const currencyRows = useMemo(
         () => buildCurrencyRows(data?.totals ?? [], data?.assets ?? [], data?.accounts ?? []),
         [data?.totals, data?.assets, data?.accounts],
     )
+
+    const currencyOptions = useMemo(
+        () => currencyRows.map((row) => row.currency),
+        [currencyRows],
+    )
+
+    useEffect(() => {
+        if (!isMobile) return
+        setMobileView((prev) => {
+            if (prev && currencyOptions.includes(prev)) return prev
+            if (currencyOptions.includes('RUB')) return 'RUB'
+            if (currencyOptions.includes('USDT')) return 'USDT'
+            return currencyOptions[0] ?? null
+        })
+    }, [currencyOptions, isMobile])
+
+    const activeCurrencyRow = useMemo(() => {
+        if (!mobileView) return null
+        return currencyRows.find((row) => row.currency === mobileView) ?? null
+    }, [currencyRows, mobileView])
+
+    const settingsAccountGroups = useMemo(
+        () => buildSettingsAccountGroups(data?.accounts ?? [], data?.totals ?? []),
+        [data?.accounts, data?.totals],
+    )
+
+    const setGroupAccountsVisible = useCallback((accounts: DashboardAccountItem[], visible: boolean) => {
+        setDraftHidden((prev) => {
+            const next = { ...prev }
+            for (const a of accounts) {
+                next[a.account_id] = !visible
+            }
+            return next
+        })
+    }, [])
 
     const openSettings = () => {
         if (!data) return
@@ -145,102 +184,86 @@ export default function DashboardPage() {
                 </Card>
             ) : (
                 <div className="dashboard-layout">
-                    {stickyTotals.length > 0 && (
-                        <div className="dashboard-sticky-strip" aria-label="Краткая сводка">
-                            {stickyTotals.map((t) => (
-                                <div key={t.currency} className="dashboard-sticky-chip">
-                                    <span className="dashboard-sticky-chip__cur">{t.currency}</span>
-                                    <span className="dashboard-sticky-chip__val mono">
-                                        {formatMoneyCompact(t.total_value, t.currency)}
-                                    </span>
-                                    <span className={`dashboard-sticky-chip__delta mono ${t.total_day_over_day_delta == null ? '' : roiClass(t.total_day_over_day_delta)}`}>
-                                        {t.total_day_over_day_delta == null
-                                            ? '—'
-                                            : formatMoneySignedCompact(t.total_day_over_day_delta, t.currency)}
-                                    </span>
-                                </div>
-                            ))}
+                    {isMobile && stickyTotals.length > 1 && (
+                        <div
+                            className="dashboard-sticky-strip"
+                            role="tablist"
+                            aria-label="Валюта дашборда"
+                        >
+                            {stickyTotals.map((t) => {
+                                const currency = (t.currency || 'RUB').toUpperCase()
+                                const active = mobileView === currency
+                                return (
+                                    <button
+                                        key={currency}
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={active}
+                                        className={`dashboard-sticky-chip${active ? ' dashboard-sticky-chip--active' : ''}`}
+                                        onClick={() => setMobileView(currency)}
+                                    >
+                                        <span className="dashboard-sticky-chip__cur">{currency}</span>
+                                        <span className="dashboard-sticky-chip__val mono">
+                                            {formatMoneyCompact(t.total_value, currency)}
+                                        </span>
+                                    </button>
+                                )
+                            })}
                         </div>
                     )}
 
-                    {currencyRows.map(({ currency, totals, assets, accounts }) => (
-                        <section key={currency} className="dashboard-currency-row">
-                            <h2 className="dashboard-section__title">{currency}</h2>
-                            <div className="dashboard-currency-grid">
-                                {totals ? (
-                                    <TotalsBlock totals={totals} />
-                                ) : (
-                                    <Card className="dashboard-totals-card">
-                                        <p className="dashboard-empty">Нет сводки по {currency}.</p>
-                                    </Card>
-                                )}
-                                {assets.length > 0 ? (
-                                    <AssetsBlock currency={currency} items={assets} />
-                                ) : (
-                                    <Card className="dashboard-assets-card">
-                                        <p className="dashboard-empty">Нет позиций по {currency}.</p>
-                                    </Card>
-                                )}
-                            </div>
-
-                            {accounts.length > 0 && (
-                                <CollapsibleSection
-                                    className="dashboard-accounts-collapse"
-                                    title="Счета "
-                                    badge={
-                                        <span className="dashboard-accounts-collapse__count">
-                                            {accounts.length}
-                                        </span>
-                                    }
-                                    defaultOpen={false}
-                                >
-                                    <div className="dashboard-account-stack">
-                                        {accounts.map((row) => (
-                                            <AccountSection key={row.account_id} row={row} />
-                                        ))}
-                                    </div>
-                                </CollapsibleSection>
-                            )}
-                        </section>
-                    ))}
+                    {isMobile ? (
+                        activeCurrencyRow ? (
+                            <CurrencyRowSection
+                                currency={activeCurrencyRow.currency}
+                                totals={activeCurrencyRow.totals}
+                                assets={activeCurrencyRow.assets}
+                                accounts={activeCurrencyRow.accounts}
+                                showTitle={false}
+                            />
+                        ) : (
+                            <Card>
+                                <p className="dashboard-empty">Нет данных по выбранной валюте.</p>
+                            </Card>
+                        )
+                    ) : (
+                        currencyRows.map(({ currency, totals, assets, accounts }) => (
+                            <CurrencyRowSection
+                                key={currency}
+                                currency={currency}
+                                totals={totals}
+                                assets={assets}
+                                accounts={accounts}
+                                showTitle
+                            />
+                        ))
+                    )}
                 </div>
             )}
 
             <Modal
                 open={settingsOpen}
                 onClose={() => setSettingsOpen(false)}
-                title="Счета на дашборде"
+                title={
+                    <>
+                        Счета на дашборде
+                        <FormLabelTooltip text="Снимите галочку, чтобы исключить счёт из сводки, структуры активов и списка счетов на дашборде." />
+                    </>
+                }
                 width="520px"
                 className="dashboard-modal"
             >
-                <p className="dashboard-settings-hint">
-                    Выключите тогл, чтобы исключить счёт из сводки, структуры активов и списка счетов на дашборде.
-                </p>
                 <div className="dashboard-settings-list">
-                    {data.accounts.map((a) => {
-                        const included = !draftHidden[a.account_id]
-                        const title = a.account_name || a.external_account_id
-                        return (
-                            <label key={a.account_id} className="dashboard-settings-row">
-                                <span className="dashboard-settings-row__body">
-                                    <span className="dashboard-settings-row__title">{title}</span>
-                                    <span className="dashboard-settings-row__meta mono">
-                                        {a.external_account_id} · {a.summary.currency} · {formatMoneyCompact(a.summary.value, a.summary.currency)}
-                                    </span>
-                                </span>
-                                <Toggle
-                                    checked={included}
-                                    onChange={(on) => {
-                                        setDraftHidden((prev) => ({
-                                            ...prev,
-                                            [a.account_id]: !on,
-                                        }))
-                                    }}
-                                    aria-label={included ? `Скрыть ${title}` : `Показать ${title}`}
-                                />
-                            </label>
-                        )
-                    })}
+                    {settingsAccountGroups.map(({ currency, accounts }) => (
+                        <DashboardSettingsGroup
+                            key={currency}
+                            currency={currency}
+                            accounts={accounts}
+                            draftHidden={draftHidden}
+                            onDraftHiddenChange={setDraftHidden}
+                            onSetGroupVisible={setGroupAccountsVisible}
+                        />
+                    ))}
                 </div>
                 <div className="dashboard-settings-actions">
                     <Button variant="ghost" onClick={() => setSettingsOpen(false)} disabled={savingVisibility}>
@@ -255,25 +278,107 @@ export default function DashboardPage() {
     )
 }
 
+function DashboardSettingsGroup({
+    currency,
+    accounts,
+    draftHidden,
+    onDraftHiddenChange,
+    onSetGroupVisible,
+}: {
+    currency: string
+    accounts: DashboardAccountItem[]
+    draftHidden: Record<number, boolean>
+    onDraftHiddenChange: React.Dispatch<React.SetStateAction<Record<number, boolean>>>
+    onSetGroupVisible: (accounts: DashboardAccountItem[], visible: boolean) => void
+}) {
+    const [open, setOpen] = useState(true)
+    const allVisible = accounts.every((a) => !draftHidden[a.account_id])
+
+    return (
+        <section
+            className={`dashboard-settings-group${open ? ' dashboard-settings-group--open' : ' dashboard-settings-group--collapsed'}`}
+        >
+            <div className="dashboard-settings-group__panel">
+                <header className="dashboard-settings-group__head">
+                    <button
+                        type="button"
+                        className="dashboard-settings-group__toggle"
+                        aria-expanded={open}
+                        onClick={() => setOpen((prev) => !prev)}
+                    >
+                        <span className="dashboard-settings-group__chevron" aria-hidden>
+                            {open ? '▾' : '▸'}
+                        </span>
+                        <span className="dashboard-settings-group__cur">{currency}</span>
+                        <span className="dashboard-settings-group__count mono">{accounts.length}</span>
+                    </button>
+                    <div className="dashboard-settings-group__head-actions">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="dashboard-settings-group__bulk"
+                            onClick={() => onSetGroupVisible(accounts, !allVisible)}
+                        >
+                            {allVisible ? 'Снять все' : 'Выделить все'}
+                        </Button>
+                    </div>
+                </header>
+                {open && accounts.map((a) => {
+                    const included = !draftHidden[a.account_id]
+                    const title = a.account_name || a.external_account_id
+                    const openedText = formatAccountOpenedText(a.account_opened)
+                    const accountCurrency = (a.summary?.currency || 'RUB').toUpperCase()
+                    return (
+                        <label key={a.account_id} className="dashboard-settings-row">
+                            <input
+                                type="checkbox"
+                                className="dashboard-settings-row__check"
+                                checked={included}
+                                onChange={(e) => {
+                                    const on = e.target.checked
+                                    onDraftHiddenChange((prev) => ({
+                                        ...prev,
+                                        [a.account_id]: !on,
+                                    }))
+                                }}
+                                aria-label={included ? `Скрыть ${title}` : `Показать ${title}`}
+                            />
+                            <span className="dashboard-settings-row__body">
+                                <span className="dashboard-settings-row__title">{title}</span>
+                                <span className="dashboard-settings-row__meta mono">
+                                    открыт {openedText} · {formatMoneyCompact(a.summary.value, accountCurrency)}
+                                </span>
+                            </span>
+                        </label>
+                    )
+                })}
+            </div>
+        </section>
+    )
+}
+
 function DashboardHero({ onConfigure }: { onConfigure?: () => void }) {
     return (
         <header className="dashboard-hero">
             <div className="dashboard-hero__bg" style={{ backgroundImage: `url(${cyberHero})` }} aria-hidden />
             <div className="dashboard-hero__veil" aria-hidden />
             <div className="dashboard-hero__content">
-                <p className="dashboard-hero__eyebrow">GIN // PORTFOLIO NODE</p>
+                <div className="dashboard-hero__top">
+                    <p className="dashboard-hero__eyebrow">PORTFOLIO NODE</p>
+                    {onConfigure && (
+                        <div className="dashboard-hero__actions">
+                            <Button variant="ghost" size="sm" className="dashboard-hero__cfg" onClick={onConfigure}>
+                                Настроить
+                            </Button>
+                        </div>
+                    )}
+                </div>
                 <h1 className="dashboard-hero__title">
                     <span className="dashboard-hero__title-glitch" data-text="ДАШБОРД">ДАШБОРД</span>
                 </h1>
                 <p className="dashboard-hero__sub">Сводка капитала · структура · счета</p>
             </div>
-            {onConfigure && (
-                <div className="dashboard-hero__actions">
-                    <Button variant="ghost" size="sm" className="dashboard-hero__cfg" onClick={onConfigure}>
-                        Настроить
-                    </Button>
-                </div>
-            )}
         </header>
     )
 }
@@ -326,6 +431,61 @@ function DashboardSkeleton() {
     )
 }
 
+function CurrencyRowSection({
+    currency,
+    totals,
+    assets,
+    accounts,
+    showTitle,
+}: {
+    currency: string
+    totals: DashboardCurrencyTotals | null
+    assets: DashboardAssetItem[]
+    accounts: DashboardAccountItem[]
+    showTitle: boolean
+}) {
+    return (
+        <section className="dashboard-currency-row" aria-label={`Сводка ${currency}`}>
+            {showTitle && <h2 className="dashboard-section__title">{currency}</h2>}
+            <div className="dashboard-currency-grid">
+                {totals ? (
+                    <TotalsBlock totals={totals} />
+                ) : (
+                    <Card className="dashboard-totals-card">
+                        <p className="dashboard-empty">Нет сводки по {currency}.</p>
+                    </Card>
+                )}
+                {assets.length > 0 ? (
+                    <AssetsBlock currency={currency} items={assets} />
+                ) : (
+                    <Card className="dashboard-assets-card">
+                        <p className="dashboard-empty">Нет позиций по {currency}.</p>
+                    </Card>
+                )}
+            </div>
+
+            {accounts.length > 0 && (
+                <CollapsibleSection
+                    className="dashboard-accounts-collapse"
+                    title="Счета "
+                    badge={
+                        <span className="dashboard-accounts-collapse__count">
+                            {accounts.length}
+                        </span>
+                    }
+                    defaultOpen={false}
+                >
+                    <div className="dashboard-account-stack">
+                        {accounts.map((row) => (
+                            <AccountSection key={row.account_id} row={row} />
+                        ))}
+                    </div>
+                </CollapsibleSection>
+            )}
+        </section>
+    )
+}
+
 function TotalsBlock({ totals }: { totals: DashboardCurrencyTotals }) {
     const d = totals.total_day_over_day_delta
     const dp = totals.total_day_over_day_delta_percent
@@ -371,42 +531,63 @@ function TotalsBlock({ totals }: { totals: DashboardCurrencyTotals }) {
 }
 
 function AssetsBlock({ currency, items }: { currency: string; items: DashboardAssetItem[] }) {
+    const isMobile = useMediaQuery('(max-width: 767px)')
+
+    const list = (
+        <div className="dashboard-dist-list">
+            {items.map((a) => {
+                const d = a.day_over_day_delta
+                const dp = a.day_over_day_delta_percent
+                const showDayPct = dp != null && d != null && Math.abs(d) > 1e-9
+                return (
+                    <div key={`${currency}-${a.type}`} className="dashboard-dist-row">
+                        <div className="dashboard-dist-row__main">
+                            <span className="dashboard-dist-row__type">{a.type}</span>
+                            <span className="dashboard-dist-row__figures mono">
+                                <span className="dashboard-dist-row__value">
+                                    {formatMoneyCompact(a.value, a.currency)}
+                                </span>
+                                <span className="dashboard-dist-row__pct">{Math.round(a.percent)}%</span>
+                                <span className={`dashboard-dist-row__delta ${d == null ? 'dashboard-dist-row__delta-empty' : roiClass(d)}`}>
+                                    {d == null
+                                        ? '—'
+                                        : `${formatMoneySignedCompact(d, a.currency)}${showDayPct ? formatPercentSuffix(dp) : ''}`}
+                                </span>
+                            </span>
+                        </div>
+                        <div className="dashboard-dist-bar-track" aria-hidden>
+                            <div
+                                className="dashboard-dist-bar-fill"
+                                style={{ width: `${clampPercent(a.percent)}%` }}
+                            />
+                        </div>
+                    </div>
+                )
+            })}
+        </div>
+    )
+
+    if (isMobile) {
+        return (
+            <CollapsibleSection
+                className="dashboard-assets-collapse"
+                title="Структура активов "
+                badge={
+                    <span className="dashboard-assets-collapse__count">{items.length}</span>
+                }
+                defaultOpen={false}
+            >
+                {list}
+            </CollapsibleSection>
+        )
+    }
+
     return (
         <Card className="dashboard-assets-card">
             <div className="dashboard-assets-card__head">
                 <h3 className="dashboard-panel-title">Структура активов</h3>
             </div>
-            <div className="dashboard-dist-list">
-                {items.map((a) => {
-                    const d = a.day_over_day_delta
-                    const dp = a.day_over_day_delta_percent
-                    const showDayPct = dp != null && d != null && Math.abs(d) > 1e-9
-                    return (
-                        <div key={`${currency}-${a.type}`} className="dashboard-dist-row">
-                            <div className="dashboard-dist-row__main">
-                                <span className="dashboard-dist-row__type">{a.type}</span>
-                                <span className="dashboard-dist-row__figures mono">
-                                    <span className="dashboard-dist-row__value">
-                                        {formatMoneyCompact(a.value, a.currency)}
-                                    </span>
-                                    <span className="dashboard-dist-row__pct">{Math.round(a.percent)}%</span>
-                                    <span className={`dashboard-dist-row__delta ${d == null ? 'dashboard-dist-row__delta-empty' : roiClass(d)}`}>
-                                        {d == null
-                                            ? '—'
-                                            : `${formatMoneySignedCompact(d, a.currency)}${showDayPct ? formatPercentSuffix(dp) : ''}`}
-                                    </span>
-                                </span>
-                            </div>
-                            <div className="dashboard-dist-bar-track" aria-hidden>
-                                <div
-                                    className="dashboard-dist-bar-fill"
-                                    style={{ width: `${clampPercent(a.percent)}%` }}
-                                />
-                            </div>
-                        </div>
-                    )
-                })}
-            </div>
+            {list}
         </Card>
     )
 }
@@ -414,23 +595,8 @@ function AssetsBlock({ currency, items }: { currency: string; items: DashboardAs
 function AccountSection({ row }: { row: DashboardAccountItem }) {
     const navigate = useNavigate()
     const title = row.account_name || row.external_account_id
-    const openedText = row.account_opened
-        ? new Date(row.account_opened).toLocaleDateString('ru-RU', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-        })
-        : '—'
-    const syncText = row.last_account_sync
-        ? new Date(row.last_account_sync).toLocaleString('ru-RU', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-        })
-        : '—'
+    const openedText = formatAccountOpenedText(row.account_opened)
+    const syncText = formatAccountSyncText(row.last_account_sync)
     const s = row.summary
     const d = s.day_over_day_delta
     const dp = s.day_over_day_delta_percent
@@ -449,27 +615,32 @@ function AccountSection({ row }: { row: DashboardAccountItem }) {
         >
             <div className="dashboard-account-card__head">
                 <h2 className="dashboard-account-card__title">
-                    {title}
+                    <span className="dashboard-account-card__name">{title}</span>
                     <span className="dashboard-account-card__open">Открыть →</span>
                 </h2>
                 <div className="dashboard-account-card__meta-sync">
                     <div className="dashboard-account-card__meta mono">
-                        {row.external_account_id} · {row.account_type} · {row.account_status}
-                        {' · '}
-                        открыт {openedText}
+                        <span className="dashboard-account-card__meta-primary">
+                            {row.external_account_id} · {row.account_type} · {row.account_status}
+                        </span>
+                        <span className="dashboard-account-card__meta-opened">
+                            открыт {openedText}
+                        </span>
                         <span className="dashboard-account-card__meta-sync-append">
                             {' · '}
                             {syncText}
                         </span>
                     </div>
-                    <div className="dashboard-account-card__sync">
-                        <span className="dashboard-account-card__sync-label">Обновлено</span>
-                        <span className="dashboard-account-card__sync-value">{syncText}</span>
+                    <div className="dashboard-account-card__sync mono">
+                        <span className="dashboard-account-card__sync-label">обновлено</span>
+                        {syncText ? (
+                            <span className="dashboard-account-card__sync-value">{syncText}</span>
+                        ) : null}
                     </div>
                 </div>
             </div>
 
-            <div className="mt-4">
+            <div className="dashboard-account-card__stats">
                 <div className="portfolio-stats-grid dashboard-summary-grid">
                     <div className="portfolio-stat-tile">
                         <div className="portfolio-stat-tile__label">Собственные средства</div>
@@ -489,16 +660,49 @@ function AccountSection({ row }: { row: DashboardAccountItem }) {
                     <div className="portfolio-stat-tile">
                         <div className="portfolio-stat-tile__label">Изменение к пред. дню</div>
                         <div className={`portfolio-stat-tile__value ${d == null ? '' : roiClass(d)}`}>
-                            {d == null
-                                ? '—'
-                                : `${d >= 0 ? '+' : ''}${d.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${s.currency}`}
-                            {dp != null && d != null && showDayPct && formatPercentSuffix(dp)}
+                            {d == null ? '—' : formatMoneySigned(d, s.currency)}
+                            {showDayPct && formatPercentSuffix(dp)}
                         </div>
                     </div>
                 </div>
             </div>
         </Card>
     )
+}
+
+function buildSettingsAccountGroups(
+    accounts: DashboardAccountItem[],
+    totals: DashboardCurrencyTotals[],
+): Array<{
+    currency: string
+    accounts: DashboardAccountItem[]
+    totalValue: number
+}> {
+    const totalsMap = new Map(
+        totals.map((t) => [(t.currency || 'RUB').toUpperCase(), Number(t.total_value ?? 0)] as const),
+    )
+    const groupsMap = new Map<string, DashboardAccountItem[]>()
+    for (const a of accounts) {
+        const cur = (a.summary?.currency || 'RUB').toUpperCase()
+        const list = groupsMap.get(cur)
+        if (list) list.push(a)
+        else groupsMap.set(cur, [a])
+    }
+
+    return Array.from(groupsMap.keys())
+        .sort((a, b) => a.localeCompare(b))
+        .map((currency) => {
+            const groupAccounts = groupsMap.get(currency) ?? []
+            const summed = groupAccounts.reduce(
+                (acc, a) => acc + Number(a.summary?.value ?? 0),
+                0,
+            )
+            return {
+                currency,
+                accounts: groupAccounts,
+                totalValue: totalsMap.get(currency) ?? summed,
+            }
+        })
 }
 
 function buildCurrencyRows(
@@ -547,6 +751,41 @@ function buildCurrencyRows(
 function clampPercent(val: number): number {
     if (!Number.isFinite(val)) return 0
     return Math.max(0, Math.min(100, val))
+}
+
+function formatAccountOpenedText(iso: string | null | undefined): string {
+    if (!iso) return '—'
+    const date = new Date(iso)
+    if (Number.isNaN(date.getTime())) return '—'
+    return date.toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+    })
+}
+
+function formatAccountSyncText(iso: string | null | undefined): string {
+    if (!iso) return '—'
+    const date = new Date(iso)
+    if (Number.isNaN(date.getTime())) return '—'
+
+    const time = date.toLocaleTimeString('ru-RU', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    })
+    const startOfDay = (value: Date) =>
+        new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime()
+    const diffDays = Math.round((startOfDay(new Date()) - startOfDay(date)) / 86_400_000)
+
+    if (diffDays === 0) return time
+    if (diffDays === 1) return `вчера ${time}`
+    const day = date.toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+    })
+    return `${day} ${time}`
 }
 
 function formatMoney(val: any, currency = 'RUB'): string {

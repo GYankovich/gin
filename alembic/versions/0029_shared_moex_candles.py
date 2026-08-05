@@ -35,15 +35,13 @@ def upgrade() -> None:
         sa.Column("volume", sa.BigInteger(), nullable=True),
         sa.Column("source", sa.String(32), nullable=False, server_default="MOEX_ISS"),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
-        sa.PrimaryKeyConstraint("ticker", "board", "interval", "bucket_start", name="pk_shared_market_candles"),
-        schema=SCHEMA,
+        sa.PrimaryKeyConstraint("ticker", "board", "interval", "bucket_start", name="pk_shared_market_candles")
     )
     op.create_index(
         "ix_shared_market_candles_range",
         "shared_market_candles",
         ["ticker", "board", "interval", "bucket_start"],
-        unique=False,
-        schema=SCHEMA,
+        unique=False
     )
 
     op.create_table(
@@ -68,19 +66,17 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
-        sa.UniqueConstraint("idempotency_key", name="uq_candle_load_jobs_idempotency"),
-        schema=SCHEMA,
+        sa.UniqueConstraint("idempotency_key", name="uq_candle_load_jobs_idempotency")
     )
     op.create_index(
         "ix_candle_load_jobs_status_created",
         "candle_load_jobs",
-        ["status", "created_at"],
-        schema=SCHEMA,
+        ["status", "created_at"]
     )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_candle_load_jobs_status_created", table_name="candle_load_jobs", schema=SCHEMA)
-    op.drop_table("candle_load_jobs", schema=SCHEMA)
-    op.drop_index("ix_shared_market_candles_range", table_name="shared_market_candles", schema=SCHEMA)
-    op.drop_table("shared_market_candles", schema=SCHEMA)
+    op.drop_index("ix_candle_load_jobs_status_created", table_name="candle_load_jobs")
+    op.drop_table("candle_load_jobs")
+    op.drop_index("ix_shared_market_candles_range", table_name="shared_market_candles")
+    op.drop_table("shared_market_candles")

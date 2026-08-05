@@ -33,13 +33,12 @@ def upgrade():
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('last_used_at', sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(['user_id'], [f'{SCHEMA}.user.id'], ondelete='CASCADE'),
-        schema=SCHEMA,
+        sa.ForeignKeyConstraint(['user_id'], [f'user.id'], ondelete='CASCADE')
     )
-    op.create_index('ix_api_tokens_user_id', 'api_tokens', ['user_id'], schema=SCHEMA)
-    op.create_index('ix_api_tokens_token_type', 'api_tokens', ['token_type'], schema=SCHEMA)
+    op.create_index('ix_api_tokens_user_id', 'api_tokens', ['user_id'])
+    op.create_index('ix_api_tokens_token_type', 'api_tokens', ['token_type'])
     print("✅ Table 'api_tokens' created successfully.")
 
 def downgrade():
-    op.drop_table('api_tokens', schema=SCHEMA)
+    op.drop_table('api_tokens')
     print("✅ Table 'api_tokens' dropped.")

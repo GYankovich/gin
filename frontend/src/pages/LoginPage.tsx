@@ -25,7 +25,8 @@ export default function LoginPage() {
             setAuth(user, token)
             navigate('/dashboard', { replace: true })
         } catch (err: any) {
-            setError(err.response?.data?.detail || 'Ошибка входа')
+            const data = err.response?.data
+            setError(data?.detail || data?.description || 'Ошибка входа')
         } finally {
             setLoading(false)
         }

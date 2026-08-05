@@ -98,7 +98,7 @@ def execute_backtest_persist_phase(
         _persist_progress_report()
         db.execute(
             text(
-                f"UPDATE {settings.DB_SCHEMA}.backtest_runs SET run_phase='persisting' WHERE id=:rid"
+                f"UPDATE backtest_runs SET run_phase='persisting' WHERE id=:rid"
             ),
             {"rid": run_id},
         )
@@ -238,7 +238,7 @@ def execute_backtest_persist_phase(
 
     db.execute(
         text(f"""
-            INSERT INTO {settings.DB_SCHEMA}.backtest_metrics
+            INSERT INTO backtest_metrics
             (run_id, total_return_percent, max_drawdown_percent, sharpe_ratio, trades_total, win_rate_percent, avg_pnl_per_trade, final_equity, payload)
             VALUES (:run_id, :total_return_percent, :max_drawdown_percent, NULL, :trades_total, :win_rate_percent, :avg_pnl_per_trade, :final_equity, CAST(:payload AS jsonb))
             ON CONFLICT (run_id) DO UPDATE SET
@@ -288,7 +288,7 @@ def execute_backtest_persist_phase(
     if not sim_or_pipeline_cancelled:
         db.execute(
             text(f"""
-            UPDATE {settings.DB_SCHEMA}.backtest_runs
+            UPDATE backtest_runs
             SET status='SUCCESS',
                 finished_at=:finished_at,
                 progress_percent=100,
@@ -314,7 +314,7 @@ def execute_backtest_persist_phase(
         try:
             db.execute(
                 text(f"""
-                UPDATE {settings.DB_SCHEMA}.backtest_runs
+                UPDATE backtest_runs
                 SET status = 'CANCELLED',
                     partial_result = true,
                     run_phase = :rp,
@@ -339,7 +339,7 @@ def execute_backtest_persist_phase(
             db.rollback()
     if robot_pk is not None:
         save_sql = f"""
-            INSERT INTO {settings.DB_SCHEMA}.robot_backtest_runs
+            INSERT INTO robot_backtest_runs
             (robot_id, requested_from, requested_to, initial_capital, final_equity, total_return_percent, max_drawdown_percent, result_payload, created_at)
             VALUES
             (:robot_id, :requested_from, :requested_to, :initial_capital, :final_equity, :total_return_percent, :max_drawdown_percent, CAST(:result_payload AS jsonb), :created_at)

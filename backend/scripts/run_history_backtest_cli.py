@@ -72,7 +72,7 @@ def _load_robot(db, robot_id: int) -> dict | None:
         text(
             f"""
             SELECT id, user_id, type, status, config
-            FROM {settings.DB_SCHEMA}.robots
+            FROM robots
             WHERE id = :rid
             """
         ),

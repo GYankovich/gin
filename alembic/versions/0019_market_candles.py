@@ -30,10 +30,9 @@ def upgrade():
         sa.Column('instrument_type', sa.String(32), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-        sa.UniqueConstraint('figi', name='uq_market_instruments_figi'),
-        schema=SCHEMA,
+        sa.UniqueConstraint('figi', name='uq_market_instruments_figi')
     )
-    op.create_index('ix_market_instruments_ticker', 'market_instruments', ['ticker'], schema=SCHEMA)
+    op.create_index('ix_market_instruments_ticker', 'market_instruments', ['ticker'])
 
     op.create_table(
         'market_candles',
@@ -47,19 +46,17 @@ def upgrade():
         sa.Column('close', sa.Numeric(20, 9), nullable=False),
         sa.Column('volume', sa.BigInteger(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=False),
-        sa.UniqueConstraint('figi', 'candle_interval', 'candle_time', name='uq_market_candles_figi_int_time'),
-        schema=SCHEMA,
+        sa.UniqueConstraint('figi', 'candle_interval', 'candle_time', name='uq_market_candles_figi_int_time')
     )
     op.create_index(
         'ix_market_candles_figi_interval_time',
         'market_candles',
-        ['figi', 'candle_interval', 'candle_time'],
-        schema=SCHEMA,
+        ['figi', 'candle_interval', 'candle_time']
     )
 
 
 def downgrade():
-    op.drop_index('ix_market_candles_figi_interval_time', table_name='market_candles', schema=SCHEMA)
-    op.drop_table('market_candles', schema=SCHEMA)
-    op.drop_index('ix_market_instruments_ticker', table_name='market_instruments', schema=SCHEMA)
-    op.drop_table('market_instruments', schema=SCHEMA)
+    op.drop_index('ix_market_candles_figi_interval_time', table_name='market_candles')
+    op.drop_table('market_candles')
+    op.drop_index('ix_market_instruments_ticker', table_name='market_instruments')
+    op.drop_table('market_instruments')

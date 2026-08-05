@@ -50,7 +50,7 @@ class PortfolioUpdaterRobot(BaseRobot):
             user_id=user_id,
             token_id=token_id,
             context_type="portfolio_updater",
-            context_ref=str(robot_id),
+            context_ref=str(robot_id)
         )
 
         caller = str(kwargs.get("caller") or "scheduler")
@@ -73,7 +73,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                     response_status=200,
                     token_id=token_id,
                     user_id=user_id,
-                    started_at=started_at,
+                    started_at=started_at
                 )
             except Exception as e:
                 await self.log_api_call(
@@ -81,7 +81,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                     error_message=str(e),
                     token_id=token_id,
                     user_id=user_id,
-                    started_at=started_at,
+                    started_at=started_at
                 )
                 if broker_type == "bybit" and self._is_bybit_auth_error(e):
                     self._handle_bybit_auth_failure(token_id=token_id, user_id=user_id, error=e)
@@ -110,7 +110,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                             response_status=200,
                             token_id=token_id,
                             user_id=user_id,
-                            started_at=portfolio_started,
+                            started_at=portfolio_started
                         )
                     except Exception as e:
                         await self.log_api_call(
@@ -119,7 +119,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                             error_message=str(e),
                             token_id=token_id,
                             user_id=user_id,
-                            started_at=portfolio_started,
+                            started_at=portfolio_started
                         )
                         raise
 
@@ -129,7 +129,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                         user_id=user_id,
                         account_id=account["id"],
                         account_data=account,
-                        portfolio_data={"portfolio": portfolio_data},
+                        portfolio_data={"portfolio": portfolio_data}
                     )
 
                     if snapshot_id:
@@ -137,7 +137,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                         account_in_db = portfolio_svc._execute(
                             tinvest_queries.build_get_account_by_id_query(),
                             {"user_id": user_id, "account_id": account["id"]},
-                            fetch_one=True,
+                            fetch_one=True
                         )
                         if account_in_db:
                             portfolio_svc._execute(
@@ -146,7 +146,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                                     "account_id": account_in_db[0],
                                     "now": datetime.now(timezone.utc),
                                     "token_id": token_id,
-                                },
+                                }
                             )
                             if sync_operations:
                                 await self._sync_operations_for_account(
@@ -156,7 +156,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                                     user_id=user_id,
                                     token_id=token_id,
                                     account=account,
-                                    max_operation_pages=max_operation_pages,
+                                    max_operation_pages=max_operation_pages
                                 )
                                 await self._sync_orders_for_account(
                                     facade=facade,
@@ -164,7 +164,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                                     broker_type=broker_type,
                                     user_id=user_id,
                                     robot_id=robot_id,
-                                    account=account,
+                                    account=account
                                 )
                             else:
                                 self.log.info("    ↻ Синхронизация операций пропущена (быстрый режим)")
@@ -172,7 +172,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                             self._sync_daily_universe_from_portfolio(
                                 robot_id=robot_id,
                                 portfolio_data=portfolio_data,
-                                snapshot_id=snapshot_id,
+                                snapshot_id=snapshot_id
                             )
                         snapshots_saved += 1
                     else:
@@ -186,7 +186,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                     elif broker_type == "bybit" and self._is_bybit_permission_error(e):
                         self.log.warning(
                             "    ↷ ByBit permission gap on account %s — skip account, keep token active",
-                            account.get("id"),
+                            account.get("id")
                         )
 
                 portfolios_updated += 1
@@ -226,19 +226,19 @@ class PortfolioUpdaterRobot(BaseRobot):
             user_id: int,
             token_id: int,
             account: Dict[str, Any],
-            max_operation_pages: int,
+            max_operation_pages: int
     ) -> None:
         account_in_db = portfolio_svc._execute(
             tinvest_queries.build_get_account_by_id_query(),
             {"user_id": user_id, "account_id": account["id"]},
-            fetch_one=True,
+            fetch_one=True
         )
         if not account_in_db:
             return
         latest_op = portfolio_svc._execute(
             tinvest_queries.build_get_latest_operation_date_query(),
             {"account_db_id": account_in_db[0]},
-            fetch_one=True,
+            fetch_one=True
         )
         from_dt = (
             latest_op[0]
@@ -250,7 +250,7 @@ class PortfolioUpdaterRobot(BaseRobot):
             "    ↻ Синхронизация операций %s..%s (макс. %s стр.)...",
             from_dt.isoformat(),
             to_dt.isoformat(),
-            max_operation_pages,
+            max_operation_pages
         )
         ops_started = datetime.now(timezone.utc)
         try:
@@ -258,7 +258,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                 account["id"],
                 from_dt,
                 to_dt,
-                max_pages=max_operation_pages,
+                max_pages=max_operation_pages
             )
             await self.log_api_call(
                 endpoint=f"{broker_type}.get_operations",
@@ -272,7 +272,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                 response_status=200,
                 token_id=token_id,
                 user_id=user_id,
-                started_at=ops_started,
+                started_at=ops_started
             )
             sync_result = portfolio_svc.sync_account_operations_from_items(
                 db=self.db,
@@ -281,12 +281,12 @@ class PortfolioUpdaterRobot(BaseRobot):
                 from_dt=from_dt,
                 to_dt=to_dt,
                 operations=list(operations or []),
-                token_id=token_id,
+                token_id=token_id
             )
             self.log.info(
                 "    ↻ Операции синхронизированы: saved=%s, received=%s",
                 sync_result.get("saved_operations"),
-                sync_result.get("total_received"),
+                sync_result.get("total_received")
             )
         except Exception as e:
             await self.log_api_call(
@@ -295,7 +295,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                 error_message=str(e),
                 token_id=token_id,
                 user_id=user_id,
-                started_at=ops_started,
+                started_at=ops_started
             )
             self.log.warning("    ⚠️ Не удалось синхронизировать операции: %s", e)
             self.db.commit()
@@ -308,14 +308,14 @@ class PortfolioUpdaterRobot(BaseRobot):
             broker_type: str,
             user_id: int,
             robot_id: int,
-            account: Dict[str, Any],
+            account: Dict[str, Any]
     ) -> None:
         """Upsert open + history orders into portfolio_orders; Filled → portfolio_operations."""
         from app.modules.portfolio.order_registry import (
             SOURCE_EXTERNAL,
             parse_broker_order_date,
             resolve_portfolio_account_pk,
-            upsert_broker_order,
+            upsert_broker_order
         )
 
         # ByBit: trading orders belong to UNIFIED. FUND/COPY must not import the same
@@ -339,7 +339,7 @@ class PortfolioUpdaterRobot(BaseRobot):
             if kind in {"FUND", "COPY"}:
                 self.log.info(
                     "    ↻ Заявки: skip %s (ByBit linear orders only on UNIFIED)",
-                    account.get("id"),
+                    account.get("id")
                 )
                 return
 
@@ -377,7 +377,7 @@ class PortfolioUpdaterRobot(BaseRobot):
         account_in_db = portfolio_svc._execute(
             tinvest_queries.build_get_account_by_id_query(),
             {"user_id": user_id, "account_id": account["id"]},
-            fetch_one=True,
+            fetch_one=True
         )
         if not account_in_db:
             pa_id = resolve_portfolio_account_pk(
@@ -425,7 +425,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                     ),
                     commit=False,
                     promote_filled=True,
-                    broker_prefix=broker_prefix,
+                    broker_prefix=broker_prefix
                 )
                 if result == "inserted":
                     imported += 1
@@ -471,7 +471,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                     ),
                     commit=False,
                     promote_filled=True,
-                    broker_prefix=broker_prefix,
+                    broker_prefix=broker_prefix
                 )
                 if result == "inserted":
                     imported += 1
@@ -488,7 +488,7 @@ class PortfolioUpdaterRobot(BaseRobot):
         self.log.info(
             "    ↻ Заявки синхронизированы: imported=%s upserted=%s",
             imported,
-            upserted,
+            upserted
         )
 
     def _sync_daily_universe_from_portfolio(self, robot_id: int, portfolio_data: Dict[str, Any], snapshot_id: int) -> None:
@@ -498,7 +498,7 @@ class PortfolioUpdaterRobot(BaseRobot):
         today = datetime.now(timezone.utc).date()
         insert_sql = text(
             f"""
-            INSERT INTO {self.schema}.daily_universe
+            INSERT INTO daily_universe
             (robot_id, trade_date, ticker, source, filter_result, reject_reason, snapshot_id, created_at)
             VALUES
             (:robot_id, :trade_date, :ticker, 'PORTFOLIO', 'ACCEPT', 'В портфеле', :snapshot_id, :created_at)
@@ -532,7 +532,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                     # Portfolio snapshot id относится к другой таблице, поэтому не используем его здесь.
                     "snapshot_id": None,
                     "created_at": now,
-                },
+                }
             )
         self.db.commit()
 
@@ -541,19 +541,19 @@ class PortfolioUpdaterRobot(BaseRobot):
             self._deactivate_token_and_disable_robots(
                 token_id=token_id,
                 user_id=user_id,
-                error_message=str(error),
+                error_message=str(error)
             )
             self.log.warning(
                 "ByBit token expired/invalid -> deactivated token_id=%s and disabled robots for user_id=%s",
                 token_id,
-                user_id,
+                user_id
             )
         except Exception as deact_exc:
             self.log.error(
                 "Failed to deactivate ByBit token token_id=%s user_id=%s: %s",
                 token_id,
                 user_id,
-                deact_exc,
+                deact_exc
             )
 
     @staticmethod
@@ -585,7 +585,7 @@ class PortfolioUpdaterRobot(BaseRobot):
             "api key is invalid",
             "unauthorized",
             "retcode=10003",
-            "retcode=10007",
+            "retcode=10007"
         )
         return any(m in msg for m in markers)
 
@@ -608,23 +608,23 @@ class PortfolioUpdaterRobot(BaseRobot):
                 LIMIT 1
                 """
             ),
-            {"schema": settings.DB_SCHEMA},
+            {"schema": settings.DB_SCHEMA}
         ).first())
         if has_status:
             self.db.execute(
                 text(
                     f"""
-                    UPDATE {self.schema}.api_tokens
+                    UPDATE api_tokens
                     SET status = 3, updated_at = :now
                     WHERE id = :token_id AND user_id = :user_id
                     """
                 ),
-                params,
+                params
             )
         self.db.execute(
             text(
                 f"""
-                UPDATE {self.schema}.robots
+                UPDATE robots
                 SET status = 2,
                     last_error = :error_message,
                     last_error_at = :now,
@@ -635,6 +635,6 @@ class PortfolioUpdaterRobot(BaseRobot):
                   AND status != 0
                 """
             ),
-            params,
+            params
         )
         self.db.commit()

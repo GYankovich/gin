@@ -24,8 +24,7 @@ def upgrade():
     # Добавляем колонку robot_id в существующую таблицу robot_logs
     op.add_column(
         'robot_logs',
-        sa.Column('robot_id', sa.BigInteger(), nullable=True),
-        schema=SCHEMA
+        sa.Column('robot_id', sa.BigInteger(), nullable=True)
     )
 
     # Добавляем внешний ключ
@@ -35,21 +34,19 @@ def upgrade():
         'robots',
         ['robot_id'],
         ['id'],
-        source_schema=SCHEMA,
-        referent_schema=SCHEMA,
         ondelete='CASCADE'
     )
 
     # Создаём индекс для новой колонки
-    op.create_index('ix_robot_logs_robot_id', 'robot_logs', ['robot_id'], schema=SCHEMA)
+    op.create_index('ix_robot_logs_robot_id', 'robot_logs', ['robot_id'])
 
 
 def downgrade():
     # Удаляем внешний ключ
-    op.drop_constraint('fk_robot_logs_robot_id', 'robot_logs', schema=SCHEMA, type_='foreignkey')
+    op.drop_constraint('fk_robot_logs_robot_id', 'robot_logs', type_='foreignkey')
 
     # Удаляем индекс
-    op.drop_index('ix_robot_logs_robot_id', table_name='robot_logs', schema=SCHEMA)
+    op.drop_index('ix_robot_logs_robot_id', table_name='robot_logs')
 
     # Удаляем колонку
-    op.drop_column('robot_logs', 'robot_id', schema=SCHEMA)
+    op.drop_column('robot_logs', 'robot_id')

@@ -24,12 +24,12 @@ def has_active_job(db: Session, *, idempotency_key: str) -> bool:
     row = db.execute(
         text(f"""
             SELECT 1
-            FROM {Schema}.background_jobs
+            FROM background_jobs
             WHERE idempotency_key = :ik
               AND status IN ('queued', 'running')
             LIMIT 1
         """),
-        {"ik": idempotency_key[:160]},
+        {"ik": idempotency_key[:160]}
     ).first()
     return row is not None
 
@@ -39,7 +39,7 @@ def find_latest_job_for_robot(
     *,
     job_type: str,
     robot_id: int,
-    statuses: Optional[tuple] = None,
+    statuses: Optional[tuple] = None
 ) -> Optional[Dict[str, Any]]:
     """Latest background_jobs row for robot_id in payload (optionally filtered by status)."""
     params: Dict[str, Any] = {
@@ -58,14 +58,14 @@ def find_latest_job_for_robot(
         text(f"""
             SELECT id, lane, job_type, status, created_at, started_at, finished_at,
                    error, message, payload
-            FROM {Schema}.background_jobs
+            FROM background_jobs
             WHERE job_type = :job_type
               AND (payload->>'robot_id') = :rid
               {status_clause}
             ORDER BY created_at DESC
             LIMIT 1
         """),
-        params,
+        params
     ).mappings().first()
     return dict(row) if row else None
 
@@ -76,13 +76,13 @@ def find_background_job_for_backtest_run(db: Session, run_id: int) -> Optional[D
     row = db.execute(
         text(f"""
             SELECT id, lane, job_type, status, created_at, started_at, finished_at, error, message
-            FROM {Schema}.background_jobs
+            FROM background_jobs
             WHERE idempotency_key = :ik
                OR payload->>'run_id' = :rid
             ORDER BY created_at DESC
             LIMIT 1
         """),
-        {"ik": ik, "rid": str(int(run_id))},
+        {"ik": ik, "rid": str(int(run_id))}
     ).mappings().first()
     return dict(row) if row else None
 
@@ -95,7 +95,7 @@ def enqueue_background_job(
     payload: Dict[str, Any],
     idempotency_key: Optional[str] = None,
     priority: int = 0,
-    run_after: Optional[datetime] = None,
+    run_after: Optional[datetime] = None
 ) -> Optional[UUID]:
     """Insert job; returns None if idempotency_key already has queued/running job."""
     ik = (idempotency_key or "")[:160] or None
@@ -104,7 +104,7 @@ def enqueue_background_job(
 
     row = db.execute(
         text(f"""
-            INSERT INTO {Schema}.background_jobs
+            INSERT INTO background_jobs
                 (lane, job_type, status, priority, payload, idempotency_key, run_after)
             VALUES
                 (:lane, :job_type, 'queued', :priority, CAST(:payload AS jsonb), :ik, :run_after)
@@ -117,7 +117,7 @@ def enqueue_background_job(
             "payload": _json_payload(payload),
             "ik": ik,
             "run_after": run_after,
-        },
+        }
     ).scalar()
     return row
 
@@ -127,7 +127,7 @@ def claim_next_background_job(db: Session, *, lane: str) -> Optional[Dict[str, A
         text(f"""
             WITH c AS (
                 SELECT id
-                FROM {Schema}.background_jobs
+                FROM background_jobs
                 WHERE lane = :lane
                   AND status = 'queued'
                   AND (run_after IS NULL OR run_after <= CURRENT_TIMESTAMP)
@@ -135,7 +135,7 @@ def claim_next_background_job(db: Session, *, lane: str) -> Optional[Dict[str, A
                 LIMIT 1
                 FOR UPDATE SKIP LOCKED
             )
-            UPDATE {Schema}.background_jobs j
+            UPDATE background_jobs j
             SET status = 'running',
                 started_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP,
@@ -145,7 +145,7 @@ def claim_next_background_job(db: Session, *, lane: str) -> Optional[Dict[str, A
             WHERE j.id = c.id
             RETURNING j.id, j.lane, j.job_type, j.payload, j.attempts, j.idempotency_key
         """),
-        {"lane": lane},
+        {"lane": lane}
     ).mappings().first()
     if not row:
         return None
@@ -160,18 +160,18 @@ def complete_background_job(
     db: Session,
     job_id: UUID,
     *,
-    message: Optional[str] = None,
+    message: Optional[str] = None
 ) -> None:
     db.execute(
         text(f"""
-            UPDATE {Schema}.background_jobs
+            UPDATE background_jobs
             SET status = 'done',
                 message = COALESCE(:message, message),
                 finished_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = :id
         """),
-        {"id": job_id, "message": message},
+        {"id": job_id, "message": message}
     )
 
 
@@ -180,11 +180,11 @@ def fail_background_job(
     job_id: UUID,
     error: str,
     *,
-    message: Optional[str] = None,
+    message: Optional[str] = None
 ) -> None:
     db.execute(
         text(f"""
-            UPDATE {Schema}.background_jobs
+            UPDATE background_jobs
             SET status = 'failed',
                 error = :error,
                 message = COALESCE(:message, 'failed'),
@@ -192,7 +192,7 @@ def fail_background_job(
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = :id
         """),
-        {"id": job_id, "error": str(error)[:4000], "message": message},
+        {"id": job_id, "error": str(error)[:4000], "message": message}
     )
 
 
@@ -200,7 +200,7 @@ def cancel_live_session_jobs_for_robot(
     db: Session,
     *,
     robot_id: int,
-    reason: str = "robot disabled",
+    reason: str = "robot disabled"
 ) -> int:
     """
     Stop signal for live: mark queued/running live_trading_session jobs for robot as failed.
@@ -208,7 +208,7 @@ def cancel_live_session_jobs_for_robot(
     """
     result = db.execute(
         text(f"""
-            UPDATE {Schema}.background_jobs
+            UPDATE background_jobs
             SET status = 'failed',
                 error = :error,
                 message = :message,
@@ -222,7 +222,7 @@ def cancel_live_session_jobs_for_robot(
             "rid": str(int(robot_id)),
             "error": str(reason)[:4000],
             "message": "cancelled (robot status off)",
-        },
+        }
     )
     try:
         return int(result.rowcount or 0)
@@ -234,12 +234,12 @@ def touch_background_job(db: Session, job_id: UUID) -> None:
     """Heartbeat: keep long-running jobs from looking stale."""
     db.execute(
         text(f"""
-            UPDATE {Schema}.background_jobs
+            UPDATE background_jobs
             SET updated_at = CURRENT_TIMESTAMP
             WHERE id = :id
               AND status = 'running'
         """),
-        {"id": job_id},
+        {"id": job_id}
     )
 
 
@@ -253,7 +253,7 @@ def fail_stale_background_jobs(db: Session, *, stale_seconds: int) -> int:
         return 0
     row = db.execute(
         text(f"""
-            UPDATE {Schema}.background_jobs
+            UPDATE background_jobs
             SET status = 'failed',
                 error = COALESCE(error, 'stale running job timeout'),
                 message = 'failed (stale timeout)',
@@ -263,7 +263,7 @@ def fail_stale_background_jobs(db: Session, *, stale_seconds: int) -> int:
               AND job_type NOT IN ('live_trading_session')
               AND updated_at < (CURRENT_TIMESTAMP - make_interval(secs => :stale_seconds))
         """),
-        {"stale_seconds": int(stale_seconds)},
+        {"stale_seconds": int(stale_seconds)}
     )
     return int(row.rowcount or 0)
 
@@ -274,7 +274,7 @@ def fail_stale_live_session_jobs(db: Session, *, stale_seconds: int) -> int:
         return 0
     row = db.execute(
         text(f"""
-            UPDATE {Schema}.background_jobs
+            UPDATE background_jobs
             SET status = 'failed',
                 error = COALESCE(error, 'stale live session (no heartbeat)'),
                 message = 'failed (live session stale)',
@@ -284,7 +284,7 @@ def fail_stale_live_session_jobs(db: Session, *, stale_seconds: int) -> int:
               AND job_type = 'live_trading_session'
               AND updated_at < (CURRENT_TIMESTAMP - make_interval(secs => :stale_seconds))
         """),
-        {"stale_seconds": int(stale_seconds)},
+        {"stale_seconds": int(stale_seconds)}
     )
     return int(row.rowcount or 0)
 
@@ -297,7 +297,7 @@ def fail_orphaned_live_session_jobs(db: Session, *, lane: Optional[str] = None) 
         params["lane"] = lane
     row = db.execute(
         text(f"""
-            UPDATE {Schema}.background_jobs
+            UPDATE background_jobs
             SET status = 'failed',
                 error = COALESCE(error, 'orphaned live session after worker restart'),
                 message = 'failed (orphan reset on worker start)',
@@ -307,6 +307,6 @@ def fail_orphaned_live_session_jobs(db: Session, *, lane: Optional[str] = None) 
               AND job_type = 'live_trading_session'
               {lane_clause}
         """),
-        params,
+        params
     )
     return int(row.rowcount or 0)

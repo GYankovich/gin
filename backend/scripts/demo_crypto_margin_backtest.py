@@ -56,7 +56,7 @@ async def _bootstrap_from_sim_broker(
     figis: List[str],
     strategy_params: Dict,
     log_func=None,
-    **_,
+    **_
 ) -> None:
     from app.modules.robots.trading.cache import get_candles_cache
     from app.modules.robots.trading.indicators.service import indicator_service
@@ -79,7 +79,7 @@ async def _on_closed_candle_no_db(
     figi: str,
     candle: Dict,
     strategy_params: Dict,
-    **_,
+    **_
 ) -> None:
     from app.modules.robots.trading.cache import get_candles_cache
     from app.modules.robots.trading.indicators.service import BOOTSTRAP_INTERVAL, indicator_service
@@ -165,7 +165,7 @@ async def main() -> int:
         taker_fee_rate=taker_fee,
         ndfl_rate=ndfl,
         backtest_fee_model=resolve_backtest_fee_model(config),
-        robot_config=config,
+        robot_config=config
     )
 
     mock_db = MagicMock()
@@ -181,7 +181,7 @@ async def main() -> int:
             config=config,
             log_func=lambda msg: None,
             sim_broker=sim,
-            allowed_figis_by_date=allowed,
+            allowed_figis_by_date=allowed
         )
 
     async def _noop_refresh() -> None:
@@ -198,7 +198,7 @@ async def main() -> int:
 
     with (
         patch.object(ind_svc.indicator_service, "bootstrap_candles_at_startup", _bootstrap_from_sim_broker),
-        patch.object(ind_svc.indicator_service, "on_closed_candle", _on_closed_candle_no_db),
+        patch.object(ind_svc.indicator_service, "on_closed_candle", _on_closed_candle_no_db)
     ):
         result = await session.run_history_replay(candles_by_figi=candles_by_figi)
 

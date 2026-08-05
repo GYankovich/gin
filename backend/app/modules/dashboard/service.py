@@ -40,7 +40,7 @@ class DashboardService:
                     COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_INPUT' THEN payment ELSE 0 END), 0)
                     -
                     COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_OUTPUT' THEN ABS(payment) ELSE 0 END), 0)
-                FROM ganaly.portfolio_operations
+                FROM portfolio_operations
                 WHERE account_id = :account_id
                 """
             ),
@@ -58,7 +58,7 @@ class DashboardService:
             text(
                 """
                 SELECT total_amount_portfolio, snapshot_date, daily_yield, currency
-                FROM ganaly.portfolio_snapshots
+                FROM portfolio_snapshots
                 WHERE account_id = :account_id
                 ORDER BY snapshot_date DESC
                 LIMIT 1
@@ -72,7 +72,7 @@ class DashboardService:
             text(
                 """
                 SELECT total_amount_portfolio
-                FROM ganaly.portfolio_snapshots
+                FROM portfolio_snapshots
                 WHERE account_id = :account_id
                   AND snapshot_date < date_trunc('day', CAST(:latest_ts AS timestamptz))
                 ORDER BY snapshot_date DESC
@@ -101,7 +101,7 @@ class DashboardService:
             text(
                 """
                 SELECT MIN(snapshot_date)
-                FROM ganaly.portfolio_snapshots
+                FROM portfolio_snapshots
                 WHERE account_id = :account_id
                 """
             ),
@@ -366,8 +366,8 @@ class DashboardService:
                         COALESCE(ps.total_amount_currencies, 0) AS currencies,
                         COALESCE(ps.total_amount_futures, 0) AS futures,
                         COALESCE(ps.total_amount_options, 0) AS options
-                    FROM ganaly.portfolio_snapshots ps
-                    INNER JOIN ganaly.portfolio_accounts pa
+                    FROM portfolio_snapshots ps
+                    INNER JOIN portfolio_accounts pa
                         ON pa.id = ps.account_id
                     WHERE pa.user_id = :user_id
                       AND pa.account_status = 'OPEN'
@@ -400,7 +400,7 @@ class DashboardService:
                         SUM(pp.daily_yield) AS day_delta,
                         BOOL_OR(pp.daily_yield IS NOT NULL) AS has_day_delta
                     FROM latest_snapshots ls
-                    INNER JOIN ganaly.portfolio_positions pp
+                    INNER JOIN portfolio_positions pp
                         ON pp.snapshot_id = ls.snapshot_id
                     GROUP BY ls.currency, pp.instrument_type
                 ),
@@ -414,7 +414,7 @@ class DashboardService:
                     LEFT JOIN day_by_type dy
                         ON dy.currency = s.currency
                        AND dy.instrument_type = s.instrument_type
-                    LEFT JOIN ganaly.dictionary d
+                    LEFT JOIN dictionary d
                         ON d.table_name = 'PORTFOLIO_POSITIONS'
                        AND d.column_name = 'INSTRUMENT_TYPE'
                        AND d.string_value = s.instrument_type

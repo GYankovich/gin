@@ -66,7 +66,7 @@ def harden_crypto_robot_config(
     *,
     min_last_price_floor: float = DEFAULT_MIN_LAST_PRICE,
     min_oi_floor: float = DEFAULT_MIN_OI_USD,
-    force_no_margin: bool = False,
+    force_no_margin: bool = False
 ) -> Tuple[Dict[str, Any], List[str]]:
     """Return (new_config, change_notes). No-op for non-bybit configs."""
     cfg = copy.deepcopy(dict(raw or {}))
@@ -156,7 +156,7 @@ def main() -> int:
     p.add_argument(
         "--no-margin",
         action="store_true",
-        help="Force bybit.leverage=0 and risk.max_leverage=0 (no margin trading)",
+        help="Force bybit.leverage=0 and risk.max_leverage=0 (no margin trading)"
     )
     p.add_argument("--min-last-price", type=float, default=DEFAULT_MIN_LAST_PRICE)
     p.add_argument("--min-oi", type=float, default=DEFAULT_MIN_OI_USD)
@@ -179,8 +179,8 @@ def main() -> int:
             params["uid"] = args.user_id
         where = " AND ".join(clauses)
         rows = db.execute(
-            text(f"SELECT id, type, name, config FROM {schema}.robots WHERE {where} ORDER BY id"),
-            params,
+            text(f"SELECT id, type, name, config FROM robots WHERE {where} ORDER BY id"),
+            params
         ).mappings().all()
 
         updated = 0
@@ -192,7 +192,7 @@ def main() -> int:
                 raw,
                 min_last_price_floor=float(args.min_last_price),
                 min_oi_floor=float(args.min_oi),
-                force_no_margin=bool(args.no_margin),
+                force_no_margin=bool(args.no_margin)
             )
             changed = not config_equals(raw, hardened)
             print(f"robot_id={rid} name={name!r} {'CHANGED' if changed else 'ok'}")
@@ -200,8 +200,8 @@ def main() -> int:
                 print(f"  - {n}")
             if changed and not args.dry_run:
                 db.execute(
-                    text(f"UPDATE {schema}.robots SET config = CAST(:cfg AS jsonb) WHERE id = :rid"),
-                    {"cfg": json.dumps(hardened, ensure_ascii=False), "rid": rid},
+                    text(f"UPDATE robots SET config = CAST(:cfg AS jsonb) WHERE id = :rid"),
+                    {"cfg": json.dumps(hardened, ensure_ascii=False), "rid": rid}
                 )
                 updated += 1
 

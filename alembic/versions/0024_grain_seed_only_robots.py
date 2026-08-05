@@ -21,12 +21,12 @@ depends_on = None
 
 def upgrade():
     # 1) Все роботы переводим на trading-type, чтобы UI/API работали единообразно.
-    op.execute(f"UPDATE {SCHEMA}.robots SET type = 2 WHERE type <> 2")
+    op.execute(f"UPDATE robots SET type = 2 WHERE type <> 2")
 
     # 2) Нормализуем config в grain_seed-формат.
     op.execute(
         f"""
-        UPDATE {SCHEMA}.robots
+        UPDATE robots
         SET config = jsonb_set(
             jsonb_set(
                 jsonb_set(
@@ -55,7 +55,7 @@ def upgrade():
     # 3) Обновляем интервал цикла для роботов без значения.
     op.execute(
         f"""
-        UPDATE {SCHEMA}.robots
+        UPDATE robots
         SET config = jsonb_set(config::jsonb, '{{update_interval_seconds}}', '10'::jsonb, true)
         WHERE COALESCE((config::jsonb->>'update_interval_seconds'), '') = ''
         """
@@ -64,7 +64,7 @@ def upgrade():
     # 4) Добавляем ключ force_market_flatten по умолчанию в strategy_params.
     op.execute(
         f"""
-        UPDATE {SCHEMA}.robots
+        UPDATE robots
         SET config = jsonb_set(
             config::jsonb,
             '{{strategy_params,force_market_flatten}}',
@@ -78,7 +78,7 @@ def upgrade():
     # Тип стратегии
     op.execute(
         f"""
-        INSERT INTO {SCHEMA}.dictionary 
+        INSERT INTO dictionary 
             (table_name, column_name, num_value, name, description, hide_from_ui)
         VALUES 
             ('ROBOT_STRATEGIES', 'TYPE', 1, 'По зернышку, по семечку', 'Медленно, но аккуратно зарабатываем', 0)

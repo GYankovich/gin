@@ -26,8 +26,8 @@ def fetch_successful_backtests(
             bm.trades_total,
             bm.sharpe_ratio,
             COALESCE(bm.payload, '{{}}'::jsonb) AS payload
-        FROM {schema}.backtest_runs br
-        LEFT JOIN {schema}.backtest_metrics bm ON bm.run_id = br.id
+        FROM backtest_runs br
+        LEFT JOIN backtest_metrics bm ON bm.run_id = br.id
         WHERE br.robot_id = :robot_id
           AND br.status = 'SUCCESS'
         ORDER BY br.started_at DESC
@@ -66,7 +66,7 @@ def fetch_failed_backtests(
             br.config_snapshot,
             br.started_at,
             br.error_message
-        FROM {schema}.backtest_runs br
+        FROM backtest_runs br
         WHERE {scope_sql}
           AND br.status = 'FAILED'
           AND COALESCE(br.error_message, '') <> ''
@@ -95,8 +95,8 @@ def fetch_latest_backtest_any_status(
             bm.trades_total,
             bm.sharpe_ratio,
             COALESCE(bm.payload, '{{}}'::jsonb) AS payload
-        FROM {schema}.backtest_runs br
-        LEFT JOIN {schema}.backtest_metrics bm ON bm.run_id = br.id
+        FROM backtest_runs br
+        LEFT JOIN backtest_metrics bm ON bm.run_id = br.id
         WHERE br.robot_id = :robot_id
         ORDER BY br.started_at DESC
         LIMIT 1
@@ -112,7 +112,7 @@ def fetch_risk_events_count(
 ) -> int:
     sql = f"""
         SELECT COUNT(*)::int
-        FROM {schema}.robot_risk_events
+        FROM robot_risk_events
         WHERE robot_id = :robot_id
           AND ts >= NOW() - make_interval(days => :days)
     """
@@ -133,7 +133,7 @@ def fetch_signal_execution_stats(
             COUNT(*) FILTER (WHERE was_executed = 1)::int AS executed
         FROM (
             SELECT was_executed
-            FROM {schema}.robot_signals
+            FROM robot_signals
             WHERE robot_id = :robot_id
             ORDER BY created_at DESC
             LIMIT :limit

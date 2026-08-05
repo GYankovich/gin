@@ -17,10 +17,10 @@ try:
             f"""
             SELECT id, status, run_phase, progress_percent, started_at,
                    cancel_requested, error_message, user_id, robot_id
-            FROM {schema}.backtest_runs WHERE id = :rid
+            FROM backtest_runs WHERE id = :rid
             """
         ),
-        {"rid": run_id},
+        {"rid": run_id}
     ).mappings().first()
     print("backtest_run:", dict(r) if r else None)
 
@@ -29,14 +29,14 @@ try:
             f"""
             SELECT id, lane, job_type, status, created_at, started_at,
                    finished_at, error, message, idempotency_key, payload
-            FROM {schema}.background_jobs
+            FROM background_jobs
             WHERE idempotency_key = :ik
                OR payload::text LIKE :pat
             ORDER BY created_at DESC
             LIMIT 5
             """
         ),
-        {"ik": f"history_backtest:{run_id}", "pat": f"%\"run_id\": {run_id}%"},
+        {"ik": f"history_backtest:{run_id}", "pat": f"%\"run_id\": {run_id}%"}
     ).mappings().all()
     print("related_jobs:")
     for j in jobs:
@@ -48,12 +48,12 @@ try:
         text(
             f"""
             SELECT id, lane, job_type, status, created_at
-            FROM {schema}.background_jobs
+            FROM background_jobs
             WHERE status = 'queued'
             ORDER BY created_at ASC
             LIMIT 20
             """
-        ),
+        )
     ).mappings().all()
     print("queued_jobs:", [dict(x) for x in queued])
     print("WORKER_EMBEDDED_ENABLED:", settings.WORKER_EMBEDDED_ENABLED)

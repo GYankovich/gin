@@ -24,18 +24,16 @@ depends_on = None
 def upgrade():
     op.add_column(
         "portfolio_accounts",
-        sa.Column("last_token_id", sa.BigInteger(), nullable=True),
-        schema=SCHEMA,
+        sa.Column("last_token_id", sa.BigInteger(), nullable=True)
     )
     op.create_index(
         "ix_portfolio_accounts_last_token_id",
         "portfolio_accounts",
         ["last_token_id"],
-        unique=False,
-        schema=SCHEMA,
+        unique=False
     )
 
 
 def downgrade():
-    op.drop_index("ix_portfolio_accounts_last_token_id", table_name="portfolio_accounts", schema=SCHEMA)
-    op.drop_column("portfolio_accounts", "last_token_id", schema=SCHEMA)
+    op.drop_index("ix_portfolio_accounts_last_token_id", table_name="portfolio_accounts")
+    op.drop_column("portfolio_accounts", "last_token_id")

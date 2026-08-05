@@ -37,7 +37,7 @@ def main() -> int:
     try:
         row = db.execute(
             text(
-                f"SELECT status FROM {settings.DB_SCHEMA}.backtest_runs WHERE id = :rid"
+                f"SELECT status FROM backtest_runs WHERE id = :rid"
             ),
             {"rid": run_id},
         ).mappings().first()

@@ -1,4 +1,4 @@
-"""Rename ganaly.api_tokens.is_active -> status
+"""Rename api_tokens.is_active -> status
 
 After this migration:
 - status=1: active token
@@ -21,13 +21,13 @@ depends_on = None
 
 def upgrade() -> None:
     # 1) Add new column
-    op.add_column("api_tokens", sa.Column("status", sa.Integer(), nullable=True), schema=SCHEMA)
+    op.add_column("api_tokens", sa.Column("status", sa.Integer(), nullable=True))
 
     # 2) Backfill from legacy is_active
     op.execute(
         sa.text(
             f"""
-            UPDATE {SCHEMA}.api_tokens
+            UPDATE api_tokens
             SET status = CASE
                 WHEN is_active = 1 THEN 1
                 ELSE 0
@@ -37,19 +37,19 @@ def upgrade() -> None:
     )
 
     # 3) Make it non-null (keep default for safety)
-    op.alter_column("api_tokens", "status", nullable=False, server_default=sa.text("1"), schema=SCHEMA)
+    op.alter_column("api_tokens", "status", nullable=False, server_default=sa.text("1"))
 
     # 4) Drop legacy column
-    op.drop_column("api_tokens", "is_active", schema=SCHEMA)
+    op.drop_column("api_tokens", "is_active")
 
 
 def downgrade() -> None:
     # Re-create is_active for rollback
-    op.add_column("api_tokens", sa.Column("is_active", sa.Integer(), nullable=True), schema=SCHEMA)
+    op.add_column("api_tokens", sa.Column("is_active", sa.Integer(), nullable=True))
     op.execute(
         sa.text(
             f"""
-            UPDATE {SCHEMA}.api_tokens
+            UPDATE api_tokens
             SET is_active = CASE
                 WHEN status = 1 THEN 1
                 ELSE 0
@@ -57,7 +57,7 @@ def downgrade() -> None:
             """
         )
     )
-    op.alter_column("api_tokens", "is_active", nullable=False, server_default=sa.text("1"), schema=SCHEMA)
+    op.alter_column("api_tokens", "is_active", nullable=False, server_default=sa.text("1"))
 
-    op.drop_column("api_tokens", "status", schema=SCHEMA)
+    op.drop_column("api_tokens", "status")
 
