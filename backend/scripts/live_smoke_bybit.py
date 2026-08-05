@@ -29,7 +29,7 @@ def _load_token_from_db(token_id: int) -> tuple[str, dict[str, Any]]:
             text(
                 f"""
                 SELECT token, extra_data
-                FROM {settings.DB_SCHEMA}.api_tokens
+                FROM api_tokens
                 WHERE id = :tid AND is_active = 1
                 """
             ),

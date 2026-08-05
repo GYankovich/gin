@@ -22,8 +22,8 @@ depends_on = None
 
 def upgrade():
     # Удаляем старые таблицы полностью
-    op.execute(f"DROP TABLE IF EXISTS {SCHEMA}.robot_trades CASCADE")
-    op.execute(f"DROP TABLE IF EXISTS {SCHEMA}.trading_robots CASCADE")
+    op.execute(f"DROP TABLE IF EXISTS robot_trades CASCADE")
+    op.execute(f"DROP TABLE IF EXISTS trading_robots CASCADE")
 
     # Удаляем также старые индексы (они удалятся автоматически с таблицами)
     print("✅ Старые таблицы robot_trades и trading_robots удалены")
@@ -55,9 +55,8 @@ def downgrade():
         sa.Column('last_run_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(['user_id'], [f'{SCHEMA}.user.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['token_id'], [f'{SCHEMA}.api_tokens.id'], ondelete='CASCADE'),
-        schema=SCHEMA,
+        sa.ForeignKeyConstraint(['user_id'], [f'user.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['token_id'], [f'api_tokens.id'], ondelete='CASCADE')
     )
 
     # Воссоздаем robot_trades (пустую)
@@ -77,8 +76,7 @@ def downgrade():
         sa.Column('profit', sa.Float(), nullable=True),
         sa.Column('status', sa.String(20), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.ForeignKeyConstraint(['robot_id'], [f'{SCHEMA}.trading_robots.id'], ondelete='CASCADE'),
-        schema=SCHEMA,
+        sa.ForeignKeyConstraint(['robot_id'], [f'trading_robots.id'], ondelete='CASCADE')
     )
 
     print("⚠️ Воссозданы пустые таблицы trading_robots и robot_trades для целостности миграций")

@@ -42,7 +42,7 @@ class LiveDataProvider(DataProvider):
         *,
         db: Optional[Session] = None,
         board: str = "TQBR",
-        user_id: Optional[int] = None,
+        user_id: Optional[int] = None
     ):
         self.broker = broker
         self.db = db
@@ -57,7 +57,7 @@ class LiveDataProvider(DataProvider):
             from app.core.config import settings
             schema = settings.DB_SCHEMA
             rows = self.db.execute(
-                text(f"SELECT secid FROM {schema}.tqbr_securities ORDER BY secid")
+                text(f"SELECT secid FROM tqbr_securities ORDER BY secid")
             ).fetchall()
             return [str(r[0]) for r in rows if r and r[0]]
         return []
@@ -70,7 +70,7 @@ class LiveDataProvider(DataProvider):
                 as_of=datetime.now(timezone.utc),
                 trade_date=trade_date,
                 board=self.board,
-                rows={},
+                rows={}
             )
         # В live путь к снапшоту тот же, что в backtest: ищем последний свежий
         # снимок в market_snapshot_history. Это закрывает зазор §3.0.1 BRD-ARCH-02
@@ -149,7 +149,7 @@ class LiveDataProvider(DataProvider):
                     low=price,
                     close=price,
                     volume=0,
-                    figi=event.get("figi"),
+                    figi=event.get("figi")
                 )
         finally:
             try:

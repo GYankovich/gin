@@ -25,29 +25,26 @@ def upgrade():
     # Добавляем поле для JSON схемы валидации в robot_configs
     op.add_column(
         'robot_configs',
-        sa.Column('validation_schema', JSON(), nullable=True),
-        schema=SCHEMA
+        sa.Column('validation_schema', JSON(), nullable=True)
     )
 
     # Добавляем поле для порядка отображения
     op.add_column(
         'robot_configs',
-        sa.Column('display_order', sa.Integer(), nullable=False, server_default='0'),
-        schema=SCHEMA
+        sa.Column('display_order', sa.Integer(), nullable=False, server_default='0')
     )
 
     # Добавляем поле для группировки конфигураций
     op.add_column(
         'robot_configs',
-        sa.Column('config_group', sa.String(length=50), nullable=True),
-        schema=SCHEMA
+        sa.Column('config_group', sa.String(length=50), nullable=True)
     )
 
     print("✅ Added validation fields to robot_configs.")
 
 
 def downgrade():
-    op.drop_column('robot_configs', 'validation_schema', schema=SCHEMA)
-    op.drop_column('robot_configs', 'display_order', schema=SCHEMA)
-    op.drop_column('robot_configs', 'config_group', schema=SCHEMA)
+    op.drop_column('robot_configs', 'validation_schema')
+    op.drop_column('robot_configs', 'display_order')
+    op.drop_column('robot_configs', 'config_group')
     print("⚠️ Validation fields removed from robot_configs.")

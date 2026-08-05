@@ -35,26 +35,23 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True),
-        schema=SCHEMA,
+        sa.Column("finished_at", sa.DateTime(timezone=True), nullable=True)
     )
     op.create_index(
         "ix_background_jobs_lane_status_priority",
         "background_jobs",
-        ["lane", "status", "priority", "created_at"],
-        schema=SCHEMA,
+        ["lane", "status", "priority", "created_at"]
     )
     op.create_index(
         "ix_background_jobs_idempotency_active",
         "background_jobs",
         ["idempotency_key"],
         unique=False,
-        schema=SCHEMA,
-        postgresql_where=sa.text("status IN ('queued', 'running')"),
+        postgresql_where=sa.text("status IN ('queued', 'running')")
     )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_background_jobs_idempotency_active", table_name="background_jobs", schema=SCHEMA)
-    op.drop_index("ix_background_jobs_lane_status_priority", table_name="background_jobs", schema=SCHEMA)
-    op.drop_table("background_jobs", schema=SCHEMA)
+    op.drop_index("ix_background_jobs_idempotency_active", table_name="background_jobs")
+    op.drop_index("ix_background_jobs_lane_status_priority", table_name="background_jobs")
+    op.drop_table("background_jobs")

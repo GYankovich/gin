@@ -4,9 +4,11 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "nginx:start": "powershell -ExecutionPolicy Bypass -File ./scripts/start-public.ps1 -SkipBuild",
+    "start:prod": "powershell -ExecutionPolicy Bypass -File ./scripts/start-public.ps1 -Build"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",

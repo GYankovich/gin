@@ -21,9 +21,9 @@ depends_on = None
 
 def upgrade() -> None:
     op.execute(f"""
-        CREATE TABLE IF NOT EXISTS {SCHEMA}.backtest_runs (
+        CREATE TABLE IF NOT EXISTS backtest_runs (
             id BIGSERIAL PRIMARY KEY,
-            robot_id BIGINT NOT NULL REFERENCES {SCHEMA}.robots(id) ON DELETE CASCADE,
+            robot_id BIGINT NOT NULL REFERENCES robots(id) ON DELETE CASCADE,
             requested_from TIMESTAMPTZ NOT NULL,
             requested_to TIMESTAMPTZ NOT NULL,
             started_at TIMESTAMPTZ NOT NULL,
@@ -38,9 +38,9 @@ def upgrade() -> None:
         )
     """)
     op.execute(f"""
-        CREATE TABLE IF NOT EXISTS {SCHEMA}.backtest_portfolio_snapshots (
+        CREATE TABLE IF NOT EXISTS backtest_portfolio_snapshots (
             id BIGSERIAL PRIMARY KEY,
-            run_id BIGINT NOT NULL REFERENCES {SCHEMA}.backtest_runs(id) ON DELETE CASCADE,
+            run_id BIGINT NOT NULL REFERENCES backtest_runs(id) ON DELETE CASCADE,
             snapshot_time TIMESTAMPTZ NOT NULL,
             cash_balance NUMERIC(20,4) NOT NULL,
             equity NUMERIC(20,4) NOT NULL,
@@ -48,9 +48,9 @@ def upgrade() -> None:
         )
     """)
     op.execute(f"""
-        CREATE TABLE IF NOT EXISTS {SCHEMA}.backtest_signals (
+        CREATE TABLE IF NOT EXISTS backtest_signals (
             id BIGSERIAL PRIMARY KEY,
-            run_id BIGINT NOT NULL REFERENCES {SCHEMA}.backtest_runs(id) ON DELETE CASCADE,
+            run_id BIGINT NOT NULL REFERENCES backtest_runs(id) ON DELETE CASCADE,
             signal_time TIMESTAMPTZ NULL,
             figi VARCHAR(20) NOT NULL,
             signal_type VARCHAR(20) NOT NULL,
@@ -60,9 +60,9 @@ def upgrade() -> None:
         )
     """)
     op.execute(f"""
-        CREATE TABLE IF NOT EXISTS {SCHEMA}.backtest_orders (
+        CREATE TABLE IF NOT EXISTS backtest_orders (
             id BIGSERIAL PRIMARY KEY,
-            run_id BIGINT NOT NULL REFERENCES {SCHEMA}.backtest_runs(id) ON DELETE CASCADE,
+            run_id BIGINT NOT NULL REFERENCES backtest_runs(id) ON DELETE CASCADE,
             signal_time TIMESTAMPTZ NULL,
             figi VARCHAR(20) NOT NULL,
             side VARCHAR(10) NOT NULL,
@@ -78,9 +78,9 @@ def upgrade() -> None:
         )
     """)
     op.execute(f"""
-        CREATE TABLE IF NOT EXISTS {SCHEMA}.backtest_metrics (
+        CREATE TABLE IF NOT EXISTS backtest_metrics (
             id BIGSERIAL PRIMARY KEY,
-            run_id BIGINT NOT NULL REFERENCES {SCHEMA}.backtest_runs(id) ON DELETE CASCADE,
+            run_id BIGINT NOT NULL REFERENCES backtest_runs(id) ON DELETE CASCADE,
             total_return_percent NUMERIC(12,6) NULL,
             max_drawdown_percent NUMERIC(12,6) NULL,
             sharpe_ratio NUMERIC(12,6) NULL,
@@ -92,22 +92,22 @@ def upgrade() -> None:
         )
     """)
 
-    op.execute(f"CREATE INDEX IF NOT EXISTS ix_backtest_runs_robot_created ON {SCHEMA}.backtest_runs(robot_id, started_at DESC)")
-    op.execute(f"CREATE INDEX IF NOT EXISTS ix_backtest_portfolio_run_id ON {SCHEMA}.backtest_portfolio_snapshots(run_id)")
-    op.execute(f"CREATE INDEX IF NOT EXISTS ix_backtest_signals_run_id ON {SCHEMA}.backtest_signals(run_id)")
-    op.execute(f"CREATE INDEX IF NOT EXISTS ix_backtest_orders_run_id ON {SCHEMA}.backtest_orders(run_id)")
-    op.execute(f"CREATE UNIQUE INDEX IF NOT EXISTS uq_backtest_metrics_run_id ON {SCHEMA}.backtest_metrics(run_id)")
+    op.execute(f"CREATE INDEX IF NOT EXISTS ix_backtest_runs_robot_created ON backtest_runs(robot_id, started_at DESC)")
+    op.execute(f"CREATE INDEX IF NOT EXISTS ix_backtest_portfolio_run_id ON backtest_portfolio_snapshots(run_id)")
+    op.execute(f"CREATE INDEX IF NOT EXISTS ix_backtest_signals_run_id ON backtest_signals(run_id)")
+    op.execute(f"CREATE INDEX IF NOT EXISTS ix_backtest_orders_run_id ON backtest_orders(run_id)")
+    op.execute(f"CREATE UNIQUE INDEX IF NOT EXISTS uq_backtest_metrics_run_id ON backtest_metrics(run_id)")
 
 
 def downgrade() -> None:
-    op.execute(f"DROP INDEX IF EXISTS {SCHEMA}.uq_backtest_metrics_run_id")
-    op.execute(f"DROP INDEX IF EXISTS {SCHEMA}.ix_backtest_orders_run_id")
-    op.execute(f"DROP INDEX IF EXISTS {SCHEMA}.ix_backtest_signals_run_id")
-    op.execute(f"DROP INDEX IF EXISTS {SCHEMA}.ix_backtest_portfolio_run_id")
-    op.execute(f"DROP INDEX IF EXISTS {SCHEMA}.ix_backtest_runs_robot_created")
+    op.execute(f"DROP INDEX IF EXISTS uq_backtest_metrics_run_id")
+    op.execute(f"DROP INDEX IF EXISTS ix_backtest_orders_run_id")
+    op.execute(f"DROP INDEX IF EXISTS ix_backtest_signals_run_id")
+    op.execute(f"DROP INDEX IF EXISTS ix_backtest_portfolio_run_id")
+    op.execute(f"DROP INDEX IF EXISTS ix_backtest_runs_robot_created")
 
-    op.execute(f"DROP TABLE IF EXISTS {SCHEMA}.backtest_metrics")
-    op.execute(f"DROP TABLE IF EXISTS {SCHEMA}.backtest_orders")
-    op.execute(f"DROP TABLE IF EXISTS {SCHEMA}.backtest_signals")
-    op.execute(f"DROP TABLE IF EXISTS {SCHEMA}.backtest_portfolio_snapshots")
-    op.execute(f"DROP TABLE IF EXISTS {SCHEMA}.backtest_runs")
+    op.execute(f"DROP TABLE IF EXISTS backtest_metrics")
+    op.execute(f"DROP TABLE IF EXISTS backtest_orders")
+    op.execute(f"DROP TABLE IF EXISTS backtest_signals")
+    op.execute(f"DROP TABLE IF EXISTS backtest_portfolio_snapshots")
+    op.execute(f"DROP TABLE IF EXISTS backtest_runs")

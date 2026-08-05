@@ -16,7 +16,7 @@ from sqlalchemy import (
     Integer,
     JSON,
     String,
-    Text,
+    Text
 )
 from sqlalchemy.orm import relationship
 
@@ -33,11 +33,11 @@ class ApiToken(Base):
     __table_args__ = (
         Index("ix_api_tokens_user_type", "user_id", "token_type"),
         Index("ix_api_tokens_token", "token"),
-        {"schema": SCHEMA, "extend_existing": True},
+        {"extend_existing": True}
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.user.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
 
     token_type = Column(String(50), nullable=False)
     token = Column(Text, nullable=False)

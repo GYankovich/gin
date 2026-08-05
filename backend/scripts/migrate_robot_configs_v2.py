@@ -60,9 +60,9 @@ def main() -> int:
 
             rows = db.execute(
 
-                text(f"SELECT id, config FROM {schema}.robots WHERE id = :rid AND type = 2"),
+                text(f"SELECT id, config FROM robots WHERE id = :rid AND type = 2"),
 
-                {"rid": args.robot_id},
+                {"rid": args.robot_id}
 
             ).mappings().all()
 
@@ -70,7 +70,7 @@ def main() -> int:
 
             rows = db.execute(
 
-                text(f"SELECT id, config FROM {schema}.robots WHERE type = 2 ORDER BY id"),
+                text(f"SELECT id, config FROM robots WHERE type = 2 ORDER BY id")
 
             ).mappings().all()
 
@@ -102,9 +102,9 @@ def main() -> int:
 
                 db.execute(
 
-                    text(f"UPDATE {schema}.robots SET config = CAST(:cfg AS jsonb) WHERE id = :rid"),
+                    text(f"UPDATE robots SET config = CAST(:cfg AS jsonb) WHERE id = :rid"),
 
-                    {"cfg": json.dumps(new_cfg, ensure_ascii=False), "rid": rid},
+                    {"cfg": json.dumps(new_cfg, ensure_ascii=False), "rid": rid}
 
                 )
 

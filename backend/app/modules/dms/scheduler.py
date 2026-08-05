@@ -42,8 +42,8 @@ class DmsScheduler:
                     text(
                         f"""
                         SELECT DISTINCT s.robot_id, s.board
-                        FROM {settings.DB_SCHEMA}.dms_subscriptions s
-                        JOIN {settings.DB_SCHEMA}.robots r ON r.id = s.robot_id
+                        FROM dms_subscriptions s
+                        JOIN robots r ON r.id = s.robot_id
                         WHERE r.status != 0
                           AND s.request_date = CURRENT_DATE
                         LIMIT 200

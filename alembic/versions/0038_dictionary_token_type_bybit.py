@@ -21,11 +21,11 @@ def upgrade() -> None:
     op.execute(
         sa.text(
             f"""
-            INSERT INTO {SCHEMA}.dictionary
+            INSERT INTO dictionary
                 (table_name, column_name, num_value, string_value, name, description, hide_from_ui)
             SELECT 'TOKEN', 'TYPE', 2, 'bybit', 'ByBit', 'API Key и Secret для ByBit', 0
             WHERE NOT EXISTS (
-                SELECT 1 FROM {SCHEMA}.dictionary
+                SELECT 1 FROM dictionary
                 WHERE table_name = 'TOKEN'
                   AND column_name = 'TYPE'
                   AND num_value = 2
@@ -39,7 +39,7 @@ def downgrade() -> None:
     op.execute(
         sa.text(
             f"""
-            DELETE FROM {SCHEMA}.dictionary
+            DELETE FROM dictionary
             WHERE table_name = 'TOKEN'
               AND column_name = 'TYPE'
               AND num_value = 2

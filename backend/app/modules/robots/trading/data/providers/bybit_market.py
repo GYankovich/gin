@@ -27,13 +27,13 @@ _BYBIT_LAST_REQUEST_AT = 0.0
 
 _CANDLES_DAYS_SQL = (
     "SELECT DISTINCT DATE(candle_time AT TIME ZONE 'UTC') AS d "
-    f"FROM {settings.DB_SCHEMA}.candles_cache "
+    f"FROM candles_cache "
     "WHERE market='bybit' AND instrument_id=:symbol AND interval=:interval "
     "AND candle_time>=:from_dt AND candle_time<:to_dt_exclusive"
 )
 _FUNDING_COVERAGE_SQL = (
     "SELECT COUNT(*) AS cnt, MIN(funding_time) AS min_ft "
-    f"FROM {settings.DB_SCHEMA}.bybit_funding_history "
+    f"FROM bybit_funding_history "
     "WHERE symbol=:symbol AND instrument_category=:instrument_category "
     "AND funding_time>=:from_dt AND funding_time<:to_dt_exclusive"
 )
@@ -89,7 +89,7 @@ class CandlesCacheAudit:
             bars_hint = f" min_bars/day={self.min_bars_per_day}"
         return (
             f"CACHE | {tag} | [{idx}/{total}] {self.symbol} | "
-            f"SELECT days FROM {settings.DB_SCHEMA}.candles_cache "
+            f"SELECT days FROM candles_cache "
             f"market=bybit instrument_id={self.symbol} interval={self.interval_label} "
             f"range={self.from_date.isoformat()}..{self.till_date.isoformat()} | "
             f"cached={self.cached_days_count}/{self.expected_days} ({cached_span}) "
@@ -190,7 +190,7 @@ def _candles_bar_counts_by_day(
         text(
             f"""
             SELECT DATE(candle_time AT TIME ZONE 'UTC') AS d, COUNT(*)::int AS cnt
-            FROM {settings.DB_SCHEMA}.candles_cache
+            FROM candles_cache
             WHERE market = 'bybit'
               AND instrument_id = :symbol
               AND interval = :interval
@@ -407,7 +407,7 @@ def _upsert_bybit_candles(
         db.execute(
             text(
                 f"""
-                INSERT INTO {settings.DB_SCHEMA}.candles_cache
+                INSERT INTO candles_cache
                 (market, instrument_id, ticker, interval, candle_time, open, high, low, close, volume, source, updated_at)
                 VALUES
                 ('bybit', :instrument_id, :ticker, :interval, :candle_time, :open, :high, :low, :close, :volume, 'bybit_kline_api', NOW())
@@ -693,7 +693,7 @@ def _upsert_funding_rows(
         db.execute(
             text(
                 f"""
-                INSERT INTO {settings.DB_SCHEMA}.bybit_funding_history
+                INSERT INTO bybit_funding_history
                 (symbol, funding_time, funding_rate, instrument_category, created_at)
                 VALUES
                 (:symbol, :funding_time, :funding_rate, :instrument_category, NOW())
@@ -901,7 +901,7 @@ def load_funding_history_from_cache(
                 text(
                     f"""
                     SELECT funding_time, funding_rate
-                    FROM {settings.DB_SCHEMA}.bybit_funding_history
+                    FROM bybit_funding_history
                     WHERE symbol = :symbol
                       AND instrument_category = :instrument_category
                       AND funding_time >= :from_dt

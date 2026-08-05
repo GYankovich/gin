@@ -60,8 +60,8 @@ def main() -> int:
             params["uid"] = args.user_id
         where = " AND ".join(clauses)
         rows = db.execute(
-            text(f"SELECT id, type, config FROM {schema}.robots WHERE {where} ORDER BY id"),
-            params,
+            text(f"SELECT id, type, config FROM robots WHERE {where} ORDER BY id"),
+            params
         ).mappings().all()
 
         updated = 0
@@ -81,8 +81,8 @@ def main() -> int:
             )
             if changed and not args.dry_run:
                 db.execute(
-                    text(f"UPDATE {schema}.robots SET config = CAST(:cfg AS jsonb) WHERE id = :rid"),
-                    {"cfg": json.dumps(normalized, ensure_ascii=False), "rid": rid},
+                    text(f"UPDATE robots SET config = CAST(:cfg AS jsonb) WHERE id = :rid"),
+                    {"cfg": json.dumps(normalized, ensure_ascii=False), "rid": rid}
                 )
                 updated += 1
 

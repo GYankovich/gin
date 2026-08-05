@@ -281,7 +281,7 @@ class BybitHttpClient:
             db.execute(
                 text(
                     f"""
-                    INSERT INTO {settings.DB_SCHEMA}.external_api_logs (
+                    INSERT INTO external_api_logs (
                         user_id, token_id, broker, context_type, context_ref,
                         endpoint, request_data, response_status, response_data,
                         started_at, finished_at, duration_ms, success, error_message

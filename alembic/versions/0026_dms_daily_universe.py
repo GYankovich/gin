@@ -24,7 +24,7 @@ SCHEMA = settings.DB_SCHEMA
 def upgrade() -> None:
     op.execute(
         """
-        CREATE TABLE IF NOT EXISTS {schema}.securities_static (
+        CREATE TABLE IF NOT EXISTS securities_static (
             ticker VARCHAR(20) PRIMARY KEY,
             shortname VARCHAR(100),
             lot_size INT,
@@ -33,11 +33,11 @@ def upgrade() -> None:
             status VARCHAR(10),
             updated_at TIMESTAMPTZ
         );
-        """.format(schema=SCHEMA)
+        """.format()
     )
     op.execute(
         """
-        CREATE TABLE IF NOT EXISTS {schema}.market_snapshot (
+        CREATE TABLE IF NOT EXISTS market_snapshot (
             id BIGSERIAL PRIMARY KEY,
             snapshot_time TIMESTAMPTZ NOT NULL,
             board VARCHAR(20) NOT NULL,
@@ -48,13 +48,13 @@ def upgrade() -> None:
             moex_timestamp TIMESTAMPTZ,
             created_at TIMESTAMPTZ DEFAULT NOW()
         );
-        """.format(schema=SCHEMA)
+        """.format()
     )
     op.execute(
         """
-        CREATE TABLE IF NOT EXISTS {schema}.dms_subscriptions (
+        CREATE TABLE IF NOT EXISTS dms_subscriptions (
             id BIGSERIAL PRIMARY KEY,
-            robot_id BIGINT NOT NULL REFERENCES {schema}.robots(id) ON DELETE CASCADE,
+            robot_id BIGINT NOT NULL REFERENCES robots(id) ON DELETE CASCADE,
             subscription_key VARCHAR(100) NOT NULL,
             board VARCHAR(20) NOT NULL,
             include_candles BOOLEAN DEFAULT FALSE,
@@ -64,22 +64,22 @@ def upgrade() -> None:
             request_date DATE NOT NULL DEFAULT CURRENT_DATE,
             snapshot_hour INT,
             status VARCHAR(20),
-            snapshot_id BIGINT REFERENCES {schema}.market_snapshot(id) ON DELETE SET NULL,
+            snapshot_id BIGINT REFERENCES market_snapshot(id) ON DELETE SET NULL,
             created_at TIMESTAMPTZ DEFAULT NOW()
         );
-        """.format(schema=SCHEMA)
+        """.format()
     )
     op.execute(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS uq_dms_subscriptions_robot_key_date_hour
-        ON {schema}.dms_subscriptions(robot_id, subscription_key, request_date, snapshot_hour);
-        """.format(schema=SCHEMA)
+        ON dms_subscriptions(robot_id, subscription_key, request_date, snapshot_hour);
+        """.format()
     )
     op.execute(
         """
-        CREATE TABLE IF NOT EXISTS {schema}.market_snapshot_data (
+        CREATE TABLE IF NOT EXISTS market_snapshot_data (
             id BIGSERIAL PRIMARY KEY,
-            snapshot_id BIGINT NOT NULL REFERENCES {schema}.market_snapshot(id) ON DELETE CASCADE,
+            snapshot_id BIGINT NOT NULL REFERENCES market_snapshot(id) ON DELETE CASCADE,
             ticker VARCHAR(20) NOT NULL,
             last_price DECIMAL(12,4),
             open_price DECIMAL(12,4),
@@ -138,23 +138,23 @@ def upgrade() -> None:
             securities_payload JSONB,
             marketdata_payload JSONB
         );
-        """.format(schema=SCHEMA)
+        """.format()
     )
     op.execute(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS uq_market_snapshot_data_snapshot_ticker
-        ON {schema}.market_snapshot_data(snapshot_id, ticker);
-        """.format(schema=SCHEMA)
+        ON market_snapshot_data(snapshot_id, ticker);
+        """.format()
     )
     op.execute(
         """
         CREATE INDEX IF NOT EXISTS idx_snapshot_data_ticker_time
-        ON {schema}.market_snapshot_data(ticker, snapshot_id);
-        """.format(schema=SCHEMA)
+        ON market_snapshot_data(ticker, snapshot_id);
+        """.format()
     )
     op.execute(
         """
-        CREATE TABLE IF NOT EXISTS {schema}.market_snapshot_history (
+        CREATE TABLE IF NOT EXISTS market_snapshot_history (
             id BIGINT PRIMARY KEY,
             snapshot_time TIMESTAMPTZ NOT NULL,
             board VARCHAR(20) NOT NULL,
@@ -165,11 +165,11 @@ def upgrade() -> None:
             moex_timestamp TIMESTAMPTZ,
             created_at TIMESTAMPTZ DEFAULT NOW()
         );
-        """.format(schema=SCHEMA)
+        """.format()
     )
     op.execute(
         """
-        CREATE TABLE IF NOT EXISTS {schema}.market_snapshot_data_history (
+        CREATE TABLE IF NOT EXISTS market_snapshot_data_history (
             id BIGINT PRIMARY KEY,
             snapshot_id BIGINT NOT NULL,
             ticker VARCHAR(20) NOT NULL,
@@ -230,12 +230,12 @@ def upgrade() -> None:
             securities_payload JSONB,
             marketdata_payload JSONB
         );
-        """.format(schema=SCHEMA)
+        """.format()
     )
     # Backward compatibility: if table already exists, add newly introduced columns.
     op.execute(
         """
-        ALTER TABLE {schema}.market_snapshot_data
+        ALTER TABLE market_snapshot_data
             ADD COLUMN IF NOT EXISTS sec_type VARCHAR(3),
             ADD COLUMN IF NOT EXISTS list_level INTEGER,
             ADD COLUMN IF NOT EXISTS prev_wa_price NUMERIC(12,4),
@@ -267,11 +267,11 @@ def upgrade() -> None:
             ADD COLUMN IF NOT EXISTS sys_time TIMESTAMPTZ,
             ADD COLUMN IF NOT EXISTS issue_capitalization NUMERIC(20,4),
             ADD COLUMN IF NOT EXISTS trend_issue_capitalization NUMERIC(20,4);
-        """.format(schema=SCHEMA)
+        """.format()
     )
     op.execute(
         """
-        ALTER TABLE {schema}.market_snapshot_data_history
+        ALTER TABLE market_snapshot_data_history
             ADD COLUMN IF NOT EXISTS sec_type VARCHAR(3),
             ADD COLUMN IF NOT EXISTS list_level INTEGER,
             ADD COLUMN IF NOT EXISTS prev_wa_price NUMERIC(12,4),
@@ -303,17 +303,17 @@ def upgrade() -> None:
             ADD COLUMN IF NOT EXISTS sys_time TIMESTAMPTZ,
             ADD COLUMN IF NOT EXISTS issue_capitalization NUMERIC(20,4),
             ADD COLUMN IF NOT EXISTS trend_issue_capitalization NUMERIC(20,4);
-        """.format(schema=SCHEMA)
+        """.format()
     )
     op.execute(
         """
         CREATE INDEX IF NOT EXISTS idx_market_snapshot_data_history_snapshot_ticker
-        ON {schema}.market_snapshot_data_history(snapshot_id, ticker);
-        """.format(schema=SCHEMA)
+        ON market_snapshot_data_history(snapshot_id, ticker);
+        """.format()
     )
     op.execute(
         """
-        CREATE TABLE IF NOT EXISTS {schema}.candles_cache (
+        CREATE TABLE IF NOT EXISTS candles_cache (
             id BIGSERIAL PRIMARY KEY,
             ticker VARCHAR(20) NOT NULL,
             interval VARCHAR(10) NOT NULL,
@@ -325,31 +325,31 @@ def upgrade() -> None:
             volume BIGINT,
             updated_at TIMESTAMPTZ DEFAULT NOW()
         );
-        """.format(schema=SCHEMA)
+        """.format()
     )
     op.execute(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS uq_candles_cache_ticker_interval_time
-        ON {schema}.candles_cache(ticker, interval, candle_time);
-        """.format(schema=SCHEMA)
+        ON candles_cache(ticker, interval, candle_time);
+        """.format()
     )
     op.execute(
         """
         CREATE INDEX IF NOT EXISTS idx_candles_ticker_interval_time
-        ON {schema}.candles_cache(ticker, interval, candle_time);
-        """.format(schema=SCHEMA)
+        ON candles_cache(ticker, interval, candle_time);
+        """.format()
     )
     op.execute(
         """
-        CREATE TABLE IF NOT EXISTS {schema}.daily_universe (
+        CREATE TABLE IF NOT EXISTS daily_universe (
             id BIGSERIAL PRIMARY KEY,
-            robot_id BIGINT NOT NULL REFERENCES {schema}.robots(id) ON DELETE CASCADE,
+            robot_id BIGINT NOT NULL REFERENCES robots(id) ON DELETE CASCADE,
             trade_date DATE NOT NULL,
             ticker VARCHAR(20) NOT NULL,
             source VARCHAR(30) NOT NULL,
             filter_result VARCHAR(20),
             reject_reason TEXT,
-            snapshot_id BIGINT REFERENCES {schema}.market_snapshot(id) ON DELETE SET NULL,
+            snapshot_id BIGINT REFERENCES market_snapshot(id) ON DELETE SET NULL,
             price_at_filter DECIMAL(12,4),
             volume_at_filter BIGINT,
             atr_value DECIMAL(12,4),
@@ -357,25 +357,25 @@ def upgrade() -> None:
             applied_filters TEXT,
             created_at TIMESTAMPTZ DEFAULT NOW()
         );
-        """.format(schema=SCHEMA)
+        """.format()
     )
     op.execute(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS uq_daily_universe_robot_date_ticker
-        ON {schema}.daily_universe(robot_id, trade_date, ticker);
-        """.format(schema=SCHEMA)
+        ON daily_universe(robot_id, trade_date, ticker);
+        """.format()
     )
-    op.execute("CREATE INDEX IF NOT EXISTS idx_daily_universe_robot_date ON {schema}.daily_universe(robot_id, trade_date);".format(schema=SCHEMA))
-    op.execute("CREATE INDEX IF NOT EXISTS idx_daily_universe_result ON {schema}.daily_universe(filter_result);".format(schema=SCHEMA))
-    op.execute("CREATE INDEX IF NOT EXISTS idx_daily_universe_snapshot ON {schema}.daily_universe(snapshot_id);".format(schema=SCHEMA))
+    op.execute("CREATE INDEX IF NOT EXISTS idx_daily_universe_robot_date ON daily_universe(robot_id, trade_date);".format())
+    op.execute("CREATE INDEX IF NOT EXISTS idx_daily_universe_result ON daily_universe(filter_result);".format())
+    op.execute("CREATE INDEX IF NOT EXISTS idx_daily_universe_snapshot ON daily_universe(snapshot_id);".format())
 
 
 def downgrade() -> None:
-    op.execute("DROP TABLE IF EXISTS {schema}.daily_universe;".format(schema=SCHEMA))
-    op.execute("DROP TABLE IF EXISTS {schema}.candles_cache;".format(schema=SCHEMA))
-    op.execute("DROP TABLE IF EXISTS {schema}.market_snapshot_data_history;".format(schema=SCHEMA))
-    op.execute("DROP TABLE IF EXISTS {schema}.market_snapshot_history;".format(schema=SCHEMA))
-    op.execute("DROP TABLE IF EXISTS {schema}.market_snapshot_data;".format(schema=SCHEMA))
-    op.execute("DROP TABLE IF EXISTS {schema}.dms_subscriptions;".format(schema=SCHEMA))
-    op.execute("DROP TABLE IF EXISTS {schema}.market_snapshot;".format(schema=SCHEMA))
-    op.execute("DROP TABLE IF EXISTS {schema}.securities_static;".format(schema=SCHEMA))
+    op.execute("DROP TABLE IF EXISTS daily_universe;".format())
+    op.execute("DROP TABLE IF EXISTS candles_cache;".format())
+    op.execute("DROP TABLE IF EXISTS market_snapshot_data_history;".format())
+    op.execute("DROP TABLE IF EXISTS market_snapshot_history;".format())
+    op.execute("DROP TABLE IF EXISTS market_snapshot_data;".format())
+    op.execute("DROP TABLE IF EXISTS dms_subscriptions;".format())
+    op.execute("DROP TABLE IF EXISTS market_snapshot;".format())
+    op.execute("DROP TABLE IF EXISTS securities_static;".format())

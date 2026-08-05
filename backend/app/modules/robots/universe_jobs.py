@@ -158,7 +158,7 @@ def should_run_paper_selection(
 
 async def _list_tqbr_tickers(db: Session, board: str = "TQBR") -> List[str]:
     rows = db.execute(
-        text(f"SELECT secid FROM {settings.DB_SCHEMA}.tqbr_securities ORDER BY secid")
+        text(f"SELECT secid FROM tqbr_securities ORDER BY secid")
     ).fetchall()
     if rows:
         return sorted({str(r[0]).strip().upper() for r in rows if r and r[0]})
@@ -166,7 +166,7 @@ async def _list_tqbr_tickers(db: Session, board: str = "TQBR") -> List[str]:
         text(
             f"""
             SELECT DISTINCT UPPER(ticker) AS ticker
-            FROM {settings.DB_SCHEMA}.market_snapshot_data_history
+            FROM market_snapshot_data_history
             WHERE board = :board
             ORDER BY ticker
             LIMIT 800
@@ -184,7 +184,7 @@ async def _snapshot_price_rows(db: Session, board: str, tickers: List[str]) -> L
     sid = db.execute(
         text(
             f"""
-            SELECT id FROM {settings.DB_SCHEMA}.market_snapshot_history
+            SELECT id FROM market_snapshot_history
             WHERE board = :board
             ORDER BY trade_date DESC, id DESC
             LIMIT 1
@@ -200,7 +200,7 @@ async def _snapshot_price_rows(db: Session, board: str, tickers: List[str]) -> L
         f"""
         SELECT UPPER(ticker), last_price, value_today, volume_lots,
                security_status, trading_status, num_trades
-        FROM {settings.DB_SCHEMA}.market_snapshot_data_history
+        FROM market_snapshot_data_history
         WHERE snapshot_id = :sid AND UPPER(ticker) IN :tickers
         """
     ).bindparams(bindparam("tickers", expanding=True))
@@ -437,7 +437,7 @@ async def _touch_job_state(
 ) -> None:
     if config is None:
         row = db.execute(
-            text(f"SELECT config FROM {settings.DB_SCHEMA}.robots WHERE id = :rid"),
+            text(f"SELECT config FROM robots WHERE id = :rid"),
             {"rid": robot_id},
         ).first()
         config = ensure_config_v2(dict(row[0] or {}) if row else {})
@@ -455,7 +455,7 @@ async def _touch_job_state(
     db.execute(
         text(
             f"""
-            UPDATE {settings.DB_SCHEMA}.robots
+            UPDATE robots
             SET config = CAST(:config AS jsonb),
                 date_modification = :now,
                 usermod = :uid
@@ -494,7 +494,7 @@ async def run_scheduled_universe_jobs(
             db, robot_service, robot_id=robot_id, user_id=user_id,
         )
         row = db.execute(
-            text(f"SELECT config FROM {settings.DB_SCHEMA}.robots WHERE id = :rid"),
+            text(f"SELECT config FROM robots WHERE id = :rid"),
             {"rid": robot_id},
         ).first()
         cfg = ensure_config_v2(dict(row[0] or {}) if row else {})

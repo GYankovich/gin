@@ -73,16 +73,14 @@ def upgrade():
         sa.Column('date_creation', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
 
         # Внешние ключи
-        sa.ForeignKeyConstraint(['robot_id'], [f'{SCHEMA}.robots.id'], ondelete='CASCADE'),
-
-        schema=SCHEMA
+        sa.ForeignKeyConstraint(['robot_id'], [f'robots.id'], ondelete='CASCADE')
     )
 
     # Индексы для robot_trades
-    op.create_index('ix_robot_trades_robot_id', 'robot_trades', ['robot_id'], schema=SCHEMA)
-    op.create_index('ix_robot_trades_figi', 'robot_trades', ['figi'], schema=SCHEMA)
-    op.create_index('ix_robot_trades_status', 'robot_trades', ['status'], schema=SCHEMA)
-    op.create_index('ix_robot_trades_created_at', 'robot_trades', ['created_at'], schema=SCHEMA)
+    op.create_index('ix_robot_trades_robot_id', 'robot_trades', ['robot_id'])
+    op.create_index('ix_robot_trades_figi', 'robot_trades', ['figi'])
+    op.create_index('ix_robot_trades_status', 'robot_trades', ['status'])
+    op.create_index('ix_robot_trades_created_at', 'robot_trades', ['created_at'])
 
     # Создаем таблицу robot_signals
     op.create_table(
@@ -110,23 +108,21 @@ def upgrade():
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
 
         # Внешние ключи
-        sa.ForeignKeyConstraint(['robot_id'], [f'{SCHEMA}.robots.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['executed_trade_id'], [f'{SCHEMA}.robot_trades.id'], ondelete='SET NULL'),
-
-        schema=SCHEMA
+        sa.ForeignKeyConstraint(['robot_id'], [f'robots.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['executed_trade_id'], [f'robot_trades.id'], ondelete='SET NULL')
     )
 
     # Индексы для robot_signals
-    op.create_index('ix_robot_signals_robot_id', 'robot_signals', ['robot_id'], schema=SCHEMA)
-    op.create_index('ix_robot_signals_figi', 'robot_signals', ['figi'], schema=SCHEMA)
-    op.create_index('ix_robot_signals_type', 'robot_signals', ['signal_type'], schema=SCHEMA)
-    op.create_index('ix_robot_signals_executed', 'robot_signals', ['was_executed'], schema=SCHEMA)
-    op.create_index('ix_robot_signals_created_at', 'robot_signals', ['created_at'], schema=SCHEMA)
+    op.create_index('ix_robot_signals_robot_id', 'robot_signals', ['robot_id'])
+    op.create_index('ix_robot_signals_figi', 'robot_signals', ['figi'])
+    op.create_index('ix_robot_signals_type', 'robot_signals', ['signal_type'])
+    op.create_index('ix_robot_signals_executed', 'robot_signals', ['was_executed'])
+    op.create_index('ix_robot_signals_created_at', 'robot_signals', ['created_at'])
 
     print("✅ Tables robot_trades and robot_signals created successfully.")
 
 
 def downgrade():
-    op.drop_table('robot_signals', schema=SCHEMA)
-    op.drop_table('robot_trades', schema=SCHEMA)
+    op.drop_table('robot_signals')
+    op.drop_table('robot_trades')
     print("✅ Tables robot_trades and robot_signals dropped.")

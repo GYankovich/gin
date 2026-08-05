@@ -41,29 +41,27 @@ def upgrade():
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
 
         # Внешние ключи
-        sa.ForeignKeyConstraint(['token_id'], [f'{SCHEMA}.api_tokens.id'], ondelete='SET NULL'),
-        sa.ForeignKeyConstraint(['user_id'], [f'{SCHEMA}.user.id'], ondelete='SET NULL'),
-
-        schema=SCHEMA,
+        sa.ForeignKeyConstraint(['token_id'], [f'api_tokens.id'], ondelete='SET NULL'),
+        sa.ForeignKeyConstraint(['user_id'], [f'user.id'], ondelete='SET NULL')
     )
 
     # Создаем индексы для быстрого поиска
-    op.create_index('ix_robot_logs_robot_name', 'robot_logs', ['robot_name'], schema=SCHEMA)
-    op.create_index('ix_robot_logs_token_id', 'robot_logs', ['token_id'], schema=SCHEMA)
-    op.create_index('ix_robot_logs_user_id', 'robot_logs', ['user_id'], schema=SCHEMA)
-    op.create_index('ix_robot_logs_created_at', 'robot_logs', ['created_at'], schema=SCHEMA)
-    op.create_index('ix_robot_logs_success', 'robot_logs', ['success'], schema=SCHEMA)
-    op.create_index('ix_robot_logs_started_at', 'robot_logs', ['started_at'], schema=SCHEMA)
+    op.create_index('ix_robot_logs_robot_name', 'robot_logs', ['robot_name'])
+    op.create_index('ix_robot_logs_token_id', 'robot_logs', ['token_id'])
+    op.create_index('ix_robot_logs_user_id', 'robot_logs', ['user_id'])
+    op.create_index('ix_robot_logs_created_at', 'robot_logs', ['created_at'])
+    op.create_index('ix_robot_logs_success', 'robot_logs', ['success'])
+    op.create_index('ix_robot_logs_started_at', 'robot_logs', ['started_at'])
 
 
 def downgrade():
     # Удаляем индексы
-    op.drop_index('ix_robot_logs_robot_name', table_name='robot_logs', schema=SCHEMA)
-    op.drop_index('ix_robot_logs_token_id', table_name='robot_logs', schema=SCHEMA)
-    op.drop_index('ix_robot_logs_user_id', table_name='robot_logs', schema=SCHEMA)
-    op.drop_index('ix_robot_logs_created_at', table_name='robot_logs', schema=SCHEMA)
-    op.drop_index('ix_robot_logs_success', table_name='robot_logs', schema=SCHEMA)
-    op.drop_index('ix_robot_logs_started_at', table_name='robot_logs', schema=SCHEMA)
+    op.drop_index('ix_robot_logs_robot_name', table_name='robot_logs')
+    op.drop_index('ix_robot_logs_token_id', table_name='robot_logs')
+    op.drop_index('ix_robot_logs_user_id', table_name='robot_logs')
+    op.drop_index('ix_robot_logs_created_at', table_name='robot_logs')
+    op.drop_index('ix_robot_logs_success', table_name='robot_logs')
+    op.drop_index('ix_robot_logs_started_at', table_name='robot_logs')
 
     # Удаляем таблицу
-    op.drop_table('robot_logs', schema=SCHEMA)
+    op.drop_table('robot_logs')

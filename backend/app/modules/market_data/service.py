@@ -34,7 +34,7 @@ async def _moex_get_json_with_retry(
         params: Optional[Dict[str, object]] = None,
         timeout: int = MOEX_HTTP_TIMEOUT_SEC,
         retries: int = MOEX_HTTP_RETRIES,
-        context: str = "MOEX request",
+        context: str = "MOEX request"
 ) -> Dict[str, object]:
     last_exc: Optional[Exception] = None
     for attempt in range(1, retries + 1):
@@ -45,7 +45,7 @@ async def _moex_get_json_with_retry(
             if resp.status_code != 200:
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"{context}: MOEX API error {resp.status_code} (попытка {attempt}/{retries})",
+                    detail=f"{context}: MOEX API error {resp.status_code} (попытка {attempt}/{retries})"
                 )
             return resp.json()
         except HTTPException:
@@ -56,7 +56,7 @@ async def _moex_get_json_with_retry(
                 await asyncio.sleep(0.35 * attempt)
     raise HTTPException(
         status_code=status.HTTP_502_BAD_GATEWAY,
-        detail=f"{context}: не удалось подключиться к MOEX ISS (попытка {retries}/{retries})",
+        detail=f"{context}: не удалось подключиться к MOEX ISS (попытка {retries}/{retries})"
     ) from last_exc
 
 
@@ -86,7 +86,7 @@ async def resolve_figi_and_ticker(
         figi: str,
         ticker: Optional[str],
         data_source: str,
-        token: str,
+        token: str
 ) -> Tuple[str, Optional[str], Optional[str]]:
     src = (data_source or "tinvest").strip().lower()
     figi_in = (figi or "").strip().upper()
@@ -118,7 +118,7 @@ async def resolve_figi_and_ticker(
                 return fg, tk, row.get("name")
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Не найден инструмент по ticker '{lookup_ticker}' в T-Invest",
+        detail=f"Не найден инструмент по ticker '{lookup_ticker}' в T-Invest"
     )
 
 
@@ -135,7 +135,7 @@ async def resolve_market_sync_token(db: Session, user_id: int, token_id: Optiona
         return active["token"]
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
-        detail="Нужен токен T-Invest: задайте TINVEST_MARKET_DATA_TOKEN или передайте token_id / добавьте активный токен",
+        detail="Нужен токен T-Invest: задайте TINVEST_MARKET_DATA_TOKEN или передайте token_id / добавьте активный токен"
     )
 
 
@@ -144,7 +144,7 @@ async def _fetch_range_chunks(
         figi: str,
         interval: str,
         start: datetime,
-        end: datetime,
+        end: datetime
 ) -> List[Tuple]:
     rows: List[Tuple] = []
     cur = _utc(start)
@@ -165,7 +165,7 @@ async def _fetch_moex_range_chunks(
         ticker: Optional[str],
         start: datetime,
         end: datetime,
-        interval: str,
+        interval: str
 ) -> List[Tuple]:
     moex_interval_map = {
         "CANDLE_INTERVAL_1_MIN": 1,
@@ -179,7 +179,7 @@ async def _fetch_moex_range_chunks(
         supported = ", ".join(moex_interval_map.keys())
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"MOEX источник не поддерживает интервал: {interval}. Поддерживаются: {supported}",
+            detail=f"MOEX источник не поддерживает интервал: {interval}. Поддерживаются: {supported}"
         )
     moex_interval = moex_interval_map[interval]
     secid = (ticker or figi).strip().upper()
@@ -193,7 +193,7 @@ async def _fetch_moex_range_chunks(
                 meta_url,
                 timeout=15,
                 retries=2,
-                context=f"MOEX metadata {security_id}",
+                context=f"MOEX metadata {security_id}"
             )
         except (httpx.RequestError, HTTPException):
             # Не блокируем бэктест из-за мета-запроса: используем дефолтную доску.
@@ -248,7 +248,7 @@ async def _fetch_moex_range_chunks(
                 context=(
                     "Загрузка свечей MOEX "
                     f"{secid} {cur.date().isoformat()}..{chunk_end.date().isoformat()}"
-                ),
+                )
             )
             candles = payload.get("candles", {})
             cols = candles.get("columns", []) or []
@@ -283,7 +283,7 @@ async def sync_candles_for_range(
         token: str,
         ticker: Optional[str] = None,
         name: Optional[str] = None,
-        data_source: str = "tinvest",
+        data_source: str = "tinvest"
 ) -> int:
     """Подкачивает свечи за интервал [from_dt, to_dt], upsert в БД. Возвращает число сохранённых строк."""
     schema = settings.DB_SCHEMA
@@ -309,7 +309,7 @@ async def ensure_candles_cover_window(
         to_dt: datetime,
         token: str,
         data_source: str = "tinvest",
-        ticker: Optional[str] = None,
+        ticker: Optional[str] = None
 ) -> List[str]:
     """Дозагружает недостающие хвосты относительно уже имеющихся данных в БД."""
     schema = settings.DB_SCHEMA
@@ -372,7 +372,7 @@ async def sync_history_years(
         token: str,
         ticker: Optional[str] = None,
         name: Optional[str] = None,
-        data_source: str = "tinvest",
+        data_source: str = "tinvest"
 ) -> Dict[str, Any]:
     years = max(1, min(int(years), 15))
     end = datetime.now(timezone.utc)
@@ -386,7 +386,7 @@ def load_candles_for_backtest(
         figi: str,
         interval: str,
         from_dt: datetime,
-        to_dt: datetime,
+        to_dt: datetime
 ) -> List[Dict[str, Any]]:
     schema = settings.DB_SCHEMA
     rows = repo.fetch_candles_range(db, schema, figi, interval, _utc(from_dt), _utc(to_dt))
@@ -415,7 +415,7 @@ def save_backtest(
         user_id: int,
         name: Optional[str],
         request_payload: Dict[str, Any],
-        result_payload: Dict[str, Any],
+        result_payload: Dict[str, Any]
 ) -> int:
     schema = settings.DB_SCHEMA
     figi = str(request_payload.get("figi") or "").strip()
@@ -438,7 +438,7 @@ def save_backtest(
         to_dt=to_dt,
         initial_capital=initial_capital,
         request_payload=request_payload,
-        result_payload=result_payload,
+        result_payload=result_payload
     )
     db.commit()
     return int(bt_id)
@@ -479,7 +479,7 @@ async def get_imoex_return_percent(from_dt: datetime, to_dt: datetime) -> Option
         ticker="IMOEX",
         start=start,
         end=end,
-        interval="CANDLE_INTERVAL_DAY",
+        interval="CANDLE_INTERVAL_DAY"
     )
     if not rows:
         return None
@@ -501,7 +501,7 @@ async def ensure_and_load_candles(
         to_dt: datetime,
         data_source: str = "moex",
         token_id: Optional[int] = None,
-        name: Optional[str] = None,
+        name: Optional[str] = None
 ) -> Dict[str, Any]:
     stages: List[str] = []
     source = (data_source or "moex").strip().lower()
@@ -515,7 +515,7 @@ async def ensure_and_load_candles(
         figi=figi,
         ticker=ticker,
         data_source=source,
-        token=token,
+        token=token
     )
     schema = settings.DB_SCHEMA
     stages.append("Проверка покрытия диапазона в БД")
@@ -535,7 +535,7 @@ async def ensure_and_load_candles(
             to_dt=to_u,
             token=token,
             data_source=source,
-            ticker=ticker_resolved,
+            ticker=ticker_resolved
         )
         await run_in_threadpool(repo.upsert_instrument, db, schema, figi_resolved, ticker_resolved, name or name_resolved, None)
         await run_in_threadpool(db.commit)

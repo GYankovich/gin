@@ -50,7 +50,7 @@ def _fetch_candles_cache_bulk_exact(
         db.execute(
             text(f"""
                 SELECT instrument_id, candle_time, open, high, low, close, volume
-                FROM {settings.DB_SCHEMA}.candles_cache
+                FROM candles_cache
                 WHERE market = :market
                   AND instrument_id = ANY(:instrument_ids)
                   AND interval = :interval
@@ -87,7 +87,7 @@ def _fetch_candles_cache_bulk_alias(
             db.execute(
                 text(f"""
                     SELECT instrument_id, candle_time, open, high, low, close, volume
-                    FROM {settings.DB_SCHEMA}.candles_cache
+                    FROM candles_cache
                     WHERE market = :market
                       AND instrument_id = ANY(:instrument_ids)
                       AND interval IN (:interval_alias, :interval_i, :interval_plain, :interval_min)
@@ -112,7 +112,7 @@ def _fetch_candles_cache_bulk_alias(
             db.execute(
                 text(f"""
                     SELECT instrument_id, candle_time, open, high, low, close, volume
-                    FROM {settings.DB_SCHEMA}.candles_cache
+                    FROM candles_cache
                     WHERE market = :market
                       AND instrument_id = ANY(:instrument_ids)
                       AND interval IN ('M5', 'I5', '5m', '5MIN')
@@ -133,7 +133,7 @@ def _fetch_candles_cache_bulk_alias(
             db.execute(
                 text(f"""
                     SELECT instrument_id, candle_time, open, high, low, close, volume
-                    FROM {settings.DB_SCHEMA}.candles_cache
+                    FROM candles_cache
                     WHERE market = :market
                       AND instrument_id = ANY(:instrument_ids)
                       AND interval IN ('D1', 'I24', '1d', '1D', 'CANDLE_INTERVAL_DAY')

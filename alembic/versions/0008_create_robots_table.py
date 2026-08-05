@@ -40,18 +40,16 @@ def upgrade():
         sa.Column('date_modification', sa.DateTime(timezone=True), nullable=True),
 
         # Foreign keys
-        sa.ForeignKeyConstraint(['user_id'], [f'{SCHEMA}.user.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['token_id'], [f'{SCHEMA}.api_tokens.id'], ondelete='SET NULL'),
-
-        schema=SCHEMA,
+        sa.ForeignKeyConstraint(['user_id'], [f'user.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['token_id'], [f'api_tokens.id'], ondelete='SET NULL')
     )
 
     # Индексы
-    op.create_index('ix_robots_user_id', 'robots', ['user_id'], schema=SCHEMA)
-    op.create_index('ix_robots_token_id', 'robots', ['token_id'], schema=SCHEMA)
-    op.create_index('ix_robots_type', 'robots', ['type'], schema=SCHEMA)
-    op.create_index('ix_robots_status', 'robots', ['status'], schema=SCHEMA)
+    op.create_index('ix_robots_user_id', 'robots', ['user_id'])
+    op.create_index('ix_robots_token_id', 'robots', ['token_id'])
+    op.create_index('ix_robots_type', 'robots', ['type'])
+    op.create_index('ix_robots_status', 'robots', ['status'])
 
 
 def downgrade():
-    op.drop_table('robots', schema=SCHEMA)
+    op.drop_table('robots')

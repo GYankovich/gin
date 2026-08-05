@@ -40,13 +40,18 @@
     /* Z-index layers */
     --z-dropdown: 100;
     --z-navbar: 160;
+    --z-tabbar: 160;
     --z-modal-backdrop: 200;
     --z-modal: 201;
     --z-popover: 250;
     --z-toast: 300;
 
-    /* Navbar */
+    /* Navbar / mobile chrome */
     --navbar-h: 56px;
+    --dock-h: 56px;
+    --dock-gap: 10px;
+    /* Effective bottom chrome height (capsule + float gap), without safe-area */
+    --tabbar-h: calc(var(--dock-h) + var(--dock-gap));
 }
 
 /* ===== Dark theme (default) ===== */

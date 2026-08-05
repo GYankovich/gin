@@ -32,7 +32,7 @@ def upgrade() -> None:
         op.execute(
             sa.text(
                 f"""
-                INSERT INTO {SCHEMA}.dictionary
+                INSERT INTO dictionary
                     (table_name, column_name, num_value, string_value, name, description, hide_from_ui)
                 SELECT
                     'PORTFOLIO_POSITIONS',
@@ -43,7 +43,7 @@ def upgrade() -> None:
                     :description,
                     0
                 WHERE NOT EXISTS (
-                    SELECT 1 FROM {SCHEMA}.dictionary
+                    SELECT 1 FROM dictionary
                     WHERE table_name = 'PORTFOLIO_POSITIONS'
                       AND column_name = 'INSTRUMENT_TYPE'
                       AND string_value = :string_value
@@ -53,7 +53,7 @@ def upgrade() -> None:
                 num_value=num_value,
                 string_value=string_value,
                 name=name,
-                description=description,
+                description=description
             )
         )
 
@@ -62,7 +62,7 @@ def downgrade() -> None:
     op.execute(
         sa.text(
             f"""
-            DELETE FROM {SCHEMA}.dictionary
+            DELETE FROM dictionary
             WHERE table_name = 'PORTFOLIO_POSITIONS'
               AND column_name = 'INSTRUMENT_TYPE'
             """

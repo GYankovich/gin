@@ -43,14 +43,13 @@ def upgrade():
         sa.Column('last_run_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(['user_id'], [f'{SCHEMA}.user.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['token_id'], [f'{SCHEMA}.api_tokens.id'], ondelete='CASCADE'),
-        schema=SCHEMA,
+        sa.ForeignKeyConstraint(['user_id'], [f'user.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['token_id'], [f'api_tokens.id'], ondelete='CASCADE')
     )
 
-    op.create_index('ix_trading_robots_user_id', 'trading_robots', ['user_id'], schema=SCHEMA)
-    op.create_index('ix_trading_robots_token_id', 'trading_robots', ['token_id'], schema=SCHEMA)
-    op.create_index('ix_trading_robots_is_active', 'trading_robots', ['is_active'], schema=SCHEMA)
+    op.create_index('ix_trading_robots_user_id', 'trading_robots', ['user_id'])
+    op.create_index('ix_trading_robots_token_id', 'trading_robots', ['token_id'])
+    op.create_index('ix_trading_robots_is_active', 'trading_robots', ['is_active'])
 
     # Создаём таблицу robot_trades
     op.create_table(
@@ -69,15 +68,14 @@ def upgrade():
         sa.Column('profit', sa.Float(), nullable=True),
         sa.Column('status', sa.String(20), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.ForeignKeyConstraint(['robot_id'], [f'{SCHEMA}.trading_robots.id'], ondelete='CASCADE'),
-        schema=SCHEMA,
+        sa.ForeignKeyConstraint(['robot_id'], [f'trading_robots.id'], ondelete='CASCADE')
     )
 
-    op.create_index('ix_robot_trades_robot_id', 'robot_trades', ['robot_id'], schema=SCHEMA)
-    op.create_index('ix_robot_trades_opened_at', 'robot_trades', ['opened_at'], schema=SCHEMA)
-    op.create_index('ix_robot_trades_figi', 'robot_trades', ['figi'], schema=SCHEMA)
+    op.create_index('ix_robot_trades_robot_id', 'robot_trades', ['robot_id'])
+    op.create_index('ix_robot_trades_opened_at', 'robot_trades', ['opened_at'])
+    op.create_index('ix_robot_trades_figi', 'robot_trades', ['figi'])
 
 
 def downgrade():
-    op.drop_table('robot_trades', schema=SCHEMA)
-    op.drop_table('trading_robots', schema=SCHEMA)
+    op.drop_table('robot_trades')
+    op.drop_table('trading_robots')

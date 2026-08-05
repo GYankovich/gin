@@ -1,11 +1,9 @@
 #///EPIC Platform.ITEM Migrations.TOPIC AlembicTest [1]
 #/// Исходный модуль `alembic/test.py` — автоматическая разметка для Obsidian Source Scanner.
 
-# test_sqlalchemy.py
 import sys
 from pathlib import Path
 
-# Добавляем путь к backend
 backend_path = Path(__file__).parent / "backend"
 sys.path.insert(0, str(backend_path))
 print(f"Добавлен путь к backend: {backend_path}")
@@ -16,7 +14,7 @@ print("=" * 50)
 
 try:
     from app.core.config import settings
-    print(f"✅ Настройки загружены")
+    print("✅ Настройки загружены")
     print(f"   Хост: {settings.DB_HOST}")
     print(f"   База: {settings.DB_NAME}")
     print(f"   URL: {settings.DATABASE_URL}")
@@ -31,7 +29,7 @@ print("=" * 50)
 try:
     from sqlalchemy import create_engine, text
     engine = create_engine(settings.DATABASE_URL)
-    print(f"✅ Движок создан")
+    print("✅ Движок создан")
 except Exception as e:
     print(f"❌ Ошибка создания движка: {e}")
     sys.exit(1)
@@ -43,21 +41,20 @@ print("=" * 50)
 try:
     with engine.connect() as connection:
         result = connection.execute(text("SELECT 1"))
-        print(f"✅ Подключение работает!")
+        print("✅ Подключение работает!")
         print(f"   Результат тестового запроса: {result.scalar()}")
 
-        # Проверяем, существует ли схема
         result = connection.execute(
-            text(f"SELECT schema_name FROM information_schema.schemata WHERE schema_name = '{settings.DB_SCHEMA}'")
+            text(
+                "SELECT schema_name FROM information_schema.schemata "
+                "WHERE schema_name = 'public'"
+            )
         )
         if result.first():
-            print(f"✅ Схема '{settings.DB_SCHEMA}' существует")
+            print("✅ Схема public существует")
         else:
-            print(f"⚠️ Схема '{settings.DB_SCHEMA}' НЕ существует")
-            # Создаем схему
-            connection.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{settings.DB_SCHEMA}"'))
-            connection.commit()
-            print(f"✅ Схема создана")
+            print("❌ Схема public НЕ существует")
+            sys.exit(1)
 
 except Exception as e:
     print(f"❌ Ошибка подключения: {e}")

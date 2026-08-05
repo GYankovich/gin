@@ -20,34 +20,29 @@ depends_on = None
 def upgrade() -> None:
     op.add_column(
         "backtest_runs",
-        sa.Column("progress_percent", sa.Numeric(5, 2), nullable=True),
-        schema=SCHEMA,
+        sa.Column("progress_percent", sa.Numeric(5, 2), nullable=True)
     )
     op.add_column(
         "backtest_runs",
-        sa.Column("eta_seconds", sa.Integer(), nullable=True),
-        schema=SCHEMA,
+        sa.Column("eta_seconds", sa.Integer(), nullable=True)
     )
     op.add_column(
         "backtest_runs",
-        sa.Column("eta_confidence", sa.String(10), nullable=True),
-        schema=SCHEMA,
+        sa.Column("eta_confidence", sa.String(10), nullable=True)
     )
     op.add_column(
         "backtest_runs",
-        sa.Column("phase_units_done", sa.Integer(), nullable=True),
-        schema=SCHEMA,
+        sa.Column("phase_units_done", sa.Integer(), nullable=True)
     )
     op.add_column(
         "backtest_runs",
-        sa.Column("phase_units_total", sa.Integer(), nullable=True),
-        schema=SCHEMA,
+        sa.Column("phase_units_total", sa.Integer(), nullable=True)
     )
 
 
 def downgrade() -> None:
-    op.drop_column("backtest_runs", "phase_units_total", schema=SCHEMA)
-    op.drop_column("backtest_runs", "phase_units_done", schema=SCHEMA)
-    op.drop_column("backtest_runs", "eta_confidence", schema=SCHEMA)
-    op.drop_column("backtest_runs", "eta_seconds", schema=SCHEMA)
-    op.drop_column("backtest_runs", "progress_percent", schema=SCHEMA)
+    op.drop_column("backtest_runs", "phase_units_total")
+    op.drop_column("backtest_runs", "phase_units_done")
+    op.drop_column("backtest_runs", "eta_confidence")
+    op.drop_column("backtest_runs", "eta_seconds")
+    op.drop_column("backtest_runs", "progress_percent")

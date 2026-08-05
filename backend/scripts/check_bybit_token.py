@@ -28,7 +28,7 @@ def main() -> int:
                        CASE WHEN token IS NOT NULL AND length(token::text) > 0 THEN true ELSE false END AS has_token,
                        CASE WHEN extra_data ? 'token_secret'
                             AND length(COALESCE(extra_data->>'token_secret','')) > 0 THEN true ELSE false END AS has_secret
-                FROM {settings.DB_SCHEMA}.api_tokens
+                FROM api_tokens
                 WHERE id = :tid
                 """
             ),

@@ -20,25 +20,22 @@ depends_on = None
 def upgrade() -> None:
     op.add_column(
         "candles_cache",
-        sa.Column("market", sa.String(length=16), nullable=True),
-        schema=SCHEMA,
+        sa.Column("market", sa.String(length=16), nullable=True)
     )
     op.add_column(
         "candles_cache",
-        sa.Column("instrument_id", sa.String(length=64), nullable=True),
-        schema=SCHEMA,
+        sa.Column("instrument_id", sa.String(length=64), nullable=True)
     )
     op.add_column(
         "candles_cache",
-        sa.Column("source", sa.String(length=32), nullable=True),
-        schema=SCHEMA,
+        sa.Column("source", sa.String(length=32), nullable=True)
     )
 
     # Backfill legacy MOEX rows to new discriminator columns.
     op.execute(
         sa.text(
             f"""
-            UPDATE {SCHEMA}.candles_cache
+            UPDATE candles_cache
                SET market = COALESCE(NULLIF(market, ''), 'moex'),
                    instrument_id = COALESCE(NULLIF(instrument_id, ''), ticker),
                    source = COALESCE(NULLIF(source, ''), 'legacy_moex')
@@ -52,22 +49,22 @@ def upgrade() -> None:
         )
     )
 
-    op.alter_column("candles_cache", "market", nullable=False, schema=SCHEMA)
-    op.alter_column("candles_cache", "instrument_id", nullable=False, schema=SCHEMA)
-    op.alter_column("candles_cache", "source", nullable=False, schema=SCHEMA)
+    op.alter_column("candles_cache", "market", nullable=False)
+    op.alter_column("candles_cache", "instrument_id", nullable=False)
+    op.alter_column("candles_cache", "source", nullable=False)
 
     op.execute(
-        sa.text(f"DROP INDEX IF EXISTS {SCHEMA}.uq_candles_cache_ticker_interval_time")
+        sa.text(f"DROP INDEX IF EXISTS uq_candles_cache_ticker_interval_time")
     )
     op.execute(
-        sa.text(f"DROP INDEX IF EXISTS {SCHEMA}.idx_candles_ticker_interval_time")
+        sa.text(f"DROP INDEX IF EXISTS idx_candles_ticker_interval_time")
     )
 
     op.execute(
         sa.text(
             f"""
             CREATE UNIQUE INDEX IF NOT EXISTS uq_candles_cache_market_instrument_interval_time
-            ON {SCHEMA}.candles_cache(market, instrument_id, interval, candle_time)
+            ON candles_cache(market, instrument_id, interval, candle_time)
             """
         )
     )
@@ -75,7 +72,7 @@ def upgrade() -> None:
         sa.text(
             f"""
             CREATE INDEX IF NOT EXISTS idx_candles_market_instrument_interval_time
-            ON {SCHEMA}.candles_cache(market, instrument_id, interval, candle_time)
+            ON candles_cache(market, instrument_id, interval, candle_time)
             """
         )
     )
@@ -84,12 +81,12 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute(
         sa.text(
-            f"DROP INDEX IF EXISTS {SCHEMA}.uq_candles_cache_market_instrument_interval_time"
+            f"DROP INDEX IF EXISTS uq_candles_cache_market_instrument_interval_time"
         )
     )
     op.execute(
         sa.text(
-            f"DROP INDEX IF EXISTS {SCHEMA}.idx_candles_market_instrument_interval_time"
+            f"DROP INDEX IF EXISTS idx_candles_market_instrument_interval_time"
         )
     )
 
@@ -97,7 +94,7 @@ def downgrade() -> None:
         sa.text(
             f"""
             CREATE UNIQUE INDEX IF NOT EXISTS uq_candles_cache_ticker_interval_time
-            ON {SCHEMA}.candles_cache(ticker, interval, candle_time)
+            ON candles_cache(ticker, interval, candle_time)
             """
         )
     )
@@ -105,11 +102,11 @@ def downgrade() -> None:
         sa.text(
             f"""
             CREATE INDEX IF NOT EXISTS idx_candles_ticker_interval_time
-            ON {SCHEMA}.candles_cache(ticker, interval, candle_time)
+            ON candles_cache(ticker, interval, candle_time)
             """
         )
     )
 
-    op.drop_column("candles_cache", "source", schema=SCHEMA)
-    op.drop_column("candles_cache", "instrument_id", schema=SCHEMA)
-    op.drop_column("candles_cache", "market", schema=SCHEMA)
+    op.drop_column("candles_cache", "source")
+    op.drop_column("candles_cache", "instrument_id")
+    op.drop_column("candles_cache", "market")

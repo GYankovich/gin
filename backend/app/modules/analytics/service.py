@@ -344,7 +344,7 @@ class AnalyticsService:
                     daily_yield,
                     average_position_price,
                     blocked
-                FROM ganaly.portfolio_positions
+                FROM portfolio_positions
                 WHERE snapshot_id = :snapshot_id \
                 """
 
@@ -364,7 +364,7 @@ class AnalyticsService:
                 text(
                     """
                     SELECT string_value, name
-                    FROM ganaly.dictionary
+                    FROM dictionary
                     WHERE table_name = 'PORTFOLIO_POSITIONS'
                       AND column_name = 'INSTRUMENT_TYPE'
                       AND hide_from_ui = 0
@@ -426,7 +426,7 @@ class AnalyticsService:
                   payment_currency,
                   status,
                   extra_data
-              FROM ganaly.portfolio_operations
+              FROM portfolio_operations
               WHERE account_id = :account_id
                 AND operation_date >= :from_date
                 AND operation_date <= :to_date
@@ -490,10 +490,10 @@ class AnalyticsService:
             text(
                 """
                 SELECT DISTINCT pp.figi, pp.ticker
-                FROM ganaly.portfolio_positions pp
+                FROM portfolio_positions pp
                 WHERE pp.snapshot_id = (
                     SELECT ps.id
-                    FROM ganaly.portfolio_snapshots ps
+                    FROM portfolio_snapshots ps
                     WHERE ps.account_id = :account_id
                     ORDER BY ps.snapshot_date DESC
                     LIMIT 1
@@ -517,8 +517,8 @@ class AnalyticsService:
                     pp.figi,
                     MAX(pp.ticker) AS ticker,
                     SUM(pp.quantity * pp.current_price) AS value
-                FROM ganaly.portfolio_snapshots ps
-                JOIN ganaly.portfolio_positions pp ON pp.snapshot_id = ps.id
+                FROM portfolio_snapshots ps
+                JOIN portfolio_positions pp ON pp.snapshot_id = ps.id
                 WHERE ps.account_id = :account_id
                   AND ps.snapshot_date >= :from_date
                   AND ps.snapshot_date <= :to_date
@@ -561,7 +561,7 @@ class AnalyticsService:
     # --- Robot trading analytics ---
 
     def robot_belongs_to_user(
-            self, db: Session, robot_id: int, user_id: int, schema: str = "ganaly"
+            self, db: Session, robot_id: int, user_id: int, schema: str = "public"
     ) -> bool:
         q = queries.build_robot_ownership_query(schema)
         return db.execute(
@@ -573,7 +573,7 @@ class AnalyticsService:
             db: Session,
             robot_id: int,
             recent_limit: int = 20,
-            schema: str = "ganaly",
+            schema: str = "public",
             user_id: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """
@@ -614,7 +614,7 @@ class AnalyticsService:
 
         status_sql = f"""
             SELECT status, COUNT(*)::int
-            FROM {schema}.robot_trades
+            FROM robot_trades
             WHERE robot_id = :robot_id
             GROUP BY status
         """
@@ -679,7 +679,7 @@ class AnalyticsService:
             self,
             db: Session,
             user_id: int,
-            schema: str = "ganaly",
+            schema: str = "public",
     ) -> Dict[str, Any]:
         """
         Агрегированные торговые метрики по всем роботам пользователя.
@@ -807,7 +807,7 @@ class AnalyticsService:
                 COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_INPUT' THEN payment ELSE 0 END), 0)
                 -
                 COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_OUTPUT' THEN ABS(payment) ELSE 0 END), 0)
-            FROM ganaly.portfolio_operations
+            FROM portfolio_operations
             WHERE account_id = :account_id
         """
         own_funds_row = db.execute(text(own_funds_sql), {"account_id": account_id}).first()
@@ -817,7 +817,7 @@ class AnalyticsService:
             text(
                 """
                 SELECT total_amount_portfolio, snapshot_date
-                FROM ganaly.portfolio_snapshots
+                FROM portfolio_snapshots
                 WHERE account_id = :account_id
                 ORDER BY snapshot_date DESC
                 LIMIT 1
@@ -839,7 +839,7 @@ class AnalyticsService:
             text(
                 """
                 SELECT MIN(operation_date)
-                FROM ganaly.portfolio_operations
+                FROM portfolio_operations
                 WHERE account_id = :account_id
                   AND operation_type = 'OPERATION_TYPE_INPUT'
                 """
@@ -859,7 +859,7 @@ class AnalyticsService:
                 COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_INPUT' THEN payment ELSE 0 END), 0)
                 -
                 COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_OUTPUT' THEN ABS(payment) ELSE 0 END), 0)
-            FROM ganaly.portfolio_operations
+            FROM portfolio_operations
             WHERE account_id = :account_id
               AND operation_date < :from_date
         """
@@ -956,7 +956,7 @@ class AnalyticsService:
         # Комиссии/вознаграждения/налоги в серии убытков не участвуют.
         sql = """
               SELECT operation_date, operation_type, figi, quantity, price, payment
-              FROM ganaly.portfolio_operations
+              FROM portfolio_operations
               WHERE account_id = :account_id
                 AND operation_date <= :to_date
                 AND figi IS NOT NULL
@@ -1084,7 +1084,7 @@ class AnalyticsService:
 
         period_ops_sql = """
             SELECT operation_type, payment
-            FROM ganaly.portfolio_operations
+            FROM portfolio_operations
             WHERE account_id = :account_id
               AND operation_date >= :from_date
               AND operation_date <= :to_date
@@ -1143,10 +1143,10 @@ class AnalyticsService:
             text(
                 """
                 SELECT COALESCE(SUM(pp.quantity * (pp.current_price - pp.average_position_price)), 0)
-                FROM ganaly.portfolio_positions pp
+                FROM portfolio_positions pp
                 WHERE pp.snapshot_id = (
                     SELECT ps.id
-                    FROM ganaly.portfolio_snapshots ps
+                    FROM portfolio_snapshots ps
                     WHERE ps.account_id = :account_id
                     ORDER BY ps.snapshot_date DESC
                     LIMIT 1

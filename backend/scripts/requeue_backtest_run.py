@@ -37,7 +37,7 @@ def main() -> int:
                 f"""
                 SELECT id, user_id, robot_id, status, config_snapshot, cancel_requested,
                        requested_from, requested_to, initial_capital
-                FROM {settings.DB_SCHEMA}.backtest_runs
+                FROM backtest_runs
                 WHERE id = :rid
                 """
             ),
@@ -81,7 +81,7 @@ def main() -> int:
         db.execute(
             text(
                 f"""
-                UPDATE {settings.DB_SCHEMA}.backtest_runs
+                UPDATE backtest_runs
                 SET status = 'QUEUED',
                     run_phase = 'queued',
                     finished_at = NULL,

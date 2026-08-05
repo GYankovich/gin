@@ -35,18 +35,17 @@ def upgrade():
         sa.Column('usercre', sa.BigInteger(), nullable=True),
         sa.Column('date_creation', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
         sa.Column('usermod', sa.BigInteger(), nullable=True),
-        sa.Column('date_modification', sa.DateTime(timezone=True), nullable=True),
-        schema=SCHEMA,
+        sa.Column('date_modification', sa.DateTime(timezone=True), nullable=True)
     )
 
     # Индексы
-    op.create_index('ix_dictionary_table_column', 'dictionary', ['table_name', 'column_name'], schema=SCHEMA)
-    op.create_index('ix_dictionary_num_value', 'dictionary', ['num_value'], schema=SCHEMA)
+    op.create_index('ix_dictionary_table_column', 'dictionary', ['table_name', 'column_name'])
+    op.create_index('ix_dictionary_num_value', 'dictionary', ['num_value'])
 
     # Добавляем начальные данные
     # TOKEN STATUS
     op.execute(f"""
-        INSERT INTO {SCHEMA}.dictionary 
+        INSERT INTO dictionary 
             (table_name, column_name, num_value, name, description, hide_from_ui)
         VALUES 
             ('TOKEN', 'STATUS', 0, 'Удаленный', 'Токен удален/деактивирован', 0),
@@ -55,7 +54,7 @@ def upgrade():
 
     # TOKEN TYPE
     op.execute(f"""
-        INSERT INTO {SCHEMA}.dictionary 
+        INSERT INTO dictionary 
             (table_name, column_name, num_value, string_value, name, description)
         VALUES 
             ('TOKEN', 'TYPE', 1, 'T-Invest', 'Т-Инвестиции', 'Токен для доступа к T-Invest API')
@@ -63,17 +62,17 @@ def upgrade():
 
     # ROBOT STATUS
     op.execute(f"""
-        INSERT INTO {SCHEMA}.dictionary 
+        INSERT INTO dictionary 
             (table_name, column_name, num_value, name, description)
         VALUES 
             ('ROBOT', 'STATUS', 1, 'Выключен', 'Робот остановлен'),
-            ('ROBOT', 'STATUS', 2, 'Включен', 'Робот активен и работает')
+            ('ROBOT', 'STATUS', 2, 'Включен', 'Робот активен и работает'),
             ('ROBOT', 'STATUS', 0, 'Удален', 'Робот удален')
     """)
 
     # ROBOT TYPE
     op.execute(f"""
-        INSERT INTO {SCHEMA}.dictionary 
+        INSERT INTO dictionary 
             (table_name, column_name, num_value, name, description)
         VALUES 
             ('ROBOT', 'TYPE', 1, 'Обновление портфеля', 'Робот для автоматического обновления данных портфеля'),
@@ -82,4 +81,4 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_table('dictionary', schema=SCHEMA)
+    op.drop_table('dictionary')

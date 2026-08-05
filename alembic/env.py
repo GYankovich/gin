@@ -1,3 +1,4 @@
+"""Alembic env: public schema only, no CREATE SCHEMA."""
 import sys
 from pathlib import Path
 from logging.config import fileConfig
@@ -9,14 +10,13 @@ from sqlalchemy import engine_from_config, pool, text
 from alembic import context
 
 # Добавляем путь к backend
-sys.path.append(str(Path(__file__).parent / 'backend'))
+sys.path.append(str(Path(__file__).parent / "backend"))
 
-# Импортируем настройки и модели
 from app.core.config import settings
 from app.core.database import Base
-from app.modules.auth import models
-from app.modules.portfolio.models import PortfolioAccount, PortfolioSnapshot, PortfolioPosition
-from app.modules.tinvest.models import ApiToken
+from app.modules.auth import models  # noqa: F401
+from app.modules.portfolio.models import PortfolioAccount, PortfolioSnapshot, PortfolioPosition  # noqa: F401
+from app.modules.tinvest.models import ApiToken  # noqa: F401
 
 config = context.config
 
@@ -25,7 +25,6 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-# Устанавливаем URL из настроек
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 
@@ -37,8 +36,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        version_table_schema=settings.DB_SCHEMA,
-        include_schemas=True,
+        include_schemas=False,
     )
 
     with context.begin_transaction():
@@ -57,15 +55,13 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        # ВАЖНО: Используем text() для выполнения SQL
-        connection.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{settings.DB_SCHEMA}"'))
+        connection.execute(text("SET search_path TO public"))
         connection.commit()
 
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            version_table_schema=settings.DB_SCHEMA,
-            include_schemas=True,
+            include_schemas=False,
         )
 
         with context.begin_transaction():

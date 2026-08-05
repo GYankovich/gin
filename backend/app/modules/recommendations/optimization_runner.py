@@ -86,7 +86,7 @@ async def _enqueue_variant_backtest(
     if job_id is None:
         db.execute(
             text(f"""
-                UPDATE {schema}.backtest_runs
+                UPDATE backtest_runs
                 SET status = 'FAILED',
                     finished_at = CURRENT_TIMESTAMP,
                     error_message = :err

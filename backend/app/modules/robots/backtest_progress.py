@@ -277,7 +277,7 @@ def persist_backtest_progress(
             conn.execute(
                 text(
                     f"""
-                    UPDATE {settings.DB_SCHEMA}.backtest_runs
+                    UPDATE backtest_runs
                     SET run_phase = :rp,
                         progress_percent = :pp,
                         eta_seconds = :eta,
@@ -295,7 +295,7 @@ def persist_backtest_progress(
             conn.execute(
                 text(
                     f"""
-                    UPDATE {settings.DB_SCHEMA}.backtest_runs
+                    UPDATE backtest_runs
                     SET run_phase = :rp,
                         progress_percent = :pp,
                         eta_seconds = :eta,
@@ -313,7 +313,7 @@ def persist_backtest_progress(
             conn.execute(
                 text(
                     f"""
-                    UPDATE {settings.DB_SCHEMA}.backtest_runs
+                    UPDATE backtest_runs
                     SET run_phase = :rp,
                         progress_percent = :pp,
                         eta_seconds = :eta,

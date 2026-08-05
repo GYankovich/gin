@@ -91,7 +91,7 @@ class IndicatorService:
         from_date: datetime,
         to_date: datetime,
         interval: str,
-        api_log_func: Optional[Callable[..., Awaitable[None]]] = None,
+        api_log_func: Optional[Callable[..., Awaitable[None]]] = None
     ) -> Tuple[List[Dict], Dict[str, int]]:
         empty_stats = {"db_before": 0, "db_after": 0, "api_fetched": 0, "loaded": 0}
         symbol = str(figi or "").strip().upper()
@@ -114,7 +114,7 @@ class IndicatorService:
                     interval_code=resolved.cache_label,
                     interval_code_num=interval_num,
                     from_dt=from_date,
-                    to_dt_exclusive=to_date,
+                    to_dt_exclusive=to_date
                 )
             finally:
                 db.close()
@@ -178,7 +178,7 @@ class IndicatorService:
                             "to": to_date.isoformat(),
                         },
                         response_data=stats,
-                        response_status=200,
+                        response_status=200
                     )
                 except Exception:
                     pass
@@ -190,7 +190,7 @@ class IndicatorService:
                     await api_log_func(
                         endpoint="bybit.market.get_kline",
                         request_data={"symbol": symbol, "interval": interval},
-                        error_message=str(e),
+                        error_message=str(e)
                     )
                 except Exception:
                     pass
@@ -203,7 +203,7 @@ class IndicatorService:
         from_date: datetime,
         to_date: datetime,
         interval: str,
-        api_log_func: Optional[Callable[..., Awaitable[None]]] = None,
+        api_log_func: Optional[Callable[..., Awaitable[None]]] = None
     ) -> Tuple[List[Dict], Dict[str, int]]:
         if self._is_bybit_broker(broker):
             return await self._load_bybit_candles_with_stats(
@@ -231,7 +231,7 @@ class IndicatorService:
                 "candle_days=%s exceeds cap=%s for interval=%s; clamped",
                 days,
                 cap,
-                interval,
+                interval
             )
             days = cap
         return days
@@ -250,7 +250,7 @@ class IndicatorService:
         from_date: datetime,
         to_date: datetime,
         interval: str,
-        api_log_func: Optional[Callable[..., Awaitable[None]]] = None,
+        api_log_func: Optional[Callable[..., Awaitable[None]]] = None
     ) -> List[Dict]:
         candles, _ = await self._load_candles_with_stats(
             broker, figi, from_date, to_date, interval, api_log_func=api_log_func
@@ -264,7 +264,7 @@ class IndicatorService:
         from_date: datetime,
         to_date: datetime,
         interval: str,
-        api_log_func: Optional[Callable[..., Awaitable[None]]] = None,
+        api_log_func: Optional[Callable[..., Awaitable[None]]] = None
     ) -> List[Dict]:
         candles, _ = await self._load_tinvest_candles_with_stats(
             broker, figi, from_date, to_date, interval, api_log_func=api_log_func
@@ -278,7 +278,7 @@ class IndicatorService:
         from_date: datetime,
         to_date: datetime,
         interval: str,
-        api_log_func: Optional[Callable[..., Awaitable[None]]] = None,
+        api_log_func: Optional[Callable[..., Awaitable[None]]] = None
     ) -> Tuple[List[Dict], Dict[str, int]]:
         empty_stats = {"db_before": 0, "db_after": 0, "api_fetched": 0, "loaded": 0}
         if not str(figi or "").upper().startswith("BBG"):
@@ -297,7 +297,7 @@ class IndicatorService:
                 from_dt=from_date,
                 to_dt=to_date,
                 token=broker.auth_token,
-                data_source="tinvest",
+                data_source="tinvest"
             )
             db_after = md_repo.count_candles_in_range(
                 db, schema, figi, interval, from_date, to_date
@@ -307,7 +307,7 @@ class IndicatorService:
                 figi=figi,
                 interval=interval,
                 from_dt=from_date,
-                to_dt=to_date,
+                to_dt=to_date
             )
             loaded = len(candles or [])
             stats = {
@@ -331,7 +331,7 @@ class IndicatorService:
                             "stages": stages,
                             **stats,
                         },
-                        response_status=200,
+                        response_status=200
                     )
                 except Exception:
                     pass
@@ -342,7 +342,7 @@ class IndicatorService:
                 "T-Bank candle fetch skipped figi=%s interval=%s error=%s",
                 figi,
                 interval,
-                e,
+                e
             )
             if api_log_func:
                 try:
@@ -354,7 +354,7 @@ class IndicatorService:
                             "from": from_date.isoformat(),
                             "to": to_date.isoformat(),
                         },
-                        error_message=str(e),
+                        error_message=str(e)
                     )
                 except Exception:
                     pass
@@ -369,7 +369,7 @@ class IndicatorService:
         figis: List[str],
         strategy_params: Dict,
         log_func: Optional[Callable[[str], None]] = None,
-        api_log_func: Optional[Callable[..., Awaitable[None]]] = None,
+        api_log_func: Optional[Callable[..., Awaitable[None]]] = None
     ) -> None:
         """Предзагрузка истории в кэш + диагностика по БД/API в лог сессии."""
         interval = strategy_params.get("interval")
@@ -422,7 +422,7 @@ class IndicatorService:
                 from_date,
                 to_date,
                 bootstrap_iv,
-                api_log_func=api_log_func,
+                api_log_func=api_log_func
             )
             cache.set(cache_figi, interval, days, candles)
             _log(
@@ -449,7 +449,7 @@ class IndicatorService:
         strategy_params: Dict,
         api_log_func: Optional[Callable[..., Awaitable[None]]] = None,
         *,
-        persist_to_db: bool = True,
+        persist_to_db: bool = True
     ) -> None:
         """Добавляет закрытую свечу из WS-потока в кэш."""
         interval = strategy_params.get("interval") or BOOTSTRAP_INTERVAL
@@ -475,7 +475,7 @@ class IndicatorService:
                 robot_id,
                 figi,
                 interval,
-                candle.get("time"),
+                candle.get("time")
             )
         else:
             cache.set(cache_figi, interval, days, [candle])
@@ -513,7 +513,7 @@ class IndicatorService:
                         "time": candle.get("time"),
                         "isComplete": candle.get("isComplete"),
                     },
-                    response_status=200,
+                    response_status=200
                 )
             except Exception:
                 pass
@@ -523,7 +523,7 @@ class IndicatorService:
         robot_id: int,
         broker: BrokerFacade,
         figis: List[str],
-        strategy_params: Dict,
+        strategy_params: Dict
     ) -> None:
         interval = strategy_params.get("interval")
         if not interval:
@@ -543,7 +543,7 @@ class IndicatorService:
                         figi=figi,
                         interval=interval,
                         days=days,
-                        broker=broker,
+                        broker=broker
                     )
 
     async def unregister_robot(self, robot_id: int) -> None:
@@ -560,7 +560,7 @@ class IndicatorService:
         figis: List[str],
         strategy_params: Dict,
         robot_id: Optional[int] = None,
-        api_log_func: Optional[Callable[..., Awaitable[None]]] = None,
+        api_log_func: Optional[Callable[..., Awaitable[None]]] = None
     ) -> Dict[str, List[Dict]]:
         interval = strategy_params["interval"]
         days = self._resolve_request_days(strategy_params, interval)
@@ -587,7 +587,7 @@ class IndicatorService:
                 bootstrap_iv,
                 len(candles),
                 robot_id,
-                getattr(broker, "broker_type", None),
+                getattr(broker, "broker_type", None)
             )
             cache.set(cache_figi, interval, days, candles)
             result[figi] = candles

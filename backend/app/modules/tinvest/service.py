@@ -15,7 +15,7 @@ from fastapi import HTTPException, status
 from app.modules.tinvest.methods import (
     create_tbank_client,
     TBankAuthError,
-    TBANK_GET_OPERATIONS_BY_CURSOR_ENDPOINT,
+    TBANK_GET_OPERATIONS_BY_CURSOR_ENDPOINT
 )
 from app.core.config import settings
 from .token_service import token_service
@@ -51,7 +51,7 @@ class TInvestService:
             started_at: datetime,
             finished_at: datetime,
             success: bool,
-            error_message: Optional[str],
+            error_message: Optional[str]
     ) -> None:
         duration_ms = int(max(0, (finished_at - started_at).total_seconds() * 1000))
         rd = _json_for_pg(response_data if response_data is not None else {})
@@ -72,7 +72,7 @@ class TInvestService:
                 "duration_ms": duration_ms,
                 "success": 1 if success else 0,
                 "error_message": (error_message[:8000] if error_message else None),
-            },
+            }
         )
 
     def _execute(self, query: str, params: dict, fetch_one: bool = False):
@@ -94,7 +94,7 @@ class TInvestService:
                 LIMIT 1
                 """
             ),
-            {"schema": settings.DB_SCHEMA},
+            {"schema": settings.DB_SCHEMA}
         ).first()
         self._api_tokens_has_status_column_cache = bool(row)
         return self._api_tokens_has_status_column_cache
@@ -105,7 +105,7 @@ class TInvestService:
         *,
         token_id: int,
         user_id: int,
-        error_message: str,
+        error_message: str
     ) -> None:
         now = datetime.now(timezone.utc)
         params = {
@@ -118,17 +118,17 @@ class TInvestService:
             db.execute(
                 text(
                     f"""
-                    UPDATE {settings.DB_SCHEMA}.api_tokens
+                    UPDATE api_tokens
                     SET status = 3, updated_at = :now
                     WHERE id = :token_id AND user_id = :user_id
                     """
                 ),
-                params,
+                params
             )
         db.execute(
             text(
                 f"""
-                UPDATE {settings.DB_SCHEMA}.robots
+                UPDATE robots
                 SET status = 2,
                     last_error = :error_message,
                     last_error_at = :now,
@@ -139,7 +139,7 @@ class TInvestService:
                   AND status != 0
                 """
             ),
-            params,
+            params
         )
         db.commit()
 
@@ -155,7 +155,7 @@ class TInvestService:
             *,
             db: Optional[Session] = None,
             token_id: Optional[int] = None,
-            user_id: Optional[int] = None,
+            user_id: Optional[int] = None
     ) -> List[dict]:
         """
         Получение списка счетов пользователя
@@ -170,12 +170,12 @@ class TInvestService:
                         db,
                         token_id=int(token_id),
                         user_id=int(user_id),
-                        error_message=str(e),
+                        error_message=str(e)
                     )
                     logger.warning(
                         "Token expired -> deactivated token_id=%s and disabled robots for user_id=%s",
                         token_id,
-                        user_id,
+                        user_id
                     )
                 except Exception as deact_exc:
                     logger.error(
@@ -183,11 +183,11 @@ class TInvestService:
                         token_id,
                         user_id,
                         deact_exc,
-                        exc_info=True,
+                        exc_info=True
                     )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=str(e),
+                detail=str(e)
             )
 
         result = []
@@ -211,7 +211,7 @@ class TInvestService:
             *,
             db: Optional[Session] = None,
             token_id: Optional[int] = None,
-            user_id: Optional[int] = None,
+            user_id: Optional[int] = None
     ) -> dict:
         """
         Получение данных портфеля
@@ -224,7 +224,7 @@ class TInvestService:
                 token,
                 db=db,
                 token_id=token_id,
-                user_id=user_id,
+                user_id=user_id
             )
 
             if not accounts:
@@ -289,12 +289,12 @@ class TInvestService:
                         db,
                         token_id=int(token_id),
                         user_id=int(user_id),
-                        error_message=str(e),
+                        error_message=str(e)
                     )
                     logger.warning(
                         "Token expired -> deactivated token_id=%s and disabled robots for user_id=%s",
                         token_id,
-                        user_id,
+                        user_id
                     )
                 except Exception as deact_exc:
                     logger.error(
@@ -302,11 +302,11 @@ class TInvestService:
                         token_id,
                         user_id,
                         deact_exc,
-                        exc_info=True,
+                        exc_info=True
                     )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=str(e),
+                detail=str(e)
             )
         except Exception as e:
             logger.error(f"Error in get_portfolio_data: {e}", exc_info=True)
@@ -450,7 +450,7 @@ class TInvestService:
             token,
             db=db,
             token_id=active_token_id,
-            user_id=user_id,
+            user_id=user_id
         )
 
         if not accounts:
@@ -497,7 +497,7 @@ class TInvestService:
                         latest_op = self._execute(
                             queries.build_get_latest_operation_date_query(),
                             {"account_db_id": account_in_db[0]},
-                            fetch_one=True,
+                            fetch_one=True
                         )
                         from_dt = (latest_op[0] - timedelta(days=2)) if latest_op and latest_op[0] else (datetime.now(timezone.utc) - timedelta(days=30))
                         to_dt = datetime.now(timezone.utc)
@@ -507,7 +507,7 @@ class TInvestService:
                                 user_id=user_id,
                                 external_account_id=account["id"],
                                 from_dt=from_dt,
-                                to_dt=to_dt,
+                                to_dt=to_dt
                             )
                         except Exception as e:
                             logger.warning(f"Operations auto-sync failed for account {account['id']}: {e}")
@@ -605,7 +605,7 @@ class TInvestService:
             to_dt: datetime,
             state: str = "OPERATION_STATE_UNSPECIFIED",
             token_id: Optional[int] = None,
-            max_pages: int = 500,
+            max_pages: int = 500
     ) -> Dict[str, Any]:
         self.db = db
         token = None
@@ -626,7 +626,7 @@ class TInvestService:
         account_row = self._execute(
             queries.build_get_account_row_by_external_id_query(),
             {"external_account_id": external_account_id, "user_id": user_id},
-            fetch_one=True,
+            fetch_one=True
         )
         if not account_row:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Счет не найден")
@@ -650,7 +650,7 @@ class TInvestService:
                 from_dt,
                 to_dt,
                 state=state,
-                max_pages=max_pages,
+                max_pages=max_pages
             )
             api_finished = datetime.now(timezone.utc)
             page_bodies = payload.pop("pages", [])
@@ -672,7 +672,7 @@ class TInvestService:
                 started_at=api_started,
                 finished_at=api_finished,
                 success=True,
-                error_message=None,
+                error_message=None
             )
             self.db.commit()
         except Exception as e:
@@ -690,7 +690,7 @@ class TInvestService:
                 started_at=api_started,
                 finished_at=api_finished,
                 success=False,
-                error_message=str(e),
+                error_message=str(e)
             )
             self.db.commit()
             raise
@@ -700,7 +700,7 @@ class TInvestService:
             "Operations sync: account=%s items=%s pages=%s, writing to DB...",
             external_account_id,
             len(operations),
-            payload.get("pageCount"),
+            payload.get("pageCount")
         )
 
         write_result = self.sync_account_operations_from_items(
@@ -712,7 +712,7 @@ class TInvestService:
             operations=operations,
             token_id=effective_token_id,
             pages_fetched=int(payload.get("pageCount") or 0),
-            raw_items_from_api=int(payload.get("rawItemCount") or len(operations)),
+            raw_items_from_api=int(payload.get("rawItemCount") or len(operations))
         )
         return write_result
 
@@ -727,14 +727,14 @@ class TInvestService:
             *,
             token_id: Optional[int] = None,
             pages_fetched: int = 0,
-            raw_items_from_api: Optional[int] = None,
+            raw_items_from_api: Optional[int] = None
     ) -> Dict[str, Any]:
         """Broker-neutral persist of operations already fetched by a facade."""
         self.db = db
         account_row = self._execute(
             queries.build_get_account_row_by_external_id_query(),
             {"external_account_id": external_account_id, "user_id": user_id},
-            fetch_one=True,
+            fetch_one=True
         )
         if not account_row:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Счет не найден")
@@ -745,7 +745,7 @@ class TInvestService:
         # Поэтому после успешного получения ответа полностью перезаписываем диапазон.
         self._execute(
             queries.build_delete_operations_by_period_query(),
-            {"account_db_id": account_db_id, "from_dt": from_dt, "to_dt": to_dt},
+            {"account_db_id": account_db_id, "from_dt": from_dt, "to_dt": to_dt}
         )
 
         upsert_query = queries.build_upsert_operation_query()
@@ -802,7 +802,7 @@ class TInvestService:
                     "status": op.get("state") or "OPERATION_STATE_UNSPECIFIED",
                     "trades": _json_for_pg(op.get("trades") or []),
                     "extra_data": _json_for_pg(extra_data),
-                },
+                }
             )
             saved += 1
 
@@ -812,7 +812,7 @@ class TInvestService:
                 "account_id": account_db_id,
                 "now": datetime.now(timezone.utc),
                 "token_id": token_id,
-            },
+            }
         )
         db.commit()
         return {
@@ -835,13 +835,13 @@ class TInvestService:
             account_db_id: int,
             from_dt: datetime,
             to_dt: datetime,
-            limit: int = 500,
+            limit: int = 500
     ) -> List[Dict[str, Any]]:
         self.db = db
         account_row = self._execute(
             queries.build_get_account_row_query(),
             {"account_db_id": account_db_id, "user_id": user_id},
-            fetch_one=True,
+            fetch_one=True
         )
         if not account_row:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Счет не найден")
@@ -852,7 +852,7 @@ class TInvestService:
                 "from_dt": from_dt,
                 "to_dt": to_dt,
                 "limit": limit,
-            },
+            }
         ).fetchall()
         out: List[Dict[str, Any]] = []
         for row in rows:

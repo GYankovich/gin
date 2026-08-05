@@ -25,8 +25,7 @@ def upgrade():
     # Добавляем поле execution_log_id
     op.add_column(
         'robot_logs',
-        sa.Column('execution_log_id', sa.BigInteger(), nullable=True),
-        schema=SCHEMA
+        sa.Column('execution_log_id', sa.BigInteger(), nullable=True)
     )
 
     # Добавляем внешний ключ
@@ -36,8 +35,6 @@ def upgrade():
         'robot_execution_logs',
         ['execution_log_id'],
         ['id'],
-        source_schema=SCHEMA,
-        referent_schema=SCHEMA,
         ondelete='SET NULL'
     )
 
@@ -45,17 +42,16 @@ def upgrade():
     op.create_index(
         'ix_robot_logs_execution_log_id',
         'robot_logs',
-        ['execution_log_id'],
-        schema=SCHEMA
+        ['execution_log_id']
     )
 
 
 def downgrade():
     # Удаляем индекс
-    op.drop_index('ix_robot_logs_execution_log_id', table_name='robot_logs', schema=SCHEMA)
+    op.drop_index('ix_robot_logs_execution_log_id', table_name='robot_logs')
 
     # Удаляем внешний ключ
-    op.drop_constraint('fk_robot_logs_execution_log', 'robot_logs', schema=SCHEMA, type_='foreignkey')
+    op.drop_constraint('fk_robot_logs_execution_log', 'robot_logs', type_='foreignkey')
 
     # Удаляем поле
-    op.drop_column('robot_logs', 'execution_log_id', schema=SCHEMA)
+    op.drop_column('robot_logs', 'execution_log_id')

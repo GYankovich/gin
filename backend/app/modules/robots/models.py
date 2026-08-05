@@ -24,8 +24,7 @@ class Dictionary(Base):
     __tablename__ = "dictionary"
     __table_args__ = (
         Index("ix_dictionary_table_column", "table_name", "column_name"),
-        Index("ix_dictionary_num_value", "num_value"),
-        {"schema": SCHEMA}
+        Index("ix_dictionary_num_value", "num_value")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -53,14 +52,13 @@ class Robot(Base):
         Index("ix_robots_user_id", "user_id"),
         Index("ix_robots_token_id", "token_id"),
         Index("ix_robots_type", "type"),
-        Index("ix_robots_status", "status"),
-        {"schema": SCHEMA}
+        Index("ix_robots_status", "status")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     name = Column(String(255), nullable=True)  # Теперь может быть NULL
-    user_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.user.id", ondelete="CASCADE"), nullable=False)
-    token_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.api_tokens.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    token_id = Column(BigInteger, ForeignKey(f"api_tokens.id", ondelete="SET NULL"), nullable=True)
 
     # Ссылки на dictionary
     type = Column(Integer, nullable=False)  # ссылка на dictionary (ROBOT.TYPE)
@@ -95,8 +93,7 @@ class RobotConfig(Base):
     __tablename__ = "robot_configs"
     __table_args__ = (
         Index("ix_robot_configs_type", "robot_type"),
-        Index("ix_robot_configs_key", "config_key"),
-        {"schema": SCHEMA}
+        Index("ix_robot_configs_key", "config_key")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -121,12 +118,11 @@ class RobotTrade(Base):
     __table_args__ = (
         Index("ix_robot_trades_robot_date", "robot_id", "created_at"),
         Index("ix_robot_trades_figi", "figi"),
-        Index("ix_robot_trades_status", "status"),
-        {"schema": SCHEMA}
+        Index("ix_robot_trades_status", "status")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    robot_id = Column(BigInteger, ForeignKey(f"robots.id", ondelete="CASCADE"), nullable=False)
 
     # Данные сделки
     figi = Column(String(20), nullable=False)
@@ -185,13 +181,13 @@ class RobotLog(Base):
         Index("ix_robot_logs_user_token", "user_id", "token_id"),
         Index("ix_robot_logs_success", "success"),
         Index("ix_robot_logs_execution_log", "execution_log_id"),  # новый индекс
-        {"schema": SCHEMA}
+        
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=True)
+    robot_id = Column(BigInteger, ForeignKey(f"robots.id", ondelete="CASCADE"), nullable=True)
 
-    execution_log_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robot_execution_logs.id", ondelete="SET NULL"), nullable=True)
+    execution_log_id = Column(BigInteger, ForeignKey(f"robot_execution_logs.id", ondelete="SET NULL"), nullable=True)
 
     robot_name = Column(String(255), nullable=False)
     robot_version = Column(String(20), nullable=True)
@@ -227,12 +223,11 @@ class RobotSignal(Base):
         Index("ix_robot_signals_robot_date", "robot_id", "created_at"),
         Index("ix_robot_signals_figi", "figi"),
         Index("ix_robot_signals_type", "signal_type"),
-        Index("ix_robot_signals_executed", "was_executed"),
-        {"schema": SCHEMA}
+        Index("ix_robot_signals_executed", "was_executed")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    robot_id = Column(BigInteger, ForeignKey(f"robots.id", ondelete="CASCADE"), nullable=False)
 
     figi = Column(String(20), nullable=False)
     ticker = Column(String(50), nullable=True)
@@ -246,7 +241,7 @@ class RobotSignal(Base):
 
     # Было ли сигнал исполнен
     was_executed = Column(Integer, nullable=False, default=0)  # 0 - нет, 1 - да
-    executed_trade_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robot_trades.id"), nullable=True)
+    executed_trade_id = Column(BigInteger, ForeignKey(f"robot_trades.id"), nullable=True)
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
@@ -264,12 +259,11 @@ class RobotSchedule(Base):
     __table_args__ = (
         Index("ix_robot_schedules_robot_id", "robot_id"),
         Index("ix_robot_schedules_active", "is_active"),
-        Index("ix_robot_schedules_type", "schedule_type"),
-        {"schema": SCHEMA}
+        Index("ix_robot_schedules_type", "schedule_type")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    robot_id = Column(BigInteger, ForeignKey(f"robots.id", ondelete="CASCADE"), nullable=False)
 
     # Тип расписания: 1=interval, 2=time_range, 3=market_hours
     schedule_type = Column(Integer, nullable=False)
@@ -307,12 +301,11 @@ class RobotStrategy(Base):
     __table_args__ = (
         Index("ix_robot_strategies_robot_id", "robot_id"),
         Index("ix_robot_strategies_type", "type"),
-        Index("ix_robot_strategies_active", "is_active"),
-        {"schema": SCHEMA}
+        Index("ix_robot_strategies_active", "is_active")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    robot_id = Column(BigInteger, ForeignKey(f"robots.id", ondelete="CASCADE"), nullable=False)
 
     # Тип стратегии (ссылка на dictionary)
     strategy_type = Column("type", Integer, nullable=False)
@@ -347,13 +340,12 @@ class RobotExecutionLog(Base):
         Index("ix_robot_exec_logs_robot_id", "robot_id"),
         Index("ix_robot_exec_logs_created_at", "created_at"),
         Index("ix_robot_exec_logs_status", "status"),
-        Index("ix_robot_exec_logs_action_type", "action_type"),
-        {"schema": SCHEMA}
+        Index("ix_robot_exec_logs_action_type", "action_type")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
-    strategy_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robot_strategies.id", ondelete="SET NULL"), nullable=True)
+    robot_id = Column(BigInteger, ForeignKey(f"robots.id", ondelete="CASCADE"), nullable=False)
+    strategy_id = Column(BigInteger, ForeignKey(f"robot_strategies.id", ondelete="SET NULL"), nullable=True)
 
     # Тип действия: 1=start, 2=stop, 3=error, 4=signal, 5=trade
     action_type = Column(Integer, nullable=False)
@@ -385,13 +377,12 @@ class RobotRunCycle(Base):
     __table_args__ = (
         Index("ix_robot_run_cycles_robot_id", "robot_id"),
         Index("ix_robot_run_cycles_exec_log_id", "execution_log_id"),
-        Index("ix_robot_run_cycles_started_at", "started_at"),
-        {"schema": SCHEMA}
+        Index("ix_robot_run_cycles_started_at", "started_at")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
-    execution_log_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robot_execution_logs.id", ondelete="SET NULL"), nullable=True)
+    robot_id = Column(BigInteger, ForeignKey(f"robots.id", ondelete="CASCADE"), nullable=False)
+    execution_log_id = Column(BigInteger, ForeignKey(f"robot_execution_logs.id", ondelete="SET NULL"), nullable=True)
     status = Column(String(20), nullable=False, default="pending")
     started_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     finished_at = Column(DateTime(timezone=True), nullable=True)
@@ -409,14 +400,13 @@ class RobotDecision(Base):
     __table_args__ = (
         Index("ix_robot_decisions_robot_id", "robot_id"),
         Index("ix_robot_decisions_cycle_id", "cycle_id"),
-        Index("ix_robot_decisions_created_at", "created_at"),
-        {"schema": SCHEMA}
+        Index("ix_robot_decisions_created_at", "created_at")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
-    execution_log_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robot_execution_logs.id", ondelete="SET NULL"), nullable=True)
-    cycle_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robot_run_cycles.id", ondelete="SET NULL"), nullable=True)
+    robot_id = Column(BigInteger, ForeignKey(f"robots.id", ondelete="CASCADE"), nullable=False)
+    execution_log_id = Column(BigInteger, ForeignKey(f"robot_execution_logs.id", ondelete="SET NULL"), nullable=True)
+    cycle_id = Column(BigInteger, ForeignKey(f"robot_run_cycles.id", ondelete="SET NULL"), nullable=True)
     figi = Column(String(20), nullable=True)
     stage = Column(String(50), nullable=False)
     decision_type = Column(String(50), nullable=False)
@@ -438,13 +428,12 @@ class RobotOrderEvent(Base):
     __table_args__ = (
         Index("ix_robot_order_events_robot_id", "robot_id"),
         Index("ix_robot_order_events_order_id", "order_id"),
-        Index("ix_robot_order_events_created_at", "created_at"),
-        {"schema": SCHEMA}
+        Index("ix_robot_order_events_created_at", "created_at")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
-    trade_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robot_trades.id", ondelete="SET NULL"), nullable=True)
+    robot_id = Column(BigInteger, ForeignKey(f"robots.id", ondelete="CASCADE"), nullable=False)
+    trade_id = Column(BigInteger, ForeignKey(f"robot_trades.id", ondelete="SET NULL"), nullable=True)
     order_id = Column(String(120), nullable=True)
     status = Column(String(50), nullable=False)
     event_type = Column(String(50), nullable=False, default="status_update")
@@ -462,12 +451,11 @@ class RobotBacktestRun(Base):
     __tablename__ = "robot_backtest_runs"
     __table_args__ = (
         Index("ix_robot_backtest_runs_robot_id", "robot_id"),
-        Index("ix_robot_backtest_runs_created_at", "created_at"),
-        {"schema": SCHEMA}
+        Index("ix_robot_backtest_runs_created_at", "created_at")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    robot_id = Column(BigInteger, ForeignKey(f"robots.id", ondelete="CASCADE"), nullable=False)
     requested_from = Column(DateTime(timezone=True), nullable=False)
     requested_to = Column(DateTime(timezone=True), nullable=False)
     initial_capital = Column(Numeric(20, 4), nullable=False)
@@ -484,11 +472,10 @@ class BacktestRun(Base):
     __tablename__ = "backtest_runs"
     __table_args__ = (
         Index("ix_backtest_runs_robot_created", "robot_id", "started_at"),
-        {"schema": SCHEMA},
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    robot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.robots.id", ondelete="CASCADE"), nullable=False)
+    robot_id = Column(BigInteger, ForeignKey(f"robots.id", ondelete="CASCADE"), nullable=False)
     requested_from = Column(DateTime(timezone=True), nullable=False)
     requested_to = Column(DateTime(timezone=True), nullable=False)
     started_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
@@ -508,11 +495,10 @@ class BacktestSignal(Base):
     __tablename__ = "backtest_signals"
     __table_args__ = (
         Index("ix_backtest_signals_run_id", "run_id"),
-        {"schema": SCHEMA},
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    run_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.backtest_runs.id", ondelete="CASCADE"), nullable=False)
+    run_id = Column(BigInteger, ForeignKey(f"backtest_runs.id", ondelete="CASCADE"), nullable=False)
     signal_time = Column(DateTime(timezone=True), nullable=True)
     figi = Column(String(20), nullable=False)
     signal_type = Column(String(20), nullable=False)
@@ -525,11 +511,10 @@ class BacktestOrder(Base):
     __tablename__ = "backtest_orders"
     __table_args__ = (
         Index("ix_backtest_orders_run_id", "run_id"),
-        {"schema": SCHEMA},
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    run_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.backtest_runs.id", ondelete="CASCADE"), nullable=False)
+    run_id = Column(BigInteger, ForeignKey(f"backtest_runs.id", ondelete="CASCADE"), nullable=False)
     signal_time = Column(DateTime(timezone=True), nullable=True)
     figi = Column(String(20), nullable=False)
     side = Column(String(10), nullable=False)
@@ -548,11 +533,10 @@ class BacktestPortfolioSnapshot(Base):
     __tablename__ = "backtest_portfolio_snapshots"
     __table_args__ = (
         Index("ix_backtest_portfolio_run_id", "run_id"),
-        {"schema": SCHEMA},
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    run_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.backtest_runs.id", ondelete="CASCADE"), nullable=False)
+    run_id = Column(BigInteger, ForeignKey(f"backtest_runs.id", ondelete="CASCADE"), nullable=False)
     snapshot_time = Column(DateTime(timezone=True), nullable=False)
     cash_balance = Column(Numeric(20, 4), nullable=False)
     equity = Column(Numeric(20, 4), nullable=False)
@@ -563,11 +547,10 @@ class BacktestMetric(Base):
     __tablename__ = "backtest_metrics"
     __table_args__ = (
         Index("uq_backtest_metrics_run_id", "run_id", unique=True),
-        {"schema": SCHEMA},
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    run_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.backtest_runs.id", ondelete="CASCADE"), nullable=False)
+    run_id = Column(BigInteger, ForeignKey(f"backtest_runs.id", ondelete="CASCADE"), nullable=False)
     total_return_percent = Column(Numeric(12, 6), nullable=True)
     max_drawdown_percent = Column(Numeric(12, 6), nullable=True)
     sharpe_ratio = Column(Numeric(12, 6), nullable=True)

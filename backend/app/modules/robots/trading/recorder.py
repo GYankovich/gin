@@ -31,7 +31,7 @@ from app.modules.robots.trading.contracts import (
     Fill,
     Order,
     Position,
-    Signal,
+    Signal
 )
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ class RuntimeRecorder(ABC):
         accepted: List[str],
         rejected: List[Tuple[str, str]],
         *,
-        source: str = "pipeline",
+        source: str = "pipeline"
     ) -> None: ...
 
     @abstractmethod
@@ -76,7 +76,7 @@ class RuntimeRecorder(ABC):
         ts: datetime,
         positions: List[Position],
         cash: float,
-        equity: float,
+        equity: float
     ) -> None: ...
 
     @abstractmethod
@@ -84,7 +84,7 @@ class RuntimeRecorder(ABC):
         self,
         trade_date: date,
         pnl: float,
-        return_pct: float,
+        return_pct: float
     ) -> None: ...
 
 
@@ -150,7 +150,7 @@ class BacktestRecorder(RuntimeRecorder):
             for r in rows:
                 self.db.execute(
                     text(f"""
-                        INSERT INTO {self.schema}.backtest_decisions
+                        INSERT INTO backtest_decisions
                             (run_id, trade_date, ticker, source, result, reason, payload)
                         VALUES (:run_id, :trade_date, :ticker, :source, :result, :reason, :payload)
                     """),
@@ -162,7 +162,7 @@ class BacktestRecorder(RuntimeRecorder):
                         "result": r["result"],
                         "reason": r["reason"],
                         "payload": json.dumps({}),
-                    },
+                    }
                 )
             self.db.commit()
         except Exception as e:
@@ -173,7 +173,7 @@ class BacktestRecorder(RuntimeRecorder):
         try:
             self.db.execute(
                 text(f"""
-                    INSERT INTO {self.schema}.backtest_signals
+                    INSERT INTO backtest_signals
                         (run_id, signal_time, figi, signal_type, price, was_executed, payload)
                     VALUES (:run_id, :ts, :figi, :stype, :price, :exec, :payload)
                 """),
@@ -186,7 +186,7 @@ class BacktestRecorder(RuntimeRecorder):
                     "exec": 0,
                     "payload": json.dumps({"reason": signal.reason, "rule": signal.rule,
                                             "strategy": signal.strategy, **signal.meta}),
-                },
+                }
             )
             self.db.commit()
         except Exception as e:
@@ -197,7 +197,7 @@ class BacktestRecorder(RuntimeRecorder):
         try:
             self.db.execute(
                 text(f"""
-                    INSERT INTO {self.schema}.backtest_risk_events
+                    INSERT INTO backtest_risk_events
                         (run_id, ts, secid, figi, signal_id, reason_code, payload)
                     VALUES (:run_id, :ts, :secid, :figi, :sid, :reason, :payload)
                 """),
@@ -209,7 +209,7 @@ class BacktestRecorder(RuntimeRecorder):
                     "sid": str(signal.signal_id),
                     "reason": reason,
                     "payload": json.dumps({"signal_meta": signal.meta}),
-                },
+                }
             )
             self.db.commit()
         except Exception as e:
@@ -220,7 +220,7 @@ class BacktestRecorder(RuntimeRecorder):
         try:
             self.db.execute(
                 text(f"""
-                    INSERT INTO {self.schema}.backtest_orders
+                    INSERT INTO backtest_orders
                         (run_id, signal_time, figi, side, status, quantity, requested_price, executed_price,
                          slippage_pct, commission, tax, pnl_net, payload)
                     VALUES (:run_id, :ts, :figi, :side, :status, :qty, :rp, :ep, 0, 0, 0, NULL, :payload)
@@ -236,7 +236,7 @@ class BacktestRecorder(RuntimeRecorder):
                     "ep": order.price,
                     "payload": json.dumps({"signal_id": str(order.signal_id) if order.signal_id else None,
                                             "order_id": str(order.order_id), **order.meta}),
-                },
+                }
             )
             self.db.commit()
         except Exception as e:
@@ -247,7 +247,7 @@ class BacktestRecorder(RuntimeRecorder):
         try:
             self.db.execute(
                 text(f"""
-                    UPDATE {self.schema}.backtest_orders
+                    UPDATE backtest_orders
                     SET status = 'filled', executed_price = :px, commission = :comm,
                         slippage_pct = :sl, payload = COALESCE(payload, '{{}}'::jsonb) || :patch::jsonb
                     WHERE payload->>'order_id' = :oid
@@ -258,7 +258,7 @@ class BacktestRecorder(RuntimeRecorder):
                     "sl": float(fill.slippage),
                     "patch": json.dumps({"fill_ts": fill.ts.isoformat() if fill.ts else None}),
                     "oid": str(fill.order_id),
-                },
+                }
             )
             self.db.commit()
         except Exception as e:
@@ -276,7 +276,7 @@ class BacktestRecorder(RuntimeRecorder):
             ]
             self.db.execute(
                 text(f"""
-                    INSERT INTO {self.schema}.backtest_portfolio_snapshots
+                    INSERT INTO backtest_portfolio_snapshots
                         (run_id, snapshot_time, cash_balance, equity, positions_payload)
                     VALUES (:run_id, :ts, :cash, :eq, :payload)
                 """),
@@ -286,7 +286,7 @@ class BacktestRecorder(RuntimeRecorder):
                     "cash": float(cash),
                     "eq": float(equity),
                     "payload": json.dumps({"positions": pl}),
-                },
+                }
             )
             self.db.commit()
         except Exception as e:
@@ -299,7 +299,7 @@ class BacktestRecorder(RuntimeRecorder):
         try:
             self.db.execute(
                 text(f"""
-                    UPDATE {self.schema}.backtest_runs
+                    UPDATE backtest_runs
                     SET metrics_summary = COALESCE(metrics_summary, '{{}}'::jsonb) ||
                         jsonb_build_object('daily_pnl_' || :d, jsonb_build_object('pnl', :pnl, 'return_pct', :rp))
                     WHERE id = :run_id
@@ -309,7 +309,7 @@ class BacktestRecorder(RuntimeRecorder):
                     "d": trade_date.isoformat(),
                     "pnl": float(pnl),
                     "rp": float(return_pct),
-                },
+                }
             )
             self.db.commit()
         except Exception as e:
@@ -331,7 +331,7 @@ class LiveRecorder(RuntimeRecorder):
         robot_id: int,
         schema: str,
         execution_log_id: Optional[int] = None,
-        cycle_id: Optional[int] = None,
+        cycle_id: Optional[int] = None
     ):
         self.db = db
         self.robot_id = int(robot_id)
@@ -344,7 +344,7 @@ class LiveRecorder(RuntimeRecorder):
             for t in accepted:
                 self.db.execute(
                     text(f"""
-                        INSERT INTO {self.schema}.robot_decisions
+                        INSERT INTO robot_decisions
                             (robot_id, execution_log_id, cycle_id, figi, stage, decision_type, decision, reason_code, payload)
                         VALUES (:robot_id, :elog, :cycle, :figi, 'universe', 'pipeline_filter', 'accepted', NULL, :payload)
                     """),
@@ -352,12 +352,12 @@ class LiveRecorder(RuntimeRecorder):
                         "robot_id": self.robot_id, "elog": self.execution_log_id, "cycle": self.cycle_id,
                         "figi": t.upper(),
                         "payload": json.dumps({"source": source}),
-                    },
+                    }
                 )
             for t, reason in rejected:
                 self.db.execute(
                     text(f"""
-                        INSERT INTO {self.schema}.robot_decisions
+                        INSERT INTO robot_decisions
                             (robot_id, execution_log_id, cycle_id, figi, stage, decision_type, decision, reason_code, payload)
                         VALUES (:robot_id, :elog, :cycle, :figi, 'universe', 'pipeline_filter', 'rejected', :reason, :payload)
                     """),
@@ -366,7 +366,7 @@ class LiveRecorder(RuntimeRecorder):
                         "figi": t.upper(),
                         "reason": reason,
                         "payload": json.dumps({"source": source}),
-                    },
+                    }
                 )
             self.db.commit()
         except Exception as e:
@@ -377,7 +377,7 @@ class LiveRecorder(RuntimeRecorder):
         try:
             self.db.execute(
                 text(f"""
-                    INSERT INTO {self.schema}.robot_signals
+                    INSERT INTO robot_signals
                         (robot_id, figi, ticker, signal_type, signal_strength, indicators, price_at_signal, was_executed)
                     VALUES (:robot_id, :figi, :ticker, :stype, :strength, :ind, :px, 0)
                 """),
@@ -389,7 +389,7 @@ class LiveRecorder(RuntimeRecorder):
                     "strength": int(signal.confidence * 100) if signal.confidence is not None else None,
                     "ind": json.dumps({"reason": signal.reason, "rule": signal.rule, **signal.meta}),
                     "px": signal.price_at_signal or signal.target_price,
-                },
+                }
             )
             self.db.commit()
         except Exception as e:
@@ -400,7 +400,7 @@ class LiveRecorder(RuntimeRecorder):
         try:
             self.db.execute(
                 text(f"""
-                    INSERT INTO {self.schema}.robot_risk_events
+                    INSERT INTO robot_risk_events
                         (robot_id, ts, secid, figi, signal_id, reason_code, payload)
                     VALUES (:robot_id, :ts, :secid, :figi, :sid, :reason, :payload)
                 """),
@@ -412,7 +412,7 @@ class LiveRecorder(RuntimeRecorder):
                     "sid": str(signal.signal_id),
                     "reason": reason,
                     "payload": json.dumps({"signal_meta": signal.meta}),
-                },
+                }
             )
             self.db.commit()
         except Exception as e:
@@ -425,7 +425,7 @@ class LiveRecorder(RuntimeRecorder):
         try:
             self.db.execute(
                 text(f"""
-                    INSERT INTO {self.schema}.robot_order_events
+                    INSERT INTO robot_order_events
                         (robot_id, order_id, status, event_type, payload)
                     VALUES (:robot_id, :oid, :status, :etype, :payload)
                 """),
@@ -438,7 +438,7 @@ class LiveRecorder(RuntimeRecorder):
                         "figi": order.figi, "side": order.side, "qty": order.quantity,
                         "price": order.price, "type": order.type,
                     }),
-                },
+                }
             )
             self.db.commit()
         except Exception as e:
@@ -449,7 +449,7 @@ class LiveRecorder(RuntimeRecorder):
         try:
             self.db.execute(
                 text(f"""
-                    INSERT INTO {self.schema}.robot_order_events
+                    INSERT INTO robot_order_events
                         (robot_id, order_id, status, event_type, payload)
                     VALUES (:robot_id, :oid, 'FILLED', 'fill', :payload)
                 """),
@@ -460,7 +460,7 @@ class LiveRecorder(RuntimeRecorder):
                         "fill_price": fill.fill_price, "quantity": fill.quantity,
                         "commission": fill.commission, "ts": fill.ts.isoformat() if fill.ts else None,
                     }),
-                },
+                }
             )
             self.db.commit()
         except Exception as e:

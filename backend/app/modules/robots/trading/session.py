@@ -1161,7 +1161,7 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                 else:
                     self._write_log(f"✅ [CRYPTO-UNIVERSE] symbols={accepted}")
                 row = self.db.execute(
-                    text(f"SELECT config FROM {self.schema}.robots WHERE id = :rid"),
+                    text(f"SELECT config FROM robots WHERE id = :rid"),
                     {"rid": self.robot_id},
                 ).first()
                 if row and row[0]:
@@ -1215,7 +1215,7 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                 f"✅ [П1] candidate_pool: {hist.get('passed', 0)}/{hist.get('scanned', 0)} тикеров"
             )
             row = self.db.execute(
-                text(f"SELECT config FROM {self.schema}.robots WHERE id = :rid"),
+                text(f"SELECT config FROM robots WHERE id = :rid"),
                 {"rid": self.robot_id},
             ).first()
             if row and row[0]:
@@ -1231,7 +1231,7 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                 f"ACCEPT={len(paper.get('accepted_tickers') or [])}"
             )
             row = self.db.execute(
-                text(f"SELECT config FROM {self.schema}.robots WHERE id = :rid"),
+                text(f"SELECT config FROM robots WHERE id = :rid"),
                 {"rid": self.robot_id},
             ).first()
             if row and row[0]:
@@ -1820,7 +1820,7 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
             return
         query = f"""
             SELECT figi, order_id
-            FROM {self.schema}.robot_trades
+            FROM robot_trades
             WHERE robot_id = :robot_id
               AND order_id IS NOT NULL
               AND status IN ('open', 'pending', 'partial')
@@ -1852,7 +1852,7 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
             return []
         query = f"""
             SELECT order_id
-            FROM {self.schema}.robot_trades
+            FROM robot_trades
             WHERE robot_id = :robot_id
               AND order_id IS NOT NULL
               AND status IN ('open', 'pending', 'partial')
@@ -2350,7 +2350,7 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
         day_start = self._now().replace(hour=0, minute=0, second=0, microsecond=0)
         query = f"""
             SELECT COALESCE(SUM(COALESCE(profit, 0)), 0)
-            FROM {self.schema}.robot_trades
+            FROM robot_trades
             WHERE robot_id = :robot_id
               AND created_at >= :day_start
               AND status IN ('closed', 'cancelled', 'rejected')

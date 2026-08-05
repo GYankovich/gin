@@ -66,7 +66,7 @@ class DatabaseLogger:
         if started_at is None:
             started_at = datetime.now(timezone.utc)
         query = """
-            INSERT INTO {schema}.robot_logs
+            INSERT INTO robot_logs
             (robot_name, robot_version, token_id, user_id, endpoint, request_data, started_at, execution_log_id)
             VALUES
             (:robot_name, :robot_version, :token_id, :user_id, :endpoint, :request_data, :started_at, :execution_log_id)
@@ -98,7 +98,7 @@ class DatabaseLogger:
         if finished_at is None:
             finished_at = datetime.now(timezone.utc)
         query = """
-            UPDATE {schema}.robot_logs
+            UPDATE robot_logs
             SET finished_at = :finished_at,
                 duration_ms = EXTRACT(EPOCH FROM (:finished_at - started_at)) * 1000,
                 response_data = :response_data,
@@ -126,7 +126,7 @@ class DatabaseLogger:
         if finished_at is None:
             finished_at = datetime.now(timezone.utc)
         query = """
-            UPDATE {schema}.robot_logs
+            UPDATE robot_logs
             SET finished_at = :finished_at,
                 duration_ms = EXTRACT(EPOCH FROM (:finished_at - started_at)) * 1000,
                 error_message = :error_message,
@@ -202,7 +202,7 @@ class APILogger:
         broker = _broker_from_endpoint(endpoint, self.robot_type)
         context_ref = str(self.robot_id) if self.robot_id is not None else str(self.execution_log_id)
         query = f"""
-            INSERT INTO {self.schema}.external_api_logs (
+            INSERT INTO external_api_logs (
                 user_id, token_id, broker, context_type, context_ref,
                 endpoint, request_data, response_status, response_data,
                 started_at, finished_at, duration_ms, success, error_message

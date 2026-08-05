@@ -1,7 +1,7 @@
 ///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiSelect [1]
 ///@ Исходный модуль `frontend/src/components/ui/Select.tsx` — автоматическая разметка для Obsidian Source Scanner.
 
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 
 export interface SelectOption {
@@ -53,15 +53,16 @@ export function Select({
         const spaceBelow = window.innerHeight - rect.bottom - gap
         const spaceAbove = rect.top - gap
         const openUp = spaceBelow < 160 && spaceAbove > spaceBelow
-        const height = Math.min(maxHeight, openUp ? spaceAbove : spaceBelow)
+        const height = Math.max(80, Math.min(maxHeight, openUp ? spaceAbove : spaceBelow))
 
         setDropdownStyle({
             position: 'fixed',
             left: rect.left,
             width: rect.width,
+            maxHeight: height,
             ...(openUp
-                ? { bottom: window.innerHeight - rect.top + gap, maxHeight: height }
-                : { top: rect.bottom + gap, maxHeight: height }),
+                ? { top: 'auto', bottom: window.innerHeight - rect.top + gap }
+                : { bottom: 'auto', top: rect.bottom + gap }),
         })
     }, [])
 
@@ -96,12 +97,16 @@ export function Select({
         }
     }, [])
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (!open) return
         const el = containerRef.current
         setCyberDropdown(!!el?.closest('.step-editor-panel, .cyber-select-wrap'))
         setAboveModal(!!el?.closest('.modal-backdrop, .modal'))
         updateDropdownPosition()
+    }, [open, updateDropdownPosition])
+
+    useEffect(() => {
+        if (!open) return
         const onLayout = () => updateDropdownPosition()
         window.addEventListener('resize', onLayout)
         window.addEventListener('scroll', onLayout, true)

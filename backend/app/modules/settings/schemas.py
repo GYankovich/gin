@@ -35,7 +35,7 @@ class ApiKeyResponse(BaseModel):
     id: int
     name: Optional[str] = None
     token_type: TokenTypeInfo
-    # Словарный перевод TOKEN.TYPE (ganaly.dictionary.name по num_value = token_type).
+    # Словарный перевод TOKEN.TYPE (dictionary.name по num_value = token_type).
     broker_type: Optional[str] = None
     status: int
     status_name: Optional[str] = None
