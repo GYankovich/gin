@@ -138,7 +138,8 @@ def get_account_history(
         db,
         account_id,
         days=days,
-        interval=interval
+        interval=interval,
+        order="desc",
     )
 
     return {
@@ -162,7 +163,8 @@ def get_snapshots_by_period(
         db,
         body.account_id,
         from_date=body.from_date,
-        to_date=body.to_date
+        to_date=body.to_date,
+        order="desc",
     )
     return {
         "account_id": body.account_id,

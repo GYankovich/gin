@@ -193,6 +193,7 @@ export interface ChartPoint {
 export interface ChartInstrumentSeries {
     figi: string
     ticker: string | null
+    name?: string | null
     points: ChartPoint[]
 }
 

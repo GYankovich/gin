@@ -14,7 +14,8 @@ import type {
     DashboardCurrencyTotals,
     DashboardDataResponse,
 } from '@/types/api'
-import cyberHero from '@/assets/dashboard/cyber-hero.png'
+import { PageHero } from '@/components/ui/PageHero'
+import { StatTile } from '@/components/ui/StatTile'
 import { RobotIllustration } from '@/components/ui/RobotIllustration'
 
 ///@EPIC Frontend.ITEM Dashboard.TOPIC Accounts Summary View [1]
@@ -126,7 +127,7 @@ export default function DashboardPage() {
     if (loading) {
         return (
             <div className="page" data-page="dashboard">
-                <DashboardHero onConfigure={undefined} />
+                <PageHero eyebrow="PORTFOLIO NODE" title="ДАШБОРД" subtitle="Сводка капитала · структура · счета" />
                 <DashboardSkeleton />
             </div>
         )
@@ -135,7 +136,7 @@ export default function DashboardPage() {
     if (!data) {
         return (
             <div className="page" data-page="dashboard">
-                <DashboardHero onConfigure={undefined} />
+                <PageHero eyebrow="PORTFOLIO NODE" title="ДАШБОРД" subtitle="Сводка капитала · структура · счета" />
                 <Card className={`dashboard-totals-card dashboard-error-card${retrying ? ' dashboard-error-card--retrying' : ''}`}>
                     <div className="dashboard-error-card__robot" aria-hidden>
                         {/* Same default SVG animation as robots-empty-fleet while waiting for the response */}
@@ -174,7 +175,16 @@ export default function DashboardPage() {
 
     return (
         <div className="page" data-page="dashboard">
-            <DashboardHero onConfigure={openSettings} />
+            <PageHero
+                eyebrow="PORTFOLIO NODE"
+                title="ДАШБОРД"
+                subtitle="Сводка капитала · структура · счета"
+                actions={
+                    <Button variant="ghost" size="sm" className="dashboard-hero__cfg" onClick={openSettings}>
+                        Настроить
+                    </Button>
+                }
+            />
 
             {!hasContent ? (
                 <Card>
@@ -358,31 +368,6 @@ function DashboardSettingsGroup({
     )
 }
 
-function DashboardHero({ onConfigure }: { onConfigure?: () => void }) {
-    return (
-        <header className="dashboard-hero">
-            <div className="dashboard-hero__bg" style={{ backgroundImage: `url(${cyberHero})` }} aria-hidden />
-            <div className="dashboard-hero__veil" aria-hidden />
-            <div className="dashboard-hero__content">
-                <div className="dashboard-hero__top">
-                    <p className="dashboard-hero__eyebrow">PORTFOLIO NODE</p>
-                    {onConfigure && (
-                        <div className="dashboard-hero__actions">
-                            <Button variant="ghost" size="sm" className="dashboard-hero__cfg" onClick={onConfigure}>
-                                Настроить
-                            </Button>
-                        </div>
-                    )}
-                </div>
-                <h1 className="dashboard-hero__title">
-                    <span className="dashboard-hero__title-glitch" data-text="ДАШБОРД">ДАШБОРД</span>
-                </h1>
-                <p className="dashboard-hero__sub">Сводка капитала · структура · счета</p>
-            </div>
-        </header>
-    )
-}
-
 function DashboardSkeleton() {
     return (
         <div className="dashboard-layout dashboard-skeleton" aria-busy="true" aria-label="Загрузка дашборда">
@@ -458,7 +443,10 @@ function CurrencyRowSection({
                 {assets.length > 0 ? (
                     <AssetsBlock currency={currency} items={assets} />
                 ) : (
-                    <Card className="dashboard-assets-card">
+                    <Card className="dashboard-assets-card dashboard-error-card">
+                        <div className="dashboard-error-card__robot" aria-hidden>
+                            <RobotIllustration size={96} mode="inactive" interactive={false} />
+                        </div>
                         <p className="dashboard-empty">Нет позиций по {currency}.</p>
                     </Card>
                 )}
@@ -499,32 +487,34 @@ function TotalsBlock({ totals }: { totals: DashboardCurrencyTotals }) {
                 <h3 className="dashboard-panel-title">Сводка</h3>
             </div>
             <div className="portfolio-stats-grid dashboard-summary-grid">
-                <div className="portfolio-stat-tile">
-                    <div className="portfolio-stat-tile__label">Собственные средства</div>
-                    <div className="portfolio-stat-tile__value">
-                        {formatMoney(totals.total_own_funds, totals.currency)}
-                    </div>
-                </div>
-                <div className="portfolio-stat-tile">
-                    <div className="portfolio-stat-tile__label">Текущая стоимость</div>
-                    <div className="portfolio-stat-tile__value">
-                        {formatMoney(totals.total_value, totals.currency)}
-                    </div>
-                </div>
-                <div className="portfolio-stat-tile">
-                    <div className="portfolio-stat-tile__label">К портфелю vs вводы</div>
-                    <div className={`portfolio-stat-tile__value ${roiClass(totals.total_minus_own_funds)}`}>
-                        {formatMoneySigned(totals.total_minus_own_funds, totals.currency)}
-                        {showGainPct && formatPercentSuffix(totals.total_minus_own_funds_percent)}
-                    </div>
-                </div>
-                <div className="portfolio-stat-tile">
-                    <div className="portfolio-stat-tile__label">Изменение к пред. дню</div>
-                    <div className={`portfolio-stat-tile__value ${d == null ? '' : roiClass(d)}`}>
-                        {d == null ? '—' : formatMoneySigned(d, totals.currency)}
-                        {showDayPct && formatPercentSuffix(dp)}
-                    </div>
-                </div>
+                <StatTile
+                    label="Собственные средства"
+                    value={formatMoney(totals.total_own_funds, totals.currency)}
+                />
+                <StatTile
+                    label="Текущая стоимость"
+                    value={formatMoney(totals.total_value, totals.currency)}
+                />
+                <StatTile
+                    label="К портфелю vs вводы"
+                    valueClassName={roiClass(totals.total_minus_own_funds)}
+                    value={
+                        <>
+                            {formatMoneySigned(totals.total_minus_own_funds, totals.currency)}
+                            {showGainPct && formatPercentSuffix(totals.total_minus_own_funds_percent)}
+                        </>
+                    }
+                />
+                <StatTile
+                    label="Изменение к пред. дню"
+                    valueClassName={d == null ? '' : roiClass(d)}
+                    value={
+                        <>
+                            {d == null ? '—' : formatMoneySigned(d, totals.currency)}
+                            {showDayPct && formatPercentSuffix(dp)}
+                        </>
+                    }
+                />
             </div>
         </Card>
     )
@@ -642,28 +632,34 @@ function AccountSection({ row }: { row: DashboardAccountItem }) {
 
             <div className="dashboard-account-card__stats">
                 <div className="portfolio-stats-grid dashboard-summary-grid">
-                    <div className="portfolio-stat-tile">
-                        <div className="portfolio-stat-tile__label">Собственные средства</div>
-                        <div className="portfolio-stat-tile__value">{formatMoney(s.own_funds, s.currency)}</div>
-                    </div>
-                    <div className="portfolio-stat-tile">
-                        <div className="portfolio-stat-tile__label">Текущая стоимость</div>
-                        <div className="portfolio-stat-tile__value">{formatMoney(s.value, s.currency)}</div>
-                    </div>
-                    <div className="portfolio-stat-tile">
-                        <div className="portfolio-stat-tile__label">К портфелю vs вводы</div>
-                        <div className={`portfolio-stat-tile__value ${roiClass(s.minus_own_funds)}`}>
-                            {formatMoneySigned(s.minus_own_funds, s.currency)}
-                            {showGainPct && formatPercentSuffix(s.minus_own_funds_percent)}
-                        </div>
-                    </div>
-                    <div className="portfolio-stat-tile">
-                        <div className="portfolio-stat-tile__label">Изменение к пред. дню</div>
-                        <div className={`portfolio-stat-tile__value ${d == null ? '' : roiClass(d)}`}>
-                            {d == null ? '—' : formatMoneySigned(d, s.currency)}
-                            {showDayPct && formatPercentSuffix(dp)}
-                        </div>
-                    </div>
+                    <StatTile
+                        label="Собственные средства"
+                        value={formatMoney(s.own_funds, s.currency)}
+                    />
+                    <StatTile
+                        label="Текущая стоимость"
+                        value={formatMoney(s.value, s.currency)}
+                    />
+                    <StatTile
+                        label="К портфелю vs вводы"
+                        valueClassName={roiClass(s.minus_own_funds)}
+                        value={
+                            <>
+                                {formatMoneySigned(s.minus_own_funds, s.currency)}
+                                {showGainPct && formatPercentSuffix(s.minus_own_funds_percent)}
+                            </>
+                        }
+                    />
+                    <StatTile
+                        label="Изменение к пред. дню"
+                        valueClassName={d == null ? '' : roiClass(d)}
+                        value={
+                            <>
+                                {d == null ? '—' : formatMoneySigned(d, s.currency)}
+                                {showDayPct && formatPercentSuffix(dp)}
+                            </>
+                        }
+                    />
                 </div>
             </div>
         </Card>

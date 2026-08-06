@@ -20,6 +20,10 @@
         grid-template-columns: 1fr 1fr;
     }
 
+    .portfolio-stats-grid.dashboard-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .live-grid {
         grid-template-columns: 1fr;
     }
@@ -805,6 +809,7 @@
     }
 
     /* Portfolio toolbar wrap */
+    .portfolio-toolbar.card,
     .portfolio-toolbar {
         flex-direction: column;
         align-items: stretch;
@@ -830,6 +835,18 @@
         left: auto;
         width: min(320px, calc(100vw - 24px));
     }
+    .portfolio-period-control.segmented-control {
+        width: 100%;
+        overflow: hidden;
+    }
+    .portfolio-period-control .segmented-control__item {
+        flex: 1 1 0;
+        min-width: 0;
+        padding-left: 6px;
+        padding-right: 6px;
+        text-align: center;
+        font-size: 11px;
+    }
 
     .tf-selector {
         overflow-x: auto;
@@ -851,9 +868,32 @@
     .portfolio-chart-header {
         align-items: flex-start;
     }
-    .portfolio-chart-header__controls {
+    .portfolio-chart-midbar {
         width: 100%;
-        justify-content: flex-start;
+    }
+    [data-page='portfolio'] .dashboard-layout {
+        gap: var(--space-3);
+    }
+    [data-page='portfolio'] .dashboard-hero__sub {
+        font-size: var(--text-xs);
+    }
+    [data-page='portfolio'] .dashboard-totals-card {
+        padding: var(--space-4);
+    }
+  [data-page='portfolio'] .portfolio-composition-collapse .mobile-data-row__primary {
+        font-weight: 400;
+        color: var(--text-secondary);
+    }
+    [data-page='portfolio'] .portfolio-composition-collapse .portfolio-mobile-split__asset {
+        font-weight: 400;
+        color: var(--text-secondary);
+    }
+    [data-page='portfolio'] .portfolio-composition-collapse .portfolio-mobile-split__value {
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+    [data-page='portfolio'] .portfolio-composition-collapse .mobile-data-row__details {
+        font-weight: 400;
     }
     .dashboard-settings-toggle-field {
         font-size: var(--text-xs);
@@ -1017,7 +1057,7 @@
     }
     .dashboard-layout {
         gap: var(--space-2);
-        padding-bottom: calc(var(--tabbar-h) + 12px + env(safe-area-inset-bottom, 0px));
+        /*padding-bottom: calc(var(--tabbar-h) + 12px + env(safe-area-inset-bottom, 0px));*/
     }
     .dashboard-currency-grid {
         grid-template-columns: 1fr;

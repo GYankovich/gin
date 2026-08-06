@@ -1148,6 +1148,7 @@ export default function LivePage() {
             return {
                 figi,
                 ticker: String((row as { ticker?: string }).ticker || figi),
+                ticker_name: String((row as { ticker_name?: string }).ticker_name || '').trim() || null,
                 instrument_type: String((row as { instrument_type?: string }).instrument_type || ''),
                 type_name: String(
                     (row as { type_name?: string }).type_name

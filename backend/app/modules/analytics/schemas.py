@@ -142,13 +142,18 @@ class AnalyticsOperationsItem(BaseModel):
     operation_id: str
     operation_date: datetime
     operation_type: str
+    operation_type_name: Optional[str] = None
     figi: Optional[str] = None
+    ticker: Optional[str] = None
+    ticker_name: Optional[str] = None
+    short_name: Optional[str] = None
     instrument_type: Optional[str] = None
     quantity: float
     price: float
     payment: float
     currency: Optional[str] = None
     status: str
+    status_name: Optional[str] = None
     type_text: Optional[str] = None
 
 
@@ -257,6 +262,7 @@ class ChartPoint(BaseModel):
 class ChartInstrumentSeries(BaseModel):
     figi: str
     ticker: Optional[str] = None
+    name: Optional[str] = None
     points: List[ChartPoint] = []
 
 
