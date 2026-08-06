@@ -172,7 +172,8 @@ class AnalyticsService:
             days: int = 30,
             from_date: Optional[datetime] = None,
             to_date: Optional[datetime] = None,
-            interval: Optional[str] = None
+            interval: Optional[str] = None,
+            order: str = "asc",
     ) -> List[dict]:
         """
         История снимков портфеля с возможностью фильтрации
@@ -183,7 +184,8 @@ class AnalyticsService:
             days=days,
             from_date=from_date,
             to_date=to_date,
-            interval=interval
+            interval=interval,
+            order=order,
         )
 
         result = self._execute(query_tuple)
@@ -223,11 +225,8 @@ class AnalyticsService:
         Проверяет, принадлежит ли счет пользователю
         """
         self.db = db
-        query = queries.build_account_ownership_check_query()
-        result = db.execute(
-            text(query),
-            {"account_id": account_id, "user_id": user_id}
-        ).first()
+        query_tuple = queries.build_account_ownership_check_query(account_id, user_id)
+        result = self._execute(query_tuple, fetch_all=False)
 
         return self._row_to_account_info(result)
 
@@ -331,71 +330,28 @@ class AnalyticsService:
             snapshot_id = last[0]
 
         # Получаем позиции
-        query = """
-                SELECT
-                    id,
-                    figi,
-                    ticker,
-                    instrument_type,
-                    quantity,
-                    current_price,
-                    (current_price * quantity) as total_value,
-                    expected_yield,
-                    daily_yield,
-                    average_position_price,
-                    blocked
-                FROM portfolio_positions
-                WHERE snapshot_id = :snapshot_id \
-                """
-
-        params = {"snapshot_id": snapshot_id}
-
-        if instrument_types:
-            query += " AND instrument_type = ANY(:instrument_types)"
-            params["instrument_types"] = instrument_types
-
-        query += " ORDER BY total_value DESC"
-
-        result = db.execute(text(query), params).fetchall()
-
-        type_labels: Dict[str, str] = {}
-        try:
-            label_rows = db.execute(
-                text(
-                    """
-                    SELECT string_value, name
-                    FROM dictionary
-                    WHERE table_name = 'PORTFOLIO_POSITIONS'
-                      AND column_name = 'INSTRUMENT_TYPE'
-                      AND hide_from_ui = 0
-                    """
-                )
-            ).fetchall()
-            for string_value, name in label_rows:
-                key = str(string_value or "").strip().lower()
-                label = str(name or "").strip()
-                if key and label:
-                    type_labels[key] = label
-        except Exception:
-            type_labels = {}
+        query_tuple = queries.build_account_positions_query(snapshot_id, instrument_types)
+        result = self._execute(query_tuple)
 
         positions = []
         for row in result:
-            instrument_type = self._safe_str(row[3], 'unknown')
-            type_key = str(instrument_type or "").strip().lower()
+            instrument_type = self._safe_str(row[5], 'unknown')
+            type_name = self._safe_str(row[6], None) or instrument_type
             positions.append({
                 "id": self._safe_int(row[0]),
                 "figi": self._safe_str(row[1], None),
-                "ticker": self._safe_str(row[2], None),
+                "ticker_name": self._safe_str(row[2], None),
+                "short_name": self._safe_str(row[3], None),
+                "ticker": self._safe_str(row[4], None),
                 "instrument_type": instrument_type,
-                "type_name": type_labels.get(type_key) or instrument_type,
-                "quantity": self._safe_float(row[4], 0.0),
-                "current_price": self._safe_float(row[5], 0.0),
-                "total_value": self._safe_float(row[6], 0.0),
-                "expected_yield": self._safe_float(row[7], None),
-                "daily_yield": self._safe_float(row[8], None),
-                "avg_price": self._safe_float(row[9], None),
-                "blocked": bool(row[10]) if row[10] else False,
+                "type_name": type_name,
+                "quantity": self._safe_float(row[7], 0.0),
+                "current_price": self._safe_float(row[8], 0.0),
+                "total_value": self._safe_float(row[9], 0.0),
+                "expected_yield": self._safe_float(row[10], None),
+                "daily_yield": self._safe_float(row[11], None),
+                "avg_price": self._safe_float(row[12], None),
+                "blocked": bool(row[13]) if row[13] else False,
             })
 
         return positions
@@ -413,49 +369,29 @@ class AnalyticsService:
         self.db = db
         if not self.check_account_ownership(db, account_id, user_id):
             return []
-        sql = """
-              SELECT
-                  operation_id,
-                  operation_date,
-                  operation_type,
-                  figi,
-                  instrument_type,
-                  quantity,
-                  price,
-                  payment,
-                  payment_currency,
-                  status,
-                  extra_data
-              FROM portfolio_operations
-              WHERE account_id = :account_id
-                AND operation_date >= :from_date
-                AND operation_date <= :to_date
-              """
-        params: Dict[str, Any] = {
-            "account_id": account_id,
-            "from_date": from_date,
-            "to_date": to_date,
-        }
-        if operation_type:
-            sql += " AND operation_type = :operation_type"
-            params["operation_type"] = operation_type
-        sql += " ORDER BY operation_date DESC LIMIT :limit"
-        params["limit"] = limit
-        rows = db.execute(text(sql), params).fetchall()
+        query_tuple = queries.build_account_operations_query(
+            account_id, from_date, to_date, operation_type, limit
+        )
+        rows = self._execute(query_tuple)
         out: List[dict] = []
         for r in rows:
-            extra = r[10] or {}
+            extra = r[15] or {}
             out.append({
                 "operation_id": self._safe_str(r[0]),
                 "operation_date": self._safe_datetime(r[1]),
                 "operation_type": self._safe_str(r[2]),
-                "figi": self._safe_str(r[3], None) if r[3] else None,
-                "instrument_type": self._safe_str(r[4], None) if r[4] else None,
-                "quantity": self._safe_float(r[5], 0.0) or 0.0,
-                "price": self._safe_float(r[6], 0.0) or 0.0,
-                "payment": self._safe_float(r[7], 0.0) or 0.0,
-                "currency": self._safe_str(r[8], None) if r[8] else None,
-                "status": self._safe_str(r[9]),
+                "operation_type_name": self._safe_str(r[3], None) or self._safe_str(r[2]),
+                "figi": self._safe_str(r[4], None) if r[4] else None,
+                "ticker": self._safe_str(r[5], None) if r[5] else None,
+                "ticker_name": self._safe_str(r[6], None) if r[6] else None,
+                "short_name": self._safe_str(r[7], None) if r[7] else None,
+                "instrument_type": self._safe_str(r[8], None) if r[8] else None,
+                "quantity": self._safe_float(r[9], 0.0) or 0.0,
+                "price": self._safe_float(r[10], 0.0) or 0.0,
+                "payment": self._safe_float(r[11], 0.0) or 0.0,
+                "currency": self._safe_str(r[12], None) if r[12] else None,
+                "status": self._safe_str(r[13]),
+                "status_name": self._safe_str(r[14], None) or self._safe_str(r[13]),
                 "type_text": self._safe_str(extra.get("type_text"), None) if extra else None,
             })
         return out
@@ -486,64 +422,36 @@ class AnalyticsService:
         ]
         drawdown_series = self._compute_drawdown_series(history)
 
-        available_rows = db.execute(
-            text(
-                """
-                SELECT DISTINCT pp.figi, pp.ticker
-                FROM portfolio_positions pp
-                WHERE pp.snapshot_id = (
-                    SELECT ps.id
-                    FROM portfolio_snapshots ps
-                    WHERE ps.account_id = :account_id
-                    ORDER BY ps.snapshot_date DESC
-                    LIMIT 1
-                )
-                ORDER BY pp.figi
-                """
-            ),
-            {"account_id": account_id},
-        ).fetchall()
+        available_rows = self._execute(queries.build_available_instruments_query(account_id))
         available_instruments = [
             {"figi": self._safe_str(r[0]), "ticker": self._safe_str(r[1], None) if r[1] else None}
             for r in available_rows if r[0]
         ]
 
         figis_set = {str(f).strip() for f in (figis or []) if str(f).strip()}
-        rows = db.execute(
-            text(
-                """
-                SELECT
-                    ps.snapshot_date,
-                    pp.figi,
-                    MAX(pp.ticker) AS ticker,
-                    SUM(pp.quantity * pp.current_price) AS value
-                FROM portfolio_snapshots ps
-                JOIN portfolio_positions pp ON pp.snapshot_id = ps.id
-                WHERE ps.account_id = :account_id
-                  AND ps.snapshot_date >= :from_date
-                  AND ps.snapshot_date <= :to_date
-                  AND (:no_filter = 1 OR pp.figi = ANY(:figis))
-                GROUP BY ps.snapshot_date, pp.figi
-                HAVING SUM(pp.quantity) > 0
-                ORDER BY ps.snapshot_date ASC, pp.figi ASC
-                """
-            ),
-            {
-                "account_id": account_id,
-                "from_date": from_date,
-                "to_date": to_date,
-                "figis": list(figis_set),
-                "no_filter": 1 if not figis_set else 0,
-            },
-        ).fetchall()
+        rows = self._execute(
+            queries.build_account_instrument_chart_query(
+                account_id,
+                from_date,
+                to_date,
+                list(figis_set),
+                1 if not figis_set else 0,
+            )
+        )
         grouped: Dict[str, Dict[str, Any]] = {}
         for r in rows:
             dt = r[0]
             figi = self._safe_str(r[1])
             ticker = self._safe_str(r[2], None) if r[2] else None
-            value = float(r[3] or 0.0)
+            name = self._safe_str(r[3], None) if r[3] else None
+            value = float(r[4] or 0.0)
             if figi not in grouped:
-                grouped[figi] = {"figi": figi, "ticker": ticker, "points": []}
+                grouped[figi] = {
+                    "figi": figi,
+                    "ticker": ticker,
+                    "name": name or ticker,
+                    "points": [],
+                }
             grouped[figi]["points"].append({"date": dt, "value": value})
         instruments_series: List[Dict[str, Any]] = list(grouped.values())
 
@@ -563,10 +471,9 @@ class AnalyticsService:
     def robot_belongs_to_user(
             self, db: Session, robot_id: int, user_id: int, schema: str = "public"
     ) -> bool:
-        q = queries.build_robot_ownership_query(schema)
-        return db.execute(
-            text(q), {"robot_id": robot_id, "user_id": user_id}
-        ).first() is not None
+        self.db = db
+        query_tuple = queries.build_robot_ownership_query(robot_id, user_id, schema)
+        return self._execute(query_tuple, fetch_all=False) is not None
 
     def get_robot_metrics(
             self,
@@ -583,8 +490,8 @@ class AnalyticsService:
         if user_id is not None and not self.robot_belongs_to_user(db, robot_id, user_id, schema):
             return None
 
-        summary_sql = queries.build_robot_trades_summary_query(schema)
-        row = db.execute(text(summary_sql), {"robot_id": robot_id}).first()
+        summary_query = queries.build_robot_trades_summary_query(robot_id, schema)
+        row = self._execute(summary_query, fetch_all=False)
         if not row:
             return None
 
@@ -606,19 +513,13 @@ class AnalyticsService:
         gross_loss = abs((avg_loss or 0) * losing)
         profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else None
 
-        pnl_sql = queries.build_robot_closed_pnl_series_query(schema)
-        pnl_rows = db.execute(text(pnl_sql), {"robot_id": robot_id}).fetchall()
+        pnl_query = queries.build_robot_closed_pnl_series_query(robot_id, schema)
+        pnl_rows = self._execute(pnl_query)
         pnl_series = [self._safe_float(r[0], 0.0) for r in pnl_rows]
         max_drawdown = self._calc_max_drawdown(pnl_series)
         sharpe, sortino, calmar = self._calc_risk_adjusted_metrics(pnl_series)
 
-        status_sql = f"""
-            SELECT status, COUNT(*)::int
-            FROM robot_trades
-            WHERE robot_id = :robot_id
-            GROUP BY status
-        """
-        status_rows = db.execute(text(status_sql), {"robot_id": robot_id}).fetchall()
+        status_rows = self._execute(queries.build_robot_status_counts_query(robot_id))
         status_counts = {self._safe_str(r[0], "").lower(): self._safe_int(r[1], 0) for r in status_rows}
         filled_count = status_counts.get("closed", 0)
         partial_count = status_counts.get("partial", 0)
@@ -628,8 +529,8 @@ class AnalyticsService:
         fill_rate = (filled_count / terminal_count * 100.0) if terminal_count > 0 else None
         reject_rate = (rejected_count / terminal_count * 100.0) if terminal_count > 0 else None
 
-        trades_sql = queries.build_robot_recent_trades_query(schema)
-        trade_rows = db.execute(text(trades_sql), {"robot_id": robot_id, "limit": recent_limit}).fetchall()
+        trades_query = queries.build_robot_recent_trades_query(robot_id, recent_limit, schema)
+        trade_rows = self._execute(trades_query)
         recent_trades = [
             {
                 "id": self._safe_int(r[0]),
@@ -685,8 +586,8 @@ class AnalyticsService:
         Агрегированные торговые метрики по всем роботам пользователя.
         """
         self.db = db
-        agg_sql = queries.build_user_robots_trades_aggregate_query(schema)
-        row = db.execute(text(agg_sql), {"user_id": user_id}).first()
+        agg_query = queries.build_user_robots_trades_aggregate_query(user_id, schema)
+        row = self._execute(agg_query, fetch_all=False)
         if not row:
             return self._empty_trading_overview()
 
@@ -704,8 +605,8 @@ class AnalyticsService:
         win_rate = (winning / closed_trades * 100) if closed_trades > 0 else None
         profit_factor = (sum_wins / sum_losses) if sum_losses > 0 else None
 
-        pnl_sql = queries.build_user_robots_closed_pnl_series_query(schema)
-        pnl_rows = db.execute(text(pnl_sql), {"user_id": user_id}).fetchall()
+        pnl_query = queries.build_user_robots_closed_pnl_series_query(user_id, schema)
+        pnl_rows = self._execute(pnl_query)
         pnl_series = [self._safe_float(r[0], 0.0) for r in pnl_rows]
         max_drawdown = self._calc_max_drawdown(pnl_series)
         sharpe, sortino, calmar = self._calc_risk_adjusted_metrics(pnl_series)
@@ -802,29 +703,14 @@ class AnalyticsService:
         if not self.check_account_ownership(db, account_id, user_id):
             return None
 
-        own_funds_sql = """
-            SELECT
-                COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_INPUT' THEN payment ELSE 0 END), 0)
-                -
-                COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_OUTPUT' THEN ABS(payment) ELSE 0 END), 0)
-            FROM portfolio_operations
-            WHERE account_id = :account_id
-        """
-        own_funds_row = db.execute(text(own_funds_sql), {"account_id": account_id}).first()
+        own_funds_row = self._execute(
+            queries.build_account_own_funds_query(account_id), fetch_all=False
+        )
         own_funds = self._safe_float(own_funds_row[0] if own_funds_row else 0.0, 0.0) or 0.0
 
-        latest_snapshot_row = db.execute(
-            text(
-                """
-                SELECT total_amount_portfolio, snapshot_date
-                FROM portfolio_snapshots
-                WHERE account_id = :account_id
-                ORDER BY snapshot_date DESC
-                LIMIT 1
-                """
-            ),
-            {"account_id": account_id},
-        ).first()
+        latest_snapshot_row = self._execute(
+            queries.build_account_latest_value_query(account_id), fetch_all=False
+        )
         current_total_value = self._safe_float(
             latest_snapshot_row[0] if latest_snapshot_row else 0.0,
             0.0,
@@ -835,17 +721,9 @@ class AnalyticsService:
         if abs(own_funds) > 1e-9:
             overall_roi_percent = ((current_total_value - own_funds) / own_funds) * 100.0
 
-        first_input_row = db.execute(
-            text(
-                """
-                SELECT MIN(operation_date)
-                FROM portfolio_operations
-                WHERE account_id = :account_id
-                  AND operation_type = 'OPERATION_TYPE_INPUT'
-                """
-            ),
-            {"account_id": account_id},
-        ).first()
+        first_input_row = self._execute(
+            queries.build_account_first_input_date_query(account_id), fetch_all=False
+        )
         first_input_date = self._safe_datetime(first_input_row[0], None) if first_input_row else None
 
         avg_monthly_roi_percent: Optional[float] = None
@@ -854,19 +732,9 @@ class AnalyticsService:
             if months > 1e-9:
                 avg_monthly_roi_percent = overall_roi_percent / months
 
-        period_inflow_sql = """
-            SELECT
-                COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_INPUT' THEN payment ELSE 0 END), 0)
-                -
-                COALESCE(SUM(CASE WHEN operation_type = 'OPERATION_TYPE_OUTPUT' THEN ABS(payment) ELSE 0 END), 0)
-            FROM portfolio_operations
-            WHERE account_id = :account_id
-              AND operation_date < :from_date
-        """
-        period_inflow_row = db.execute(
-            text(period_inflow_sql),
-            {"account_id": account_id, "from_date": from_date},
-        ).first()
+        period_inflow_row = self._execute(
+            queries.build_account_inflow_before_query(account_id, from_date), fetch_all=False
+        )
         period_inflow = self._safe_float(period_inflow_row[0] if period_inflow_row else 0.0, 0.0) or 0.0
 
         period_history = self.get_account_history(
@@ -954,19 +822,8 @@ class AnalyticsService:
     ) -> Dict[str, Any]:
         # Важно: учитываем только полноценные торговые циклы BUY/SELL.
         # Комиссии/вознаграждения/налоги в серии убытков не участвуют.
-        sql = """
-              SELECT operation_date, operation_type, figi, quantity, price, payment
-              FROM portfolio_operations
-              WHERE account_id = :account_id
-                AND operation_date <= :to_date
-                AND figi IS NOT NULL
-                AND operation_type IN (
-                    'OPERATION_TYPE_BUY', 'OPERATION_TYPE_BUY_CARD', 'OPERATION_TYPE_BUY_MARGIN',
-                    'OPERATION_TYPE_SELL', 'OPERATION_TYPE_SELL_CARD', 'OPERATION_TYPE_SELL_MARGIN'
-                )
-              ORDER BY operation_date ASC, id ASC
-              """
-        rows = db.execute(text(sql), {"account_id": account_id, "to_date": to_date}).fetchall()
+        self.db = db
+        rows = self._execute(queries.build_fifo_operations_query(account_id, to_date))
         fifo: Dict[str, deque] = defaultdict(deque)
         closed: List[Dict[str, Any]] = []
 
@@ -1082,18 +939,9 @@ class AnalyticsService:
         if not base_stats:
             return None
 
-        period_ops_sql = """
-            SELECT operation_type, payment
-            FROM portfolio_operations
-            WHERE account_id = :account_id
-              AND operation_date >= :from_date
-              AND operation_date <= :to_date
-        """
-        op_rows = db.execute(text(period_ops_sql), {
-            "account_id": account_id,
-            "from_date": from_date,
-            "to_date": to_date,
-        }).fetchall()
+        op_rows = self._execute(
+            queries.build_account_period_operations_query(account_id, from_date, to_date)
+        )
         sum_input = sum(float(r[1] or 0.0) for r in op_rows if r[0] == "OPERATION_TYPE_INPUT")
         sum_output = sum(float(r[1] or 0.0) for r in op_rows if r[0] == "OPERATION_TYPE_OUTPUT")
         net_flow = sum_input - sum_output
@@ -1139,22 +987,9 @@ class AnalyticsService:
 
         current_total = float(base_stats["overall"]["current_total_value"] or 0.0)
         dividends_share = (dividends / current_total * 100.0) if current_total > 1e-9 else None
-        unrealized_row = db.execute(
-            text(
-                """
-                SELECT COALESCE(SUM(pp.quantity * (pp.current_price - pp.average_position_price)), 0)
-                FROM portfolio_positions pp
-                WHERE pp.snapshot_id = (
-                    SELECT ps.id
-                    FROM portfolio_snapshots ps
-                    WHERE ps.account_id = :account_id
-                    ORDER BY ps.snapshot_date DESC
-                    LIMIT 1
-                )
-                """
-            ),
-            {"account_id": account_id},
-        ).first()
+        unrealized_row = self._execute(
+            queries.build_account_unrealized_pnl_query(account_id), fetch_all=False
+        )
         unrealized = float(unrealized_row[0] or 0.0) if unrealized_row else 0.0
 
         return {

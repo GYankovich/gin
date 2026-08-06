@@ -25,15 +25,17 @@ export function formatPortfolioMoneySigned(val: unknown, currency = 'RUB'): stri
 
 export function formatPortfolioAccountLabel(account: AccountSummary): string {
     const name = account.name?.trim() || account.account_id
-    const idPart = `#${account.id}`
-    const meta = [account.type, account.status].filter(Boolean).join(' · ')
-    const value =
-        account.total_value != null && Number(account.total_value) > 0
-            ? formatPortfolioMoney(account.total_value, account.currency)
-            : account.last_snapshot_date
-              ? null
-              : 'нет снимков'
-    return [idPart, name, meta, value].filter(Boolean).join(' — ')
+    const type = account.type?.trim()
+    // const idPart = `#${account.id}`
+    // const meta = [account.type, account.status].filter(Boolean).join(' · ')
+    // const value =
+    //     account.total_value != null && Number(account.total_value) > 0
+    //         ? formatPortfolioMoney(account.total_value, account.currency)
+    //         : account.last_snapshot_date
+    //           ? null
+    //           : 'нет снимков'
+    // return [idPart, name, meta, value].filter(Boolean).join(' — ')
+    return [name, type].filter(Boolean).join(' — ')
 }
 
 /** Match Live/broker account_id to portfolio_accounts row from analytics summary. */

@@ -157,9 +157,10 @@ def should_run_paper_selection(
 
 
 async def _list_tqbr_tickers(db: Session, board: str = "TQBR") -> List[str]:
-    rows = db.execute(
-        text(f"SELECT secid FROM tqbr_securities ORDER BY secid")
-    ).fetchall()
+    from app.modules.robots.moex_securities_updater import queries as moex_q
+
+    sql, params = moex_q.build_equity_universe_query(board=board, active_only=True)
+    rows = db.execute(text(sql), params).fetchall()
     if rows:
         return sorted({str(r[0]).strip().upper() for r in rows if r and r[0]})
     snap = db.execute(

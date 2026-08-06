@@ -54,11 +54,10 @@ class LiveDataProvider(DataProvider):
     async def list_universe(self, trade_date: date) -> List[str]:
         if self.db is not None:
             from sqlalchemy import text
-            from app.core.config import settings
-            schema = settings.DB_SCHEMA
-            rows = self.db.execute(
-                text(f"SELECT secid FROM tqbr_securities ORDER BY secid")
-            ).fetchall()
+            from app.modules.robots.moex_securities_updater import queries as moex_q
+
+            sql, params = moex_q.build_equity_universe_query(board=self.board, active_only=True)
+            rows = self.db.execute(text(sql), params).fetchall()
             return [str(r[0]) for r in rows if r and r[0]]
         return []
 
