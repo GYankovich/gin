@@ -17,7 +17,7 @@ from app.modules.robots.crypto_universe import rebuild_crypto_universe, resolve_
 
 def _token_owner(db, token_id: int) -> int | None:
     row = db.execute(
-        text(f"SELECT user_id FROM {settings.DB_SCHEMA}.api_tokens WHERE id = :tid"),
+        text(f"SELECT user_id FROM api_tokens WHERE id = :tid"),
         {"tid": token_id},
     ).first()
     return int(row[0]) if row else None
@@ -28,7 +28,7 @@ def _bybit_robots(db, user_id: int) -> list[dict]:
         text(
             f"""
             SELECT id, type, status, config
-            FROM {settings.DB_SCHEMA}.robots
+            FROM robots
             WHERE user_id = :uid AND LOWER(COALESCE(config->>'broker_type','')) = 'bybit'
             ORDER BY id DESC
             LIMIT 10

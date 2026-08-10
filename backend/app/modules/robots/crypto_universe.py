@@ -236,7 +236,7 @@ def _bulk_load_funding_avg_from_cache(
         text(
             f"""
             SELECT symbol, funding_rate, funding_time
-            FROM {settings.DB_SCHEMA}.bybit_funding_history
+            FROM bybit_funding_history
             WHERE symbol = ANY(:symbols)
               AND instrument_category = :category
               AND funding_time >= :from_dt
@@ -286,7 +286,7 @@ def _bulk_load_oi_from_cache(
             f"""
             SELECT DISTINCT ON (symbol)
                 symbol, open_interest_usd
-            FROM {settings.DB_SCHEMA}.bybit_open_interest_history
+            FROM bybit_open_interest_history
             WHERE symbol = ANY(:symbols)
               AND instrument_category = :category
               AND snapshot_time >= :min_ts
@@ -327,7 +327,7 @@ def _bulk_load_lsr_from_cache(
             f"""
             SELECT DISTINCT ON (symbol)
                 symbol, long_ratio, short_ratio
-            FROM {settings.DB_SCHEMA}.bybit_lsr_history
+            FROM bybit_lsr_history
             WHERE symbol = ANY(:symbols)
               AND instrument_category = :category
               AND snapshot_time >= :min_ts
@@ -370,7 +370,7 @@ def _persist_funding_history_rows(
         db.execute(
             text(
                 f"""
-                INSERT INTO {settings.DB_SCHEMA}.bybit_funding_history
+                INSERT INTO bybit_funding_history
                 (symbol, funding_time, funding_rate, instrument_category, created_at)
                 VALUES (:symbol, :funding_time, :funding_rate, :category, NOW())
                 ON CONFLICT (symbol, funding_time, instrument_category) DO NOTHING
@@ -1102,7 +1102,7 @@ def _find_active_bybit_token(db: Session, user_id: int, token_id: Optional[int] 
             text(
                 f"""
                 SELECT token, extra_data
-                FROM {settings.DB_SCHEMA}.api_tokens
+                FROM api_tokens
                 WHERE id = :tid
                   AND user_id = :uid
                   AND status = 1
@@ -1117,7 +1117,7 @@ def _find_active_bybit_token(db: Session, user_id: int, token_id: Optional[int] 
             text(
                 f"""
                 SELECT token, extra_data
-                FROM {settings.DB_SCHEMA}.api_tokens
+                FROM api_tokens
                 WHERE user_id = :uid
                   AND status = 1
                   AND (LOWER(CAST(token_type AS text)) = '2' OR LOWER(CAST(token_type AS text)) = 'bybit')
@@ -1195,7 +1195,7 @@ def _upsert_oi_lsr_cache(
         db.execute(
             text(
                 f"""
-                INSERT INTO {settings.DB_SCHEMA}.bybit_open_interest_history
+                INSERT INTO bybit_open_interest_history
                 (symbol, snapshot_time, open_interest_usd, instrument_category, created_at)
                 VALUES (:symbol, :snapshot_time, :oi_usd, :category, NOW())
                 ON CONFLICT (symbol, snapshot_time, instrument_category) DO NOTHING
@@ -1212,7 +1212,7 @@ def _upsert_oi_lsr_cache(
         db.execute(
             text(
                 f"""
-                INSERT INTO {settings.DB_SCHEMA}.bybit_lsr_history
+                INSERT INTO bybit_lsr_history
                 (symbol, snapshot_time, long_ratio, short_ratio, instrument_category, created_at)
                 VALUES (:symbol, :snapshot_time, :long_ratio, :short_ratio, :category, NOW())
                 ON CONFLICT (symbol, snapshot_time, instrument_category) DO NOTHING
@@ -1240,7 +1240,7 @@ def _persist_screening_rows(
         db.execute(
             text(
                 f"""
-                INSERT INTO {settings.DB_SCHEMA}.crypto_universe_daily (
+                INSERT INTO crypto_universe_daily (
                     robot_id,
                     trade_date,
                     symbol,
@@ -1333,7 +1333,7 @@ def _load_accepted_symbols_today(db: Session, *, robot_id: int) -> List[str]:
         text(
             f"""
             SELECT symbol
-            FROM {settings.DB_SCHEMA}.crypto_universe_daily
+            FROM crypto_universe_daily
             WHERE robot_id = :rid
               AND trade_date = :trade_date
               AND LOWER(COALESCE(filter_result, '')) = 'accepted'
@@ -1354,7 +1354,7 @@ def _latest_screening_at(db: Session, *, robot_id: int, config: Dict[str, Any]) 
         text(
             f"""
             SELECT MAX(created_at)
-            FROM {settings.DB_SCHEMA}.crypto_universe_daily
+            FROM crypto_universe_daily
             WHERE robot_id = :rid AND trade_date = :trade_date
             """
         ),
@@ -1441,7 +1441,7 @@ async def rebuild_crypto_universe(
                 db.execute(
                     text(
                         f"""
-                        UPDATE {settings.DB_SCHEMA}.robots
+                        UPDATE robots
                         SET config = CAST(:config AS jsonb),
                             date_modification = :now,
                             usermod = :uid
@@ -1511,7 +1511,7 @@ async def rebuild_crypto_universe(
     db.execute(
         text(
             f"""
-            DELETE FROM {settings.DB_SCHEMA}.crypto_universe_daily
+            DELETE FROM crypto_universe_daily
             WHERE robot_id = :rid AND trade_date = :trade_date
             """
         ),
@@ -1548,7 +1548,7 @@ async def rebuild_crypto_universe(
     db.execute(
         text(
             f"""
-            UPDATE {settings.DB_SCHEMA}.robots
+            UPDATE robots
             SET config = CAST(:config AS jsonb),
                 date_modification = :now,
                 usermod = :uid
@@ -1591,7 +1591,7 @@ def load_historical_funding_avg(
             text(
                 f"""
             SELECT funding_rate
-            FROM {settings.DB_SCHEMA}.bybit_funding_history
+            FROM bybit_funding_history
             WHERE symbol = :symbol
               AND instrument_category = :category
               AND funding_time >= :from_dt
@@ -1625,7 +1625,7 @@ def load_historical_oi_usd(
             text(
                 f"""
             SELECT open_interest_usd
-            FROM {settings.DB_SCHEMA}.bybit_open_interest_history
+            FROM bybit_open_interest_history
             WHERE symbol = :symbol
               AND instrument_category = :category
               AND snapshot_time < :as_of
@@ -1656,7 +1656,7 @@ def load_historical_lsr(
             text(
                 f"""
             SELECT long_ratio, short_ratio
-            FROM {settings.DB_SCHEMA}.bybit_lsr_history
+            FROM bybit_lsr_history
             WHERE symbol = :symbol
               AND instrument_category = :category
               AND snapshot_time < :as_of

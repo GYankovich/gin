@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any, List
 def build_check_existing_token_query() -> str:
     """Проверка существования активного токена"""
     return """
-           SELECT id FROM ganaly.api_tokens
+           SELECT id FROM api_tokens
            WHERE token = :token AND status = 1
                LIMIT 1 \
            """
@@ -18,7 +18,7 @@ def build_check_existing_token_by_user_query() -> str:
     """Проверка существования токена у конкретного пользователя"""
     return """
            SELECT id, name, token_type, status, created_at
-           FROM ganaly.api_tokens
+           FROM api_tokens
            WHERE user_id = :user_id
              AND token = :token
              AND status = 1 \
@@ -28,7 +28,7 @@ def build_check_existing_token_by_user_query() -> str:
 def build_check_active_key_by_type_query() -> str:
     """Проверка наличия активного ключа определенного типа"""
     return """
-           SELECT id FROM ganaly.api_tokens
+           SELECT id FROM api_tokens
            WHERE user_id = :user_id
              AND token_type = :key_type
              AND status = 1 \
@@ -38,7 +38,7 @@ def build_check_active_key_by_type_query() -> str:
 def build_deactivate_old_key_query() -> str:
     """Деактивация старого ключа"""
     return """
-           UPDATE ganaly.api_tokens
+           UPDATE api_tokens
            SET status = 0, updated_at = :now
            WHERE id = :old_id \
            """
@@ -47,7 +47,7 @@ def build_deactivate_old_key_query() -> str:
 def build_create_api_key_query() -> str:
     """Создание нового API ключа"""
     return """
-           INSERT INTO ganaly.api_tokens
+           INSERT INTO api_tokens
            (user_id, token, token_type, name, status, created_at, refresh_interval_minutes, extra_data)
            VALUES
                (:user_id, :token, :key_type, :name, 1, :created_at, :refresh_interval_minutes, CAST(:extra_data AS jsonb))
@@ -62,7 +62,7 @@ def build_count_user_keys_query(
     """
     base_query = """
                  SELECT COUNT(*)
-                 FROM ganaly.api_tokens
+                 FROM api_tokens
                  WHERE user_id = :user_id
                    AND status IN (1, 3)
                  """
@@ -102,11 +102,11 @@ def build_get_user_keys_query(
                         a.last_used_at,
                         ds.name as status_name,
                         ds.description as status_description
-                 FROM ganaly.api_tokens a
-                          LEFT JOIN ganaly.dictionary d ON d.num_value = a.token_type
+                 FROM api_tokens a
+                          LEFT JOIN dictionary d ON d.num_value = a.token_type
                      AND d.table_name = 'TOKEN'
                      AND d.column_name = 'TYPE'
-                          LEFT JOIN ganaly.dictionary ds
+                          LEFT JOIN dictionary ds
                                     ON ds.num_value = a.status
                      AND ds.table_name = 'TOKEN'
                      AND ds.column_name = 'STATUS'
@@ -143,7 +143,7 @@ def build_get_key_by_id_query() -> str:
                expires_at,
                last_used_at,
                extra_data
-           FROM ganaly.api_tokens
+           FROM api_tokens
            WHERE id = :key_id AND user_id = :user_id \
            """
 
@@ -151,7 +151,7 @@ def build_get_key_by_id_query() -> str:
 def build_check_key_ownership_query() -> str:
     """Проверка принадлежности ключа пользователю"""
     return """
-           SELECT id FROM ganaly.api_tokens
+           SELECT id FROM api_tokens
            WHERE id = :key_id AND user_id = :user_id \
            """
 
@@ -163,7 +163,7 @@ def build_update_key_query(
     Динамически строит запрос обновления ключа
     """
     base_query = """
-                 UPDATE ganaly.api_tokens
+                 UPDATE api_tokens
                  SET {updates}, updated_at = :now
                  WHERE id = :key_id AND user_id = :user_id
                      RETURNING id, name, token_type, status, created_at, refresh_interval_minutes, token, extra_data \
@@ -194,7 +194,7 @@ def build_update_key_query(
 def build_deactivate_key_query() -> str:
     """Деактивация ключа"""
     return """
-           UPDATE ganaly.api_tokens
+           UPDATE api_tokens
            SET status = 0, updated_at = :now
            WHERE id = :key_id AND user_id = :user_id AND status != 0
                RETURNING id \
@@ -204,7 +204,7 @@ def build_deactivate_key_query() -> str:
 def build_update_last_used_query() -> str:
     """Обновление времени последнего использования"""
     return """
-           UPDATE ganaly.api_tokens
+           UPDATE api_tokens
            SET last_used_at = :now
            WHERE id = :key_id \
            """
@@ -220,7 +220,7 @@ def build_get_token_by_value_query() -> str:
                name,
                status,
                refresh_interval_minutes
-           FROM ganaly.api_tokens
+           FROM api_tokens
            WHERE token = :token AND status = 1 \
            """
 
@@ -235,7 +235,7 @@ def build_get_tokens_by_type_query() -> str:
                name,
                refresh_interval_minutes,
                last_used_at
-           FROM ganaly.api_tokens
+           FROM api_tokens
            WHERE token_type = :token_type AND status = 1
            ORDER BY created_at DESC \
            """
@@ -250,7 +250,7 @@ def build_get_expiring_tokens_query(days: int = 7) -> tuple[str, Dict[str, Any]]
                 token_type,
                 name,
                 expires_at
-            FROM ganaly.api_tokens
+            FROM api_tokens
             WHERE expires_at IS NOT NULL
               AND expires_at <= :expiry_threshold
               AND status = 1
@@ -264,7 +264,7 @@ def build_get_expiring_tokens_query(days: int = 7) -> tuple[str, Dict[str, Any]]
 def build_bulk_deactivate_tokens_query() -> str:
     """Массовая деактивация токенов"""
     return """
-           UPDATE ganaly.api_tokens
+           UPDATE api_tokens
            SET status = 0, updated_at = :now
            WHERE user_id = :user_id AND token_type = :token_type \
            """

@@ -70,14 +70,15 @@ async def handle_crypto_screening_prefetch(payload: Dict[str, Any]) -> None:
 async def handle_corporate_actions_dividend_etl(_payload: Dict[str, Any]) -> None:
     from app.core.database import SessionLocal
     from app.modules.corporate_actions import etl as corp_etl
+    from app.modules.robots.moex_securities_updater.robot import sync_moex_securities_reference
 
     db = SessionLocal()
     try:
-        n_tq = await corp_etl.sync_tqbr_securities_reference(db)
+        summary = await sync_moex_securities_reference(db)
         db.commit()
-        logger.info("background dividend ETL: tqbr upserted=%s", n_tq)
+        logger.info("background dividend ETL: moex securities sync=%s", summary)
     except Exception as e:
-        logger.warning("background tqbr sync failed: %s", e)
+        logger.warning("background moex securities sync failed: %s", e)
         db.rollback()
     finally:
         db.close()

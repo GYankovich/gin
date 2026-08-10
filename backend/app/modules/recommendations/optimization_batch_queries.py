@@ -12,7 +12,7 @@ def has_active_batch(db: Session, schema: str, robot_id: int) -> bool:
     row = db.execute(
         text(f"""
             SELECT 1
-            FROM {schema}.optimization_batches
+            FROM optimization_batches
             WHERE robot_id = :robot_id
               AND status IN ('queued', 'running')
             LIMIT 1
@@ -38,7 +38,7 @@ def insert_batch(
     batch_id = int(
         db.execute(
             text(f"""
-                INSERT INTO {schema}.optimization_batches
+                INSERT INTO optimization_batches
                     (robot_id, user_id, goal, mode, status, total_candidates,
                      requested_from, requested_to, initial_capital, started_at)
                 VALUES
@@ -72,7 +72,7 @@ def insert_batch_item(
 ) -> None:
     db.execute(
         text(f"""
-            INSERT INTO {schema}.optimization_batch_items
+            INSERT INTO optimization_batch_items
                 (batch_id, candidate_index, run_id, param_summary, status)
             VALUES
                 (:batch_id, :candidate_index, :run_id, CAST(:param_summary AS jsonb), 'queued')
@@ -98,7 +98,7 @@ def fetch_batch_header(
                    requested_from, requested_to, initial_capital,
                    overfitting_warnings, error_message,
                    created_at, started_at, finished_at
-            FROM {schema}.optimization_batches
+            FROM optimization_batches
             WHERE id = :batch_id AND user_id = :user_id
         """),
         {"batch_id": batch_id, "user_id": user_id},
@@ -118,7 +118,7 @@ def fetch_active_batch_for_robot(
                    requested_from, requested_to, initial_capital,
                    overfitting_warnings, error_message,
                    created_at, started_at, finished_at
-            FROM {schema}.optimization_batches
+            FROM optimization_batches
             WHERE robot_id = :robot_id
               AND user_id = :user_id
               AND status IN ('queued', 'running')
@@ -148,9 +148,9 @@ def fetch_batch_items(db: Session, schema: str, batch_id: int) -> List[Dict[str,
                 bm.win_rate_percent,
                 bm.trades_total,
                 bm.sharpe_ratio
-            FROM {schema}.optimization_batch_items i
-            LEFT JOIN {schema}.backtest_runs br ON br.id = i.run_id
-            LEFT JOIN {schema}.backtest_metrics bm ON bm.run_id = i.run_id
+            FROM optimization_batch_items i
+            LEFT JOIN backtest_runs br ON br.id = i.run_id
+            LEFT JOIN backtest_metrics bm ON bm.run_id = i.run_id
             WHERE i.batch_id = :batch_id
             ORDER BY i.candidate_index ASC
         """),
@@ -170,7 +170,7 @@ def update_batch_status(
 ) -> None:
     db.execute(
         text(f"""
-            UPDATE {schema}.optimization_batches
+            UPDATE optimization_batches
             SET status = :status,
                 finished_at = CASE WHEN :status IN ('completed', 'failed', 'cancelled')
                     THEN COALESCE(finished_at, CURRENT_TIMESTAMP) ELSE finished_at END,
@@ -198,7 +198,7 @@ def update_batch_item_from_run(
 ) -> None:
     db.execute(
         text(f"""
-            UPDATE {schema}.optimization_batch_items
+            UPDATE optimization_batch_items
             SET status = :status,
                 score = :score
             WHERE batch_id = :batch_id AND run_id = :run_id
@@ -210,7 +210,7 @@ def update_batch_item_from_run(
 def fetch_batch_run_ids(db: Session, schema: str, batch_id: int) -> List[int]:
     rows = db.execute(
         text(f"""
-            SELECT run_id FROM {schema}.optimization_batch_items
+            SELECT run_id FROM optimization_batch_items
             WHERE batch_id = :batch_id AND run_id IS NOT NULL
             ORDER BY candidate_index
         """),

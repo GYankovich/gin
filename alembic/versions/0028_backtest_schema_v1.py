@@ -18,8 +18,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("CREATE SCHEMA IF NOT EXISTS backtest")
-
     op.execute(
         """
         CREATE TABLE IF NOT EXISTS backtest.backtest_runs (

@@ -75,7 +75,7 @@ def _find_robot(db, token_id: int) -> dict | None:
         text(
             f"""
             SELECT id, user_id, token_id, type, config
-            FROM {settings.DB_SCHEMA}.robots
+            FROM robots
             WHERE token_id = :tid AND type = 2
             ORDER BY id DESC
             LIMIT 1
@@ -115,8 +115,8 @@ async def run_backtest_e2e(*, token_id: int, user_id: int, robot_id: int | None,
                 f"""
                 SELECT br.id, br.status, br.run_phase, br.error_message,
                        bm.total_return_percent, bm.max_drawdown_percent, bm.trades_total
-                FROM {settings.DB_SCHEMA}.backtest_runs br
-                LEFT JOIN {settings.DB_SCHEMA}.backtest_metrics bm ON bm.run_id = br.id
+                FROM backtest_runs br
+                LEFT JOIN backtest_metrics bm ON bm.run_id = br.id
                 WHERE br.id = :rid
                 """
             ),
@@ -137,7 +137,7 @@ async def run_live_order_smoke(*, token_id: int, symbol: str = "BTCUSDT") -> dic
             text(
                 f"""
                 SELECT token, extra_data
-                FROM {settings.DB_SCHEMA}.api_tokens
+                FROM api_tokens
                 WHERE id = :tid AND is_active = 1
                 """
             ),
@@ -224,7 +224,7 @@ async def _main_async(args: argparse.Namespace) -> int:
                 print(f"no type=2 robot for token_id={args.token_id}, standalone backtest")
         elif user_id is None:
             row = db.execute(
-                text(f"SELECT user_id FROM {settings.DB_SCHEMA}.robots WHERE id = :rid"),
+                text(f"SELECT user_id FROM robots WHERE id = :rid"),
                 {"rid": robot_id},
             ).first()
             if not row:

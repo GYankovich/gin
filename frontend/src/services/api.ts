@@ -38,9 +38,17 @@ api.interceptors.response.use(
             }
         }
         if (err.response?.status === 401) {
-            localStorage.removeItem('gin-token')
-            localStorage.removeItem('gin-user')
-            window.location.href = '/login'
+            const url = config?.url ?? ''
+            // Login/register 401 is a credential error — show it in UI, do not hard-reload.
+            const isAuthCredentialRequest =
+                url.includes('/auth/login') || url.includes('/auth/register')
+            if (!isAuthCredentialRequest) {
+                localStorage.removeItem('gin-token')
+                localStorage.removeItem('gin-user')
+                if (!window.location.pathname.startsWith('/login')) {
+                    window.location.href = '/login'
+                }
+            }
         }
         return Promise.reject(err)
     },

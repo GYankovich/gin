@@ -26,7 +26,7 @@ def get_dictionary_data(
                         d.description,
                         d.num_value,
                         d.string_value
-                 FROM ganaly.dictionary d
+                 FROM dictionary d
                  WHERE d.table_name = :tableName
                    AND d.column_name = :columnName
                    AND d.hide_from_ui = 0

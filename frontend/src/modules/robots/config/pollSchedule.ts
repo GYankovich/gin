@@ -1,5 +1,8 @@
-export const PORTFOLIO_POLL_MINUTE_OPTIONS = [1, 2, 5, 10, 15, 30, 60] as const
-export const TRADING_POLL_MINUTE_OPTIONS = [1, 2, 5, 10, 15, 30, 60] as const
+/** UI/API ceiling: at least once per day. */
+export const MAX_POLL_MINUTES = 24 * 60
+
+export const PORTFOLIO_POLL_MINUTE_OPTIONS = [1, 2, 5, 10, 15, 30, 60, 360, 720, 1440] as const
+export const TRADING_POLL_MINUTE_OPTIONS = [1, 2, 5, 10, 15, 30, 60, 360, 720, 1440] as const
 
 export type PollMinuteOptions = readonly number[]
 
@@ -10,6 +13,27 @@ export function snapPollMinutes(value: number, options: PollMinuteOptions): numb
     return options.reduce((best, cur) =>
         Math.abs(cur - minutes) < Math.abs(best - minutes) ? cur : best,
     options[0])
+}
+
+/** True when minutes exactly match one of the suggested preset options. */
+export function isPresetPollMinutes(value: number, options: PollMinuteOptions): boolean {
+    const minutes = Math.max(1, Math.round(Number(value) || 1))
+    return options.some(o => o === minutes)
+}
+
+/** Human label for poll-minute presets (incl. once-per-day). */
+export function formatPollMinutesLabel(minutes: number): string {
+    if (minutes === 1440) return '1 сутки'
+    if (minutes === 720) return '12 ч'
+    if (minutes === 360) return '6 ч'
+    return `${minutes} мин`
+}
+
+/** Normalize free-form minutes entered by the user (max = once per day). */
+export function clampPollMinutes(value: number, maxMinutes = MAX_POLL_MINUTES): number {
+    const minutes = Math.round(Number(value) || 1)
+    if (!Number.isFinite(minutes)) return 1
+    return Math.min(maxMinutes, Math.max(1, minutes))
 }
 
 export function pollMinuteOptionsForRobotType(robotType: 1 | 2): PollMinuteOptions {
@@ -35,5 +59,6 @@ export function resolvePollMinutesFromRobot(
             : null
     const fallback = robotType === 2 ? 5 : 60
     const raw = fromSchedule ?? fromCfg ?? fallback
-    return snapPollMinutes(raw, pollMinuteOptionsForRobotType(robotType))
+    // Preserve custom intervals (e.g. 360) instead of snapping to preset Select options.
+    return clampPollMinutes(raw)
 }

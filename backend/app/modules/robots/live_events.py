@@ -43,7 +43,7 @@ def _pg_connect():
         user=settings.DB_USER,
         password=settings.DB_PASSWORD,
         sslmode=settings.DB_SSL_MODE,
-        connect_timeout=int(settings.DB_CONNECT_TIMEOUT_SECONDS),
+        connect_timeout=int(settings.DB_CONNECT_TIMEOUT_SECONDS)
     )
 
 
@@ -93,7 +93,7 @@ def notify_robot_live_event(db: Session, robot_id: int, event_type: str, row_id:
     payload = json.dumps({"type": str(event_type), "id": int(row_id)}, ensure_ascii=False)
     db.execute(
         text("SELECT pg_notify(:channel, :payload)"),
-        {"channel": channel, "payload": payload},
+        {"channel": channel, "payload": payload}
     )
     db.commit()
 
@@ -104,13 +104,13 @@ def insert_session_log(
     robot_id: int,
     message: str,
     level: str = "INFO",
-    execution_log_id: Optional[int] = None,
+    execution_log_id: Optional[int] = None
 ) -> Optional[int]:
     schema = settings.DB_SCHEMA
     row = db.execute(
         text(
             f"""
-            INSERT INTO {schema}.robot_session_logs
+            INSERT INTO robot_session_logs
                 (robot_id, execution_log_id, level, message, created_at)
             VALUES
                 (:robot_id, :execution_log_id, :level, :message, :now)
@@ -123,7 +123,7 @@ def insert_session_log(
             "level": str(level or "INFO")[:16],
             "message": str(message or "")[:8000],
             "now": datetime.now(timezone.utc),
-        },
+        }
     ).first()
     if not row:
         return None
@@ -137,7 +137,7 @@ def fetch_recent_session_logs(
     db: Session,
     robot_id: int,
     *,
-    limit: int = 150,
+    limit: int = 150
 ) -> List[Dict[str, Any]]:
     schema = settings.DB_SCHEMA
     lim = max(1, min(int(limit or 150), 500))
@@ -145,13 +145,13 @@ def fetch_recent_session_logs(
         text(
             f"""
             SELECT id, level, message, created_at
-            FROM {schema}.robot_session_logs
+            FROM robot_session_logs
             WHERE robot_id = :robot_id
             ORDER BY id DESC
             LIMIT :lim
             """
         ),
-        {"robot_id": int(robot_id), "lim": lim},
+        {"robot_id": int(robot_id), "lim": lim}
     ).fetchall()
     out: List[Dict[str, Any]] = []
     for row in reversed(rows):
@@ -186,11 +186,11 @@ def fetch_live_event_payload(db: Session, robot_id: int, ref: Dict[str, Any]) ->
             text(
                 f"""
                 SELECT id, robot_id, level, message, created_at
-                FROM {schema}.robot_session_logs
+                FROM robot_session_logs
                 WHERE id = :id AND robot_id = :robot_id
                 """
             ),
-            {"id": row_id, "robot_id": int(robot_id)},
+            {"id": row_id, "robot_id": int(robot_id)}
         ).first()
         if not row:
             return None
@@ -210,11 +210,11 @@ def fetch_live_event_payload(db: Session, robot_id: int, ref: Dict[str, Any]) ->
                 f"""
                 SELECT id, robot_id, figi, signal_type, signal_strength,
                        price_at_signal, indicators, created_at
-                FROM {schema}.robot_signals
+                FROM robot_signals
                 WHERE id = :id AND robot_id = :robot_id
                 """
             ),
-            {"id": row_id, "robot_id": int(robot_id)},
+            {"id": row_id, "robot_id": int(robot_id)}
         ).first()
         if not row:
             return None
@@ -239,12 +239,12 @@ def fetch_live_event_payload(db: Session, robot_id: int, ref: Dict[str, Any]) ->
                 f"""
                 SELECT e.id, e.robot_id, e.order_id, e.status, e.event_type, e.payload, e.created_at,
                        e.trade_id, t.figi, t.side, t.quantity, t.price
-                FROM {schema}.robot_order_events e
-                LEFT JOIN {schema}.robot_trades t ON t.id = e.trade_id
+                FROM robot_order_events e
+                LEFT JOIN robot_trades t ON t.id = e.trade_id
                 WHERE e.id = :id AND e.robot_id = :robot_id
                 """
             ),
-            {"id": row_id, "robot_id": int(robot_id)},
+            {"id": row_id, "robot_id": int(robot_id)}
         ).first()
         if not row:
             return None
@@ -289,7 +289,7 @@ def notify_live_prices(
     robot_id: int,
     items: List[Dict[str, Any]],
     *,
-    time_iso: Optional[str] = None,
+    time_iso: Optional[str] = None
 ) -> None:
     """Fan-out market ticks from the trading session to Live UI (same stream).
 
@@ -354,7 +354,7 @@ def notify_live_prices(
                     "time": ts,
                     "source": "session",
                     "robot_id": robot_id,
-                },
+                }
             )
         )
 
@@ -417,7 +417,7 @@ def notify_live_alert(
     robot_id: int,
     message: str,
     *,
-    time_iso: Optional[str] = None,
+    time_iso: Optional[str] = None
 ) -> None:
     """Fan-out a trading alert (HALT etc.) to Live UI as type=error."""
     text = str(message or "").strip()
@@ -464,7 +464,7 @@ def _resolve_robot_user_account(
     robot_id: int,
     *,
     user_id: Optional[int] = None,
-    account_id: Optional[str] = None,
+    account_id: Optional[str] = None
 ) -> tuple[Optional[int], Optional[str]]:
     uid = int(user_id) if user_id is not None else None
     acc = str(account_id).strip() if account_id else None
@@ -474,11 +474,11 @@ def _resolve_robot_user_account(
         text(
             f"""
             SELECT user_id, NULLIF(TRIM(config->>'account_id'), '')
-            FROM {settings.DB_SCHEMA}.robots
+            FROM robots
             WHERE id = :robot_id
             """
         ),
-        {"robot_id": int(robot_id)},
+        {"robot_id": int(robot_id)}
     ).first()
     if not row:
         return uid, acc
@@ -494,13 +494,13 @@ def build_orders_snapshot_payload(
     *,
     robot_id: int,
     user_id: Optional[int] = None,
-    account_id: Optional[str] = None,
+    account_id: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
     """Load open/history orders for Live UI (same source as REST snapshot)."""
     from app.modules.robots.service import _load_live_account_orders, _split_db_orders
 
     uid, acc = _resolve_robot_user_account(
-        db, int(robot_id), user_id=user_id, account_id=account_id,
+        db, int(robot_id), user_id=user_id, account_id=account_id
     )
     if uid is None or not acc:
         return {
@@ -527,7 +527,7 @@ def notify_live_orders_refresh(
     robot_id: int,
     *,
     user_id: Optional[int] = None,
-    account_id: Optional[str] = None,
+    account_id: Optional[str] = None
 ) -> None:
     """Lightweight hint: LISTEN thread loads portfolio_orders → orders_snapshot.
 
@@ -568,7 +568,7 @@ def notify_live_orders_refresh(
                 db,
                 robot_id=robot_id,
                 user_id=user_id,
-                account_id=account_id,
+                account_id=account_id
             )
             if snap:
                 await live_event_hub.publish(robot_id, snap)
@@ -608,7 +608,7 @@ class PgLiveEventSubscriber:
                     target=self._listen_loop,
                     args=(robot_id, stop),
                     name=f"pg-live-listen-{robot_id}",
-                    daemon=True,
+                    daemon=True
                 )
                 self._threads[robot_id] = thread
                 thread.start()
@@ -689,7 +689,7 @@ class PgLiveEventSubscriber:
                                     db,
                                     robot_id=robot_id,
                                     user_id=ref.get("user_id"),
-                                    account_id=ref.get("account_id"),
+                                    account_id=ref.get("account_id")
                                 )
                                 if snap:
                                     self._dispatch(robot_id, snap)
@@ -697,7 +697,7 @@ class PgLiveEventSubscriber:
                                 logger.warning(
                                     "PG orders_refresh failed robot_id=%s: %s",
                                     robot_id,
-                                    exc,
+                                    exc
                                 )
                             finally:
                                 if db is not None:
@@ -720,7 +720,7 @@ class PgLiveEventSubscriber:
                                 "PG live fetch failed robot_id=%s ref=%s: %s",
                                 robot_id,
                                 ref,
-                                exc,
+                                exc
                             )
                         finally:
                             if db is not None:
@@ -732,7 +732,7 @@ class PgLiveEventSubscriber:
                     "PG LISTEN loop error robot_id=%s: %s — reconnect in %.1fs",
                     robot_id,
                     exc,
-                    backoff_sec,
+                    backoff_sec
                 )
                 stop.wait(backoff_sec)
                 backoff_sec = min(max_backoff_sec, backoff_sec * 2.0)

@@ -38,11 +38,10 @@ def upgrade():
         sa.Column('last_sync_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(['user_id'], [f'{SCHEMA}.user.id'], ondelete='CASCADE'),
-        sa.UniqueConstraint('user_id', 'account_id', name='uq_user_account'),
-        schema=SCHEMA,
+        sa.ForeignKeyConstraint(['user_id'], [f'user.id'], ondelete='CASCADE'),
+        sa.UniqueConstraint('user_id', 'account_id', name='uq_user_account')
     )
-    op.create_index('ix_portfolio_accounts_user_account', 'portfolio_accounts', ['user_id', 'account_id'], schema=SCHEMA)
+    op.create_index('ix_portfolio_accounts_user_account', 'portfolio_accounts', ['user_id', 'account_id'])
 
     # Portfolio Snapshots
     op.create_table(
@@ -63,10 +62,9 @@ def upgrade():
         sa.Column('daily_yield_relative', sa.Numeric(10, 4), nullable=True),
         sa.Column('currency', sa.String(10), nullable=False, server_default='RUB'),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.ForeignKeyConstraint(['account_id'], [f'{SCHEMA}.portfolio_accounts.id'], ondelete='CASCADE'),
-        schema=SCHEMA,
+        sa.ForeignKeyConstraint(['account_id'], [f'portfolio_accounts.id'], ondelete='CASCADE')
     )
-    op.create_index('ix_portfolio_snapshots_account_date', 'portfolio_snapshots', ['account_id', 'snapshot_date'], schema=SCHEMA)
+    op.create_index('ix_portfolio_snapshots_account_date', 'portfolio_snapshots', ['account_id', 'snapshot_date'])
 
     # Portfolio Positions
     op.create_table(
@@ -94,12 +92,11 @@ def upgrade():
         sa.Column('blocked_lots', sa.Numeric(20, 4), nullable=True),
         sa.Column('extra_data', sa.JSON, nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.ForeignKeyConstraint(['snapshot_id'], [f'{SCHEMA}.portfolio_snapshots.id'], ondelete='CASCADE'),
-        schema=SCHEMA,
+        sa.ForeignKeyConstraint(['snapshot_id'], [f'portfolio_snapshots.id'], ondelete='CASCADE')
     )
-    op.create_index('ix_portfolio_positions_snapshot', 'portfolio_positions', ['snapshot_id'], schema=SCHEMA)
-    op.create_index('ix_portfolio_positions_figi', 'portfolio_positions', ['figi'], schema=SCHEMA)
-    op.create_index('ix_portfolio_positions_ticker', 'portfolio_positions', ['ticker'], schema=SCHEMA)
+    op.create_index('ix_portfolio_positions_snapshot', 'portfolio_positions', ['snapshot_id'])
+    op.create_index('ix_portfolio_positions_figi', 'portfolio_positions', ['figi'])
+    op.create_index('ix_portfolio_positions_ticker', 'portfolio_positions', ['ticker'])
 
     # Portfolio Operations
     op.create_table(
@@ -126,12 +123,11 @@ def upgrade():
         sa.Column('trades', sa.JSON, nullable=True),
         sa.Column('extra_data', sa.JSON, nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.ForeignKeyConstraint(['account_id'], [f'{SCHEMA}.portfolio_accounts.id'], ondelete='CASCADE'),
-        schema=SCHEMA,
+        sa.ForeignKeyConstraint(['account_id'], [f'portfolio_accounts.id'], ondelete='CASCADE')
     )
-    op.create_index('ix_portfolio_operations_account_date', 'portfolio_operations', ['account_id', 'operation_date'], schema=SCHEMA)
-    op.create_index('ix_portfolio_operations_operation_id', 'portfolio_operations', ['operation_id'], schema=SCHEMA)
-    op.create_index('ix_portfolio_operations_figi', 'portfolio_operations', ['figi'], schema=SCHEMA)
+    op.create_index('ix_portfolio_operations_account_date', 'portfolio_operations', ['account_id', 'operation_date'])
+    op.create_index('ix_portfolio_operations_operation_id', 'portfolio_operations', ['operation_id'])
+    op.create_index('ix_portfolio_operations_figi', 'portfolio_operations', ['figi'])
 
     # Portfolio Orders
     op.create_table(
@@ -153,11 +149,10 @@ def upgrade():
         sa.Column('commission_currency', sa.String(10), nullable=True),
         sa.Column('extra_data', sa.JSON, nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
-        sa.ForeignKeyConstraint(['account_id'], [f'{SCHEMA}.portfolio_accounts.id'], ondelete='CASCADE'),
-        schema=SCHEMA,
+        sa.ForeignKeyConstraint(['account_id'], [f'portfolio_accounts.id'], ondelete='CASCADE')
     )
-    op.create_index('ix_portfolio_orders_account_date', 'portfolio_orders', ['account_id', 'order_date'], schema=SCHEMA)
-    op.create_index('ix_portfolio_orders_order_id', 'portfolio_orders', ['order_id'], schema=SCHEMA)
+    op.create_index('ix_portfolio_orders_account_date', 'portfolio_orders', ['account_id', 'order_date'])
+    op.create_index('ix_portfolio_orders_order_id', 'portfolio_orders', ['order_id'])
 
     # Instrument Cache
     op.create_table(
@@ -179,17 +174,16 @@ def upgrade():
         sa.Column('extra_data', sa.JSON, nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('last_used_at', sa.DateTime(timezone=True), nullable=True),
-        schema=SCHEMA,
+        sa.Column('last_used_at', sa.DateTime(timezone=True), nullable=True)
     )
-    op.create_index('ix_instrument_cache_figi', 'instrument_cache', ['figi'], schema=SCHEMA)
-    op.create_index('ix_instrument_cache_ticker', 'instrument_cache', ['ticker'], schema=SCHEMA)
+    op.create_index('ix_instrument_cache_figi', 'instrument_cache', ['figi'])
+    op.create_index('ix_instrument_cache_ticker', 'instrument_cache', ['ticker'])
 
 
 def downgrade():
-    op.drop_table('instrument_cache', schema=SCHEMA)
-    op.drop_table('portfolio_orders', schema=SCHEMA)
-    op.drop_table('portfolio_operations', schema=SCHEMA)
-    op.drop_table('portfolio_positions', schema=SCHEMA)
-    op.drop_table('portfolio_snapshots', schema=SCHEMA)
-    op.drop_table('portfolio_accounts', schema=SCHEMA)
+    op.drop_table('instrument_cache')
+    op.drop_table('portfolio_orders')
+    op.drop_table('portfolio_operations')
+    op.drop_table('portfolio_positions')
+    op.drop_table('portfolio_snapshots')
+    op.drop_table('portfolio_accounts')

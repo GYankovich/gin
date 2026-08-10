@@ -5,7 +5,7 @@
 использовать единый контур market-data через
 `app.modules.robots.trading.data.get_market_data_facade()` (`MarketDataFacade.ensure_*`),
 который читает те же снапшоты из
-`{schema}.market_snapshot_history` и `{schema}.market_snapshot_data_history`.
+`market_snapshot_history` и `market_snapshot_data_history`.
 """
 from __future__ import annotations
 
@@ -35,14 +35,14 @@ class DmsEmulator:
             text(
                 f"""
                 SELECT h.id
-                FROM {settings.DB_SCHEMA}.market_snapshot_history h
+                FROM market_snapshot_history h
                 WHERE h.board=:board
                   AND h.status='SUCCESS'
                   AND h.snapshot_time >= :day_start
                   AND h.snapshot_time < :day_end
                   AND (
                       SELECT COUNT(*)
-                      FROM {settings.DB_SCHEMA}.market_snapshot_data_history d
+                      FROM market_snapshot_data_history d
                       WHERE d.snapshot_id=h.id
                   ) >= :min_rows
                 ORDER BY h.snapshot_time ASC
@@ -57,7 +57,7 @@ class DmsEmulator:
             text(
                 f"""
                 SELECT h.id
-                FROM {settings.DB_SCHEMA}.market_snapshot_history h
+                FROM market_snapshot_history h
                 WHERE h.board=:board
                   AND h.status='SUCCESS'
                   AND h.snapshot_time < :day_start

@@ -52,6 +52,7 @@ async def _start_api_background() -> None:
         ("dms", "app.modules.dms.scheduler", "start_dms_scheduler"),
         ("candle_load", "app.modules.market_data_v1.scheduler", "start_candle_load_scheduler"),
         ("corporate_actions", "app.modules.corporate_actions.scheduler", "start_corporate_actions_scheduler"),
+        ("moex_securities", "app.modules.robots.moex_securities_updater.scheduler", "start_moex_securities_scheduler"),
     ]
     for name, module_path, fn_name in schedulers:
         try:
@@ -69,6 +70,7 @@ async def _stop_api_background() -> None:
     from app.modules.dms.scheduler import stop_dms_scheduler
     from app.modules.market_data_v1.scheduler import stop_candle_load_scheduler
     from app.modules.corporate_actions.scheduler import stop_corporate_actions_scheduler
+    from app.modules.robots.moex_securities_updater.scheduler import stop_moex_securities_scheduler
     from app.core.background_jobs.worker import stop_embedded_lane_workers
 
     await _stop_background_task("portfolio", stop_portfolio_scheduler())
@@ -76,6 +78,7 @@ async def _stop_api_background() -> None:
     await _stop_background_task("dms", stop_dms_scheduler())
     await _stop_background_task("candle_load", stop_candle_load_scheduler())
     await _stop_background_task("corporate_actions", stop_corporate_actions_scheduler())
+    await _stop_background_task("moex_securities", stop_moex_securities_scheduler())
     if settings.WORKER_EMBEDDED_ENABLED:
         await _stop_background_task("lane_workers", stop_embedded_lane_workers())
 
@@ -113,7 +116,7 @@ def _apply_common_middleware(app: FastAPI) -> None:
     app.add_middleware(RestLoggingMiddleware)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=list(settings.CORS_ORIGINS),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

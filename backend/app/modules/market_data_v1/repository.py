@@ -23,12 +23,12 @@ def coverage_bounds(
         board: str,
         interval: str,
         from_ts: datetime,
-        to_ts: datetime,
+        to_ts: datetime
 ) -> Optional[Tuple[datetime, datetime]]:
     row = db.execute(
         text(f"""
             SELECT MIN(bucket_start), MAX(bucket_start)
-            FROM {_schema()}.shared_market_candles
+            FROM shared_market_candles
             WHERE ticker = :ticker
               AND board = :board
               AND interval = :interval
@@ -41,7 +41,7 @@ def coverage_bounds(
             "interval": interval,
             "from_ts": from_ts,
             "to_ts": to_ts,
-        },
+        }
     ).first()
     if not row or row[0] is None:
         return None
@@ -54,12 +54,12 @@ def count_buckets_in_window(
         board: str,
         interval: str,
         from_ts: datetime,
-        to_ts: datetime,
+        to_ts: datetime
 ) -> int:
     row = db.execute(
         text(f"""
             SELECT COUNT(*)::bigint
-            FROM {_schema()}.shared_market_candles
+            FROM shared_market_candles
             WHERE ticker = :ticker
               AND board = :board
               AND interval = :interval
@@ -72,7 +72,7 @@ def count_buckets_in_window(
             "interval": interval,
             "from_ts": from_ts,
             "to_ts": to_ts,
-        },
+        }
     ).scalar()
     return int(row or 0)
 
@@ -83,12 +83,12 @@ def list_bucket_starts_in_window(
         board: str,
         interval: str,
         from_ts: datetime,
-        to_ts: datetime,
+        to_ts: datetime
 ) -> List[datetime]:
     rows = db.execute(
         text(f"""
             SELECT bucket_start
-            FROM {_schema()}.shared_market_candles
+            FROM shared_market_candles
             WHERE ticker = :ticker
               AND board = :board
               AND interval = :interval
@@ -102,7 +102,7 @@ def list_bucket_starts_in_window(
             "interval": interval,
             "from_ts": from_ts,
             "to_ts": to_ts,
-        },
+        }
     ).fetchall()
     return [r[0] for r in rows]
 
@@ -113,12 +113,12 @@ def upsert_shared_candles(
         ticker: str,
         board: str,
         interval: str,
-        rows: List[Tuple[datetime, Decimal, Decimal, Decimal, Decimal, Optional[int]]],
+        rows: List[Tuple[datetime, Decimal, Decimal, Decimal, Decimal, Optional[int]]]
 ) -> int:
     if not rows:
         return 0
     q = text(f"""
-        INSERT INTO {_schema()}.shared_market_candles
+        INSERT INTO shared_market_candles
             (ticker, board, interval, bucket_start, open, high, low, close, volume, source, updated_at)
         VALUES
             (:ticker, :board, :interval, :bucket_start, :open, :high, :low, :close, :volume, 'MOEX_ISS', CURRENT_TIMESTAMP)
@@ -146,7 +146,7 @@ def upsert_shared_candles(
                 "low": l,
                 "close": c,
                 "volume": vol,
-            },
+            }
         )
         n += 1
     return n
@@ -161,24 +161,24 @@ def insert_job(
         from_ts: datetime,
         to_ts: datetime,
         tickers: List[str],
-        idempotency_key: Optional[str],
+        idempotency_key: Optional[str]
 ) -> UUID:
     tickers_u = [t.strip().upper() for t in tickers if t and str(t).strip()]
     if idempotency_key:
         row = db.execute(
             text(f"""
-                SELECT id FROM {_schema()}.candle_load_jobs
+                SELECT id FROM candle_load_jobs
                 WHERE idempotency_key = :ik
                 LIMIT 1
             """),
-            {"ik": idempotency_key[:128]},
+            {"ik": idempotency_key[:128]}
         ).first()
         if row:
             return row[0]
 
     ins = text(
         f"""
-            INSERT INTO {_schema()}.candle_load_jobs
+            INSERT INTO candle_load_jobs
                 (user_id, status, board, interval, from_ts, to_ts, tickers, tickers_total, idempotency_key)
             VALUES
                 (:user_id, 'queued', :board, :interval, :from_ts, :to_ts, :tickers, :tickers_total, :idempotency_key)
@@ -196,7 +196,7 @@ def insert_job(
             "tickers": tickers_u,
             "tickers_total": len(tickers_u),
             "idempotency_key": idempotency_key[:128] if idempotency_key else None,
-        },
+        }
     ).scalar()
     return row
 
@@ -207,10 +207,10 @@ def get_job(db: Session, job_id: UUID, user_id: int) -> Optional[Dict[str, Any]]
             SELECT id, user_id, status, board, interval, from_ts, to_ts, tickers,
                    tickers_total, tickers_done, bars_written, progress_percent,
                    message, eta_seconds, error, created_at, updated_at, started_at, finished_at
-            FROM {_schema()}.candle_load_jobs
+            FROM candle_load_jobs
             WHERE id = :id AND user_id = :user_id
         """),
-        {"id": job_id, "user_id": user_id},
+        {"id": job_id, "user_id": user_id}
     ).mappings().first()
     if not row:
         return None
@@ -222,13 +222,13 @@ def claim_next_queued_job(db: Session) -> Optional[Dict[str, Any]]:
         text(f"""
             WITH c AS (
                 SELECT id
-                FROM {_schema()}.candle_load_jobs
+                FROM candle_load_jobs
                 WHERE status = 'queued'
                 ORDER BY created_at ASC
                 LIMIT 1
                 FOR UPDATE SKIP LOCKED
             )
-            UPDATE {_schema()}.candle_load_jobs j
+            UPDATE candle_load_jobs j
             SET status = 'running',
                 started_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP,
@@ -237,7 +237,7 @@ def claim_next_queued_job(db: Session) -> Optional[Dict[str, Any]]:
             WHERE j.id = c.id
             RETURNING j.id, j.user_id, j.board, j.interval, j.from_ts, j.to_ts, j.tickers,
                       j.tickers_total, j.tickers_done, j.bars_written
-        """),
+        """)
     ).mappings().first()
     if not row:
         return None
@@ -252,11 +252,11 @@ def update_job_progress(
         bars_written: int,
         progress_percent: float,
         message: Optional[str],
-        eta_seconds: Optional[int],
+        eta_seconds: Optional[int]
 ) -> None:
     db.execute(
         text(f"""
-            UPDATE {_schema()}.candle_load_jobs
+            UPDATE candle_load_jobs
             SET tickers_done = :tickers_done,
                 bars_written = :bars_written,
                 progress_percent = :progress_percent,
@@ -272,14 +272,14 @@ def update_job_progress(
             "progress_percent": progress_percent,
             "message": message,
             "eta_seconds": eta_seconds,
-        },
+        }
     )
 
 
 def complete_job(db: Session, job_id: UUID) -> None:
     db.execute(
         text(f"""
-            UPDATE {_schema()}.candle_load_jobs
+            UPDATE candle_load_jobs
             SET status = 'completed',
                 progress_percent = 100,
                 finished_at = CURRENT_TIMESTAMP,
@@ -288,14 +288,14 @@ def complete_job(db: Session, job_id: UUID) -> None:
                 eta_seconds = 0
             WHERE id = :id
         """),
-        {"id": job_id},
+        {"id": job_id}
     )
 
 
 def fail_job(db: Session, job_id: UUID, error: str) -> None:
     db.execute(
         text(f"""
-            UPDATE {_schema()}.candle_load_jobs
+            UPDATE candle_load_jobs
             SET status = 'failed',
                 error = :err,
                 finished_at = CURRENT_TIMESTAMP,
@@ -303,7 +303,7 @@ def fail_job(db: Session, job_id: UUID, error: str) -> None:
                 message = 'failed'
             WHERE id = :id
         """),
-        {"id": job_id, "err": error[:8000]},
+        {"id": job_id, "err": error[:8000]}
     )
 
 
@@ -313,7 +313,7 @@ def fail_stale_running_jobs(db: Session, *, stale_seconds: int) -> int:
         return 0
     row = db.execute(
         text(f"""
-            UPDATE {_schema()}.candle_load_jobs
+            UPDATE candle_load_jobs
             SET status = 'failed',
                 error = COALESCE(error, 'stale running job timeout'),
                 message = 'failed (stale timeout)',
@@ -323,7 +323,7 @@ def fail_stale_running_jobs(db: Session, *, stale_seconds: int) -> int:
               AND COALESCE(updated_at, started_at, created_at)
                   < (CURRENT_TIMESTAMP - make_interval(secs => :stale_seconds))
         """),
-        {"stale_seconds": int(stale_seconds)},
+        {"stale_seconds": int(stale_seconds)}
     )
     return int(row.rowcount or 0)
 
@@ -335,7 +335,7 @@ def list_candles(
         board: str,
         interval: str,
         from_ts: datetime,
-        to_ts: datetime,
+        to_ts: datetime
 ) -> List[Dict[str, Any]]:
     """Одна выборка по нескольким тикерам (OR)."""
     if not tickers:
@@ -344,7 +344,7 @@ def list_candles(
     q = text(
         f"""
         SELECT ticker, board, interval, bucket_start, open, high, low, close, volume, source
-        FROM {_schema()}.shared_market_candles
+        FROM shared_market_candles
         WHERE board = :board
           AND interval = :interval
           AND ticker = ANY(:tickers)
@@ -361,6 +361,6 @@ def list_candles(
             "tickers": tickers_u,
             "from_ts": from_ts,
             "to_ts": to_ts,
-        },
+        }
     ).mappings().all()
     return [dict(r) for r in rows]

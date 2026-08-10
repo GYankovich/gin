@@ -20,9 +20,9 @@ def build_get_active_portfolio_robots_query() -> str:
                da.string_value as broker_type,
                at.extra_data as token_extra_data,
                at.token_type
-           FROM {schema}.robots r
-        INNER JOIN {schema}.api_tokens at ON r.token_id = at.id
-        INNER JOIN {schema}.dictionary da
+           FROM robots r
+        INNER JOIN api_tokens at ON r.token_id = at.id
+        INNER JOIN dictionary da
                 ON at.token_type = da.num_value
                AND da.table_name = 'TOKEN'
                AND da.column_name = 'TYPE'
@@ -37,6 +37,6 @@ def build_get_robot_config_query() -> str:
     Получение конфигурации робота из БД
     """
     return """
-           SELECT config FROM {schema}.robots
+           SELECT config FROM robots
            WHERE id = :robot_id AND status = 1 \
            """

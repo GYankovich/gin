@@ -18,6 +18,8 @@ from uuid import UUID
 
 from fastapi import HTTPException, status
 
+from sqlalchemy import text
+
 from sqlalchemy.orm import Session
 
 
@@ -35,6 +37,10 @@ from app.modules.market_data_v1.schemas import (
     CandleLoadJobStatus,
 
     CandlesQueryResponse,
+
+    TqbrSearchResponse,
+
+    TqbrSecurityRow,
 
     candle_row_from_db,
 
@@ -353,3 +359,42 @@ def query_candles(
     gaps = _edge_gaps(tickers_u, rows, a, b)
 
     return CandlesQueryResponse(candles=candles, gaps=gaps)
+
+
+def list_tqbr_bulk(db: Session, *, limit: int = 12_000) -> TqbrSearchResponse:
+    from app.modules.robots.moex_securities_updater import queries as moex_q
+
+    sql, params = moex_q.build_list_securities_bulk_query(board="TQBR", limit=limit, active_only=True)
+    rows = db.execute(text(sql), params).fetchall()
+    items = [
+        TqbrSecurityRow(
+            secid=str(r[0]),
+            shortname=str(r[1]) if r[1] is not None else None,
+            isin=str(r[2]) if r[2] is not None else None,
+        )
+        for r in rows
+        if r and r[0]
+    ]
+    return TqbrSearchResponse(items=items)
+
+
+def search_tqbr(db: Session, *, prefix: str, limit: int = 50) -> TqbrSearchResponse:
+    from app.modules.robots.moex_securities_updater import queries as moex_q
+
+    sql, params = moex_q.build_search_securities_query(
+        prefix=prefix,
+        board="TQBR",
+        limit=limit,
+        active_only=True,
+    )
+    rows = db.execute(text(sql), params).fetchall()
+    items = [
+        TqbrSecurityRow(
+            secid=str(r[0]),
+            shortname=str(r[1]) if r[1] is not None else None,
+            isin=str(r[2]) if r[2] is not None else None,
+        )
+        for r in rows
+        if r and r[0]
+    ]
+    return TqbrSearchResponse(items=items)

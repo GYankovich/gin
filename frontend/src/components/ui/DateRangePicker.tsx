@@ -1,7 +1,8 @@
 ///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiDaterangepicker [1]
 ///@ Исходный модуль `frontend/src/components/ui/DateRangePicker.tsx` — автоматическая разметка для Obsidian Source Scanner.
 
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Select } from '@/components/ui/Select'
 
 interface DateRangePickerProps {
@@ -11,6 +12,8 @@ interface DateRangePickerProps {
     onToChange: (value: string) => void
     fromLabel?: string
     toLabel?: string
+    /** When false, the form-label above the trigger is omitted. */
+    showLabel?: boolean
 }
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
@@ -53,9 +56,13 @@ export function DateRangePicker({
     onToChange,
     fromLabel = 'С',
     toLabel = 'По',
+    showLabel = true,
 }: DateRangePickerProps) {
     const rootRef = useRef<HTMLDivElement>(null)
+    const triggerRef = useRef<HTMLButtonElement>(null)
+    const popoverRef = useRef<HTMLDivElement>(null)
     const [open, setOpen] = useState(false)
+    const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({})
     const fromDate = parseDate(fromValue)
     const toDate = parseDate(toValue)
     const [cursor, setCursor] = useState(new Date(fromDate.getFullYear(), fromDate.getMonth(), 1))
@@ -67,9 +74,51 @@ export function DateRangePicker({
         return out
     }, [])
 
+    const updatePopoverPosition = useCallback(() => {
+        const trigger = triggerRef.current
+        if (!trigger) return
+        const rect = trigger.getBoundingClientRect()
+        const gap = 6
+        const width = Math.min(280, window.innerWidth - 24)
+        let left = rect.left
+        if (left + width > window.innerWidth - 12) {
+            left = window.innerWidth - width - 12
+        }
+        left = Math.max(12, left)
+        const spaceBelow = window.innerHeight - rect.bottom - gap
+        const openUp = spaceBelow < 300 && rect.top > spaceBelow
+        setPopoverStyle({
+            position: 'fixed',
+            left,
+            width,
+            ...(openUp
+                ? { bottom: window.innerHeight - rect.top + gap, top: 'auto' }
+                : { top: rect.bottom + gap, bottom: 'auto' }),
+        })
+    }, [])
+
+    useLayoutEffect(() => {
+        if (!open) return
+        updatePopoverPosition()
+    }, [open, updatePopoverPosition])
+
+    useEffect(() => {
+        if (!open) return
+        const onLayout = () => updatePopoverPosition()
+        window.addEventListener('resize', onLayout)
+        window.addEventListener('scroll', onLayout, true)
+        return () => {
+            window.removeEventListener('resize', onLayout)
+            window.removeEventListener('scroll', onLayout, true)
+        }
+    }, [open, updatePopoverPosition])
+
     useEffect(() => {
         const onDocClick = (e: MouseEvent) => {
-            if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+            const target = e.target as Node
+            if (rootRef.current?.contains(target)) return
+            if (popoverRef.current?.contains(target)) return
+            setOpen(false)
         }
         document.addEventListener('mousedown', onDocClick)
         return () => document.removeEventListener('mousedown', onDocClick)
@@ -104,12 +153,22 @@ export function DateRangePicker({
 
     return (
         <div className="form-group" ref={rootRef} style={{ position: 'relative' }}>
-            <label className="form-label">{fromLabel} - {toLabel}</label>
-            <button type="button" className="form-input date-popover-trigger" onClick={() => setOpen(v => !v)}>
+            {showLabel && <label className="form-label">{fromLabel} - {toLabel}</label>}
+            <button
+                ref={triggerRef}
+                type="button"
+                className="form-input date-popover-trigger"
+                aria-label={showLabel ? undefined : `${fromLabel} - ${toLabel}`}
+                onClick={() => setOpen(v => !v)}
+            >
                 {periodText}
             </button>
-            {open && (
-                <div className="date-popover date-popover-range">
+            {open && createPortal(
+                <div
+                    ref={popoverRef}
+                    className="date-popover date-popover-range date-popover--portal"
+                    style={popoverStyle}
+                >
                     <div className="date-popover__head">
                         <button type="button" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}>◀</button>
                         <div className="date-popover-range__head-center">
@@ -146,7 +205,8 @@ export function DateRangePicker({
                             )
                         })}
                     </div>
-                </div>
+                </div>,
+                document.body,
             )}
         </div>
     )

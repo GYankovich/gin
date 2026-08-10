@@ -29,15 +29,13 @@ def upgrade() -> None:
             "created_at",
             sa.DateTime(timezone=True),
             server_default=sa.text("CURRENT_TIMESTAMP"),
-            nullable=False,
-        ),
-        schema=SCHEMA,
+            nullable=False
+        )
     )
     op.create_index(
         "ix_robot_session_logs_robot_id",
         "robot_session_logs",
-        ["robot_id", "id"],
-        schema=SCHEMA,
+        ["robot_id", "id"]
     )
     op.create_foreign_key(
         "fk_robot_session_logs_robot_id",
@@ -45,12 +43,10 @@ def upgrade() -> None:
         "robots",
         ["robot_id"],
         ["id"],
-        source_schema=SCHEMA,
-        referent_schema=SCHEMA,
-        ondelete="CASCADE",
+        ondelete="CASCADE"
     )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_robot_session_logs_robot_id", table_name="robot_session_logs", schema=SCHEMA)
-    op.drop_table("robot_session_logs", schema=SCHEMA)
+    op.drop_index("ix_robot_session_logs_robot_id", table_name="robot_session_logs")
+    op.drop_table("robot_session_logs")

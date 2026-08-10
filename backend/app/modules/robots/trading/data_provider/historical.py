@@ -40,10 +40,10 @@ class HistoricalDataProvider(DataProvider):
     # ---------------------- universe ----------------------
 
     async def list_universe(self, trade_date: date) -> List[str]:
-        schema = settings.DB_SCHEMA
-        rows = self.db.execute(
-            text(f"SELECT secid FROM {schema}.tqbr_securities ORDER BY secid")
-        ).fetchall()
+        from app.modules.robots.moex_securities_updater import queries as moex_q
+
+        sql, params = moex_q.build_equity_universe_query(board=self.board, active_only=True)
+        rows = self.db.execute(text(sql), params).fetchall()
         return [str(r[0]) for r in rows if r and r[0]]
 
     # ---------------------- snapshot --------------------
@@ -57,7 +57,7 @@ class HistoricalDataProvider(DataProvider):
         snap_id_row = self.db.execute(
             text(f"""
                 SELECT id, snapshot_time
-                FROM {schema}.market_snapshot_history
+                FROM market_snapshot_history
                 WHERE board = :board
                   AND status = 'SUCCESS'
                   AND snapshot_time >= :day_start
@@ -69,7 +69,7 @@ class HistoricalDataProvider(DataProvider):
                 "board": self.board,
                 "day_start": datetime.combine(trade_date, time.min, tzinfo=timezone.utc),
                 "day_end": datetime.combine(trade_date + timedelta(days=1), time.min, tzinfo=timezone.utc),
-            },
+            }
         ).fetchone()
         rows_map: Dict[str, SnapshotRow] = {}
         as_of: datetime = datetime.combine(trade_date, time(10, 0), tzinfo=timezone.utc)
@@ -81,11 +81,11 @@ class HistoricalDataProvider(DataProvider):
                     SELECT ticker, open_price, prev_price, last_price, high_price, low_price,
                            value_today, volume_lots, num_trades, issue_size, bid, ask,
                            security_status, trading_status, atr_percent
-                    FROM {schema}.market_snapshot_data_history
+                    FROM market_snapshot_data_history
                     WHERE snapshot_id = :sid
                       AND UPPER(ticker) = ANY(:tickers)
                 """),
-                {"sid": snap_id, "tickers": [s.upper() for s in secids]},
+                {"sid": snap_id, "tickers": [s.upper() for s in secids]}
             ).fetchall()
             for r in data_rows:
                 t = str(r[0] or "").upper()
@@ -106,7 +106,7 @@ class HistoricalDataProvider(DataProvider):
                     ask=_safe_float(r[11]),
                     security_status=(str(r[12]) if r[12] is not None else None),
                     trading_status=(str(r[13]) if r[13] is not None else None),
-                    atr_pct=_safe_float(r[14]),
+                    atr_pct=_safe_float(r[14])
                 )
         return MarketSnapshot(as_of=as_of, trade_date=trade_date, board=self.board, rows=rows_map)
 
@@ -121,7 +121,7 @@ class HistoricalDataProvider(DataProvider):
             board=self.board,
             interval="D1",
             from_ts=from_ts,
-            to_ts=to_ts,
+            to_ts=to_ts
         )
         return [Candle.from_moex_row(r, interval="D1", secid=secid.upper()) for r in rows]
 
@@ -135,7 +135,7 @@ class HistoricalDataProvider(DataProvider):
             board=self.board,
             interval=norm,
             from_ts=from_ts,
-            to_ts=to_ts,
+            to_ts=to_ts
         )
         return [Candle.from_moex_row(r, interval=norm, secid=secid.upper()) for r in rows]
 

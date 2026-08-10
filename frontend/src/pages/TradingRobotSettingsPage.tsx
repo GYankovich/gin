@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { Combobox } from '@/components/ui/Combobox'
 import { Select } from '@/components/ui/Select'
 import { WeekdaysMaskField } from '@/components/ui/WeekdaysMaskField'
 import { FormLabelTooltip } from '@/components/ui/FormLabelTooltip'
@@ -83,9 +84,10 @@ import {
 } from '@/modules/robots/config/builders/buildPortfolioConfig'
 import { brokerFromTokenId, brokerLabelFromToken } from '@/modules/robots/config/tokenBroker'
 import {
+    clampPollMinutes,
+    formatPollMinutesLabel,
     pollMinuteOptionsForRobotType,
     resolvePollMinutesFromRobot,
-    snapPollMinutes,
 } from '@/modules/robots/config/pollSchedule'
 import type { ApiKeyItem } from '@/pages/settings/types'
 import {
@@ -1461,7 +1463,6 @@ export default function TradingRobotSettingsPage() {
     const isNarrow = useMediaQuery('(max-width: 1279px)')
     const isGrainSeed = strategyForm.strategy === 'grain_seed'
     const pollMinuteOptions = pollMinuteOptionsForRobotType(robotType)
-    const pollSelectMinutes = snapPollMinutes(pollValue, pollMinuteOptions)
     const hasEditor = isNewRobot || Boolean(selectedRobot)
 
     const syncAtrFilterFromParams = (period: number, minPercent: number) => {
@@ -1642,11 +1643,26 @@ export default function TradingRobotSettingsPage() {
                                 <FormLabelTooltip text="Как часто робот проверяет рынок и сигналы." />
                             )}
                         </label>
-                        <div className="cyber-select-wrap">
-                            <Select
-                                options={pollMinuteOptions.map(v => ({ value: String(v), label: `${v} мин` }))}
-                                value={String(pollSelectMinutes)}
-                                onChange={v => setPollValue(Number(v || (isPortfolioRobot ? 60 : 5)))}
+                        <div className="cyber-select-wrap schedule-poll-minutes">
+                            <Combobox
+                                options={pollMinuteOptions.map(v => ({
+                                    value: String(v),
+                                    label: formatPollMinutesLabel(v),
+                                }))}
+                                value={String(pollValue)}
+                                placeholder="Выберите или введите…"
+                                type="text"
+                                inputMode="numeric"
+                                filterOptions={false}
+                                commitValue={raw =>
+                                    String(
+                                        clampPollMinutes(
+                                            Number(raw || (isPortfolioRobot ? 60 : 5)),
+                                        ),
+                                    )
+                                }
+                                onChange={v => setPollValue(clampPollMinutes(Number(v)))}
+                                aria-label={robotType === 2 ? 'Цикл робота, минуты' : 'Частота опроса, минуты'}
                             />
                         </div>
                     </div>

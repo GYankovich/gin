@@ -21,9 +21,9 @@ def upgrade() -> None:
     op.execute(
         sa.text(
             f"""
-            ALTER TABLE {SCHEMA}.api_tokens
+            ALTER TABLE api_tokens
                 ADD COLUMN IF NOT EXISTS extra_data JSONB;
-            ALTER TABLE {SCHEMA}.api_tokens
+            ALTER TABLE api_tokens
                 ADD COLUMN IF NOT EXISTS account_id VARCHAR(50);
             """
         )
@@ -31,5 +31,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column("api_tokens", "account_id", schema=SCHEMA)
-    op.drop_column("api_tokens", "extra_data", schema=SCHEMA)
+    op.drop_column("api_tokens", "account_id")
+    op.drop_column("api_tokens", "extra_data")

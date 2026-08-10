@@ -72,7 +72,7 @@ def run_server():
             host="0.0.0.0",
             port=8000,
             reload=False,
-            log_level="info",
+            log_level="info"
         )
     except ImportError as e:
         print(f"[ERR] Import error: {e}")
@@ -94,7 +94,7 @@ def run_ws():
             host="0.0.0.0",
             port=port,
             reload=False,
-            log_level="info",
+            log_level="info"
         )
     except ImportError as e:
         print(f"[ERR] Import error: {e}")
@@ -121,7 +121,7 @@ def _find_listening_pids(port: int) -> list[int]:
             ["netstat", "-ano"],
             text=True,
             encoding="utf-8",
-            errors="replace",
+            errors="replace"
         )
     except Exception:
         return []
@@ -162,7 +162,7 @@ def _ensure_ports_free(ports: list[int], *, kill_existing: bool = False) -> None
                         ["taskkill", "/PID", str(pid), "/F"],
                         check=False,
                         capture_output=True,
-                        text=True,
+                        text=True
                     )
                     killed.add(pid)
                     print(f"[INFO] Stopped pid={pid} (was listening on :{port})")
@@ -208,14 +208,30 @@ def run_all(skip_migrate: bool = False, kill_ports: bool = False):
         return subprocess.Popen(
             cmd,
             cwd=str(root_path),
-            creationflags=creation_flags,
+            creationflags=creation_flags
         )
+
+    worker_labels = {"Heavy worker", "Portfolio worker"}
+    # worker завершился -> перезапуск не чаще чем раз в N секунд
+    worker_restart_backoff_sec = 3.0
+    # после конфликта lease (exit_code=2) даём heartbeat стать stale, затем перезапуск с --force-lease
+    worker_conflict_backoff_sec = 95.0
+    worker_force_on_restart = {"Heavy worker": False, "Portfolio worker": False}
+    worker_next_restart_at = {"Heavy worker": 0.0, "Portfolio worker": 0.0}
+    worker_restart_count = {"Heavy worker": 0, "Portfolio worker": 0}
+
+    def spawn_worker(label: str) -> subprocess.Popen:
+        lane = "heavy" if label == "Heavy worker" else "portfolio"
+        args = ["worker", "--lane", lane]
+        if worker_force_on_restart.get(label):
+            args.append("--force-lease")
+        return spawn(args, label)
 
     procs: list[tuple[str, subprocess.Popen]] = []
     try:
         procs.append(("API", spawn(["server"], "API")))
-        procs.append(("Heavy worker", spawn(["worker", "--lane", "heavy"], "Heavy worker")))
-        procs.append(("Portfolio worker", spawn(["worker", "--lane", "portfolio"], "Portfolio worker")))
+        procs.append(("Heavy worker", spawn_worker("Heavy worker")))
+        procs.append(("Portfolio worker", spawn_worker("Portfolio worker")))
         procs.append(("WS", spawn(["ws"], "WS")))
 
         print("\n[OK] All processes started.")
@@ -228,7 +244,7 @@ def run_all(skip_migrate: bool = False, kill_ports: bool = False):
         while True:
             time.sleep(1)
             alive_any = False
-            for label, p in procs:
+            for idx, (label, p) in enumerate(procs):
                 rc = p.poll()
                 if rc is None:
                     alive_any = True
@@ -236,6 +252,30 @@ def run_all(skip_migrate: bool = False, kill_ports: bool = False):
                 if label not in stopped:
                     stopped.add(label)
                     print(f"\n[WARN] {label} exited: pid={p.pid} exit_code={rc}")
+                if label in worker_labels:
+                    now = time.time()
+                    if rc == 2:
+                        worker_force_on_restart[label] = True
+                        worker_next_restart_at[label] = max(
+                            worker_next_restart_at[label],
+                            now + worker_conflict_backoff_sec
+                        )
+                    if now >= worker_next_restart_at[label]:
+                        try:
+                            new_p = spawn_worker(label)
+                            procs[idx] = (label, new_p)
+                            worker_restart_count[label] += 1
+                            worker_next_restart_at[label] = now + worker_restart_backoff_sec
+                            print(
+                                f"[HEAL] {label} restarted (attempt={worker_restart_count[label]}, "
+                                f"force_lease={worker_force_on_restart[label]})"
+                            )
+                            if label in stopped:
+                                stopped.remove(label)
+                            alive_any = True
+                        except Exception as exc:
+                            worker_next_restart_at[label] = now + worker_restart_backoff_sec
+                            print(f"[WARN] Failed to restart {label}: {exc}")
             if not alive_any:
                 print("\n[STOP] All subprocesses exited.")
                 break
@@ -328,12 +368,12 @@ def main():
     parser.add_argument(
         "--skip-migrate",
         action="store_true",
-        help="Пропустить применение миграций перед запуском (для multi-process старта).",
+        help="Пропустить применение миграций перед запуском (для multi-process старта)."
     )
     parser.add_argument(
         "--kill-ports",
         action="store_true",
-        help="Перед all: завершить процессы, занимающие порты API/WS (8000, WS_PORT).",
+        help="Перед all: завершить процессы, занимающие порты API/WS (8000, WS_PORT)."
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -342,18 +382,28 @@ def main():
         "--lane",
         required=True,
         choices=["portfolio", "heavy"],
-        help="Worker lane to process",
+        help="Worker lane to process"
     )
     worker_parser.add_argument(
         "--force-lease",
         action="store_true",
-        help="Steal lane lease even if another worker heartbeat is fresh",
+        help="Steal lane lease even if another worker heartbeat is fresh"
     )
 
     sub.add_parser("server", help="Run API server (default)")
     sub.add_parser("ws", help="Run Live WebSocket gateway")
     sub.add_parser("migrate", help="Apply migrations only")
-    sub.add_parser("all", help="Run API + workers + WS gateway")
+    all_parser = sub.add_parser("all", help="Run API + workers + WS gateway")
+    all_parser.add_argument(
+        "--kill-ports",
+        action="store_true",
+        help="Перед стартом завершить процессы на портах API/WS (8000, WS_PORT).",
+    )
+    all_parser.add_argument(
+        "--skip-migrate",
+        action="store_true",
+        help="Пропустить миграции.",
+    )
 
     args = parser.parse_args()
     command = args.command or "server"

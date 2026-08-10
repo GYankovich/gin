@@ -92,7 +92,7 @@ def list_bybit_symbols_from_cache(db: Session) -> List[str]:
         text(
             f"""
             SELECT DISTINCT instrument_id
-            FROM {settings.DB_SCHEMA}.candles_cache
+            FROM candles_cache
             WHERE LOWER(market) = 'bybit'
               AND interval IN ('D1', 'I24', '1d', '1D', 'CANDLE_INTERVAL_DAY')
             ORDER BY instrument_id

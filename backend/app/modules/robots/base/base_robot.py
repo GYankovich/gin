@@ -59,7 +59,7 @@ class BaseRobot(ABC):
 
     async def _log_db_operation(self, operation: str, table: str, data: Dict = None, error: str = None):
         """Логирует операцию с БД в файловый лог"""
-        log_msg = f"🗄️ DB {operation} on {self.schema}.{table}"
+        log_msg = f"🗄️ DB {operation} on {table}"
         if data:
             log_msg += f"\n   📦 DATA: {json.dumps(data, ensure_ascii=False, default=str)[:500]}"
         if error:
@@ -142,7 +142,7 @@ class BaseRobot(ABC):
                     execution_log_id=self._execution_log_id,
                     robot_id=robot_id,
                     write_external_api_logs=True,
-                    write_robot_logs=write_robot_logs,
+                    write_robot_logs=write_robot_logs
                 )
 
             # Проверяем расписание

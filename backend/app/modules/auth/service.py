@@ -195,7 +195,7 @@ class AuthService:
         self.db = db
 
         cfg_ttl = db.execute(
-            text(f"SELECT value FROM {settings.DB_SCHEMA}.app_config WHERE key = 'jwt_ttl_minutes' LIMIT 1")
+            text(f"SELECT value FROM app_config WHERE key = 'jwt_ttl_minutes' LIMIT 1")
         ).scalar()
         try:
             ttl_minutes = int(cfg_ttl) if cfg_ttl is not None else int(settings.ACCESS_TOKEN_EXPIRE_MINUTES)

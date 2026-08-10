@@ -44,7 +44,7 @@ def resolve_portfolio_account_pk(
         row = db.execute(
             text(
                 f"""
-                SELECT id FROM {settings.DB_SCHEMA}.portfolio_accounts
+                SELECT id FROM portfolio_accounts
                 WHERE user_id = :user_id AND account_id = :account_id
                 LIMIT 1
                 """
@@ -59,7 +59,7 @@ def resolve_portfolio_account_pk(
         created = db.execute(
             text(
                 f"""
-                INSERT INTO {settings.DB_SCHEMA}.portfolio_accounts
+                INSERT INTO portfolio_accounts
                 (user_id, account_id, account_type, account_name, account_status,
                  opened_date, is_active, created_at)
                 VALUES
@@ -257,7 +257,7 @@ def insert_pending_order(
         row = db.execute(
             text(
                 f"""
-                INSERT INTO {settings.DB_SCHEMA}.portfolio_orders
+                INSERT INTO portfolio_orders
                 (account_id, order_id, figi, order_type, order_direction, order_date,
                  lots_requested, lots_executed, price, execution_price, status, reason,
                  extra_data, created_at)
@@ -314,7 +314,7 @@ def update_order_by_pk(
         db.execute(
             text(
                 f"""
-                UPDATE {settings.DB_SCHEMA}.portfolio_orders
+                UPDATE portfolio_orders
                 SET order_id = COALESCE(:order_id, order_id),
                     status = COALESCE(:status, status),
                     lots_requested = COALESCE(:lots_requested, lots_requested),
@@ -360,7 +360,7 @@ def find_order_by_broker_id(
             text(
                 f"""
                 SELECT id, status, extra_data, order_direction, reason
-                FROM {settings.DB_SCHEMA}.portfolio_orders
+                FROM portfolio_orders
                 WHERE account_id = :account_id AND order_id = :order_id
                 LIMIT 1
                 """
@@ -443,7 +443,7 @@ def upsert_broker_order(
             db.execute(
                 text(
                     f"""
-                    UPDATE {settings.DB_SCHEMA}.portfolio_orders
+                    UPDATE portfolio_orders
                     SET status = :status,
                         lots_requested = COALESCE(:lots_requested, lots_requested),
                         lots_executed = COALESCE(:lots_executed, lots_executed),
@@ -506,7 +506,7 @@ def upsert_broker_order(
         db.execute(
             text(
                 f"""
-                INSERT INTO {settings.DB_SCHEMA}.portfolio_orders
+                INSERT INTO portfolio_orders
                 (account_id, order_id, figi, order_type, order_direction, order_date,
                  lots_requested, lots_executed, price, execution_price, status, reason,
                  extra_data, created_at)
@@ -595,7 +595,7 @@ def promote_filled_order_to_operation(
         db.execute(
             text(
                 f"""
-                INSERT INTO {settings.DB_SCHEMA}.portfolio_operations
+                INSERT INTO portfolio_operations
                 (account_id, operation_id, parent_operation_id, figi, instrument_type,
                  instrument_uid, position_uid, operation_type, operation_date,
                  quantity, quantity_rest, price, price_currency, payment, payment_currency,
@@ -660,7 +660,7 @@ def _portfolio_order_label_maps(db: Session) -> Dict[str, Dict[str, str]]:
             text(
                 f"""
                 SELECT column_name, string_value, name
-                FROM {settings.DB_SCHEMA}.dictionary
+                FROM dictionary
                 WHERE table_name = 'PORTFOLIO_ORDERS'
                   AND column_name IN ('ORDER_DIRECTION', 'STATUS', 'SOURCE', 'REASON')
                   AND hide_from_ui = 0
@@ -694,7 +694,7 @@ def load_portfolio_orders(
                 SELECT id, figi, order_direction, lots_requested, price, order_id, status,
                        order_date, lots_executed, execution_price, extra_data, order_type,
                        reason
-                FROM {settings.DB_SCHEMA}.portfolio_orders
+                FROM portfolio_orders
                 WHERE account_id = :account_id
                 ORDER BY order_date DESC
                 LIMIT :limit

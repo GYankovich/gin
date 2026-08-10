@@ -17,7 +17,7 @@ from sqlalchemy import (
     JSON,
     Numeric,
     String,
-    Text,
+    Text
 )
 from sqlalchemy.orm import relationship
 
@@ -33,11 +33,10 @@ class PortfolioAccount(Base):
     __tablename__ = "portfolio_accounts"
     __table_args__ = (
         Index("ix_portfolio_accounts_user_account", "user_id", "account_id", unique=True),
-        {"schema": SCHEMA},
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.user.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
 
     # Unique only together with user_id (see uq_user_account / ix_portfolio_accounts_user_account).
     # ByBit external ids are stable per user: bybit:UNIFIED|FUND|COPY.
@@ -69,11 +68,10 @@ class PortfolioSnapshot(Base):
     __tablename__ = "portfolio_snapshots"
     __table_args__ = (
         Index("ix_portfolio_snapshots_account_date", "account_id", "snapshot_date"),
-        {"schema": SCHEMA},
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    account_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.portfolio_accounts.id", ondelete="CASCADE"), nullable=False)
+    account_id = Column(BigInteger, ForeignKey(f"portfolio_accounts.id", ondelete="CASCADE"), nullable=False)
     snapshot_date = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
     total_amount_portfolio = Column(Numeric(20, 4), nullable=False)
@@ -104,12 +102,11 @@ class PortfolioPosition(Base):
     __table_args__ = (
         Index("ix_portfolio_positions_snapshot", "snapshot_id"),
         Index("ix_portfolio_positions_figi", "figi"),
-        Index("ix_portfolio_positions_ticker", "ticker"),
-        {"schema": SCHEMA},
+        Index("ix_portfolio_positions_ticker", "ticker")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    snapshot_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.portfolio_snapshots.id", ondelete="CASCADE"), nullable=False)
+    snapshot_id = Column(BigInteger, ForeignKey(f"portfolio_snapshots.id", ondelete="CASCADE"), nullable=False)
 
     figi = Column(String(20), nullable=True)
     instrument_uid = Column(String(50), nullable=True)
@@ -151,12 +148,11 @@ class PortfolioOperation(Base):
     __table_args__ = (
         Index("ix_portfolio_operations_account_date", "account_id", "operation_date"),
         Index("ix_portfolio_operations_operation_id", "operation_id", unique=True),
-        Index("ix_portfolio_operations_figi", "figi"),
-        {"schema": SCHEMA},
+        Index("ix_portfolio_operations_figi", "figi")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    account_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.portfolio_accounts.id", ondelete="CASCADE"), nullable=False)
+    account_id = Column(BigInteger, ForeignKey(f"portfolio_accounts.id", ondelete="CASCADE"), nullable=False)
 
     operation_id = Column(String(120), nullable=False, unique=True)
     parent_operation_id = Column(String(50), nullable=True)
@@ -197,12 +193,11 @@ class PortfolioOrder(Base):
     __tablename__ = "portfolio_orders"
     __table_args__ = (
         Index("ix_portfolio_orders_account_date", "account_id", "order_date"),
-        Index("uq_portfolio_orders_account_order_id", "account_id", "order_id", unique=True),
-        {"schema": SCHEMA},
+        Index("uq_portfolio_orders_account_order_id", "account_id", "order_id", unique=True)
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    account_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.portfolio_accounts.id", ondelete="CASCADE"), nullable=False)
+    account_id = Column(BigInteger, ForeignKey(f"portfolio_accounts.id", ondelete="CASCADE"), nullable=False)
 
     order_id = Column(String(120), nullable=False)
     figi = Column(String(32), nullable=True)
@@ -238,12 +233,11 @@ class ExternalApiLog(Base):
         Index("ix_external_api_logs_user_created", "user_id", "created_at"),
         Index("ix_external_api_logs_endpoint", "endpoint"),
         Index("ix_external_api_logs_success", "success"),
-        Index("ix_external_api_logs_broker", "broker"),
-        {"schema": SCHEMA},
+        Index("ix_external_api_logs_broker", "broker")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, ForeignKey(f"{SCHEMA}.user.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(BigInteger, ForeignKey("user.id", ondelete="SET NULL"), nullable=True)
     token_id = Column(BigInteger, nullable=True)
 
     broker = Column(String(32), nullable=False, default="tinvest")
@@ -271,8 +265,7 @@ class InstrumentCache(Base):
     __tablename__ = "instrument_cache"
     __table_args__ = (
         Index("ix_instrument_cache_figi", "figi", unique=True),
-        Index("ix_instrument_cache_ticker", "ticker"),
-        {"schema": SCHEMA},
+        Index("ix_instrument_cache_ticker", "ticker")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)

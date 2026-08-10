@@ -69,7 +69,7 @@ def load_today_accepted_symbols(
             text(
                 f"""
                 SELECT symbol
-                FROM {schema}.crypto_universe_daily
+                FROM crypto_universe_daily
                 WHERE robot_id = :rid AND trade_date = :td
                   AND LOWER(COALESCE(filter_result, '')) IN ('accept', 'accepted')
                 ORDER BY created_at DESC
@@ -87,7 +87,7 @@ def load_today_accepted_symbols(
         text(
             f"""
             SELECT ticker
-            FROM {schema}.daily_universe
+            FROM daily_universe
             WHERE robot_id = :rid AND trade_date = :td
               AND LOWER(COALESCE(filter_result, '')) IN ('accept', 'accepted')
             ORDER BY created_at DESC

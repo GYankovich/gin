@@ -1,14 +1,17 @@
 import React, { useMemo } from 'react'
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
 import { DataTable, type Column } from '@/components/ui/DataTable'
+import { Skeleton } from '@/components/ui/Skeleton'
 import {
     formatPortfolioMoney,
     formatPortfolioMoneySigned,
 } from '@/utils/portfolioFormat'
 
 export type PortfolioCompositionRow = {
-    figi: string
+    figi?: string | null
     ticker?: string | null
+    ticker_name?: string | null
+    short_name?: string | null
     instrument_type?: string | null
     type_name?: string | null
     quantity?: number | null
@@ -22,7 +25,7 @@ type Props = {
     positions: PortfolioCompositionRow[]
     loading?: boolean
     currency?: string
-    /** ByBit / crypto: колонка «Символ» вместо «FIGI». */
+    /** Kept for callers; FIGI column removed — asset label uses ticker_name/ticker. */
     bybitAccount?: boolean
     open?: boolean
     onOpenChange?: (open: boolean) => void
@@ -34,15 +37,32 @@ type Props = {
     hint?: string
 }
 
+function fullAssetLabel(row: PortfolioCompositionRow): string {
+    const name = String(row.ticker_name || '').trim()
+    if (name) return name
+    const shortName = String(row.short_name || '').trim()
+    if (shortName) return shortName
+    const ticker = String(row.ticker || '').trim()
+    if (ticker) return ticker
+    return '—'
+}
+
+function shortAssetLabel(row: PortfolioCompositionRow): string {
+    const shortName = String(row.short_name || '').trim()
+    if (shortName) return shortName
+    const ticker = String(row.ticker || '').trim()
+    if (ticker) return ticker
+    return '—'
+}
+
 export function PortfolioComposition({
     positions,
     loading = false,
     currency = 'RUB',
-    bybitAccount = false,
     open,
     onOpenChange,
     defaultOpen = true,
-    className = 'portfolio-collapse',
+    className = 'portfolio-collapse portfolio-composition-collapse',
     emptyText = 'Нет позиций',
     toolbar,
     hint,
@@ -54,24 +74,22 @@ export function PortfolioComposition({
     const columns: Column<PortfolioCompositionRow>[] = useMemo(
         () => [
             {
-                key: 'figi',
-                header: bybitAccount ? 'Символ' : 'FIGI',
-                sortable: true,
-                width: '140px',
-            },
-            {
                 key: 'ticker',
-                header: 'Тикер',
+                header: 'Актив',
                 sortable: true,
-                width: '80px',
-                render: r => r.ticker || '—',
+                width: '180px',
+                render: r => fullAssetLabel(r),
             },
             {
                 key: 'type_name',
                 header: 'Тип',
                 sortable: true,
-                width: '120px',
-                render: r => String(r.type_name || r.instrument_type || '—'),
+                width: '140px',
+                render: r => {
+                    const label = String(r.type_name || '').trim()
+                    if (label) return label
+                    return String(r.instrument_type || '—')
+                },
             },
             {
                 key: 'quantity',
@@ -115,7 +133,17 @@ export function PortfolioComposition({
                 render: r => money(r.total_value),
             },
         ],
-        [bybitAccount, currency],
+        [currency],
+    )
+
+    const tableData = useMemo(
+        () =>
+            positions.map((row, index) => ({
+                ...row,
+                // Stable DataTable row id (FIGI column removed from UI).
+                figi: String(row.figi || row.ticker || row.ticker_name || `row-${index}`),
+            })),
+        [positions],
     )
 
     return (
@@ -134,35 +162,49 @@ export function PortfolioComposition({
         >
             {toolbar}
             {loading ? (
-                <div className="ops-loader">
-                    <div className="soft-loading-bar" />
-                    <div className="ops-loader__text">Загрузка состава портфеля...</div>
+                <div aria-busy="true" aria-label="Загрузка состава портфеля">
+                    <Skeleton width="100%" height="120px" borderRadius="8px" />
                 </div>
             ) : (
                 <DataTable
                     columns={columns}
-                    data={positions}
+                    data={tableData}
                     keyField="figi"
                     emptyText={emptyText}
-                    mobilePrimary={r => `${r.ticker || '—'} (${r.figi || '—'})`}
-                    mobileSecondary={r =>
-                        `${Number(r.quantity ?? 0).toLocaleString('ru-RU')} шт. | ${money(r.total_value)}`
-                    }
+                    mobilePrimary={r => (
+                        <div className="portfolio-mobile-split">
+                            <span className="portfolio-mobile-split__asset">{shortAssetLabel(r)}</span>
+                            <span className="portfolio-mobile-split__value mono">{money(r.total_value)}</span>
+                        </div>
+                    )}
                     mobileDetails={r => (
                         <>
-                            <div>Тип: {r.type_name || r.instrument_type || '—'}</div>
-                            <div>Средняя цена: {money(r.avg_price)}</div>
-                            <div>
-                                Текущая цена: {money(r.current_price)}{' '}
-                                <span
-                                    className={
-                                        Number(r.expected_yield ?? 0) >= 0 ? 'color-up' : 'color-down'
-                                    }
-                                >
-                                    ({Number(r.expected_yield ?? 0) >= 0 ? '+' : ''}
-                                    {money(r.expected_yield ?? 0)})
+                            <div className="portfolio-mobile-split__asset-full">{fullAssetLabel(r)}</div>
+                            <div className="portfolio-mobile-split__muted mono portfolio-mobile-details-price">
+                                <span>Цена: {money(r.current_price)}</span>
+                                <span className="portfolio-mobile-metrics__avg" title="Средняя цена">
+                                    <svg
+                                        className="portfolio-mobile-metrics__avg-icon"
+                                        viewBox="0 0 16 16"
+                                        width="12"
+                                        height="12"
+                                        aria-hidden
+                                    >
+                                        <path
+                                            d="M2 8h12M3.5 5h9M3.5 11h9"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="1.5"
+                                            strokeLinecap="round"
+                                        />
+                                    </svg>
+                                    {money(r.avg_price)}
                                 </span>
                             </div>
+                            <div className="portfolio-mobile-split__muted mono">
+                                Количество: {Number(r.quantity ?? 0).toLocaleString('ru-RU')}
+                            </div>
+                            <div>Тип: {r.type_name || r.instrument_type || '—'}</div>
                             <div>
                                 P&amp;L:{' '}
                                 <span
@@ -170,7 +212,7 @@ export function PortfolioComposition({
                                         Number(r.expected_yield ?? 0) >= 0 ? 'color-up' : 'color-down'
                                     }
                                 >
-                                    {money(r.expected_yield ?? 0)}
+                                    {moneySigned(r.expected_yield ?? 0)}
                                 </span>
                             </div>
                         </>

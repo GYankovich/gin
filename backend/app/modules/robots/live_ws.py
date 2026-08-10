@@ -26,7 +26,7 @@ from app.modules.robots.live_events import (
     build_orders_snapshot_payload,
     fetch_recent_session_logs,
     subscribe_live_events,
-    unsubscribe_live_events,
+    unsubscribe_live_events
 )
 from app.modules.robots.trading.brokers.factory import create_broker_facade
 
@@ -43,14 +43,14 @@ def _trading_session_active(robot_id: int) -> bool:
             text(
                 f"""
                 SELECT 1
-                FROM {settings.DB_SCHEMA}.background_jobs
+                FROM background_jobs
                 WHERE job_type = 'live_trading_session'
                   AND (payload->>'robot_id')::text = :robot_id
                   AND status IN ('queued', 'running')
                 LIMIT 1
                 """
             ),
-            {"robot_id": str(int(robot_id))},
+            {"robot_id": str(int(robot_id))}
         ).first()
         return bool(row)
     except Exception as exc:
@@ -106,7 +106,7 @@ def _resolve_live_ws_instruments(user_id: int, robot_id: int, config: dict) -> l
                 logger.warning(
                     "live_ws portfolio instruments failed robot_id=%s: %s",
                     robot_id,
-                    exc,
+                    exc
                 )
 
         td = date.today()
@@ -116,14 +116,14 @@ def _resolve_live_ws_instruments(user_id: int, robot_id: int, config: dict) -> l
                     text(
                         f"""
                         SELECT symbol
-                        FROM {settings.DB_SCHEMA}.crypto_universe_daily
+                        FROM crypto_universe_daily
                         WHERE robot_id = :rid AND trade_date = :td
                           AND LOWER(COALESCE(filter_result, '')) IN ('accept', 'accepted')
                         ORDER BY created_at DESC
                         LIMIT 1000
                         """
                     ),
-                    {"rid": int(robot_id), "td": td},
+                    {"rid": int(robot_id), "td": td}
                 ).fetchall()
                 for r in rows:
                     _add(r[0])
@@ -132,14 +132,14 @@ def _resolve_live_ws_instruments(user_id: int, robot_id: int, config: dict) -> l
                     text(
                         f"""
                         SELECT ticker
-                        FROM {settings.DB_SCHEMA}.daily_universe
+                        FROM daily_universe
                         WHERE robot_id = :rid AND trade_date = :td
                           AND LOWER(COALESCE(filter_result, '')) IN ('accept', 'accepted')
                         ORDER BY created_at DESC
                         LIMIT 1000
                         """
                     ),
-                    {"rid": int(robot_id), "td": td},
+                    {"rid": int(robot_id), "td": td}
                 ).fetchall()
                 for r in rows:
                     ticker = str(r[0] or "").strip().upper()
@@ -155,7 +155,7 @@ def _resolve_live_ws_instruments(user_id: int, robot_id: int, config: dict) -> l
             logger.warning(
                 "live_ws screening instruments failed robot_id=%s: %s",
                 robot_id,
-                exc,
+                exc
             )
     finally:
         db.close()
@@ -209,8 +209,8 @@ def _get_robot_data(user_id: int, robot_id: int) -> Optional[dict]:
         row = db.execute(
             text("""
                 SELECT r.id, r.config, t.token, r.type, r.status, t.extra_data, t.token_type
-                FROM {schema}.robots r
-                JOIN {schema}.api_tokens t ON r.token_id = t.id
+                FROM robots r
+                JOIN api_tokens t ON r.token_id = t.id
                 WHERE r.id = :robot_id AND r.user_id = :user_id AND r.status != 0
             """.format(schema=settings.DB_SCHEMA)),
             {"robot_id": robot_id, "user_id": user_id}
@@ -247,7 +247,7 @@ async def _autofill_figis_from_pipeline(user_id: int, robot_id: int) -> list[str
             db,
             robot_id=robot_id,
             user_id=user_id,
-            force_refresh_snapshot=False,
+            force_refresh_snapshot=False
         )
         return list((result or {}).get("allowed_figis") or [])
     except Exception as ex:
@@ -261,7 +261,7 @@ async def _autofill_figis_from_pipeline(user_id: int, robot_id: int) -> list[str
 async def live_websocket(
     ws: WebSocket,
     robot_id: int = Query(...),
-    token: str = Query(""),
+    token: str = Query("")
 ):
     await ws.accept()
 
@@ -285,14 +285,14 @@ async def live_websocket(
     config = robot["config"] if isinstance(robot["config"], dict) else {}
     from app.modules.robots.trading.brokers.routing import (
         BrokerTokenMismatchError,
-        enforce_broker_for_token,
+        enforce_broker_for_token
     )
     try:
         broker_type = enforce_broker_for_token(
             config,
             token_type=robot.get("token_type"),
             mutate=True,
-            require_token=True,
+            require_token=True
         )
     except (BrokerTokenMismatchError, ValueError) as exc:
         await ws.send_json({"type": "error", "message": str(exc)})
@@ -314,7 +314,7 @@ async def live_websocket(
                 seed_db,
                 robot_id=int(robot_id),
                 user_id=int(user_id),
-                account_id=str(config.get("account_id") or "").strip() or None,
+                account_id=str(config.get("account_id") or "").strip() or None
             )
             if orders_seed:
                 await ws.send_json(orders_seed)
@@ -347,7 +347,7 @@ async def live_websocket(
             broker_type,
             robot["token"],
             token_extra_data=robot.get("token_extra_data"),
-            robot_config=config,
+            robot_config=config
         )
         try:
             connected = await broker.connect_websocket(user_id)

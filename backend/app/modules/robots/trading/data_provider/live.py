@@ -42,7 +42,7 @@ class LiveDataProvider(DataProvider):
         *,
         db: Optional[Session] = None,
         board: str = "TQBR",
-        user_id: Optional[int] = None,
+        user_id: Optional[int] = None
     ):
         self.broker = broker
         self.db = db
@@ -54,11 +54,10 @@ class LiveDataProvider(DataProvider):
     async def list_universe(self, trade_date: date) -> List[str]:
         if self.db is not None:
             from sqlalchemy import text
-            from app.core.config import settings
-            schema = settings.DB_SCHEMA
-            rows = self.db.execute(
-                text(f"SELECT secid FROM {schema}.tqbr_securities ORDER BY secid")
-            ).fetchall()
+            from app.modules.robots.moex_securities_updater import queries as moex_q
+
+            sql, params = moex_q.build_equity_universe_query(board=self.board, active_only=True)
+            rows = self.db.execute(text(sql), params).fetchall()
             return [str(r[0]) for r in rows if r and r[0]]
         return []
 
@@ -70,7 +69,7 @@ class LiveDataProvider(DataProvider):
                 as_of=datetime.now(timezone.utc),
                 trade_date=trade_date,
                 board=self.board,
-                rows={},
+                rows={}
             )
         # В live путь к снапшоту тот же, что в backtest: ищем последний свежий
         # снимок в market_snapshot_history. Это закрывает зазор §3.0.1 BRD-ARCH-02
@@ -149,7 +148,7 @@ class LiveDataProvider(DataProvider):
                     low=price,
                     close=price,
                     volume=0,
-                    figi=event.get("figi"),
+                    figi=event.get("figi")
                 )
         finally:
             try:

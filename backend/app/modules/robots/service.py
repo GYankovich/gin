@@ -24,7 +24,7 @@ from app.modules.recommendations.backtest_analytics import (
     exit_reason_metrics,
     general_metrics,
     moex_metrics,
-    universe_metrics,
+    universe_metrics
 )
 from . import queries, schemas
 from app.modules.dictionary import queries as dict_queries
@@ -34,7 +34,7 @@ logger = get_logger(__name__)
 _MOEX_RETRYABLE_HTTP_ERRORS = (
     httpx.TimeoutException,
     httpx.NetworkError,
-    httpx.ProtocolError,
+    httpx.ProtocolError
 )
 
 _HB_CANCEL_LOCK = threading.Lock()
@@ -159,7 +159,7 @@ def _instrument_type_label_map(db: Session) -> Dict[str, str]:
             text(
                 f"""
                 SELECT string_value, name
-                FROM {settings.DB_SCHEMA}.dictionary
+                FROM dictionary
                 WHERE table_name = 'PORTFOLIO_POSITIONS'
                   AND column_name = 'INSTRUMENT_TYPE'
                   AND hide_from_ui = 0
@@ -180,7 +180,7 @@ def _instrument_type_label_map(db: Session) -> Dict[str, str]:
 def _normalize_portfolio_positions(
     raw: List[Dict[str, Any]],
     *,
-    type_names: Optional[Dict[str, str]] = None,
+    type_names: Optional[Dict[str, str]] = None
 ) -> List[Dict[str, Any]]:
     labels = type_names or {}
     out: List[Dict[str, Any]] = []
@@ -244,7 +244,7 @@ def _is_db_working_order(row: Dict[str, Any]) -> bool:
 
 
 def _split_db_orders(
-    rows: List[Dict[str, Any]],
+    rows: List[Dict[str, Any]]
 ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Split portfolio_orders into active working vs history."""
     open_orders: List[Dict[str, Any]] = []
@@ -351,7 +351,7 @@ def _update_trade_row_by_order_id(
     price: Optional[float] = None,
     filled_qty: Optional[float] = None,
     avg_price: Optional[float] = None,
-    now: Optional[datetime] = None,
+    now: Optional[datetime] = None
 ) -> bool:
     """Legacy update for robot_trades (synthetic broker_import heal only)."""
     ts = now or datetime.now(timezone.utc)
@@ -359,7 +359,7 @@ def _update_trade_row_by_order_id(
         db.execute(
             text(
                 f"""
-                UPDATE {settings.DB_SCHEMA}.robot_trades
+                UPDATE robot_trades
                 SET status = :status,
                     quantity = COALESCE(:quantity, quantity),
                     price = COALESCE(:price, price),
@@ -385,7 +385,7 @@ def _update_trade_row_by_order_id(
                 "now": ts,
                 "robot_id": int(robot_id),
                 "order_id": order_id,
-            },
+            }
         )
         return True
     except Exception as exc:
@@ -397,7 +397,7 @@ def _update_trade_row_by_order_id(
             "sync order update failed robot_id=%s order_id=%s: %s",
             robot_id,
             order_id,
-            exc,
+            exc
         )
         return False
 
@@ -410,13 +410,13 @@ async def _upsert_broker_open_orders_into_db(
     account_id: str,
     portfolio_account_id: Optional[int] = None,
     user_id: Optional[int] = None,
-    broker_prefix: str = "bybit",
+    broker_prefix: str = "bybit"
 ) -> Dict[str, Any]:
     """Upsert broker open orders into portfolio_orders."""
     from app.modules.portfolio.order_registry import (
         SOURCE_EXTERNAL,
         resolve_portfolio_account_pk,
-        upsert_broker_order,
+        upsert_broker_order
     )
 
     get_orders = getattr(broker, "get_orders", None)
@@ -433,7 +433,7 @@ async def _upsert_broker_open_orders_into_db(
         logger.warning(
             "upsert open orders: no portfolio_account_id robot_id=%s account=%s",
             robot_id,
-            account_id,
+            account_id
         )
         return empty
 
@@ -480,7 +480,7 @@ async def _upsert_broker_open_orders_into_db(
             order_date=_broker_row_order_date(row),
             commit=False,
             promote_filled=True,
-            broker_prefix=broker_prefix,
+            broker_prefix=broker_prefix
         )
         if result == "inserted":
             imported += 1
@@ -518,7 +518,7 @@ async def _sync_working_trade_statuses_from_broker(
     working_rows: List[Dict[str, Any]],
     open_order_ids: Optional[set[str]] = None,
     portfolio_account_id: Optional[int] = None,
-    broker_prefix: str = "bybit",
+    broker_prefix: str = "bybit"
 ) -> Dict[str, int]:
     """Poll broker for working portfolio_orders not in open set; missing → cancelled."""
     from app.modules.portfolio.order_registry import upsert_broker_order
@@ -547,7 +547,7 @@ async def _sync_working_trade_statuses_from_broker(
                 "sync order status skipped robot_id=%s order_id=%s: %s",
                 robot_id,
                 oid,
-                exc,
+                exc
             )
             continue
         if not isinstance(state, dict):
@@ -599,7 +599,7 @@ async def _sync_working_trade_statuses_from_broker(
             robot_id=int(robot_id),
             commit=False,
             promote_filled=True,
-            broker_prefix=broker_prefix,
+            broker_prefix=broker_prefix
         )
         if result in {"inserted", "updated"}:
             dirty = True
@@ -628,13 +628,13 @@ async def _apply_broker_history_statuses_to_db(
     account_id: str,
     portfolio_account_id: Optional[int] = None,
     insert_missing: bool = False,
-    broker_prefix: str = "bybit",
+    broker_prefix: str = "bybit"
 ) -> int:
     """Update known portfolio_orders from history; optionally insert missing (updater)."""
     from app.modules.portfolio.order_registry import (
         SOURCE_EXTERNAL,
         load_portfolio_orders,
-        upsert_broker_order,
+        upsert_broker_order
     )
 
     get_hist = getattr(broker, "get_order_history", None)
@@ -694,7 +694,7 @@ async def _apply_broker_history_statuses_to_db(
             order_date=_broker_row_order_date(row),
             commit=False,
             promote_filled=True,
-            broker_prefix=broker_prefix,
+            broker_prefix=broker_prefix
         )
         if result in {"inserted", "updated"}:
             updated += 1
@@ -717,7 +717,7 @@ async def _heal_synthetic_broker_imports(
     *,
     robot_id: int,
     broker: Any,
-    account_id: str,
+    account_id: str
 ) -> Dict[str, int]:
     """Fix broker_import:* rows in robot_trades only (not portfolio_orders)."""
     from app.modules.robots.trading.broker_position_sync import extract_account_position_meta
@@ -740,7 +740,7 @@ async def _heal_synthetic_broker_imports(
             logger.warning(
                 "heal synthetic imports: portfolio failed robot_id=%s: %s",
                 robot_id,
-                exc,
+                exc
             )
 
     healed_open = 0
@@ -775,7 +775,7 @@ async def _heal_synthetic_broker_imports(
                 quantity=fill_qty if fill_qty > 0 else None,
                 filled_qty=fill_qty if fill_qty > 0 else qty,
                 avg_price=avg,
-                now=now,
+                now=now
             )
             if ok:
                 healed_open += 1
@@ -787,7 +787,7 @@ async def _heal_synthetic_broker_imports(
                 order_id=str(row.get("order_id")),
                 status="closed",
                 filled_qty=qty if qty > 0 else None,
-                now=now,
+                now=now
             )
             if ok:
                 healed_closed += 1
@@ -812,12 +812,12 @@ async def _reconcile_robot_orders_with_broker(
     broker: Any,
     account_id: str,
     user_id: Optional[int] = None,
-    insert_history: bool = False,
+    insert_history: bool = False
 ) -> Dict[str, int]:
     """Two-way sync into portfolio_orders; heal seeds on robot_trades."""
     from app.modules.portfolio.order_registry import (
         load_portfolio_orders,
-        resolve_portfolio_account_pk,
+        resolve_portfolio_account_pk
     )
     from app.modules.robots.trading.brokers.routing import normalize_broker_type
 
@@ -832,7 +832,7 @@ async def _reconcile_robot_orders_with_broker(
         db,
         robot_id=robot_id,
         broker=broker,
-        account_id=account_id,
+        account_id=account_id
     )
 
     pa_id: Optional[int] = None
@@ -848,7 +848,7 @@ async def _reconcile_robot_orders_with_broker(
         account_id=account_id,
         portfolio_account_id=pa_id,
         user_id=user_id,
-        broker_prefix=broker_prefix,
+        broker_prefix=broker_prefix
     )
     if pa_id is None:
         pa_id = upsert.get("portfolio_account_id")
@@ -868,7 +868,7 @@ async def _reconcile_robot_orders_with_broker(
         working_rows=working,
         open_order_ids=open_ids if isinstance(open_ids, set) else set(open_ids),
         portfolio_account_id=int(pa_id) if pa_id else None,
-        broker_prefix=broker_prefix,
+        broker_prefix=broker_prefix
     )
     hist_updated = await _apply_broker_history_statuses_to_db(
         db,
@@ -877,7 +877,7 @@ async def _reconcile_robot_orders_with_broker(
         account_id=account_id,
         portfolio_account_id=int(pa_id) if pa_id else None,
         insert_missing=bool(insert_history),
-        broker_prefix=broker_prefix,
+        broker_prefix=broker_prefix
     )
     updated = (
         int(upsert.get("upserted") or 0)
@@ -903,7 +903,7 @@ def _load_robot_trade_orders(db: Session, robot_id: int) -> List[Dict[str, Any]]
     orders_q = f"""
         SELECT id, figi, side, quantity, price, order_id, status, created_at,
                filled_quantity, avg_fill_price, updated_at
-        FROM {settings.DB_SCHEMA}.robot_trades
+        FROM robot_trades
         WHERE robot_id = :robot_id
         ORDER BY created_at DESC
         LIMIT 100
@@ -931,12 +931,12 @@ def _load_live_account_orders(
     db: Session,
     *,
     user_id: int,
-    broker_account_id: Optional[str],
+    broker_account_id: Optional[str]
 ) -> List[Dict[str, Any]]:
     """Live orders from portfolio_orders for the robot's broker account."""
     from app.modules.portfolio.order_registry import (
         load_portfolio_orders,
-        resolve_portfolio_account_pk,
+        resolve_portfolio_account_pk
     )
 
     if not broker_account_id:
@@ -945,7 +945,7 @@ def _load_live_account_orders(
         db,
         user_id=int(user_id),
         broker_account_id=str(broker_account_id),
-        create_if_missing=False,
+        create_if_missing=False
     )
     if not pa_id:
         return []
@@ -955,7 +955,7 @@ def _load_live_account_orders(
 def _load_portfolio_positions_from_db(
         db: Session,
         user_id: int,
-        external_account_id: Optional[str],
+        external_account_id: Optional[str]
 ) -> List[Dict[str, Any]]:
     """Последний сохранённый снимок портфеля (portfolio_updater / tinvest sync)."""
     if not external_account_id:
@@ -963,15 +963,15 @@ def _load_portfolio_positions_from_db(
     q = f"""
         SELECT pp.figi, pp.ticker, pp.instrument_type, pp.quantity,
                pp.average_position_price, pp.current_price, pp.blocked, pp.instrument_uid
-        FROM {settings.DB_SCHEMA}.portfolio_positions pp
-        JOIN {settings.DB_SCHEMA}.portfolio_snapshots ps ON ps.id = pp.snapshot_id
-        JOIN {settings.DB_SCHEMA}.portfolio_accounts pa ON pa.id = ps.account_id
+        FROM portfolio_positions pp
+        JOIN portfolio_snapshots ps ON ps.id = pp.snapshot_id
+        JOIN portfolio_accounts pa ON pa.id = ps.account_id
         WHERE pa.user_id = :user_id
           AND pa.account_id = :external_account_id
           AND ps.id = (
               SELECT ps2.id
-              FROM {settings.DB_SCHEMA}.portfolio_snapshots ps2
-              JOIN {settings.DB_SCHEMA}.portfolio_accounts pa2 ON pa2.id = ps2.account_id
+              FROM portfolio_snapshots ps2
+              JOIN portfolio_accounts pa2 ON pa2.id = ps2.account_id
               WHERE pa2.user_id = :user_id
                 AND pa2.account_id = :external_account_id
               ORDER BY ps2.snapshot_date DESC, ps2.id DESC
@@ -981,7 +981,7 @@ def _load_portfolio_positions_from_db(
     """
     rows = db.execute(
         text(q),
-        {"user_id": int(user_id), "external_account_id": str(external_account_id)},
+        {"user_id": int(user_id), "external_account_id": str(external_account_id)}
     ).fetchall()
     raw: List[Dict[str, Any]] = []
     for r in rows:
@@ -1004,12 +1004,12 @@ def _persist_robot_account_id(
         db: Session,
         robot_id: int,
         user_id: int,
-        account_id: str,
+        account_id: str
 ) -> None:
     # robots.config is JSON (not JSONB); cast both sides so COALESCE/jsonb_set type-check.
     db.execute(
         text(f"""
-            UPDATE {settings.DB_SCHEMA}.robots
+            UPDATE robots
             SET config = jsonb_set(
                     COALESCE(config::jsonb, '{{}}'::jsonb),
                     '{{account_id}}',
@@ -1030,7 +1030,7 @@ def _persist_robot_account_id(
             "user_id": int(user_id),
             "account_id": str(account_id),
             "now": datetime.now(timezone.utc),
-        },
+        }
     )
     db.commit()
 
@@ -1047,7 +1047,7 @@ def _api_tokens_has_status_column(db: Session) -> bool:
             LIMIT 1
             """
         ),
-        {"schema": settings.DB_SCHEMA},
+        {"schema": settings.DB_SCHEMA}
     ).first()
     return bool(row)
 
@@ -1057,7 +1057,7 @@ def _expire_token_and_disable_robots(
         *,
         token_id: int,
         user_id: int,
-        error_message: str,
+        error_message: str
 ) -> None:
     now = datetime.now(timezone.utc)
     params = {
@@ -1070,17 +1070,17 @@ def _expire_token_and_disable_robots(
         db.execute(
             text(
                 f"""
-                UPDATE {settings.DB_SCHEMA}.api_tokens
+                UPDATE api_tokens
                 SET status = 3, updated_at = :now
                 WHERE id = :token_id AND user_id = :user_id
                 """
             ),
-            params,
+            params
         )
     db.execute(
         text(
             f"""
-            UPDATE {settings.DB_SCHEMA}.robots
+            UPDATE robots
             SET status = 2,
                 last_error = :error_message,
                 last_error_at = :now,
@@ -1091,7 +1091,7 @@ def _expire_token_and_disable_robots(
               AND status != 0
             """
         ),
-        params,
+        params
     )
     db.commit()
 
@@ -1110,7 +1110,7 @@ def _is_bybit_auth_error(exc: Exception) -> bool:
         "api key is invalid",
         "unauthorized",
         "retcode=10003",
-        "retcode=10007",
+        "retcode=10007"
     )
     return any(m in msg for m in markers)
 
@@ -1150,12 +1150,12 @@ def _maybe_reconcile_orphan_queued_run(db: Session, run_id: int) -> Optional[str
         text(
             f"""
             SELECT status, started_at
-            FROM {settings.DB_SCHEMA}.backtest_runs
+            FROM backtest_runs
             WHERE id = :rid
             LIMIT 1
             """
         ),
-        {"rid": run_id},
+        {"rid": run_id}
     ).mappings().first()
     if not row:
         return None
@@ -1177,14 +1177,14 @@ def _maybe_reconcile_orphan_queued_run(db: Session, run_id: int) -> Optional[str
     db.execute(
         text(
             f"""
-            UPDATE {settings.DB_SCHEMA}.backtest_runs
+            UPDATE backtest_runs
             SET status = 'FAILED',
                 finished_at = :ft,
                 error_message = :msg
             WHERE id = :rid AND status = 'QUEUED'
             """
         ),
-        {"rid": run_id, "ft": datetime.now(timezone.utc), "msg": err_msg[:2000]},
+        {"rid": run_id, "ft": datetime.now(timezone.utc), "msg": err_msg[:2000]}
     )
     db.commit()
     _clear_backtest_run_tracking(run_id)
@@ -1200,12 +1200,12 @@ def _maybe_reconcile_stale_backtest_run(db: Session, run_id: int) -> Optional[st
         text(
             f"""
             SELECT status, started_at, cancel_requested, run_phase, progress_percent
-            FROM {settings.DB_SCHEMA}.backtest_runs
+            FROM backtest_runs
             WHERE id = :rid
             LIMIT 1
             """
         ),
-        {"rid": run_id},
+        {"rid": run_id}
     ).mappings().first()
     if not row:
         return None
@@ -1281,7 +1281,7 @@ def _maybe_reconcile_stale_backtest_run(db: Session, run_id: int) -> Optional[st
     if st == "QUEUED":
         from app.core.background_jobs.repository import (
             fail_background_job,
-            find_background_job_for_backtest_run,
+            find_background_job_for_backtest_run
         )
 
         job = find_background_job_for_backtest_run(db, run_id)
@@ -1290,12 +1290,12 @@ def _maybe_reconcile_stale_backtest_run(db: Session, run_id: int) -> Optional[st
                 db,
                 job["id"],
                 err_msg[:4000],
-                message="cancelled (queued-timeout)",
+                message="cancelled (queued-timeout)"
             )
     db.execute(
         text(
             f"""
-            UPDATE {settings.DB_SCHEMA}.backtest_runs
+            UPDATE backtest_runs
             SET status = 'FAILED',
                 finished_at = :ft,
                 error_message = :msg,
@@ -1305,7 +1305,7 @@ def _maybe_reconcile_stale_backtest_run(db: Session, run_id: int) -> Optional[st
               AND status IN ('QUEUED', 'RUNNING', 'FETCHING')
             """
         ),
-        {"rid": run_id, "ft": datetime.now(timezone.utc), "msg": err_msg[:2000]},
+        {"rid": run_id, "ft": datetime.now(timezone.utc), "msg": err_msg[:2000]}
     )
     db.commit()
     _clear_backtest_run_tracking(run_id)
@@ -1316,7 +1316,7 @@ def _maybe_reconcile_stale_backtest_run(db: Session, run_id: int) -> Optional[st
 def _maybe_reconcile_from_run_summary(
     db: Session,
     run_id: int,
-    started_at: Optional[datetime],
+    started_at: Optional[datetime]
 ) -> Optional[str]:
     """
     Синхронизировать terminal status из summary.json, если воркер упал при недоступной БД.
@@ -1336,12 +1336,12 @@ def _maybe_reconcile_from_run_summary(
         text(
             f"""
             SELECT status
-            FROM {settings.DB_SCHEMA}.backtest_runs
+            FROM backtest_runs
             WHERE id = :rid
             LIMIT 1
             """
         ),
-        {"rid": run_id},
+        {"rid": run_id}
     ).mappings().first()
     if not row:
         return None
@@ -1358,7 +1358,7 @@ def _maybe_reconcile_from_run_summary(
     db.execute(
         text(
             f"""
-            UPDATE {settings.DB_SCHEMA}.backtest_runs
+            UPDATE backtest_runs
             SET status = :st,
                 finished_at = :ft,
                 error_message = CASE WHEN :st = 'FAILED' THEN :msg ELSE error_message END,
@@ -1374,7 +1374,7 @@ def _maybe_reconcile_from_run_summary(
             "ft": finished_at,
             "msg": err_msg,
             "phase": run_phase,
-        },
+        }
     )
     db.commit()
     _clear_backtest_run_tracking(run_id)
@@ -1388,7 +1388,7 @@ def _maybe_reconcile_from_run_summary(
             "RECONCILE from summary.json status=%s (db was %s)",
             terminal,
             current,
-            started_at=started_at,
+            started_at=started_at
         )
     except Exception:
         pass
@@ -1396,7 +1396,7 @@ def _maybe_reconcile_from_run_summary(
         "reconciled backtest run_id=%s from summary.json status=%s (db was %s)",
         run_id,
         terminal,
-        current,
+        current
     )
     return terminal
 
@@ -1415,12 +1415,12 @@ def _maybe_reconcile_zombie_failed_job(db: Session, run_id: int) -> Optional[str
         text(
             f"""
             SELECT status, run_phase, progress_percent, started_at
-            FROM {settings.DB_SCHEMA}.backtest_runs
+            FROM backtest_runs
             WHERE id = :rid
             LIMIT 1
             """
         ),
-        {"rid": run_id},
+        {"rid": run_id}
     ).mappings().first()
     if not row:
         return None
@@ -1446,7 +1446,7 @@ def _maybe_reconcile_zombie_failed_job(db: Session, run_id: int) -> Optional[str
     db.execute(
         text(
             f"""
-            UPDATE {settings.DB_SCHEMA}.backtest_runs
+            UPDATE backtest_runs
             SET status = 'FAILED',
                 finished_at = :ft,
                 error_message = :msg,
@@ -1455,7 +1455,7 @@ def _maybe_reconcile_zombie_failed_job(db: Session, run_id: int) -> Optional[str
               AND status IN ('RUNNING', 'FETCHING')
             """
         ),
-        {"rid": run_id, "ft": datetime.now(timezone.utc), "msg": err_msg},
+        {"rid": run_id, "ft": datetime.now(timezone.utc), "msg": err_msg}
     )
     db.commit()
     _clear_backtest_run_tracking(run_id)
@@ -1465,7 +1465,7 @@ def _maybe_reconcile_zombie_failed_job(db: Session, run_id: int) -> Optional[str
             status="FAILED",
             summary={"progress_percent": progress, "run_phase": phase},
             error=err_msg,
-            started_at=started_at,
+            started_at=started_at
         )
     except Exception:
         pass
@@ -1476,7 +1476,7 @@ def _maybe_reconcile_zombie_failed_job(db: Session, run_id: int) -> Optional[str
 def _maybe_reconcile_persist_checkpoint(
     db: Session,
     run_id: int,
-    started_at: Optional[datetime],
+    started_at: Optional[datetime]
 ) -> Optional[str]:
     """
     Дозаписать результаты бэктеста из persist_checkpoint.json после восстановления БД.
@@ -1485,7 +1485,7 @@ def _maybe_reconcile_persist_checkpoint(
         checkpoint_run_started_at,
         delete_persist_checkpoint,
         find_persist_checkpoint,
-        read_persist_checkpoint,
+        read_persist_checkpoint
     )
 
     found = find_persist_checkpoint(run_id)
@@ -1502,12 +1502,12 @@ def _maybe_reconcile_persist_checkpoint(
         text(
             f"""
             SELECT status
-            FROM {settings.DB_SCHEMA}.backtest_runs
+            FROM backtest_runs
             WHERE id = :rid
             LIMIT 1
             """
         ),
-        {"rid": run_id},
+        {"rid": run_id}
     ).mappings().first()
     if not row:
         return None
@@ -1521,7 +1521,7 @@ def _maybe_reconcile_persist_checkpoint(
             db,
             run_id,
             checkpoint,
-            cp_started or checkpoint_run_started_at(checkpoint),
+            cp_started or checkpoint_run_started_at(checkpoint)
         )
         return terminal
     except Exception:
@@ -1535,7 +1535,7 @@ def _mark_backtest_run_failed(
     run_id: int,
     error_message: str,
     *,
-    skip_if_cancelled: bool = True,
+    skip_if_cancelled: bool = True
 ) -> None:
     """Не удалять прогон при ошибке — UI опрашивает /runs/{id}/status и историю."""
     from app.core.database import SessionLocal
@@ -1544,15 +1544,15 @@ def _mark_backtest_run_failed(
     try:
         if skip_if_cancelled:
             row_st = fresh.execute(
-                text(f"SELECT status FROM {settings.DB_SCHEMA}.backtest_runs WHERE id=:run_id"),
-                {"run_id": run_id},
+                text(f"SELECT status FROM backtest_runs WHERE id=:run_id"),
+                {"run_id": run_id}
             ).scalar()
             if str(row_st or "").upper() == "CANCELLED":
                 return
         fresh.execute(
             text(
                 f"""
-                UPDATE {settings.DB_SCHEMA}.backtest_runs
+                UPDATE backtest_runs
                 SET status = 'FAILED',
                     finished_at = :ft,
                     error_message = :msg,
@@ -1566,14 +1566,14 @@ def _mark_backtest_run_failed(
                 "run_id": run_id,
                 "ft": datetime.now(timezone.utc),
                 "msg": str(error_message or "backtest-failed")[:2000],
-            },
+            }
         )
         fresh.commit()
     except Exception:
         fresh.rollback()
         logger.warning(
             "mark_backtest_run_failed: DB update failed run_id=%s (summary.json reconcile on status poll)",
-            run_id,
+            run_id
         )
     finally:
         fresh.close()
@@ -1588,9 +1588,9 @@ def _read_history_backtest_cancel_requested_fresh(bind, run_id: int) -> bool:
     with bind.connect() as conn:
         row = conn.execute(
             text(
-                f"SELECT COALESCE(cancel_requested, false) FROM {settings.DB_SCHEMA}.backtest_runs WHERE id=:rid"
+                f"SELECT COALESCE(cancel_requested, false) FROM backtest_runs WHERE id=:rid"
             ),
-            {"rid": run_id},
+            {"rid": run_id}
         ).scalar()
         return bool(row)
 
@@ -1645,7 +1645,7 @@ def _compute_persist_phase_units_total(
         decisions_rows: List[Dict[str, Any]],
         bt_run_id: Optional[int],
         decisions_chunk_size: int = 1000,
-        universe_chunk_size: int = 500,
+        universe_chunk_size: int = 500
 ) -> int:
     """Шаги фазы persisting: core (equity/orders/signals) + чанки decisions + чанки universe + финализация."""
     decision_chunks = (
@@ -1667,7 +1667,7 @@ def _bulk_persist_backtest_decisions(
         run_id: int,
         decisions_rows: List[Dict[str, Any]],
         chunk_size: int = 1000,
-        on_chunk_done: Optional[Callable[[], None]] = None,
+        on_chunk_done: Optional[Callable[[], None]] = None
 ) -> None:
     if not decisions_rows:
         return
@@ -1683,7 +1683,7 @@ def _bulk_persist_backtest_decisions(
         column("result", String),
         column("reason", Text),
         column("payload", JSONB),
-        schema=settings.DB_SCHEMA,
+        schema=settings.DB_SCHEMA
     )
     payload_rows: List[Dict[str, Any]] = []
     for dr in decisions_rows:
@@ -1708,7 +1708,7 @@ def _bulk_persist_daily_universe(
         bt_run_id: int,
         decisions_rows: List[Dict[str, Any]],
         chunk_size: int = 500,
-        on_chunk_done: Optional[Callable[[], None]] = None,
+        on_chunk_done: Optional[Callable[[], None]] = None
 ) -> None:
     if not bt_run_id or not decisions_rows:
         return
@@ -1729,7 +1729,7 @@ def _bulk_persist_daily_universe(
         column("atr_value", Float),
         column("gap_percent", Float),
         column("applied_filters", JSONB),
-        schema="backtest",
+        schema=None
     )
     rows: List[Dict[str, Any]] = []
     for dr in decisions_rows:
@@ -1763,7 +1763,7 @@ def _bulk_persist_daily_universe(
                 "atr_value": excluded.atr_value,
                 "gap_percent": excluded.gap_percent,
                 "applied_filters": excluded.applied_filters,
-            },
+            }
         )
         db.execute(stmt)
         if on_chunk_done is not None:
@@ -1778,7 +1778,7 @@ def _bulk_persist_backtest_rows(
         decisions_rows: List[Dict[str, Any]],
         slippage_pct: float = 0.0,
         on_core_done: Optional[Callable[[], None]] = None,
-        on_decision_chunk_done: Optional[Callable[[], None]] = None,
+        on_decision_chunk_done: Optional[Callable[[], None]] = None
 ) -> None:
     """Пакетная запись equity/signals/orders/decisions (чанки по 500–1000)."""
     from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -1844,7 +1844,7 @@ def _bulk_persist_backtest_rows(
         db,
         run_id=run_id,
         decisions_rows=decisions_rows,
-        on_chunk_done=on_decision_chunk_done,
+        on_chunk_done=on_decision_chunk_done
     )
 
 
@@ -1853,16 +1853,16 @@ def _mark_backtest_run_cancelled_in_db(
         run_id: int,
         *,
         trade_date: Optional[date] = None,
-        trade_dates_remaining: Optional[int] = None,
+        trade_dates_remaining: Optional[int] = None
 ) -> None:
-    """Проставить status=CANCELLED в ganaly.backtest_runs (воркер / префетч)."""
+    """Проставить status=CANCELLED в backtest_runs (воркер / префетч)."""
     try:
         ts = datetime.now(timezone.utc)
         if trade_date is not None and trade_dates_remaining is not None:
             db.execute(
                 text(
                     f"""
-                    UPDATE {settings.DB_SCHEMA}.backtest_runs
+                    UPDATE backtest_runs
                     SET status = 'CANCELLED',
                         partial_result = true,
                         run_phase = 'cancelled',
@@ -1872,13 +1872,13 @@ def _mark_backtest_run_cancelled_in_db(
                     WHERE id = :rid
                     """
                 ),
-                {"rid": run_id, "ts": ts, "rem": int(trade_dates_remaining), "cd": trade_date},
+                {"rid": run_id, "ts": ts, "rem": int(trade_dates_remaining), "cd": trade_date}
             )
         else:
             db.execute(
                 text(
                     f"""
-                    UPDATE {settings.DB_SCHEMA}.backtest_runs
+                    UPDATE backtest_runs
                     SET status = 'CANCELLED',
                         partial_result = true,
                         run_phase = 'cancelled',
@@ -1886,7 +1886,7 @@ def _mark_backtest_run_cancelled_in_db(
                     WHERE id = :rid
                     """
                 ),
-                {"rid": run_id, "ts": ts},
+                {"rid": run_id, "ts": ts}
             )
         db.commit()
     except Exception:
@@ -1917,7 +1917,7 @@ class RobotService:
         trade_dates_total: Optional[int] = None,
         trade_dates_remaining: Optional[int] = None,
         current_trade_date: Optional[date] = None,
-        started_at: Optional[datetime] = None,
+        started_at: Optional[datetime] = None
     ) -> None:
         from app.modules.robots.backtest_progress import persist_backtest_progress
 
@@ -1931,7 +1931,7 @@ class RobotService:
                 trade_dates_total=trade_dates_total,
                 trade_dates_remaining=trade_dates_remaining,
                 current_trade_date=current_trade_date,
-                started_at=started_at,
+                started_at=started_at
             )
         except Exception as ex:
             logger.debug("backtest progress flush failed run_id=%s: %s", run_id, ex)
@@ -1941,19 +1941,19 @@ class RobotService:
         db: Session,
         run_id: int,
         checkpoint: Dict[str, Any],
-        started_at: datetime,
+        started_at: datetime
     ) -> str:
         """Resume DB persist from on-disk checkpoint (status poll / script)."""
         from app.core.db_retry import run_db_with_retry
         from app.modules.robots.trading.backtest.persist_checkpoint import (
             backtest_result_from_dict,
             checkpoint_run_started_at,
-            delete_persist_checkpoint,
+            delete_persist_checkpoint
         )
         from app.modules.robots.trading.backtest.persist_phase import execute_backtest_persist_phase
         from app.modules.robots.trading.backtest.run_file_logger import (
             close_backtest_run_log,
-            log_backtest_run_info,
+            log_backtest_run_info
         )
 
         cp_started = started_at or checkpoint_run_started_at(checkpoint)
@@ -1974,7 +1974,7 @@ class RobotService:
         log_backtest_run_info(
             "RECONCILE persist from checkpoint run_id=%s",
             run_id,
-            run_id=run_id,
+            run_id=run_id
         )
         progress_bind = db.get_bind()
 
@@ -1998,7 +1998,7 @@ class RobotService:
                 robot_pk=checkpoint.get("robot_pk"),
                 requested_from_utc=requested_from,
                 requested_to_utc=requested_to,
-                pipeline_user_cancelled=bool(checkpoint.get("pipeline_user_cancelled")),
+                pipeline_user_cancelled=bool(checkpoint.get("pipeline_user_cancelled"))
             )
 
         backtest_log_status, backtest_log_summary, backtest_log_error = run_db_with_retry(
@@ -2006,7 +2006,7 @@ class RobotService:
             _persist,
             max_attempts=8,
             delay_sec=3.0,
-            max_delay_sec=30.0,
+            max_delay_sec=30.0
         )
         delete_persist_checkpoint(run_id, cp_started)
         close_backtest_run_log(
@@ -2014,13 +2014,13 @@ class RobotService:
             status=backtest_log_status,
             summary=backtest_log_summary,
             error=backtest_log_error,
-            started_at=cp_started,
+            started_at=cp_started
         )
         _clear_backtest_run_tracking(run_id)
         logger.warning(
             "reconciled backtest run_id=%s from persist_checkpoint status=%s",
             run_id,
-            backtest_log_status,
+            backtest_log_status
         )
         return backtest_log_status
 
@@ -2109,7 +2109,7 @@ class RobotService:
         started_at: datetime,
         finished_at: datetime,
         success: bool,
-        error_message: Optional[str] = None,
+        error_message: Optional[str] = None
     ) -> None:
         from app.modules.robots.trading.data.providers.moex_snapshots import log_moex_external_api_isolated
 
@@ -2123,7 +2123,7 @@ class RobotService:
             started_at=started_at,
             finished_at=finished_at,
             success=success,
-            error_message=error_message,
+            error_message=error_message
         )
 
     def _row_to_log_dict(self, row) -> dict:
@@ -2194,7 +2194,7 @@ class RobotService:
             SELECT
                 id, schedule_type, interval_seconds, start_time, end_time,
                 weekdays, is_active, priority, description
-            FROM {settings.DB_SCHEMA}.robot_schedules
+            FROM robot_schedules
             WHERE robot_id = :robot_id
               AND COALESCE(is_active, 1) = 1
             ORDER BY priority DESC, date_creation DESC
@@ -2216,7 +2216,7 @@ class RobotService:
 
         if int(robot_dict.get("type") or 0) == 2:
             robot_dict["config"] = self._normalize_trading_robot_config_for_api(
-                robot_dict.get("config") or {},
+                robot_dict.get("config") or {}
             )
 
         return robot_dict
@@ -2239,7 +2239,7 @@ class RobotService:
         self,
         db: Session,
         user_id: int,
-        robot_id: Optional[int] = None,
+        robot_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """Привести config всех роботов type=2 пользователя к схеме v2 (П1/П2/П3) и сохранить в БД."""
         from app.modules.robots.config.migration import migrate_robot_config_row
@@ -2251,22 +2251,22 @@ class RobotService:
             rows = db.execute(
                 text(
                     f"""
-                    SELECT id, config FROM {schema}.robots
+                    SELECT id, config FROM robots
                     WHERE id = :rid AND user_id = :uid AND type = 2
                     """
                 ),
-                {"rid": robot_id, "uid": user_id},
+                {"rid": robot_id, "uid": user_id}
             ).mappings().all()
         else:
             rows = db.execute(
                 text(
                     f"""
-                    SELECT id, config FROM {schema}.robots
+                    SELECT id, config FROM robots
                     WHERE user_id = :uid AND type = 2
                     ORDER BY id
                     """
                 ),
-                {"uid": user_id},
+                {"uid": user_id}
             ).mappings().all()
 
         items: List[Dict[str, Any]] = []
@@ -2286,7 +2286,7 @@ class RobotService:
                 db.execute(
                     text(
                         f"""
-                        UPDATE {schema}.robots
+                        UPDATE robots
                         SET config = CAST(:cfg AS jsonb),
                             usermod = :uid,
                             date_modification = NOW()
@@ -2297,7 +2297,7 @@ class RobotService:
                         "cfg": json.dumps(normalized, ensure_ascii=False),
                         "rid": rid,
                         "uid": user_id,
-                    },
+                    }
                 )
                 updated += 1
         db.commit()
@@ -2311,7 +2311,7 @@ class RobotService:
         self,
         db: Session,
         user_id: int,
-        robot_id: Optional[int] = None,
+        robot_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """Привести config trading роботов к v3 (schema_profile + config_version=3)."""
         from app.modules.robots.config.migration import config_equals, migrate_v2_to_v3
@@ -2323,22 +2323,22 @@ class RobotService:
             rows = db.execute(
                 text(
                     f"""
-                    SELECT id, type, config FROM {schema}.robots
+                    SELECT id, type, config FROM robots
                     WHERE id = :rid AND user_id = :uid AND type = 2
                     """
                 ),
-                {"rid": robot_id, "uid": user_id},
+                {"rid": robot_id, "uid": user_id}
             ).mappings().all()
         else:
             rows = db.execute(
                 text(
                     f"""
-                    SELECT id, type, config FROM {schema}.robots
+                    SELECT id, type, config FROM robots
                     WHERE user_id = :uid AND type = 2
                     ORDER BY id
                     """
                 ),
-                {"uid": user_id},
+                {"uid": user_id}
             ).mappings().all()
 
         items: List[Dict[str, Any]] = []
@@ -2347,7 +2347,7 @@ class RobotService:
             rid = int(row["id"])
             normalized = migrate_v2_to_v3(
                 dict(row["config"] or {}),
-                robot_type=int(row.get("type") or 2),
+                robot_type=int(row.get("type") or 2)
             )
             changed = not config_equals(dict(row["config"] or {}), normalized)
             items.append({
@@ -2361,7 +2361,7 @@ class RobotService:
                 db.execute(
                     text(
                         f"""
-                        UPDATE {schema}.robots
+                        UPDATE robots
                         SET config = CAST(:cfg AS jsonb),
                             usermod = :uid,
                             date_modification = NOW()
@@ -2372,7 +2372,7 @@ class RobotService:
                         "cfg": json.dumps(normalized, ensure_ascii=False),
                         "rid": rid,
                         "uid": user_id,
-                    },
+                    }
                 )
                 updated += 1
         db.commit()
@@ -2420,7 +2420,7 @@ class RobotService:
             validated = validate_robot_config(
                 robot_type=2,
                 raw=payload,
-                broker_type=normalize_broker_type(str(payload.get("broker_type") or "bybit")),
+                broker_type=normalize_broker_type(str(payload.get("broker_type") or "bybit"))
             )
             cfg = dump_robot_config(validated)
             self._validate_robot_config(cfg)
@@ -2452,7 +2452,7 @@ class RobotService:
     def _assert_broker_matches_token(config: Optional[Dict[str, Any]], token_type: int) -> None:
         from app.modules.robots.trading.brokers.routing import (
             BrokerTokenMismatchError,
-            enforce_broker_for_token,
+            enforce_broker_for_token
         )
 
         if not isinstance(config, dict):
@@ -2462,7 +2462,7 @@ class RobotService:
         except BrokerTokenMismatchError as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(exc),
+                detail=str(exc)
             ) from exc
 
     @staticmethod
@@ -2471,7 +2471,7 @@ class RobotService:
         *,
         trading_hours_start: str,
         trading_hours_end: str,
-        allowed_weekdays: int,
+        allowed_weekdays: int
     ) -> None:
         risk = dict(cfg.get("risk") or {})
         start = trading_hours_start if "MSK" in trading_hours_start.upper() else f"{trading_hours_start} MSK"
@@ -2491,18 +2491,18 @@ class RobotService:
             poll_interval_hours: float,
             trading_hours_start: str,
             trading_hours_end: str,
-            allowed_weekdays: int,
+            allowed_weekdays: int
     ) -> None:
         self._sync_risk_schedule_fields(
             config,
             trading_hours_start=trading_hours_start,
             trading_hours_end=trading_hours_end,
-            allowed_weekdays=allowed_weekdays,
+            allowed_weekdays=allowed_weekdays
         )
         db.execute(
             text(
                 f"""
-                UPDATE {settings.DB_SCHEMA}.robots
+                UPDATE robots
                 SET config = CAST(:config AS jsonb),
                     usermod = :user_id,
                     date_modification = :now
@@ -2514,7 +2514,7 @@ class RobotService:
                 "user_id": user_id,
                 "config": json.dumps(config, ensure_ascii=False),
                 "now": datetime.now(timezone.utc),
-            },
+            }
         )
         await self._replace_robot_schedule(
             db=db,
@@ -2523,7 +2523,7 @@ class RobotService:
             poll_interval_hours=poll_interval_hours,
             trading_hours_start=trading_hours_start,
             trading_hours_end=trading_hours_end,
-            allowed_weekdays=allowed_weekdays,
+            allowed_weekdays=allowed_weekdays
         )
 
     async def _bootstrap_portfolio_robot(
@@ -2536,7 +2536,7 @@ class RobotService:
             poll_interval_hours: float,
             trading_hours_start: str,
             trading_hours_end: str,
-            allowed_weekdays: int,
+            allowed_weekdays: int
     ) -> None:
         from app.modules.robots.config.profiles import dump_robot_config, validate_robot_config
         from app.modules.robots.trading.brokers.routing import normalize_broker_type
@@ -2546,7 +2546,7 @@ class RobotService:
         validated = validate_robot_config(
             robot_type=1,
             raw=raw_cfg,
-            broker_type=broker_type,
+            broker_type=broker_type
         )
         normalized = dump_robot_config(validated)
         extra = {k: v for k, v in raw_cfg.items() if k not in set(normalized.keys())}
@@ -2554,7 +2554,7 @@ class RobotService:
         db.execute(
             text(
                 f"""
-                UPDATE {settings.DB_SCHEMA}.robots
+                UPDATE robots
                 SET config = CAST(:config AS jsonb),
                     usermod = :user_id,
                     date_modification = :now
@@ -2566,7 +2566,7 @@ class RobotService:
                 "user_id": user_id,
                 "config": json.dumps(cfg, ensure_ascii=False),
                 "now": datetime.now(timezone.utc),
-            },
+            }
         )
         await self._replace_robot_schedule(
             db=db,
@@ -2575,14 +2575,14 @@ class RobotService:
             poll_interval_hours=poll_interval_hours,
             trading_hours_start=trading_hours_start,
             trading_hours_end=trading_hours_end,
-            allowed_weekdays=allowed_weekdays,
+            allowed_weekdays=allowed_weekdays
         )
 
     async def run_historical_screening_job(
         self,
         db: Session,
         robot_id: int,
-        user_id: int,
+        user_id: int
     ) -> Dict[str, Any]:
         from app.modules.robots.universe_jobs import rebuild_candidate_pool
 
@@ -2595,7 +2595,7 @@ class RobotService:
         user_id: int,
         *,
         force_refresh_snapshot: bool = True,
-        force_recompute_universe: bool = True,
+        force_recompute_universe: bool = True
     ) -> Dict[str, Any]:
         from app.modules.robots.universe_jobs import rebuild_paper_selection
 
@@ -2605,7 +2605,7 @@ class RobotService:
             robot_id=robot_id,
             user_id=user_id,
             force_refresh_snapshot=force_refresh_snapshot,
-            force_recompute_universe=force_recompute_universe,
+            force_recompute_universe=force_recompute_universe
         )
 
     async def run_crypto_screening_job(
@@ -2614,7 +2614,7 @@ class RobotService:
         robot_id: int,
         user_id: int,
         *,
-        force: bool = False,
+        force: bool = False
     ) -> Dict[str, Any]:
         from app.modules.robots.universe_jobs import rebuild_crypto_screening
 
@@ -2628,12 +2628,12 @@ class RobotService:
         robot_id: int,
         user_id: int,
         *,
-        force: bool = True,
+        force: bool = True
     ) -> Dict[str, Any]:
         """Queue crypto screening on heavy lane; returns immediately."""
         from app.core.background_jobs.repository import (
             enqueue_background_job,
-            find_latest_job_for_robot,
+            find_latest_job_for_robot
         )
         from app.core.background_jobs.worker import LANE_HEAVY
 
@@ -2643,7 +2643,7 @@ class RobotService:
             db,
             job_type="crypto_screening",
             robot_id=int(robot_id),
-            statuses=("queued", "running"),
+            statuses=("queued", "running")
         )
         if active:
             return {
@@ -2670,7 +2670,7 @@ class RobotService:
                 "force": bool(force),
             },
             idempotency_key=ik,
-            priority=5,
+            priority=5
         )
         db.commit()
         if job_id is None:
@@ -2679,7 +2679,7 @@ class RobotService:
                 db,
                 job_type="crypto_screening",
                 robot_id=int(robot_id),
-                statuses=("queued", "running"),
+                statuses=("queued", "running")
             )
             return {
                 "robot_id": int(robot_id),
@@ -2712,7 +2712,7 @@ class RobotService:
         self,
         db: Session,
         robot_id: int,
-        user_id: int,
+        user_id: int
     ) -> Dict[str, Any]:
         """Active/last crypto_screening job + last universe refresh time."""
         from app.core.background_jobs.repository import find_latest_job_for_robot
@@ -2720,13 +2720,13 @@ class RobotService:
         await self.get_robot_by_id(db, robot_id, user_id)
 
         latest = find_latest_job_for_robot(
-            db, job_type="crypto_screening", robot_id=int(robot_id),
+            db, job_type="crypto_screening", robot_id=int(robot_id)
         )
         last_ok = find_latest_job_for_robot(
             db,
             job_type="crypto_screening",
             robot_id=int(robot_id),
-            statuses=("success",),
+            statuses=("success")
         )
 
         universe_updated_at = None
@@ -2735,11 +2735,11 @@ class RobotService:
                 text(
                     f"""
                     SELECT MAX(created_at)
-                    FROM {settings.DB_SCHEMA}.crypto_universe_daily
+                    FROM crypto_universe_daily
                     WHERE robot_id = :rid
                     """
                 ),
-                {"rid": int(robot_id)},
+                {"rid": int(robot_id)}
             ).first()
             universe_updated_at = row[0] if row else None
         except Exception:
@@ -2786,7 +2786,7 @@ class RobotService:
         db: Session,
         *,
         robot_id: int,
-        user_id: int,
+        user_id: int
     ) -> Dict[str, Any]:
         """Число активных инструментов в universe за сегодня и вчера (для UI /testing)."""
         from datetime import date, timedelta
@@ -2807,14 +2807,14 @@ class RobotService:
                 text(
                     f"""
                     SELECT trade_date::text, COUNT(DISTINCT symbol)::int AS cnt
-                    FROM {settings.DB_SCHEMA}.crypto_universe_daily
+                    FROM crypto_universe_daily
                     WHERE robot_id = :rid
                       AND trade_date IN (:today, :yesterday)
                       AND LOWER(COALESCE(filter_result, '')) = 'accepted'
                     GROUP BY trade_date
                     """
                 ),
-                {"rid": int(robot_id), "today": today, "yesterday": yesterday},
+                {"rid": int(robot_id), "today": today, "yesterday": yesterday}
             ).fetchall()
             source = "crypto_universe_daily"
         else:
@@ -2822,14 +2822,14 @@ class RobotService:
                 text(
                     f"""
                     SELECT trade_date::text, COUNT(DISTINCT ticker)::int AS cnt
-                    FROM {settings.DB_SCHEMA}.daily_universe
+                    FROM daily_universe
                     WHERE robot_id = :rid
                       AND trade_date IN (:today, :yesterday)
                       AND UPPER(COALESCE(filter_result, '')) = 'ACCEPT'
                     GROUP BY trade_date
                     """
                 ),
-                {"rid": int(robot_id), "today": today, "yesterday": yesterday},
+                {"rid": int(robot_id), "today": today, "yesterday": yesterday}
             ).fetchall()
             source = "daily_universe"
 
@@ -2851,7 +2851,7 @@ class RobotService:
         *,
         robot_id: int,
         user_id: int,
-        trade_date: Optional[date] = None,
+        trade_date: Optional[date] = None
     ) -> Dict[str, Any]:
         """Строки universe за день: MOEX daily_universe или crypto_universe_daily."""
         robot = await self.get_robot_by_id(db, robot_id, user_id)
@@ -2868,13 +2868,13 @@ class RobotService:
                     f"""
                     SELECT id, robot_id, trade_date, symbol, source, filter_result, reject_reason,
                            turnover_24h, last_price, spread_percent, created_at
-                    FROM {settings.DB_SCHEMA}.crypto_universe_daily
+                    FROM crypto_universe_daily
                     WHERE robot_id = :rid AND trade_date = :td
                     ORDER BY created_at DESC
                     LIMIT 1000
                     """
                 ),
-                {"rid": int(robot_id), "td": td},
+                {"rid": int(robot_id), "td": td}
             ).fetchall()
             items = [
                 {
@@ -2909,7 +2909,7 @@ class RobotService:
             user_id: int,
             *,
             force_refresh_snapshot: bool = False,
-            force_recompute_universe: bool = False,
+            force_recompute_universe: bool = False
     ) -> Dict[str, Any]:
         """Universe за сегодня → allowed_figis по режиму config.universe_mode."""
         from app.modules.dms.service import dms_service
@@ -2920,7 +2920,7 @@ class RobotService:
             normalize_crypto_universe_mode,
             normalize_universe_mode,
             resolve_crypto_symbols,
-            resolve_fixed_tickers,
+            resolve_fixed_tickers
         )
 
         robot = await self.get_robot_by_id(db, robot_id, user_id)
@@ -2971,21 +2971,21 @@ class RobotService:
             robot_id=robot_id,
             board=board,
             force_refresh_snapshot=force_refresh_snapshot or force_recompute_universe,
-            force_recompute_universe=force_recompute_universe,
+            force_recompute_universe=force_recompute_universe
         )
         today = datetime.now(timezone.utc).date()
         rows = db.execute(
             text(
                 f"""
                 SELECT ticker
-                FROM {settings.DB_SCHEMA}.daily_universe
+                FROM daily_universe
                 WHERE robot_id = :robot_id
                   AND trade_date = :trade_date
                   AND filter_result = 'ACCEPT'
                 ORDER BY ticker
                 """
             ),
-            {"robot_id": robot_id, "trade_date": today},
+            {"robot_id": robot_id, "trade_date": today}
         ).fetchall()
         tickers = [str(r[0]).upper() for r in rows if r and r[0]]
         if not tickers:
@@ -3014,7 +3014,7 @@ class RobotService:
             db.execute(
                 text(
                     f"""
-                    UPDATE {settings.DB_SCHEMA}.robots
+                    UPDATE robots
                     SET config = CAST(:config AS jsonb),
                         date_modification = :now,
                         usermod = :user_id
@@ -3026,7 +3026,7 @@ class RobotService:
                     "user_id": user_id,
                     "config": json.dumps(cfg, ensure_ascii=False),
                     "now": datetime.now(timezone.utc),
-                },
+                }
             )
             db.commit()
             logger.info("synced allowed_figis robot_id=%s count=%s mode=%s", robot_id, len(figis), universe_mode)
@@ -3034,7 +3034,7 @@ class RobotService:
             logger.warning(
                 "universe sync produced 0 figis robot_id=%s mode=%s; keeping existing allowed_figis",
                 robot_id,
-                universe_mode,
+                universe_mode
             )
         return {
             "allowed_figis": sorted(set(figis)) if figis else list(cfg.get("allowed_figis") or []),
@@ -3051,7 +3051,7 @@ class RobotService:
             db: Session,
             robot_id: int,
             user_id: int,
-            cfg: Dict[str, Any],
+            cfg: Dict[str, Any]
     ) -> None:
         """Подготовить universe перед включением type=2: MOEX → DMS, crypto → screening."""
         from app.modules.robots.universe import (
@@ -3060,7 +3060,7 @@ class RobotService:
             normalize_crypto_universe_mode,
             normalize_universe_mode,
             resolve_crypto_symbols,
-            resolve_fixed_tickers,
+            resolve_fixed_tickers
         )
 
         if is_crypto_type2_config(cfg):
@@ -3070,7 +3070,7 @@ class RobotService:
             if mode == UNIVERSE_MODE_FIXED:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Укажите символы ByBit (universe_mode=fixed, allowed_symbols)",
+                    detail="Укажите символы ByBit (universe_mode=fixed, allowed_symbols)"
                 )
             try:
                 sync_res = await self.run_crypto_screening_job(db, robot_id, user_id)
@@ -3080,18 +3080,18 @@ class RobotService:
                 logger.warning("crypto screening on enable failed robot_id=%s: %s", robot_id, ex)
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Не удалось подобрать crypto universe: {ex}",
+                    detail=f"Не удалось подобрать crypto universe: {ex}"
                 ) from ex
             if sync_res.get("skipped") and not sync_res.get("reused"):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=sync_res.get("message") or "Crypto screening пропущен",
+                    detail=sync_res.get("message") or "Crypto screening пропущен"
                 )
             symbols = list(sync_res.get("symbols") or [])
             if not symbols:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=sync_res.get("message") or "Crypto screening не вернул символы — ослабьте фильтры",
+                    detail=sync_res.get("message") or "Crypto screening не вернул символы — ослабьте фильтры"
                 )
             return
 
@@ -3101,7 +3101,7 @@ class RobotService:
         if mode == UNIVERSE_MODE_FIXED and not resolve_fixed_tickers(cfg):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Укажите тикеры (universe_mode=fixed, fixed_tickers)",
+                detail="Укажите тикеры (universe_mode=fixed, fixed_tickers)"
             )
         try:
             sync_res = await self.sync_live_universe_from_pipeline(db, robot_id, user_id)
@@ -3113,7 +3113,7 @@ class RobotService:
             logger.warning("sync_live_universe on enable failed robot_id=%s: %s", robot_id, ex)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Не удалось подобрать universe: {ex}",
+                detail=f"Не удалось подобрать universe: {ex}"
             ) from ex
 
     async def _tickers_to_figis_for_robot(
@@ -3121,7 +3121,7 @@ class RobotService:
             db: Session,
             robot: Dict[str, Any],
             tickers: List[str],
-            user_id: int,
+            user_id: int
     ) -> Tuple[List[str], Dict[str, str], Dict[str, str]]:
         from app.modules.market_data.service import resolve_figi_and_ticker
 
@@ -3152,7 +3152,7 @@ class RobotService:
                 logger.info(
                     "skip non-figi ticker for tinvest universe ticker=%s robot_id=%s",
                     tk,
-                    robot.get("id"),
+                    robot.get("id")
                 )
                 continue
             tk_u = str(tk).upper()
@@ -3253,11 +3253,11 @@ class RobotService:
             )
             th_start = self._strip_msk_hhmm(
                 robot_data.trading_hours_start or risk.get("trading_hours_start"),
-                "10:00",
+                "10:00"
             )
             th_end = self._strip_msk_hhmm(
                 robot_data.trading_hours_end or risk.get("trading_hours_end"),
-                "18:45",
+                "18:45"
             )
             weekdays = int(
                 robot_data.allowed_weekdays
@@ -3272,7 +3272,7 @@ class RobotService:
                 poll_interval_hours=poll_h,
                 trading_hours_start=th_start,
                 trading_hours_end=th_end,
-                allowed_weekdays=weekdays,
+                allowed_weekdays=weekdays
             )
         elif int(robot_data.type) == 1:
             cfg = dict(robot_data.config or {})
@@ -3292,7 +3292,7 @@ class RobotService:
                 poll_interval_hours=poll_h,
                 trading_hours_start=th_start,
                 trading_hours_end=th_end,
-                allowed_weekdays=weekdays,
+                allowed_weekdays=weekdays
             )
 
         db.commit()
@@ -3307,13 +3307,13 @@ class RobotService:
             db: Session,
             user_id: int,
             requested_name: Optional[str],
-            source_name: str,
+            source_name: str
     ) -> str:
         base = (requested_name or f"{source_name} (copy)").strip()
         if not base:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="name не может быть пустым",
+                detail="name не может быть пустым"
             )
         check_name_query = queries.build_check_robot_name_exists_query(schema=settings.DB_SCHEMA)
         candidate = base
@@ -3321,7 +3321,7 @@ class RobotService:
         while True:
             existing = db.execute(
                 text(check_name_query),
-                {"user_id": user_id, "name": candidate},
+                {"user_id": user_id, "name": candidate}
             ).first()
             if not existing:
                 return candidate
@@ -3330,21 +3330,21 @@ class RobotService:
             if suffix > 50:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="Не удалось подобрать уникальное имя для копии робота",
+                    detail="Не удалось подобрать уникальное имя для копии робота"
                 )
 
     async def duplicate_robot(
             self,
             db: Session,
             user_id: int,
-            request: schemas.RobotDuplicateRequest,
+            request: schemas.RobotDuplicateRequest
     ) -> dict:
         """Создать копию робота: strategy/risk/costs/schedule + reset universe (§7.8)."""
         from app.modules.robots.config.duplicate import (
             DEFAULT_COPY_SECTIONS,
             DEFAULT_RESET_SECTIONS,
             build_duplicated_config,
-            resolve_schedule_from_source,
+            resolve_schedule_from_source
         )
         from app.modules.robots.trading.brokers.routing import normalize_broker_type
 
@@ -3354,7 +3354,7 @@ class RobotService:
         if robot_type not in (1, 2):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Поддерживаются только типы 1 и 2",
+                detail="Поддерживаются только типы 1 и 2"
             )
 
         source_cfg = dict(source.get("config") or {})
@@ -3370,40 +3370,40 @@ class RobotService:
                 source_config=source_cfg,
                 target_broker=target_broker,
                 copy_sections=copy_sections,
-                reset_sections=reset_sections,
+                reset_sections=reset_sections
             )
         except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=str(exc),
+                detail=str(exc)
             ) from exc
         except Exception as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Некорректный config: {exc}",
+                detail=f"Некорректный config: {exc}"
             ) from exc
 
         poll_h, th_start, th_end, weekdays = resolve_schedule_from_source(
             source_cfg,
             source.get("schedule"),
-            copy_schedule="schedule" in copy_sections,
+            copy_schedule="schedule" in copy_sections
         )
 
         name = await self._resolve_duplicate_robot_name(
             db,
             user_id,
             request.name,
-            str(source.get("name") or "Robot"),
+            str(source.get("name") or "Robot")
         )
         token_id = int(
             request.token_id
             if request.token_id is not None
-            else (source.get("token") or {}).get("id") or 0,
+            else (source.get("token") or {}).get("id") or 0
         )
         if token_id <= 0:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="token_id обязателен для копии робота",
+                detail="token_id обязателен для копии робота"
             )
 
         created = await self.create_robot(
@@ -3412,8 +3412,8 @@ class RobotService:
             schemas.RobotCreate(
                 name=name,
                 type=robot_type,
-                token_id=token_id,
-            ),
+                token_id=token_id
+            )
         )
         robot_id = int(created["id"])
 
@@ -3426,7 +3426,7 @@ class RobotService:
                 poll_interval_hours=poll_h,
                 trading_hours_start=th_start,
                 trading_hours_end=th_end,
-                allowed_weekdays=weekdays,
+                allowed_weekdays=weekdays
             )
             db.commit()
         else:
@@ -3438,7 +3438,7 @@ class RobotService:
                 poll_interval_hours=poll_h,
                 trading_hours_start=th_start,
                 trading_hours_end=th_end,
-                allowed_weekdays=weekdays,
+                allowed_weekdays=weekdays
             )
             db.commit()
 
@@ -3505,7 +3505,7 @@ class RobotService:
             if token_id_for_check > 0:
                 token_row = db.execute(
                     text(queries.build_check_token_query(schema=settings.DB_SCHEMA)),
-                    {"token_id": token_id_for_check, "user_id": user_id},
+                    {"token_id": token_id_for_check, "user_id": user_id}
                 ).first()
                 if token_row:
                     self._assert_broker_matches_token(cfg, int(token_row[1]))
@@ -3528,7 +3528,7 @@ class RobotService:
                 params[key] = value
 
             update_sql = f"""
-                UPDATE {settings.DB_SCHEMA}.robots
+                UPDATE robots
                 SET {", ".join(set_parts)},
                     usermod = :usermod,
                     date_modification = :now
@@ -3564,7 +3564,7 @@ class RobotService:
                 current_cfg,
                 trading_hours_start=resolved_start,
                 trading_hours_end=resolved_end,
-                allowed_weekdays=resolved_weekdays,
+                allowed_weekdays=resolved_weekdays
             )
             if int(robot.get("type") or updates.get("type") or 0) == 2:
                 self._validate_robot_config(current_cfg)
@@ -3576,7 +3576,7 @@ class RobotService:
                 poll_interval_hours=resolved_poll_hours,
                 trading_hours_start=resolved_start,
                 trading_hours_end=resolved_end,
-                allowed_weekdays=resolved_weekdays,
+                allowed_weekdays=resolved_weekdays
             )
         db.commit()
         return await self.get_robot_by_id(db, robot_id, user_id)
@@ -3639,20 +3639,20 @@ class RobotService:
                 n = cancel_live_session_jobs_for_robot(
                     db,
                     robot_id=int(robot_id),
-                    reason=f"robot {robot_id} disabled by user {user_id}",
+                    reason=f"robot {robot_id} disabled by user {user_id}"
                 )
                 db.commit()
                 if n:
                     logger.info(
                         "cancelled %s live_trading_session job(s) robot_id=%s",
                         n,
-                        robot_id,
+                        robot_id
                     )
             except Exception as exc:
                 logger.warning(
                     "failed to cancel live sessions on disable robot_id=%s: %s",
                     robot_id,
-                    exc,
+                    exc
                 )
                 try:
                     db.rollback()
@@ -3668,7 +3668,7 @@ class RobotService:
             self,
             db: Session,
             robot_id: int,
-            user_id: int,
+            user_id: int
     ) -> dict:
         """Мягкое удаление робота (status=0)"""
         self.db = db
@@ -3701,7 +3701,7 @@ class RobotService:
         if not info:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Стратегия '{name}' не найдена",
+                detail=f"Стратегия '{name}' не найдена"
             )
         return info
 
@@ -3730,7 +3730,7 @@ class RobotService:
                     detail=(
                         "broker_type нельзя изменить для существующего робота. "
                         "Создайте нового робота (или используйте duplicate workflow)."
-                    ),
+                    )
                 )
         token_type_raw = (robot.get("token") or {}).get("type")
         if token_type_raw is not None:
@@ -3743,7 +3743,7 @@ class RobotService:
             if not isinstance(config, dict):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Некорректный config: expected object",
+                    detail="Некорректный config: expected object"
                 )
             try:
                 from app.modules.robots.config.profiles import dump_robot_config, validate_robot_config
@@ -3751,7 +3751,7 @@ class RobotService:
                 validated = validate_robot_config(
                     robot_type=1,
                     raw=config or {},
-                    broker_type=current_broker,
+                    broker_type=current_broker
                 )
                 normalized = dump_robot_config(validated)
                 extra = {k: v for k, v in (config or {}).items() if k not in set(normalized.keys())}
@@ -3761,7 +3761,7 @@ class RobotService:
             except Exception as e:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Некорректный config: {e}",
+                    detail=f"Некорректный config: {e}"
                 )
 
         update_query = queries.build_update_robot_config_query(schema=settings.DB_SCHEMA)
@@ -3791,7 +3791,7 @@ class RobotService:
             poll_interval_hours: float,
             trading_hours_start: str,
             trading_hours_end: str,
-            allowed_weekdays: int,
+            allowed_weekdays: int
     ) -> dict:
         """Обновляет/создает активное расписание в robot_schedules."""
         self.db = db
@@ -3803,7 +3803,7 @@ class RobotService:
             poll_interval_hours=poll_interval_hours,
             trading_hours_start=trading_hours_start,
             trading_hours_end=trading_hours_end,
-            allowed_weekdays=allowed_weekdays,
+            allowed_weekdays=allowed_weekdays
         )
         db.commit()
         return await self.get_robot_by_id(db, robot_id, user_id)
@@ -3813,13 +3813,13 @@ class RobotService:
             *,
             robot_type: int,
             config: Dict[str, Any],
-            broker_type: Optional[str] = None,
+            broker_type: Optional[str] = None
     ) -> Dict[str, Any]:
         """Profile-based validate + normalize without DB write."""
         from app.modules.robots.config.profiles import (
             dump_robot_config,
             resolve_schema_profile,
-            validate_robot_config,
+            validate_robot_config
         )
 
         try:
@@ -3827,13 +3827,13 @@ class RobotService:
             model = validate_robot_config(
                 robot_type=robot_type,
                 raw=config or {},
-                broker_type=broker_type,
+                broker_type=broker_type
             )
             normalized = dump_robot_config(model)
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Некорректный config: {e}",
+                detail=f"Некорректный config: {e}"
             )
 
         return {
@@ -3849,7 +3849,7 @@ class RobotService:
             poll_interval_hours: float,
             trading_hours_start: str,
             trading_hours_end: str,
-            allowed_weekdays: int,
+            allowed_weekdays: int
     ) -> None:
         def _normalize_hhmm(hhmm: str) -> str:
             parts = (hhmm or "00:00").strip().split(":")
@@ -3866,7 +3866,7 @@ class RobotService:
         interval_seconds = max(60, interval_seconds)
 
         disable_sql = f"""
-            UPDATE {settings.DB_SCHEMA}.robot_schedules
+            UPDATE robot_schedules
             SET is_active = 0,
                 usermod = :usermod,
                 date_modification = :now
@@ -3876,7 +3876,7 @@ class RobotService:
         db.execute(text(disable_sql), {"robot_id": robot_id, "usermod": user_id, "now": datetime.now(timezone.utc)})
 
         insert_sql = f"""
-            INSERT INTO {settings.DB_SCHEMA}.robot_schedules
+            INSERT INTO robot_schedules
                 (robot_id, schedule_type, interval_seconds, start_time, end_time, weekdays, is_active, priority, description, usercre, date_creation)
             VALUES
                 (:robot_id, 2, :interval_seconds, CAST(:start_time AS timetz), CAST(:end_time AS timetz), :weekdays, 1, 100, :description, :usercre, :created_at)
@@ -3892,7 +3892,7 @@ class RobotService:
                 "description": "UI schedule",
                 "usercre": user_id,
                 "created_at": datetime.now(timezone.utc),
-            },
+            }
         )
 
     @staticmethod
@@ -3929,7 +3929,7 @@ class RobotService:
             day: date,
             board: str = "TQBR",
             user_id: Optional[int] = None,
-            run_id: Optional[int] = None,
+            run_id: Optional[int] = None
     ) -> Optional[List[Dict[str, Any]]]:
         from app.modules.robots.trading.data.providers.moex_snapshots import fetch_moex_history_snapshot_day
 
@@ -3937,7 +3937,7 @@ class RobotService:
             day=day,
             board=board,
             user_id=user_id,
-            run_id=run_id,
+            run_id=run_id
         )
 
     async def _ensure_daily_snapshot_history(
@@ -3947,7 +3947,7 @@ class RobotService:
             day: date,
             board: str = "TQBR",
             user_id: Optional[int] = None,
-            run_id: Optional[int] = None,
+            run_id: Optional[int] = None
     ) -> Optional[int]:
         from app.modules.robots.trading.data import get_market_data_facade
 
@@ -3956,26 +3956,26 @@ class RobotService:
             day=day,
             board=board,
             user_id=user_id,
-            run_id=run_id,
+            run_id=run_id
         )
 
     @staticmethod
     def _history_derive_engine_params(
             config: Dict[str, Any],
             *,
-            dms_service,
+            dms_service
     ) -> Dict[str, Any]:
         """Поля симуляции и pipeline из уже смерженного config (общий путь sync и deferred)."""
         from app.modules.robots.config.migration import (
             effective_pipeline_from_config,
             historical_screening_from_config,
-            signal_generation_from_config,
+            signal_generation_from_config
         )
         from app.modules.robots.universe import (
             normalize_universe_mode,
             normalize_crypto_universe_mode,
             universe_pipeline_filters,
-            universe_whitelist_tickers,
+            universe_whitelist_tickers
         )
         from app.modules.robots.trading.brokers.routing import normalize_broker_type
 
@@ -4012,7 +4012,7 @@ class RobotService:
         if _get_strategy_info(strategy_name) is None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Указанная стратегия не найдена",
+                detail="Указанная стратегия не найдена"
             )
         strategy_params = dict(_sig.params or config.get("strategy_params") or {})
         if _hist is not None:
@@ -4072,14 +4072,14 @@ class RobotService:
             user_id: int,
             request: schemas.RobotHistoryBacktestRequest,
             *,
-            deferred_run_id: Optional[int] = None,
+            deferred_run_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """Исторический бэктест: history-таблицы -> MOEX History API, затем симуляция."""
         from app.modules.robots.trading.backtest.persistence import BacktestPersistence, BacktestPersistPayload
         from app.modules.robots.trading.backtest.metrics import BacktestMetricsCalculator
         from app.modules.corporate_actions.dividend_calendar_service import (
             DividendCalendarService,
-            policy_from_robot_config,
+            policy_from_robot_config
         )
         from app.modules.dms.service import dms_service
 
@@ -4091,7 +4091,7 @@ class RobotService:
         if requested_from_utc is None or requested_to_utc is None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="from_date/to_date must be valid ISO datetimes",
+                detail="from_date/to_date must be valid ISO datetimes"
             )
 
         if deferred_run_id is not None:
@@ -4100,11 +4100,11 @@ class RobotService:
                     f"""
                     SELECT user_id, robot_id, status, config_snapshot,
                            requested_from, requested_to, initial_capital, board
-                    FROM {settings.DB_SCHEMA}.backtest_runs
+                    FROM backtest_runs
                     WHERE id = :id
                     """
                 ),
-                {"id": deferred_run_id},
+                {"id": deferred_run_id}
             ).mappings().first()
             if not row or int(row.get("user_id") or 0) != int(user_id):
                 raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Прогон не найден")
@@ -4112,7 +4112,7 @@ class RobotService:
             if st in ("SUCCESS", "FAILED", "CANCELLED"):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="Прогон уже завершён",
+                    detail="Прогон уже завершён"
                 )
             snap = row.get("config_snapshot")
             if isinstance(snap, str):
@@ -4135,7 +4135,7 @@ class RobotService:
                 if int(robot.get("type") or 0) != 2:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Backtest доступен только для торговых роботов type=2",
+                        detail="Backtest доступен только для торговых роботов type=2"
                     )
                 config = dict(robot.get("config") or {})
             else:
@@ -4147,7 +4147,7 @@ class RobotService:
                 if _get_strategy_info(strat) is None:
                     raise HTTPException(
                         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail="Указанная стратегия не найдена",
+                        detail="Указанная стратегия не найдена"
                     )
 
             req_strat = (request.strategy or "").strip().lower() or None
@@ -4156,7 +4156,7 @@ class RobotService:
                 if _get_strategy_info(req_strat) is None:
                     raise HTTPException(
                         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail="Указанная стратегия не найдена",
+                        detail="Указанная стратегия не найдена"
                     )
 
             request_cfg = dict(request.config or {})
@@ -4193,7 +4193,7 @@ class RobotService:
             normalize_universe_mode,
             resolve_crypto_symbols,
             resolve_fixed_tickers,
-            universe_filter_snapshot_row,
+            universe_filter_snapshot_row
         )
         from app.modules.robots.trading.brokers.routing import normalize_broker_type
 
@@ -4204,12 +4204,12 @@ class RobotService:
             if crypto_mode == UNIVERSE_MODE_FIXED and not resolve_crypto_symbols(config):
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail="Для crypto backtest укажите allowed_symbols (universe_mode=fixed)",
+                    detail="Для crypto backtest укажите allowed_symbols (universe_mode=fixed)"
                 )
         elif p["universe_mode"] == UNIVERSE_MODE_FIXED and not resolve_fixed_tickers(config):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Укажите тикеры (universe_mode=fixed, fixed_tickers)",
+                detail="Укажите тикеры (universe_mode=fixed, fixed_tickers)"
             )
         pipeline_filters = p["pipeline_filters"]
         fast_pipeline_filters = p["fast_pipeline_filters"]
@@ -4247,10 +4247,10 @@ class RobotService:
         if _roles is not None:
             stage_logs.append(
                 f"intervals: execution={_roles.execution.cache_label} (T-Invest/live/sim) "
-                f"moex_history={_roles.moex_history.cache_label} (MOEX prefetch)",
+                f"moex_history={_roles.moex_history.cache_label} (MOEX prefetch)"
             )
         stage_logs.append(
-            f"universe: mode={p['universe_mode']} pipeline_filters={len(pipeline_filters)}",
+            f"universe: mode={p['universe_mode']} pipeline_filters={len(pipeline_filters)}"
         )
         div_policy = policy_from_robot_config(config)
         div_svc = DividendCalendarService(db)
@@ -4261,7 +4261,7 @@ class RobotService:
             run_id = int(
                 db.execute(
                     text(f"""
-                INSERT INTO {settings.DB_SCHEMA}.backtest_runs
+                INSERT INTO backtest_runs
                 (robot_id, user_id, requested_from, requested_to, started_at, status, board, initial_capital, config_snapshot, execution_model, cancel_requested, partial_result)
                 VALUES (:robot_id, :user_id, :requested_from, :requested_to, :started_at, :run_status, :board, :initial_capital, CAST(:config_snapshot AS jsonb), CAST(:execution_model AS jsonb), false, false)
                 RETURNING id
@@ -4290,7 +4290,7 @@ class RobotService:
                                 "moex_iss_candles_api",
                             ],
                         }, ensure_ascii=False),
-                    },
+                    }
                 ).scalar()
             )
             db.commit()
@@ -4298,7 +4298,7 @@ class RobotService:
                 try:
                     from app.modules.robots.trading.backtest.run_file_logger import (
                         log_backtest_run_info,
-                        ensure_backtest_run_log,
+                        ensure_backtest_run_log
                     )
 
                     ensure_backtest_run_log(
@@ -4310,11 +4310,11 @@ class RobotService:
                             "status": "QUEUED",
                             "broker_type": broker_type,
                             "strategy": strategy_name,
-                        },
+                        }
                     )
                     log_backtest_run_info(
                         "QUEUED | ожидание фонового воркера (lane=heavy). "
-                        "Лог продолжится после перехода в RUNNING.",
+                        "Лог продолжится после перехода в RUNNING."
                     )
                 except Exception as log_ex:
                     logger.warning("backtest queued log open failed run_id=%s: %s", run_id, log_ex)
@@ -4324,7 +4324,7 @@ class RobotService:
                 res = db.execute(
                     text(
                         f"""
-                        UPDATE {settings.DB_SCHEMA}.backtest_runs
+                        UPDATE backtest_runs
                         SET status = 'RUNNING',
                             run_phase = 'fetching_market_data',
                             started_at = COALESCE(started_at, :ts)
@@ -4333,7 +4333,7 @@ class RobotService:
                           AND cancel_requested = false
                         """
                     ),
-                    {"ts": datetime.now(timezone.utc), "rid": run_id},
+                    {"ts": datetime.now(timezone.utc), "rid": run_id}
                 )
                 db.commit()
                 if (getattr(res, "rowcount", None) or 0) == 0:
@@ -4341,12 +4341,12 @@ class RobotService:
                         text(
                             f"""
                             SELECT status, cancel_requested
-                            FROM {settings.DB_SCHEMA}.backtest_runs
+                            FROM backtest_runs
                             WHERE id = :rid
                             LIMIT 1
                             """
                         ),
-                        {"rid": run_id},
+                        {"rid": run_id}
                     ).mappings().first()
                     if not row2:
                         return {"__worker_aborted__": True}
@@ -4366,7 +4366,7 @@ class RobotService:
             close_backtest_run_log,
             log_backtest_run_exception,
             log_backtest_run_info,
-            ensure_backtest_run_log,
+            ensure_backtest_run_log
         )
 
         backtest_log_status = "RUNNING"
@@ -4389,7 +4389,7 @@ class RobotService:
                     "initial_capital": float(request.initial_capital),
                     "universe_mode": p.get("universe_mode"),
                     "is_crypto": is_crypto_backtest,
-                },
+                }
             )
             for _early_line in stage_logs:
                 log_backtest_run_info("STAGE | %s", _early_line)
@@ -4408,9 +4408,9 @@ class RobotService:
             db.execute(
                 text(
                     f"""
-                    CREATE TABLE IF NOT EXISTS {settings.DB_SCHEMA}.backtest_decisions (
+                    CREATE TABLE IF NOT EXISTS backtest_decisions (
                         id BIGSERIAL PRIMARY KEY,
-                        run_id BIGINT NOT NULL REFERENCES {settings.DB_SCHEMA}.backtest_runs(id) ON DELETE CASCADE,
+                        run_id BIGINT NOT NULL REFERENCES backtest_runs(id) ON DELETE CASCADE,
                         trade_date DATE NOT NULL,
                         ticker VARCHAR(20) NOT NULL,
                         source VARCHAR(20) NOT NULL DEFAULT 'PIPELINE',
@@ -4426,7 +4426,7 @@ class RobotService:
                 text(
                     f"""
                     CREATE INDEX IF NOT EXISTS idx_backtest_decisions_run_day
-                    ON {settings.DB_SCHEMA}.backtest_decisions(run_id, trade_date)
+                    ON backtest_decisions(run_id, trade_date)
                     """
                 )
             )
@@ -4436,7 +4436,7 @@ class RobotService:
                     db.execute(
                         text(
                             """
-                            INSERT INTO backtest.backtest_runs
+                            INSERT INTO backtest_runs
                             (name, description, robot_config_id, robot_config_snapshot, date_from, date_to, initial_capital,
                              commission_percent, slippage_percent, lot_fixed_fee, execution_model, status, progress_percent,
                              started_at, created_by)
@@ -4461,7 +4461,7 @@ class RobotService:
                             "execution_model": execution_model,
                             "started_at": datetime.now(timezone.utc),
                             "created_by": str(user_id),
-                        },
+                        }
                     ).scalar()
                     or 0
                 )
@@ -4491,14 +4491,14 @@ class RobotService:
                 db.execute(
                     text(
                         f"""
-                        UPDATE {settings.DB_SCHEMA}.backtest_runs
+                        UPDATE backtest_runs
                         SET trade_dates_total = :td,
                             trade_dates_remaining = :td,
                             run_phase = :phase
                         WHERE id = :rid
                         """
                     ),
-                    {"td": td_total, "rid": run_id, "phase": prefetch_phase},
+                    {"td": td_total, "rid": run_id, "phase": prefetch_phase}
                 )
                 db.commit()
             except Exception:
@@ -4511,7 +4511,7 @@ class RobotService:
                 phase_units_total=td_total,
                 trade_dates_total=td_total,
                 trade_dates_remaining=td_total,
-                started_at=run_started_at,
+                started_at=run_started_at
             )
             stage_logs.append(
                 f"history: processing {len(trade_dates)} calendar dates in range "
@@ -4527,12 +4527,12 @@ class RobotService:
                             pipeline_user_cancelled = True
                         else:
                             from app.modules.robots.trading.backtest.crypto_screening_prefetch import (
-                                schedule_crypto_screening_prefetch,
+                                schedule_crypto_screening_prefetch
                             )
 
                             stage_logs.append(
                                 "crypto: deferring D1/funding prefetch to background job "
-                                "(scoring starts after prefetch completes)",
+                                "(scoring starts after prefetch completes)"
                             )
                             await schedule_crypto_screening_prefetch(
                                 db,
@@ -4543,22 +4543,22 @@ class RobotService:
                                 config=config,
                                 allowed_tickers_whitelist=allowed_tickers_whitelist,
                                 progress_bind=progress_bind,
-                                run_started_at=run_started_at,
+                                run_started_at=run_started_at
                             )
                             try:
                                 log_backtest_run_info(
-                                    "PREFETCH | delegated to background job crypto_screening_prefetch",
+                                    "PREFETCH | delegated to background job crypto_screening_prefetch"
                                 )
                             except Exception:
                                 pass
                             return {"__prefetch_scheduled__": True}
                     else:
                         stage_logs.append(
-                            "crypto: screening prefetch completed (background job) — starting scoring",
+                            "crypto: screening prefetch completed (background job) — starting scoring"
                         )
                         if allowed_tickers_whitelist:
                             stage_logs.append(
-                                f"crypto: screening pool frozen at prefetch ({len(allowed_tickers_whitelist)} symbols)",
+                                f"crypto: screening pool frozen at prefetch ({len(allowed_tickers_whitelist)} symbols)"
                             )
                 else:
                     stage_logs.append("crypto: fixed universe — screening prefetch skipped")
@@ -4570,7 +4570,7 @@ class RobotService:
                     phase_units_total=td_total,
                     trade_dates_total=td_total,
                     trade_dates_remaining=0,
-                    started_at=run_started_at,
+                    started_at=run_started_at
                 )
             for d in trade_dates:
                 if is_crypto_backtest:
@@ -4583,7 +4583,7 @@ class RobotService:
                     break
                 try:
                     sid_pf = await self._ensure_daily_snapshot_history(
-                        db, day=d, board=board, user_id=user_id, run_id=run_id,
+                        db, day=d, board=board, user_id=user_id, run_id=run_id
                     )
                     if not sid_pf:
                         prefetch_missing.append(d.isoformat())
@@ -4600,10 +4600,10 @@ class RobotService:
                     trade_dates_total=td_total,
                     trade_dates_remaining=rem_pf,
                     current_trade_date=d,
-                    started_at=run_started_at,
+                    started_at=run_started_at
                 )
             stage_logs.append(
-                f"history: market_snapshot_history prefetch done; days_missing_snapshot={len(prefetch_missing)}",
+                f"history: market_snapshot_history prefetch done; days_missing_snapshot={len(prefetch_missing)}"
             )
             if prefetch_missing:
                 stage_logs.append(f"history: prefetch missing_days={','.join(prefetch_missing[:40])}")
@@ -4612,12 +4612,12 @@ class RobotService:
                     db.execute(
                         text(
                             f"""
-                            UPDATE {settings.DB_SCHEMA}.backtest_runs
+                            UPDATE backtest_runs
                             SET run_phase = 'scoring'
                             WHERE id = :rid AND COALESCE(cancel_requested, false) = false
                             """
                         ),
-                        {"rid": run_id},
+                        {"rid": run_id}
                     )
                     db.commit()
                 except Exception:
@@ -4631,11 +4631,11 @@ class RobotService:
                     phase_units_total=scoring_units_total,
                     trade_dates_total=td_total,
                     trade_dates_remaining=td_total,
-                    started_at=run_started_at,
+                    started_at=run_started_at
                 )
             from app.modules.robots.trading.pipeline.universe_scoring import (
                 run_history_universe_scoring,
-                SCORING_PROGRESS_SUBSTEPS,
+                SCORING_PROGRESS_SUBSTEPS
             )
 
             allowed_figis_by_date: Dict[str, List[str]] = {}
@@ -4662,7 +4662,7 @@ class RobotService:
                     if not symbols:
                         raise HTTPException(
                             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail="Для crypto backtest укажите allowed_symbols в config",
+                            detail="Для crypto backtest укажите allowed_symbols в config"
                         )
                     selected_tickers = sorted(set(symbols))
                     allowed_figis_by_date = {d.isoformat(): list(selected_tickers) for d in trade_dates}
@@ -4677,7 +4677,7 @@ class RobotService:
                         phase_units_total=scoring_units_total,
                         trade_dates_total=td_total,
                         trade_dates_remaining=0,
-                        started_at=run_started_at,
+                        started_at=run_started_at
                     )
                 else:
 
@@ -4685,7 +4685,7 @@ class RobotService:
                         phase_units_done: int,
                         *,
                         current_trade_date: date,
-                        trade_dates_remaining: int,
+                        trade_dates_remaining: int
                     ) -> None:
                         self._flush_backtest_progress(
                             progress_bind,
@@ -4696,11 +4696,11 @@ class RobotService:
                             trade_dates_total=td_total,
                             trade_dates_remaining=trade_dates_remaining,
                             current_trade_date=current_trade_date,
-                            started_at=run_started_at,
+                            started_at=run_started_at
                         )
 
                     from app.modules.robots.trading.pipeline.crypto_universe_scoring import (
-                        run_history_crypto_universe_scoring,
+                        run_history_crypto_universe_scoring
                     )
 
                     crypto_scoring = await run_history_crypto_universe_scoring(
@@ -4713,7 +4713,7 @@ class RobotService:
                         allowed_tickers_whitelist=allowed_tickers_whitelist,
                         bybit_token_id=bybit_token_id,
                         is_cancelled=lambda: _is_backtest_run_cancelled(run_id),
-                        flush_progress=_flush_crypto_scoring_progress,
+                        flush_progress=_flush_crypto_scoring_progress
                     )
                     allowed_figis_by_date = crypto_scoring.allowed_figis_by_date
                     decisions_rows = crypto_scoring.decisions_rows
@@ -4730,7 +4730,7 @@ class RobotService:
                     phase_units_done: int,
                     *,
                     current_trade_date: date,
-                    trade_dates_remaining: int,
+                    trade_dates_remaining: int
                 ) -> None:
                     self._flush_backtest_progress(
                         progress_bind,
@@ -4741,7 +4741,7 @@ class RobotService:
                         trade_dates_total=td_total,
                         trade_dates_remaining=trade_dates_remaining,
                         current_trade_date=current_trade_date,
-                        started_at=run_started_at,
+                        started_at=run_started_at
                     )
 
                 scoring_result = await run_history_universe_scoring(
@@ -4759,7 +4759,7 @@ class RobotService:
                     run_id=run_id,
                     ensure_snapshot=self._ensure_daily_snapshot_history,
                     is_cancelled=lambda: _is_backtest_run_cancelled(run_id),
-                    flush_progress=_flush_scoring_progress,
+                    flush_progress=_flush_scoring_progress
                 )
                 allowed_figis_by_date = scoring_result.allowed_figis_by_date
                 decisions_rows = scoring_result.decisions_rows
@@ -4778,12 +4778,12 @@ class RobotService:
                     db.execute(
                         text(
                             """
-                            UPDATE backtest.backtest_runs
+                            UPDATE backtest_runs
                             SET progress_percent=:progress_percent
                             WHERE id=:id
                             """
                         ),
-                        {"id": bt_run_id, "progress_percent": progress},
+                        {"id": bt_run_id, "progress_percent": progress}
                     )
                     db.commit()
                 except Exception:
@@ -4818,7 +4818,7 @@ class RobotService:
                         dbg = f"{dbg}, top_rejects={'; '.join([f'{k} x{v}' for k, v in top])}"
                     try:
                         from app.modules.robots.trading.backtest.universe_reject_report import (
-                            emit_universe_reject_report,
+                            emit_universe_reject_report
                         )
 
                         emit_universe_reject_report(
@@ -4826,17 +4826,17 @@ class RobotService:
                             decisions_rows=decisions_rows,
                             config=config,
                             day_stats=day_stats or None,
-                            is_crypto=is_crypto_backtest,
+                            is_crypto=is_crypto_backtest
                         )
                     except Exception as report_exc:
                         logger.warning(
                             "universe reject report failed run_id=%s: %s",
                             run_id,
-                            report_exc,
+                            report_exc
                         )
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Нет бумаг для бэктеста за выбранный период ({dbg})",
+                        detail=f"Нет бумаг для бэктеста за выбранный период ({dbg})"
                     )
                 stage_logs.append(f"pipeline: selected {len(figis)} tickers")
                 from_day = self._dt_date_utc(requested_from_utc)
@@ -4848,9 +4848,9 @@ class RobotService:
                 try:
                     db.execute(
                         text(
-                            f"UPDATE {settings.DB_SCHEMA}.backtest_runs SET run_phase='prefetching_candles' WHERE id=:rid"
+                            f"UPDATE backtest_runs SET run_phase='prefetching_candles' WHERE id=:rid"
                         ),
-                        {"rid": run_id},
+                        {"rid": run_id}
                     )
                     db.commit()
                 except Exception:
@@ -4868,7 +4868,7 @@ class RobotService:
                     phase_units_total=max(1, candles_tickers_total),
                     trade_dates_total=td_total,
                     trade_dates_remaining=0,
-                    started_at=run_started_at,
+                    started_at=run_started_at
                 )
                 if is_crypto_backtest:
                     from app.modules.robots.trading.runtime import get_trading_orchestrator
@@ -4880,7 +4880,7 @@ class RobotService:
                         narrative_result,
                         narrative_section,
                         narrative_step,
-                        narrative_sub,
+                        narrative_sub
                     )
 
                     bybit_cfg = config.get("bybit") if isinstance(config.get("bybit"), dict) else {}
@@ -4912,9 +4912,9 @@ class RobotService:
                                 phase_units_done=done,
                                 phase_units_total=max(1, total),
                                 trade_dates_total=td_total,
-                                started_at=run_started_at,
+                                started_at=run_started_at
                             ),
-                            load_cached_candles=False,
+                            load_cached_candles=False
                         )
                         narrative_result(format_candle_prefetch_result(prefetch_stats))
                         narrative_sub(
@@ -4934,7 +4934,7 @@ class RobotService:
                                 instrument_category=instrument_category,
                                 user_id=user_id,
                                 run_id=run_id,
-                                is_cancelled=lambda: _is_backtest_run_cancelled(run_id),
+                                is_cancelled=lambda: _is_backtest_run_cancelled(run_id)
                             )
                             narrative_result(format_funding_prefetch_result(funding_stats))
                     stage_logs.append(
@@ -4968,8 +4968,8 @@ class RobotService:
                             phase_units_done=done,
                             phase_units_total=max(1, total),
                             trade_dates_total=td_total,
-                            started_at=run_started_at,
-                        ),
+                            started_at=run_started_at
+                        )
                     )
                     stage_logs.append(
                         f"candles: MOEX prefetch interval={resolved_moex_iv.cache_label} "
@@ -4984,9 +4984,9 @@ class RobotService:
                 try:
                     db.execute(
                         text(
-                            f"UPDATE {settings.DB_SCHEMA}.backtest_runs SET run_phase='loading_candles' WHERE id=:rid"
+                            f"UPDATE backtest_runs SET run_phase='loading_candles' WHERE id=:rid"
                         ),
-                        {"rid": run_id},
+                        {"rid": run_id}
                     )
                     db.commit()
                 except Exception:
@@ -5000,7 +5000,7 @@ class RobotService:
                     phase_units_total=max(1, candles_tickers_total),
                     trade_dates_total=td_total,
                     trade_dates_remaining=0,
-                    started_at=run_started_at,
+                    started_at=run_started_at
                 )
 
                 candles_by_figi: Dict[str, List[Dict[str, Any]]] = {}
@@ -5018,7 +5018,7 @@ class RobotService:
                         from_dt=from_dt,
                         to_dt_exclusive=to_dt_exclusive,
                         market="bybit",
-                        batch_size=_CANDLE_LOAD_BATCH_SIZE,
+                        batch_size=_CANDLE_LOAD_BATCH_SIZE
                     )
                     touch_backtest_progress_runtime(run_id)
                     self._flush_backtest_progress(
@@ -5028,7 +5028,7 @@ class RobotService:
                         phase_units_done=len(candles_by_figi),
                         phase_units_total=max(1, candles_tickers_total),
                         trade_dates_total=td_total,
-                        started_at=run_started_at,
+                        started_at=run_started_at
                     )
                     stage_logs.append(
                         f"candles: bybit bulk cache load symbols={len(candles_by_figi)}/{len(figis)} "
@@ -5061,7 +5061,7 @@ class RobotService:
                                     board=board,
                                     interval=shared_canonical,
                                     from_ts=from_dt,
-                                    to_ts=to_ts_shared,
+                                    to_ts=to_ts_shared
                                 )
                             except Exception as ex:
                                 shared_rows = []
@@ -5102,7 +5102,7 @@ class RobotService:
                                 phase_units_done=min(candles_tickers_total, batch_start + len(batch)),
                                 phase_units_total=max(1, candles_tickers_total),
                                 trade_dates_total=td_total,
-                                started_at=run_started_at,
+                                started_at=run_started_at
                             )
                         stage_logs.append(
                             f"candles: shared_market_candles interval={shared_canonical} "
@@ -5146,7 +5146,7 @@ class RobotService:
                             interval_code_num=interval_code_num,
                             from_dt=from_dt,
                             to_dt_exclusive=to_dt_exclusive,
-                            batch_size=_CANDLE_LOAD_BATCH_SIZE,
+                            batch_size=_CANDLE_LOAD_BATCH_SIZE
                         )
 
                     gap_refill_figis: List[str] = []
@@ -5165,7 +5165,7 @@ class RobotService:
                                 interval_code_num=interval_code_num,
                                 from_day=from_day,
                                 to_day=to_day,
-                                user_id=user_id,
+                                user_id=user_id
                             )
                             if gap.success:
                                 moex_gap_success += 1
@@ -5196,11 +5196,11 @@ class RobotService:
                                 "loading_candles",
                                 phase_units_done=min(
                                     candles_tickers_total,
-                                    shared_satisfied + legacy_idx + 1,
+                                    shared_satisfied + legacy_idx + 1
                                 ),
                                 phase_units_total=max(1, candles_tickers_total),
                                 trade_dates_total=td_total,
-                                started_at=run_started_at,
+                                started_at=run_started_at
                             )
 
                     if gap_refill_figis:
@@ -5212,7 +5212,7 @@ class RobotService:
                             interval_code_num=interval_code_num,
                             from_dt=from_dt,
                             to_dt_exclusive=to_dt_exclusive,
-                            batch_size=_CANDLE_LOAD_BATCH_SIZE,
+                            batch_size=_CANDLE_LOAD_BATCH_SIZE
                         )
                         for figi in gap_refill_figis:
                             c_rows = list(refill_bulk.get(str(figi).strip().upper()) or [])
@@ -5265,7 +5265,7 @@ class RobotService:
                         )
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=detail,
+                        detail=detail
                     )
                 stage_logs.append(f"candles: loaded for {len(candles_by_figi)} tickers")
     
@@ -5292,15 +5292,15 @@ class RobotService:
                         phase_units_done=int(done),
                         phase_units_total=max(1, int(total)),
                         trade_dates_total=td_total,
-                        started_at=run_started_at,
+                        started_at=run_started_at
                     )
 
                 try:
                     db.execute(
                         text(
-                            f"UPDATE {settings.DB_SCHEMA}.backtest_runs SET run_phase='simulating' WHERE id=:rid"
+                            f"UPDATE backtest_runs SET run_phase='simulating' WHERE id=:rid"
                         ),
-                        {"rid": run_id},
+                        {"rid": run_id}
                     )
                     db.commit()
                 except Exception:
@@ -5312,7 +5312,7 @@ class RobotService:
                     phase_units_done=0,
                     phase_units_total=1,
                     trade_dates_total=td_total,
-                    started_at=run_started_at,
+                    started_at=run_started_at
                 )
                 try:
                     from app.core.logging_config import get_rest_logger
@@ -5320,7 +5320,7 @@ class RobotService:
                     get_rest_logger().info(
                         "history-backtest run_id=%s phase=simulating tickers=%s",
                         run_id,
-                        len(candles_by_figi),
+                        len(candles_by_figi)
                     )
                 except Exception:
                     pass
@@ -5347,7 +5347,7 @@ class RobotService:
                     initial_capital=float(request.initial_capital),
                     cancel_check=_backtest_cancel_requested,
                     cancel_check_sync=_backtest_cancel_sync,
-                    progress_callback_sync=_on_sim_progress,
+                    progress_callback_sync=_on_sim_progress
                 )
                 if not getattr(res, "cancelled", False) and not _is_backtest_run_cancelled(run_id):
                     stage_logs.append("simulation: completed")
@@ -5360,7 +5360,7 @@ class RobotService:
                     initial_capital=float(request.initial_capital),
                     final_equity=float(request.initial_capital),
                     total_return_percent=0.0,
-                    max_drawdown_percent=None,
+                    max_drawdown_percent=None
                 )
                 stage_logs.append("simulation: skipped (pipeline cancelled)")
         except ValueError as e:
@@ -5373,7 +5373,7 @@ class RobotService:
                     run_id,
                     status=backtest_log_status,
                     summary=backtest_log_summary,
-                    error=backtest_log_error,
+                    error=backtest_log_error
                 )
             except Exception:
                 pass
@@ -5392,7 +5392,7 @@ class RobotService:
                     run_id,
                     status=backtest_log_status,
                     summary=backtest_log_summary,
-                    error=backtest_log_error,
+                    error=backtest_log_error
                 )
             except Exception:
                 pass
@@ -5412,7 +5412,7 @@ class RobotService:
                     run_id,
                     status=backtest_log_status,
                     summary=backtest_log_summary,
-                    error=backtest_log_error,
+                    error=backtest_log_error
                 )
             except Exception:
                 pass
@@ -5423,7 +5423,7 @@ class RobotService:
                 db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Ошибка загрузки данных или расчёта: {e}",
+                detail=f"Ошибка загрузки данных или расчёта: {e}"
             )
 
         result = {
@@ -5529,7 +5529,7 @@ class RobotService:
         from app.modules.robots.trading.backtest.persist_checkpoint import (
             build_persist_checkpoint_payload,
             delete_persist_checkpoint,
-            write_persist_checkpoint,
+            write_persist_checkpoint
         )
         from app.modules.robots.trading.backtest.persist_phase import execute_backtest_persist_phase
         from sqlalchemy.exc import InterfaceError, OperationalError
@@ -5552,8 +5552,8 @@ class RobotService:
                 config=config,
                 res=res,
                 decisions_rows=decisions_rows,
-                result=result,
-            ),
+                result=result
+            )
         )
 
         def _persist_phase() -> Tuple[str, Optional[Dict[str, Any]], Optional[str]]:
@@ -5576,7 +5576,7 @@ class RobotService:
                 robot_pk=robot_pk,
                 requested_from_utc=requested_from_utc,
                 requested_to_utc=requested_to_utc,
-                pipeline_user_cancelled=pipeline_user_cancelled,
+                pipeline_user_cancelled=pipeline_user_cancelled
             )
 
         persist_checkpoint_kept = True
@@ -5586,7 +5586,7 @@ class RobotService:
                 _persist_phase,
                 max_attempts=60,
                 delay_sec=10.0,
-                max_delay_sec=30.0,
+                max_delay_sec=30.0
             )
             delete_persist_checkpoint(run_id, run_started_at)
             persist_checkpoint_kept = False
@@ -5611,14 +5611,14 @@ class RobotService:
                     db.execute(
                         text(
                             f"""
-                            UPDATE {settings.DB_SCHEMA}.backtest_runs
+                            UPDATE backtest_runs
                             SET run_phase = 'persist_pending',
                                 error_message = :msg
                             WHERE id = :rid
                               AND status IN ('RUNNING', 'FETCHING')
                             """
                         ),
-                        {"rid": run_id, "msg": "persist-waiting-db"},
+                        {"rid": run_id, "msg": "persist-waiting-db"}
                     )
                     db.commit()
 
@@ -5633,7 +5633,7 @@ class RobotService:
                 def _mark_persist_failed() -> None:
                     db.execute(
                         text(f"""
-                            UPDATE {settings.DB_SCHEMA}.backtest_runs
+                            UPDATE backtest_runs
                             SET status='FAILED',
                                 finished_at=:finished_at,
                                 error_message=:error_message
@@ -5643,7 +5643,7 @@ class RobotService:
                             "run_id": run_id,
                             "finished_at": datetime.now(timezone.utc),
                             "error_message": "persist-failed",
-                        },
+                        }
                     )
                     db.commit()
 
@@ -5657,7 +5657,7 @@ class RobotService:
                 status=backtest_log_status,
                 summary=backtest_log_summary,
                 error=backtest_log_error,
-                started_at=run_started_at,
+                started_at=run_started_at
             )
         except Exception as close_ex:
             logger.warning("backtest file log close failed run_id=%s: %s", run_id, close_ex)
@@ -5670,7 +5670,7 @@ class RobotService:
             robot_id: int,
             user_id: int,
             *,
-            mode: str = "full",
+            mode: str = "full"
     ) -> Dict[str, Any]:
         """REST snapshot для Live-экрана.
 
@@ -5694,7 +5694,7 @@ class RobotService:
             token_type = None
         from app.modules.robots.trading.brokers.routing import (
             BrokerTokenMismatchError,
-            enforce_broker_for_token,
+            enforce_broker_for_token
         )
 
         try:
@@ -5702,23 +5702,23 @@ class RobotService:
                 config,
                 token_type=token_type,
                 mutate=True,
-                require_token=True,
+                require_token=True
             )
         except BrokerTokenMismatchError as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(exc),
+                detail=str(exc)
             ) from exc
         except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(exc),
+                detail=str(exc)
             ) from exc
         account_id = config.get("account_id")
 
         positions_q = f"""
             SELECT id, figi, side, quantity, COALESCE(entry_price, price) AS entry_price, status, created_at
-            FROM {settings.DB_SCHEMA}.robot_trades
+            FROM robot_trades
             WHERE robot_id = :robot_id
               AND status IN ('open', 'partial')
             ORDER BY created_at DESC
@@ -5741,7 +5741,7 @@ class RobotService:
         signals_q = f"""
             SELECT id, figi, signal_type, signal_strength, price_at_signal, was_executed,
                    executed_trade_id, created_at
-            FROM {settings.DB_SCHEMA}.robot_signals
+            FROM robot_signals
             WHERE robot_id = :robot_id
             ORDER BY created_at DESC
             LIMIT 100
@@ -5776,7 +5776,7 @@ class RobotService:
             recent_orders = _load_live_account_orders(
                 db,
                 user_id=int(user_id),
-                broker_account_id=resolved_account_for_orders,
+                broker_account_id=resolved_account_for_orders
             )
             open_orders, order_history = _split_db_orders(recent_orders)
         else:
@@ -5798,7 +5798,7 @@ class RobotService:
                         broker_type,
                         token_str,
                         token_extra_data=token_extra,
-                        robot_config=config,
+                        robot_config=config
                     )
                     resolved_account_id = await _resolve_robot_account_id(broker, account_id)
                     if not resolved_account_id:
@@ -5819,12 +5819,12 @@ class RobotService:
                                 logger.warning(
                                     "live snapshot account_id persist failed robot_id=%s: %s",
                                     robot_id,
-                                    persist_exc,
+                                    persist_exc
                                 )
 
                         broker_exc: Optional[Exception] = None
                         is_bybit = broker_type.strip().lower() == "bybit"
-                        fetch_modes = ("broker",) if is_bybit else ("broker", "tinvest_service")
+                        fetch_modes = ("broker") if is_bybit else ("broker", "tinvest_service")
                         for fetch_mode in fetch_modes:
                             try:
                                 if fetch_mode == "broker":
@@ -5835,13 +5835,13 @@ class RobotService:
                                         account_id=str(account_id),
                                         db=db,
                                         token_id=int(token_id) if token_id is not None else None,
-                                        user_id=int(user_id),
+                                        user_id=int(user_id)
                                     )
                                     pf = dict((pdata or {}).get("portfolio") or {})
                                 positions_raw = list(pf.get("positions") or [])
                                 portfolio_positions = _normalize_portfolio_positions(
                                     positions_raw,
-                                    type_names=_instrument_type_label_map(db),
+                                    type_names=_instrument_type_label_map(db)
                                 )
                                 portfolio_summary = {k: v for k, v in pf.items() if k != "positions"}
                                 portfolio_source = fetch_mode
@@ -5864,12 +5864,12 @@ class RobotService:
                                             db,
                                             token_id=int(token_id),
                                             user_id=int(user_id),
-                                            error_message=str(exc),
+                                            error_message=str(exc)
                                         )
                                         logger.warning(
                                             "ByBit token expired/invalid -> deactivated token_id=%s and disabled robots for user_id=%s",
                                             token_id,
-                                            user_id,
+                                            user_id
                                         )
                                     except Exception as deact_exc:
                                         logger.error(
@@ -5877,13 +5877,13 @@ class RobotService:
                                             token_id,
                                             user_id,
                                             deact_exc,
-                                            exc_info=True,
+                                            exc_info=True
                                         )
                                 logger.warning(
                                     "live snapshot portfolio fetch (%s) robot_id=%s: %s",
                                     fetch_mode,
                                     robot_id,
-                                    exc,
+                                    exc
                                 )
 
                         if not portfolio_positions and portfolio_source != "broker":
@@ -5902,7 +5902,7 @@ class RobotService:
                     "live snapshot portfolio fetch failed robot_id=%s: %s",
                     robot_id,
                     exc,
-                    exc_info=True,
+                    exc_info=True
                 )
 
             # Orders from portfolio_orders; two-way reconcile with broker when possible.
@@ -5916,13 +5916,13 @@ class RobotService:
                         robot_id=int(robot_id),
                         broker=broker_for_orders,
                         account_id=resolved_account_for_orders,
-                        user_id=int(user_id),
+                        user_id=int(user_id)
                     )
                     orders_synced_at = datetime.now(timezone.utc)
                     recent_orders = _load_live_account_orders(
                         db,
                         user_id=int(user_id),
-                        broker_account_id=resolved_account_for_orders,
+                        broker_account_id=resolved_account_for_orders
                     )
                     try:
                         from app.modules.robots.live_events import notify_live_orders_refresh
@@ -5930,7 +5930,7 @@ class RobotService:
                         notify_live_orders_refresh(
                             int(robot_id),
                             user_id=int(user_id),
-                            account_id=str(resolved_account_for_orders),
+                            account_id=str(resolved_account_for_orders)
                         )
                     except Exception:
                         pass
@@ -5938,13 +5938,13 @@ class RobotService:
                     logger.warning(
                         "live snapshot order reconcile failed robot_id=%s: %s",
                         robot_id,
-                        exc,
+                        exc
                     )
             open_orders, order_history = _split_db_orders(recent_orders)
 
         stream_q = f"""
             SELECT MAX(created_at) AS last_event_at
-            FROM {settings.DB_SCHEMA}.robot_execution_logs
+            FROM robot_execution_logs
             WHERE robot_id = :robot_id
         """
         stream_row = db.execute(text(stream_q), {"robot_id": robot_id}).first()
@@ -5952,7 +5952,7 @@ class RobotService:
         # Active background trading session (independent of Live UI /ws/live).
         session_q = f"""
             SELECT id, status, started_at, updated_at
-            FROM {settings.DB_SCHEMA}.background_jobs
+            FROM background_jobs
             WHERE job_type = 'live_trading_session'
               AND (payload->>'robot_id')::text = :robot_id
               AND status IN ('queued', 'running')
@@ -6009,31 +6009,31 @@ class RobotService:
             price: float,
             quantity: Optional[float] = None,
             notional: Optional[float] = None,
-            reduce_only: bool = False,
+            reduce_only: bool = False
     ) -> Dict[str, Any]:
         """Place a limit order via robot broker token (bypasses Stage6 risk gates)."""
         from app.modules.robots.live_events import insert_session_log, notify_live_orders_refresh
         from app.modules.robots.trading.brokers import create_broker_facade
         from app.modules.robots.trading.brokers.routing import (
             BrokerTokenMismatchError,
-            enforce_broker_for_token,
+            enforce_broker_for_token
         )
         from app.modules.robots.trading.manual_order import (
             format_manual_broker_reject,
-            resolve_manual_order_quantity,
+            resolve_manual_order_quantity
         )
 
         robot = await self.get_robot_by_id(db, robot_id, user_id)
         if int(robot.get("type") or 0) != 2:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Робот не является торговым",
+                detail="Робот не является торговым"
             )
         token_meta = robot.get("token") or {}
         if not token_meta.get("id") or int(token_meta.get("status") or 0) != 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="У робота нет активного токена доступа",
+                detail="У робота нет активного токена доступа"
             )
 
         config = dict(robot.get("config") or {})
@@ -6046,7 +6046,7 @@ class RobotService:
                 config,
                 token_type=token_type,
                 mutate=True,
-                require_token=True,
+                require_token=True
             )
         except BrokerTokenMismatchError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -6075,7 +6075,7 @@ class RobotService:
         if str(broker_type).lower() == "tinvest" and int(order_qty) <= 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="для T-Invest quantity должен быть целым лотом >= 1",
+                detail="для T-Invest quantity должен быть целым лотом >= 1"
             )
 
         token_id = int(token_meta["id"])
@@ -6084,20 +6084,20 @@ class RobotService:
         if not token_str:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="не удалось загрузить токен брокера",
+                detail="не удалось загрузить токен брокера"
             )
         token_extra = (td or {}).get("extra_data") if isinstance((td or {}).get("extra_data"), dict) else {}
         broker = create_broker_facade(
             broker_type,
             token_str,
             token_extra_data=token_extra,
-            robot_config=config,
+            robot_config=config
         )
         account_id = await _resolve_robot_account_id(broker, config.get("account_id"))
         if not account_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="у робота не задан account_id",
+                detail="у робота не задан account_id"
             )
         if not str(config.get("account_id") or "").strip():
             try:
@@ -6116,7 +6116,7 @@ class RobotService:
             SOURCE_MANUAL,
             insert_pending_order,
             resolve_portfolio_account_pk,
-            update_order_by_pk,
+            update_order_by_pk
         )
         from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
 
@@ -6126,7 +6126,7 @@ class RobotService:
         if not pa_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="не удалось привязать заявку к portfolio_accounts",
+                detail="не удалось привязать заявку к portfolio_accounts"
             )
 
         portfolio_order_id = insert_pending_order(
@@ -6139,12 +6139,12 @@ class RobotService:
             price=px,
             source=SOURCE_MANUAL,
             reason="manual",
-            commit=True,
+            commit=True
         )
         if portfolio_order_id is None:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="не удалось сохранить заявку в portfolio_orders",
+                detail="не удалось сохранить заявку в portfolio_orders"
             )
 
         try:
@@ -6155,7 +6155,7 @@ class RobotService:
                 direction=direction,
                 account_id=str(account_id),
                 reduce_only=bool(reduce_only),
-                qty_round_up=bool(size_from_notional),
+                qty_round_up=bool(size_from_notional)
             )
         except Exception as exc:
             logger.warning(
@@ -6163,13 +6163,13 @@ class RobotService:
                 robot_id,
                 symbol,
                 side_u,
-                exc,
+                exc
             )
             update_order_by_pk(
                 db,
                 row_id=int(portfolio_order_id),
                 status="rejected",
-                commit=True,
+                commit=True
             )
             free_hint: Optional[float] = None
             try:
@@ -6179,7 +6179,7 @@ class RobotService:
             detail = format_manual_broker_reject(exc, free_funds=free_hint)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"брокер отклонил заявку: {detail}",
+                detail=f"брокер отклонил заявку: {detail}"
             ) from exc
 
         order_id = str((order or {}).get("orderId") or "").strip()
@@ -6203,7 +6203,7 @@ class RobotService:
             status=db_status if db_status in {"pending", "partial", "filled", "cancelled", "rejected"} else "pending",
             quantity=placed_qty,
             price=px,
-            commit=True,
+            commit=True
         )
 
         if size_from_notional and requested_notional is not None:
@@ -6230,7 +6230,7 @@ class RobotService:
                 notify_live_orders_refresh(
                     int(robot_id),
                     user_id=int(user_id),
-                    account_id=str(account_id) if account_id else None,
+                    account_id=str(account_id) if account_id else None
                 )
             except Exception:
                 pass
@@ -6255,26 +6255,26 @@ class RobotService:
             db: Session,
             *,
             user_id: int,
-            robot_id: int,
+            robot_id: int
     ) -> Dict[str, Any]:
         """Reconcile portfolio_orders with broker open orders (statuses + import)."""
         from app.modules.robots.trading.brokers import create_broker_facade
         from app.modules.robots.trading.brokers.routing import (
             BrokerTokenMismatchError,
-            enforce_broker_for_token,
+            enforce_broker_for_token
         )
 
         robot = await self.get_robot_by_id(db, robot_id, user_id)
         if int(robot.get("type") or 0) != 2:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="синхронизация заявок доступна только для торговых роботов",
+                detail="синхронизация заявок доступна только для торговых роботов"
             )
         token_meta = robot.get("token") or {}
         if not token_meta.get("id"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="У робота нет активного токена доступа",
+                detail="У робота нет активного токена доступа"
             )
         config = dict(robot.get("config") or {})
         try:
@@ -6286,7 +6286,7 @@ class RobotService:
                 config,
                 token_type=token_type,
                 mutate=True,
-                require_token=True,
+                require_token=True
             )
         except BrokerTokenMismatchError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -6298,20 +6298,20 @@ class RobotService:
         if not token_str:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="не удалось загрузить токен брокера",
+                detail="не удалось загрузить токен брокера"
             )
         token_extra = (td or {}).get("extra_data") if isinstance((td or {}).get("extra_data"), dict) else {}
         broker = create_broker_facade(
             broker_type,
             token_str,
             token_extra_data=token_extra,
-            robot_config=config,
+            robot_config=config
         )
         account_id = await _resolve_robot_account_id(broker, config.get("account_id"))
         if not account_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="у робота не задан account_id",
+                detail="у робота не задан account_id"
             )
 
         # Manual sync must insert missing history (snapshot keeps insert_history=False).
@@ -6321,7 +6321,7 @@ class RobotService:
             broker=broker,
             account_id=str(account_id),
             user_id=int(user_id),
-            insert_history=True,
+            insert_history=True
         )
         recent = _load_live_account_orders(
             db, user_id=int(user_id), broker_account_id=str(account_id)
@@ -6333,7 +6333,7 @@ class RobotService:
             notify_live_orders_refresh(
                 int(robot_id),
                 user_id=int(user_id),
-                account_id=str(account_id),
+                account_id=str(account_id)
             )
         except Exception:
             pass
@@ -6358,7 +6358,7 @@ class RobotService:
             robot_id: Optional[int] = None,
             limit: int = 30,
             only_active: bool = False,
-            broker_type: Optional[str] = None,
+            broker_type: Optional[str] = None
     ) -> Dict[str, Any]:
         if robot_id is not None:
             await self.get_robot_by_id(db, robot_id, user_id)
@@ -6385,7 +6385,7 @@ class RobotService:
 
         total_sql = f"""
             SELECT COUNT(*)
-            FROM {settings.DB_SCHEMA}.backtest_runs br
+            FROM backtest_runs br
             WHERE {where_robot}
               {status_filter}
               {broker_filter}
@@ -6417,8 +6417,8 @@ class RobotService:
                         ELSE 'moex'
                     END
                 ) AS market_profile
-            FROM {settings.DB_SCHEMA}.backtest_runs br
-            LEFT JOIN {settings.DB_SCHEMA}.backtest_metrics bm ON bm.run_id = br.id
+            FROM backtest_runs br
+            LEFT JOIN backtest_metrics bm ON bm.run_id = br.id
             WHERE {where_robot}
               {status_filter}
               {broker_filter}
@@ -6459,11 +6459,11 @@ class RobotService:
         header = db.execute(
             text(f"""
                 SELECT br.robot_id, br.user_id, br.status, br.started_at
-                FROM {settings.DB_SCHEMA}.backtest_runs br
+                FROM backtest_runs br
                 WHERE br.id = :run_id
                 LIMIT 1
             """),
-            {"run_id": run_id},
+            {"run_id": run_id}
         ).first()
         if not header:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Прогон не найден")
@@ -6515,7 +6515,7 @@ class RobotService:
             db.execute(
                 text(
                     f"""
-                    UPDATE {settings.DB_SCHEMA}.backtest_runs
+                    UPDATE backtest_runs
                     SET cancel_requested = true,
                         status = 'CANCELLED',
                         partial_result = true,
@@ -6524,7 +6524,7 @@ class RobotService:
                     WHERE id = :rid AND status = 'QUEUED'
                     """
                 ),
-                {"rid": run_id, "ft": ts_fin},
+                {"rid": run_id, "ft": ts_fin}
             )
             out_status, out_phase = "CANCELLED", "cancelled"
         elif st in ("RUNNING", "FETCHING") and stale_running:
@@ -6532,7 +6532,7 @@ class RobotService:
             db.execute(
                 text(
                     f"""
-                    UPDATE {settings.DB_SCHEMA}.backtest_runs
+                    UPDATE backtest_runs
                     SET cancel_requested = true,
                         status = 'CANCELLED',
                         partial_result = true,
@@ -6541,7 +6541,7 @@ class RobotService:
                     WHERE id = :rid AND status IN ('RUNNING', 'FETCHING')
                     """
                 ),
-                {"rid": run_id, "ft": ts_fin},
+                {"rid": run_id, "ft": ts_fin}
             )
             out_status, out_phase = "CANCELLED", "cancelled"
         elif st in ("RUNNING", "FETCHING"):
@@ -6549,7 +6549,7 @@ class RobotService:
             db.execute(
                 text(
                     f"""
-                    UPDATE {settings.DB_SCHEMA}.backtest_runs
+                    UPDATE backtest_runs
                     SET cancel_requested = true,
                         status = 'CANCELLED',
                         partial_result = true,
@@ -6558,15 +6558,15 @@ class RobotService:
                     WHERE id = :rid AND status IN ('RUNNING', 'FETCHING')
                     """
                 ),
-                {"rid": run_id, "ft": ts_fin},
+                {"rid": run_id, "ft": ts_fin}
             )
             out_status, out_phase = "CANCELLED", "cancelled"
         else:
             db.execute(
                 text(
-                    f"UPDATE {settings.DB_SCHEMA}.backtest_runs SET cancel_requested = true WHERE id = :rid"
+                    f"UPDATE backtest_runs SET cancel_requested = true WHERE id = :rid"
                 ),
-                {"rid": run_id},
+                {"rid": run_id}
             )
             out_status = st if st else None
             out_phase = None
@@ -6583,16 +6583,16 @@ class RobotService:
     async def get_active_backtest_run(self, db: Session, user_id: int) -> Optional[Dict[str, Any]]:
         row = db.execute(
             text(f"""
-                SELECT br.id FROM {settings.DB_SCHEMA}.backtest_runs br
+                SELECT br.id FROM backtest_runs br
                 WHERE br.status IN ('RUNNING','QUEUED','FETCHING')
                   AND (
                         br.user_id = :uid
-                        OR br.robot_id IN (SELECT id FROM {settings.DB_SCHEMA}.robots WHERE user_id = :uid)
+                        OR br.robot_id IN (SELECT id FROM robots WHERE user_id = :uid)
                       )
                 ORDER BY br.started_at DESC NULLS LAST, br.id DESC
                 LIMIT 1
             """),
-            {"uid": user_id},
+            {"uid": user_id}
         ).scalar()
         if not row:
             return None
@@ -6602,7 +6602,7 @@ class RobotService:
             self,
             db: Session,
             run_id: int,
-            user_id: int,
+            user_id: int
     ) -> Dict[str, Any]:
         """Лёгкий статус прогона для опроса (без signals/orders/snapshots)."""
         from app.modules.robots.backtest_progress import phase_label_ru
@@ -6640,11 +6640,11 @@ class RobotService:
                     br.trade_dates_remaining,
                     br.cancel_requested,
                     br.error_message
-                FROM {settings.DB_SCHEMA}.backtest_runs br
+                FROM backtest_runs br
                 WHERE br.id = :run_id
                 LIMIT 1
             """),
-                {"run_id": run_id},
+                {"run_id": run_id}
             ).first()
 
         header = _fetch_header()
@@ -6725,7 +6725,7 @@ class RobotService:
             self,
             db: Session,
             run_id: int,
-            user_id: int,
+            user_id: int
     ) -> Dict[str, Any]:
         header = db.execute(
             text(f"""
@@ -6755,12 +6755,12 @@ class RobotService:
                     br.eta_confidence,
                     br.phase_units_done,
                     br.phase_units_total
-                FROM {settings.DB_SCHEMA}.backtest_runs br
-                LEFT JOIN {settings.DB_SCHEMA}.backtest_metrics bm ON bm.run_id = br.id
+                FROM backtest_runs br
+                LEFT JOIN backtest_metrics bm ON bm.run_id = br.id
                 WHERE br.id = :run_id
                 LIMIT 1
             """),
-            {"run_id": run_id},
+            {"run_id": run_id}
         ).first()
         if not header:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Прогон не найден")
@@ -6790,37 +6790,37 @@ class RobotService:
         signals_rows = db.execute(
             text(f"""
                 SELECT id, signal_time, figi, signal_type, price, was_executed, payload
-                FROM {settings.DB_SCHEMA}.backtest_signals
+                FROM backtest_signals
                 WHERE run_id = :run_id
                 ORDER BY id ASC
             """),
-            {"run_id": run_id},
+            {"run_id": run_id}
         ).fetchall()
         orders_rows = db.execute(
             text(f"""
                 SELECT id, signal_time, figi, side, status, quantity, requested_price, executed_price, slippage_pct, commission, tax, pnl_net, payload
-                FROM {settings.DB_SCHEMA}.backtest_orders
+                FROM backtest_orders
                 WHERE run_id = :run_id
                 ORDER BY id ASC
             """),
-            {"run_id": run_id},
+            {"run_id": run_id}
         ).fetchall()
         portfolio_rows = db.execute(
             text(f"""
                 SELECT id, snapshot_time, cash_balance, equity, positions_payload
-                FROM {settings.DB_SCHEMA}.backtest_portfolio_snapshots
+                FROM backtest_portfolio_snapshots
                 WHERE run_id = :run_id
                 ORDER BY snapshot_time ASC
             """),
-            {"run_id": run_id},
+            {"run_id": run_id}
         ).fetchall()
         decisions_rows = db.execute(
             text(f"""
                 SELECT trade_date, result
-                FROM {settings.DB_SCHEMA}.backtest_decisions
+                FROM backtest_decisions
                 WHERE run_id = :run_id
             """),
-            {"run_id": run_id},
+            {"run_id": run_id}
         ).fetchall()
 
         payload_obj = header[13] or {}
@@ -6931,7 +6931,7 @@ class RobotService:
             base_run_id: int,
             compare_run_id: int,
             user_id: int,
-            name: Optional[str] = None,
+            name: Optional[str] = None
     ) -> Dict[str, Any]:
         def _run_header(run_id: int):
             row = db.execute(
@@ -6939,13 +6939,13 @@ class RobotService:
                     f"""
                     SELECT br.id, br.robot_id, br.requested_from, br.requested_to, br.config_snapshot,
                            bm.total_return_percent, bm.max_drawdown_percent, bm.final_equity, bm.trades_total, bm.win_rate_percent
-                    FROM {settings.DB_SCHEMA}.backtest_runs br
-                    LEFT JOIN {settings.DB_SCHEMA}.backtest_metrics bm ON bm.run_id = br.id
+                    FROM backtest_runs br
+                    LEFT JOIN backtest_metrics bm ON bm.run_id = br.id
                     WHERE br.id=:run_id
                     LIMIT 1
                     """
                 ),
-                {"run_id": run_id},
+                {"run_id": run_id}
             ).first()
             if not row:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Прогон {run_id} не найден")
@@ -6998,7 +6998,7 @@ class RobotService:
             db.execute(
                 text(
                     """
-                    INSERT INTO backtest.backtest_comparisons
+                    INSERT INTO backtest_comparisons
                     (name, base_run_id, compare_run_id, config_diff)
                     VALUES (:name, :base_run_id, :compare_run_id, CAST(:config_diff AS jsonb))
                     RETURNING id
@@ -7009,7 +7009,7 @@ class RobotService:
                     "base_run_id": base_run_id,
                     "compare_run_id": compare_run_id,
                     "config_diff": json.dumps(cfg_diff, ensure_ascii=False),
-                },
+                }
             ).scalar()
             or 0
         )
@@ -7031,22 +7031,22 @@ class RobotService:
             db: Session,
             user_id: int,
             limit: int = 30,
-            offset: int = 0,
+            offset: int = 0
     ) -> Dict[str, Any]:
         total = int(
             db.execute(
                 text(
                     f"""
                     SELECT COUNT(*)
-                    FROM backtest.backtest_comparisons c
-                    JOIN {settings.DB_SCHEMA}.backtest_runs b ON b.id = c.base_run_id
-                    JOIN {settings.DB_SCHEMA}.backtest_runs r ON r.id = c.compare_run_id
-                    JOIN {settings.DB_SCHEMA}.robots rb ON rb.id = b.robot_id
-                    JOIN {settings.DB_SCHEMA}.robots rr ON rr.id = r.robot_id
+                    FROM backtest_comparisons c
+                    JOIN backtest_runs b ON b.id = c.base_run_id
+                    JOIN backtest_runs r ON r.id = c.compare_run_id
+                    JOIN robots rb ON rb.id = b.robot_id
+                    JOIN robots rr ON rr.id = r.robot_id
                     WHERE rb.user_id = :user_id AND rr.user_id = :user_id
                     """
                 ),
-                {"user_id": user_id},
+                {"user_id": user_id}
             ).scalar()
             or 0
         )
@@ -7054,17 +7054,17 @@ class RobotService:
             text(
                 f"""
                 SELECT c.id, c.name, c.base_run_id, c.compare_run_id, c.config_diff, c.created_at
-                FROM backtest.backtest_comparisons c
-                JOIN {settings.DB_SCHEMA}.backtest_runs b ON b.id = c.base_run_id
-                JOIN {settings.DB_SCHEMA}.backtest_runs r ON r.id = c.compare_run_id
-                JOIN {settings.DB_SCHEMA}.robots rb ON rb.id = b.robot_id
-                JOIN {settings.DB_SCHEMA}.robots rr ON rr.id = r.robot_id
+                FROM backtest_comparisons c
+                JOIN backtest_runs b ON b.id = c.base_run_id
+                JOIN backtest_runs r ON r.id = c.compare_run_id
+                JOIN robots rb ON rb.id = b.robot_id
+                JOIN robots rr ON rr.id = r.robot_id
                 WHERE rb.user_id = :user_id AND rr.user_id = :user_id
                 ORDER BY c.created_at DESC
                 LIMIT :limit OFFSET :offset
                 """
             ),
-            {"user_id": user_id, "limit": limit, "offset": offset},
+            {"user_id": user_id, "limit": limit, "offset": offset}
         ).fetchall()
         items = [
             {
@@ -7083,24 +7083,24 @@ class RobotService:
             self,
             db: Session,
             comparison_id: int,
-            user_id: int,
+            user_id: int
     ) -> Dict[str, Any]:
         row = db.execute(
             text(
                 f"""
                 SELECT c.id, c.name, c.base_run_id, c.compare_run_id
-                FROM backtest.backtest_comparisons c
-                JOIN {settings.DB_SCHEMA}.backtest_runs b ON b.id = c.base_run_id
-                JOIN {settings.DB_SCHEMA}.backtest_runs r ON r.id = c.compare_run_id
-                JOIN {settings.DB_SCHEMA}.robots rb ON rb.id = b.robot_id
-                JOIN {settings.DB_SCHEMA}.robots rr ON rr.id = r.robot_id
+                FROM backtest_comparisons c
+                JOIN backtest_runs b ON b.id = c.base_run_id
+                JOIN backtest_runs r ON r.id = c.compare_run_id
+                JOIN robots rb ON rb.id = b.robot_id
+                JOIN robots rr ON rr.id = r.robot_id
                 WHERE c.id = :comparison_id
                   AND rb.user_id = :user_id
                   AND rr.user_id = :user_id
                 LIMIT 1
                 """
             ),
-            {"comparison_id": comparison_id, "user_id": user_id},
+            {"comparison_id": comparison_id, "user_id": user_id}
         ).first()
         if not row:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сравнение не найдено")
@@ -7109,7 +7109,7 @@ class RobotService:
             base_run_id=int(row[2]),
             compare_run_id=int(row[3]),
             user_id=user_id,
-            name=str(row[1] or f"cmp-{comparison_id}"),
+            name=str(row[1] or f"cmp-{comparison_id}")
         )
 
     async def run_backtest(self, request: schemas.BacktestRequest) -> Dict[str, Any]:
@@ -7160,7 +7160,7 @@ class RobotService:
                 schemas.BacktestRequest(
                     returns=test,
                     initial_capital=request.initial_capital,
-                    fee_bps=request.fee_bps,
+                    fee_bps=request.fee_bps
                 )
             )
             folds.append({
@@ -7227,12 +7227,12 @@ class RobotService:
             validated = validate_robot_config(
                 robot_type=2,
                 raw=config or {},
-                broker_type=str((config or {}).get("broker_type") or "tinvest"),
+                broker_type=str((config or {}).get("broker_type") or "tinvest")
             )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Некорректный config: {e}",
+                detail=f"Некорректный config: {e}"
             )
 
         broker = str(validated.broker_type or "").lower()
@@ -7245,7 +7245,7 @@ class RobotService:
         if not is_supported_live_broker(normalize_broker_type(broker)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"broker_type '{broker}' не поддерживается",
+                detail=f"broker_type '{broker}' не поддерживается"
             )
 
         config.clear()

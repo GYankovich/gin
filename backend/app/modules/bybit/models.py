@@ -19,10 +19,9 @@ class BybitFundingHistory(Base):
             "symbol",
             "funding_time",
             "instrument_category",
-            name="uq_bybit_funding_history_symbol_time_category",
+            name="uq_bybit_funding_history_symbol_time_category"
         ),
-        Index("idx_bybit_funding_history_symbol_time", "symbol", "funding_time"),
-        {"schema": SCHEMA},
+        Index("idx_bybit_funding_history_symbol_time", "symbol", "funding_time")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -40,10 +39,9 @@ class BybitOpenInterestHistory(Base):
             "symbol",
             "snapshot_time",
             "instrument_category",
-            name="uq_bybit_oi_history_symbol_time_category",
+            name="uq_bybit_oi_history_symbol_time_category"
         ),
-        Index("idx_bybit_oi_history_symbol_time", "symbol", "snapshot_time"),
-        {"schema": SCHEMA},
+        Index("idx_bybit_oi_history_symbol_time", "symbol", "snapshot_time")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -61,10 +59,9 @@ class BybitLsrHistory(Base):
             "symbol",
             "snapshot_time",
             "instrument_category",
-            name="uq_bybit_lsr_history_symbol_time_category",
+            name="uq_bybit_lsr_history_symbol_time_category"
         ),
-        Index("idx_bybit_lsr_history_symbol_time", "symbol", "snapshot_time"),
-        {"schema": SCHEMA},
+        Index("idx_bybit_lsr_history_symbol_time", "symbol", "snapshot_time")
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)

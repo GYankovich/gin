@@ -47,20 +47,19 @@ def upgrade():
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
 
         # Foreign keys
-        sa.ForeignKeyConstraint(['robot_id'], [f'{SCHEMA}.robots.id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['strategy_id'], [f'{SCHEMA}.robot_strategies.id'], ondelete='SET NULL'),
-        schema=SCHEMA,
+        sa.ForeignKeyConstraint(['robot_id'], [f'robots.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['strategy_id'], [f'robot_strategies.id'], ondelete='SET NULL')
     )
 
     # Индексы для быстрого поиска
-    op.create_index('ix_robot_logs_robot_id_1', 'robot_execution_logs', ['robot_id'], schema=SCHEMA)
-    op.create_index('ix_robot_logs_created_at_1', 'robot_execution_logs', ['created_at'], schema=SCHEMA)
-    op.create_index('ix_robot_logs_status_1', 'robot_execution_logs', ['status'], schema=SCHEMA)
-    op.create_index('ix_robot_logs_action_type_1', 'robot_execution_logs', ['action_type'], schema=SCHEMA)
+    op.create_index('ix_robot_logs_robot_id_1', 'robot_execution_logs', ['robot_id'])
+    op.create_index('ix_robot_logs_created_at_1', 'robot_execution_logs', ['created_at'])
+    op.create_index('ix_robot_logs_status_1', 'robot_execution_logs', ['status'])
+    op.create_index('ix_robot_logs_action_type_1', 'robot_execution_logs', ['action_type'])
 
     print("✅ Table 'robot_execution_logs' created successfully.")
 
 
 def downgrade():
-    op.drop_table('robot_execution_logs', schema=SCHEMA)
+    op.drop_table('robot_execution_logs')
     print("✅ Table 'robot_execution_logs' dropped.")

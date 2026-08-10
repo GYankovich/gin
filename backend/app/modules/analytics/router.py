@@ -74,12 +74,12 @@ def get_account_detail(
 @router.get("/robots/trading-overview", response_model=schemas.UserRobotsTradingOverview)
 def get_user_robots_trading_overview(
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(get_current_user)
 ):
     """Агрегированные метрики по сделкам всех роботов пользователя."""
     from app.core.config import settings
     return analytics_service.get_user_robots_trading_overview(
-        db, user_id=current_user.id, schema=settings.DB_SCHEMA,
+        db, user_id=current_user.id, schema=settings.DB_SCHEMA
     )
 
 
@@ -97,7 +97,7 @@ def get_robot_metrics(
         robot_id=robot_id,
         recent_limit=recent_limit,
         schema=settings.DB_SCHEMA,
-        user_id=current_user.id,
+        user_id=current_user.id
     )
     if not result:
         raise HTTPException(status_code=404, detail="Robot not found")
@@ -138,7 +138,8 @@ def get_account_history(
         db,
         account_id,
         days=days,
-        interval=interval
+        interval=interval,
+        order="desc",
     )
 
     return {
@@ -153,7 +154,7 @@ def get_account_history(
 def get_snapshots_by_period(
         body: schemas.AnalyticsRangeRequest,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(get_current_user)
 ):
     account = analytics_service.check_account_ownership(db, body.account_id, current_user.id)
     if not account:
@@ -163,6 +164,7 @@ def get_snapshots_by_period(
         body.account_id,
         from_date=body.from_date,
         to_date=body.to_date,
+        order="desc",
     )
     return {
         "account_id": body.account_id,
@@ -176,7 +178,7 @@ def get_snapshots_by_period(
 def get_operations_by_period(
         body: schemas.AnalyticsOperationsRequest,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(get_current_user)
 ):
     items = analytics_service.get_account_operations(
         db=db,
@@ -184,14 +186,14 @@ def get_operations_by_period(
         user_id=current_user.id,
         from_date=body.from_date,
         to_date=body.to_date,
-        operation_type=body.operation_type,
+        operation_type=body.operation_type
     )
     return schemas.AnalyticsOperationsResponse(
         account_id=body.account_id,
         from_date=body.from_date,
         to_date=body.to_date,
         total=len(items),
-        items=[schemas.AnalyticsOperationsItem(**x) for x in items],
+        items=[schemas.AnalyticsOperationsItem(**x) for x in items]
     )
 
 
@@ -199,14 +201,14 @@ def get_operations_by_period(
 def get_account_statistics(
         body: schemas.AnalyticsRangeRequest,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(get_current_user)
 ):
     stats = analytics_service.get_account_statistics(
         db=db,
         account_id=body.account_id,
         user_id=current_user.id,
         from_date=body.from_date,
-        to_date=body.to_date,
+        to_date=body.to_date
     )
     if not stats:
         raise HTTPException(status_code=404, detail="Account not found")
@@ -217,14 +219,14 @@ def get_account_statistics(
 async def get_account_statistics_extended(
         body: schemas.AnalyticsRangeRequest,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(get_current_user)
 ):
     stats = await analytics_service.get_account_statistics_extended(
         db=db,
         account_id=body.account_id,
         user_id=current_user.id,
         from_date=body.from_date,
-        to_date=body.to_date,
+        to_date=body.to_date
     )
     if not stats:
         raise HTTPException(status_code=404, detail="Account not found")
@@ -235,7 +237,7 @@ async def get_account_statistics_extended(
 def get_account_chart_series(
         body: schemas.AnalyticsChartSeriesRequest,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(get_current_user)
 ):
     result = analytics_service.get_account_chart_series(
         db=db,
@@ -243,7 +245,7 @@ def get_account_chart_series(
         user_id=current_user.id,
         from_date=body.from_date,
         to_date=body.to_date,
-        figis=body.figis or [],
+        figis=body.figis or []
     )
     if not result:
         raise HTTPException(status_code=404, detail="Account not found")
@@ -254,7 +256,7 @@ def get_account_chart_series(
 async def sync_operations(
         body: schemas.AnalyticsSyncOperationsRequest,
         db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user),
+        current_user: User = Depends(get_current_user)
 ):
     result = await tinvest_service.sync_account_operations(
         db=db,
@@ -263,6 +265,6 @@ async def sync_operations(
         from_dt=body.from_date,
         to_dt=body.to_date,
         state=body.state,
-        token_id=body.tokenId,
+        token_id=body.tokenId
     )
     return {"success": True, "data": result}

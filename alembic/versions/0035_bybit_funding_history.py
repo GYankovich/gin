@@ -21,7 +21,7 @@ def upgrade() -> None:
     op.execute(
         sa.text(
             f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA}.bybit_funding_history (
+            CREATE TABLE IF NOT EXISTS bybit_funding_history (
                 id BIGSERIAL PRIMARY KEY,
                 symbol VARCHAR(32) NOT NULL,
                 funding_time TIMESTAMPTZ NOT NULL,
@@ -36,7 +36,7 @@ def upgrade() -> None:
         sa.text(
             f"""
             CREATE UNIQUE INDEX IF NOT EXISTS uq_bybit_funding_history_symbol_time_category
-            ON {SCHEMA}.bybit_funding_history(symbol, funding_time, instrument_category)
+            ON bybit_funding_history(symbol, funding_time, instrument_category)
             """
         )
     )
@@ -44,11 +44,11 @@ def upgrade() -> None:
         sa.text(
             f"""
             CREATE INDEX IF NOT EXISTS idx_bybit_funding_history_symbol_time
-            ON {SCHEMA}.bybit_funding_history(symbol, funding_time)
+            ON bybit_funding_history(symbol, funding_time)
             """
         )
     )
 
 
 def downgrade() -> None:
-    op.execute(sa.text(f"DROP TABLE IF EXISTS {SCHEMA}.bybit_funding_history"))
+    op.execute(sa.text(f"DROP TABLE IF EXISTS bybit_funding_history"))

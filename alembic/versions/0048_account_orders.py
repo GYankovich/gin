@@ -21,12 +21,12 @@ def upgrade() -> None:
     op.execute(
         sa.text(
             f"""
-            CREATE TABLE IF NOT EXISTS {SCHEMA}.account_orders (
+            CREATE TABLE IF NOT EXISTS account_orders (
                 id bigserial PRIMARY KEY,
                 portfolio_account_id bigint NOT NULL
-                    REFERENCES {SCHEMA}.portfolio_accounts(id) ON DELETE CASCADE,
+                    REFERENCES portfolio_accounts(id) ON DELETE CASCADE,
                 robot_id bigint NULL
-                    REFERENCES {SCHEMA}.robots(id) ON DELETE SET NULL,
+                    REFERENCES robots(id) ON DELETE SET NULL,
                 order_id varchar(120) NULL,
                 client_order_id varchar(120) NULL,
                 figi varchar(32) NOT NULL,
@@ -47,7 +47,7 @@ def upgrade() -> None:
         sa.text(
             f"""
             CREATE UNIQUE INDEX IF NOT EXISTS uq_account_orders_account_order_id
-            ON {SCHEMA}.account_orders (portfolio_account_id, order_id)
+            ON account_orders (portfolio_account_id, order_id)
             WHERE order_id IS NOT NULL
             """
         )
@@ -56,7 +56,7 @@ def upgrade() -> None:
         sa.text(
             f"""
             CREATE INDEX IF NOT EXISTS ix_account_orders_account_status
-            ON {SCHEMA}.account_orders (portfolio_account_id, status)
+            ON account_orders (portfolio_account_id, status)
             """
         )
     )
@@ -64,7 +64,7 @@ def upgrade() -> None:
         sa.text(
             f"""
             CREATE INDEX IF NOT EXISTS ix_account_orders_account_created
-            ON {SCHEMA}.account_orders (portfolio_account_id, created_at DESC)
+            ON account_orders (portfolio_account_id, created_at DESC)
             """
         )
     )
@@ -72,7 +72,7 @@ def upgrade() -> None:
         sa.text(
             f"""
             CREATE INDEX IF NOT EXISTS ix_account_orders_robot_created
-            ON {SCHEMA}.account_orders (robot_id, created_at DESC)
+            ON account_orders (robot_id, created_at DESC)
             """
         )
     )
@@ -81,7 +81,7 @@ def upgrade() -> None:
     op.execute(
         sa.text(
             f"""
-            INSERT INTO {SCHEMA}.account_orders (
+            INSERT INTO account_orders (
                 portfolio_account_id, robot_id, order_id, figi, side, quantity, price,
                 filled_quantity, avg_fill_price, status, order_type, created_at, updated_at
             )
@@ -98,23 +98,23 @@ def upgrade() -> None:
                 rt.status,
                 CASE
                     WHEN EXISTS (
-                        SELECT 1 FROM {SCHEMA}.robot_order_events e
+                        SELECT 1 FROM robot_order_events e
                         WHERE e.trade_id = rt.id AND e.event_type = 'manual'
                     ) THEN 'manual'
                     ELSE 'robot'
                 END AS order_type,
                 rt.created_at,
                 COALESCE(rt.updated_at, rt.created_at)
-            FROM {SCHEMA}.robot_trades rt
-            JOIN {SCHEMA}.robots r ON r.id = rt.robot_id
-            JOIN {SCHEMA}.portfolio_accounts pa
+            FROM robot_trades rt
+            JOIN robots r ON r.id = rt.robot_id
+            JOIN portfolio_accounts pa
               ON pa.user_id = r.user_id
              AND pa.account_id = NULLIF(btrim(COALESCE(r.config->>'account_id', '')), '')
             WHERE rt.order_id IS NOT NULL
               AND btrim(rt.order_id) <> ''
               AND lower(rt.order_id) NOT LIKE 'broker_import:%%'
               AND NOT EXISTS (
-                  SELECT 1 FROM {SCHEMA}.account_orders ao
+                  SELECT 1 FROM account_orders ao
                   WHERE ao.portfolio_account_id = pa.id
                     AND ao.order_id = rt.order_id
               )
@@ -124,8 +124,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(sa.text(f"DROP INDEX IF EXISTS {SCHEMA}.ix_account_orders_robot_created"))
-    op.execute(sa.text(f"DROP INDEX IF EXISTS {SCHEMA}.ix_account_orders_account_created"))
-    op.execute(sa.text(f"DROP INDEX IF EXISTS {SCHEMA}.ix_account_orders_account_status"))
-    op.execute(sa.text(f"DROP INDEX IF EXISTS {SCHEMA}.uq_account_orders_account_order_id"))
-    op.execute(sa.text(f"DROP TABLE IF EXISTS {SCHEMA}.account_orders"))
+    op.execute(sa.text(f"DROP INDEX IF EXISTS ix_account_orders_robot_created"))
+    op.execute(sa.text(f"DROP INDEX IF EXISTS ix_account_orders_account_created"))
+    op.execute(sa.text(f"DROP INDEX IF EXISTS ix_account_orders_account_status"))
+    op.execute(sa.text(f"DROP INDEX IF EXISTS uq_account_orders_account_order_id"))
+    op.execute(sa.text(f"DROP TABLE IF EXISTS account_orders"))

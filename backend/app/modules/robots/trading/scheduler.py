@@ -18,7 +18,7 @@ from app.core.scheduler_utils import scheduler_startup_delay
 from app.core.background_jobs.repository import (
     enqueue_background_job,
     fail_stale_live_session_jobs,
-    has_active_job,
+    has_active_job
 )
 from app.core.background_jobs.worker import LANE_HEAVY
 from app.modules.robots.trading.runtime import get_trading_orchestrator
@@ -85,7 +85,7 @@ class TradingScheduler:
         try:
             from app.modules.robots.trading.brokers.routing import (
                 BrokerTokenMismatchError,
-                enforce_broker_for_token,
+                enforce_broker_for_token
             )
 
             cfg = dict(robot.get("config") or {})
@@ -94,13 +94,13 @@ class TradingScheduler:
                     cfg,
                     token_type=robot.get("token_type"),
                     mutate=True,
-                    require_token=True,
+                    require_token=True
                 )
             except (BrokerTokenMismatchError, ValueError) as exc:
                 system_log.error(
                     "❌ Робот %s: отказ запуска — broker/token mismatch: %s",
                     robot_id,
-                    exc,
+                    exc
                 )
                 return
 
@@ -114,13 +114,13 @@ class TradingScheduler:
                 db=None,
                 log_func=log_func,
                 token_extra_data=robot.get("token_extra_data"),
-                token_type=robot.get("token_type"),
+                token_type=robot.get("token_type")
             )
             system_log.info(
                 "✅ Сессия робота %s завершена: %s (broker=%s)",
                 robot_id,
                 result.get("status", "unknown"),
-                broker_type,
+                broker_type
             )
 
         except asyncio.CancelledError:
@@ -136,13 +136,13 @@ class TradingScheduler:
             try:
                 n_stale = fail_stale_live_session_jobs(
                     db,
-                    stale_seconds=int(settings.LIVE_SESSION_STALE_SECONDS),
+                    stale_seconds=int(settings.LIVE_SESSION_STALE_SECONDS)
                 )
                 if n_stale:
                     db.commit()
                     system_log.warning(
                         "Сброшено %s зависших live_trading_session (нет heartbeat)",
-                        n_stale,
+                        n_stale
                     )
             except Exception as exc:
                 db.rollback()
@@ -166,7 +166,7 @@ class TradingScheduler:
                     system_log.info(
                         "⏭️ Робот %s: вне окна robot_schedules (broker=%s)",
                         robot_id,
-                        (robot.get("config") or {}).get("broker_type"),
+                        (robot.get("config") or {}).get("broker_type")
                     )
                     continue
 
@@ -180,14 +180,14 @@ class TradingScheduler:
                     lane=LANE_HEAVY,
                     job_type="live_trading_session",
                     payload=robot,
-                    idempotency_key=idempotency_key,
+                    idempotency_key=idempotency_key
                 )
                 if job_id:
                     enqueued += 1
                     system_log.info(
                         "🔄 В очередь heavy: live session robot_id=%s job_id=%s",
                         robot_id,
-                        job_id,
+                        job_id
                     )
 
             if enqueued or skipped or skipped_schedule:
@@ -195,7 +195,7 @@ class TradingScheduler:
                     "Торговая очередь: enqueued=%s, skipped_active=%s, skipped_schedule=%s",
                     enqueued,
                     skipped,
-                    skipped_schedule,
+                    skipped_schedule
                 )
             db.commit()
 
@@ -275,7 +275,7 @@ class TradingScheduler:
                 lane=LANE_HEAVY,
                 job_type="live_trading_session",
                 payload=robot,
-                idempotency_key=idempotency_key,
+                idempotency_key=idempotency_key
             )
             db.commit()
             system_log.info(f"🔧 Принудительная постановка в очередь robot_id={robot_id} job_id={job_id}")

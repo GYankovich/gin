@@ -102,8 +102,8 @@ async def create_acceptance_robot(*, user_id: int, token_id: int, name: str) -> 
                 poll_interval_hours=0.05,
                 trading_hours_start="00:00",
                 trading_hours_end="23:59",
-                allowed_weekdays=127,
-            ),
+                allowed_weekdays=127
+            )
         )
         return robot
     finally:
@@ -122,7 +122,7 @@ async def run_backtest(*, robot_id: int, user_id: int, days: int) -> dict[str, A
             from_date=from_dt,
             to_date=to_dt,
             initial_capital=1000.0,
-            async_execution=True,
+            async_execution=True
         )
         payload = await robot_service.run_robot_history_backtest(db, user_id, req)
         if not isinstance(payload, dict) or not payload.get("__async_enqueue__"):
@@ -134,12 +134,12 @@ async def run_backtest(*, robot_id: int, user_id: int, days: int) -> dict[str, A
                 f"""
                 SELECT br.id, br.status, br.run_phase, br.error_message,
                        bm.total_return_percent, bm.trades_total
-                FROM {settings.DB_SCHEMA}.backtest_runs br
-                LEFT JOIN {settings.DB_SCHEMA}.backtest_metrics bm ON bm.run_id = br.id
+                FROM backtest_runs br
+                LEFT JOIN backtest_metrics bm ON bm.run_id = br.id
                 WHERE br.id = :rid
                 """
             ),
-            {"rid": run_id},
+            {"rid": run_id}
         ).mappings().first()
         out = dict(row) if row else {"run_id": run_id}
         out["phase"] = "backtest"
@@ -156,12 +156,12 @@ async def run_live_single_cycle(*, robot_id: int, user_id: int) -> dict[str, Any
             text(
                 f"""
                 SELECT r.id, r.user_id, r.token_id, r.config, at.token, at.extra_data
-                FROM {settings.DB_SCHEMA}.robots r
-                JOIN {settings.DB_SCHEMA}.api_tokens at ON r.token_id = at.id
+                FROM robots r
+                JOIN api_tokens at ON r.token_id = at.id
                 WHERE r.id = :rid AND r.user_id = :uid
                 """
             ),
-            {"rid": robot_id, "uid": user_id},
+            {"rid": robot_id, "uid": user_id}
         ).mappings().first()
         if not row:
             raise SystemExit(f"robot_id={robot_id} not found")
@@ -182,7 +182,7 @@ async def run_live_single_cycle(*, robot_id: int, user_id: int) -> dict[str, Any
             token=str(row["token"] or ""),
             config=config,
             log_func=log_func,
-            token_extra_data=extra,
+            token_extra_data=extra
         )
         session.running = True
         out: dict[str, Any] = {"phase": "live_cycle", "robot_id": robot_id, "ok": False}
@@ -205,7 +205,7 @@ async def run_live_single_cycle(*, robot_id: int, user_id: int) -> dict[str, Any
                 session.allowed_figis,
                 session.strategy_params,
                 log_func=session._write_log,
-                api_log_func=session._log_api_call,
+                api_log_func=session._log_api_call
             )
             await run_single_trading_cycle(session, 1)
             out["ok"] = session.stats.get("errors", 0) == 0
@@ -224,7 +224,7 @@ async def run_live_single_cycle(*, robot_id: int, user_id: int) -> dict[str, Any
                         f"Acceptance single cycle. Signals: {session.stats.get('signals_generated', 0)}, "
                         f"Orders: {session.stats.get('orders_placed', 0)}"
                     ),
-                    execution_time_ms=int(session.stats.get("execution_time", 0) or 0),
+                    execution_time_ms=int(session.stats.get("execution_time", 0) or 0)
                 )
             db.commit()
     finally:
@@ -246,7 +246,7 @@ async def main_async(args: argparse.Namespace) -> int:
         robot = await create_acceptance_robot(
             user_id=int(args.user_id),
             token_id=int(args.token_id),
-            name=name,
+            name=name
         )
         robot_id = int(robot["id"])
         user_id = int(args.user_id)
@@ -258,7 +258,7 @@ async def main_async(args: argparse.Namespace) -> int:
         results["backtest"] = await run_backtest(
             robot_id=robot_id,
             user_id=user_id,
-            days=int(args.days),
+            days=int(args.days)
         )
         print(json.dumps(results["backtest"], ensure_ascii=False, indent=2, default=str))
 

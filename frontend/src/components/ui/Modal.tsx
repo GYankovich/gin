@@ -6,7 +6,7 @@ import React, { useEffect, useCallback } from 'react'
 interface ModalProps {
     open: boolean
     onClose: () => void
-    title?: string
+    title?: React.ReactNode
     width?: string
     className?: string
     children: React.ReactNode

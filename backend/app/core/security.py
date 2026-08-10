@@ -95,7 +95,7 @@ def _jwt_ttl_minutes(db: Session) -> int:
         return _jwt_ttl_cache_value
     try:
         ttl_raw = db.execute(
-            text(f"SELECT value FROM {settings.DB_SCHEMA}.app_config WHERE key = 'jwt_ttl_minutes' LIMIT 1")
+            text(f"SELECT value FROM app_config WHERE key = 'jwt_ttl_minutes' LIMIT 1")
         ).scalar()
     except SQLAlchemyError as exc:
         try_dispose_pool_on_connectivity_error(exc)
@@ -135,7 +135,7 @@ def resolve_session_user_id(db: Session, token: str, *, slide: bool = False) -> 
             text(
                 f"""
                 SELECT id, user_id, expires_at
-                FROM {settings.DB_SCHEMA}.user_token
+                FROM user_token
                 WHERE token = :token AND status = 1
                 LIMIT 1
                 """
@@ -150,7 +150,7 @@ def resolve_session_user_id(db: Session, token: str, *, slide: bool = False) -> 
             db.execute(
                 text(
                     f"""
-                    UPDATE {settings.DB_SCHEMA}.user_token
+                    UPDATE user_token
                     SET status = 3, invalidated_at = :now
                     WHERE id = :id
                     """
@@ -163,7 +163,7 @@ def resolve_session_user_id(db: Session, token: str, *, slide: bool = False) -> 
         if slide:
             next_expire = now + timedelta(minutes=ttl_minutes)
             db.execute(
-                text(f"UPDATE {settings.DB_SCHEMA}.user_token SET expires_at = :exp WHERE id = :id"),
+                text(f"UPDATE user_token SET expires_at = :exp WHERE id = :id"),
                 {"id": token_row[0], "exp": next_expire},
             )
             db.commit()

@@ -33,19 +33,17 @@ def upgrade():
         sa.Column('usercre', sa.BigInteger(), nullable=True),
         sa.Column('date_creation', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
         sa.Column('usermod', sa.BigInteger(), nullable=True),
-        sa.Column('date_modification', sa.DateTime(timezone=True), nullable=True),
-
-        schema=SCHEMA,
+        sa.Column('date_modification', sa.DateTime(timezone=True), nullable=True)
     )
 
-    op.create_index('ix_robot_configs_type', 'robot_configs', ['robot_type'], schema=SCHEMA)
-    op.create_index('ix_robot_configs_key', 'robot_configs', ['config_key'], schema=SCHEMA)
+    op.create_index('ix_robot_configs_type', 'robot_configs', ['robot_type'])
+    op.create_index('ix_robot_configs_key', 'robot_configs', ['config_key'])
 
     # Добавляем конфигурации для разных типов роботов
 
     # Для робота обновления портфеля (type = 1)
     op.execute(f"""
-        INSERT INTO {SCHEMA}.robot_configs 
+        INSERT INTO robot_configs 
             (robot_type, config_key, config_value, description, is_required)
         VALUES 
             (1, 'refresh_interval', '{{"type": "integer", "default": 60, "min": 5, "max": 1440, "label": "Интервал обновления (мин)"}}', 'Частота обновления портфеля', 1),
@@ -54,7 +52,7 @@ def upgrade():
 
     # Для торгового робота (type = 2)
     op.execute(f"""
-        INSERT INTO {SCHEMA}.robot_configs 
+        INSERT INTO robot_configs 
             (robot_type, config_key, config_value, description, is_required)
         VALUES 
             (2, 'strategy_name', '{{"type": "string", "default": "ma_cross", "enum": ["ma_cross"], "label": "Стратегия"}}', 'Торговая стратегия', 1),
@@ -66,4 +64,4 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_table('robot_configs', schema=SCHEMA)
+    op.drop_table('robot_configs')

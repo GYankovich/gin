@@ -20,10 +20,9 @@ depends_on = None
 def upgrade() -> None:
     op.add_column(
         "portfolio_accounts",
-        sa.Column("dashboard_hidden", sa.Integer(), nullable=False, server_default="0"),
-        schema=SCHEMA,
+        sa.Column("dashboard_hidden", sa.Integer(), nullable=False, server_default="0")
     )
 
 
 def downgrade() -> None:
-    op.drop_column("portfolio_accounts", "dashboard_hidden", schema=SCHEMA)
+    op.drop_column("portfolio_accounts", "dashboard_hidden")

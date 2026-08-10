@@ -289,10 +289,9 @@ class DatabaseLogger:
             SELECT id, robot_name, endpoint, request_data, response_data,
                    started_at, finished_at, duration_ms, success, 
                    response_status, error_message
-            FROM {}.robot_logs
+            FROM robot_logs
             WHERE id = :log_id
-        """.format(self.schema)
-
+        """
         result = self.db.execute(text(query), {"log_id": log_id}).first()
 
         if not result:

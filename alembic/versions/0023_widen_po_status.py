@@ -26,10 +26,9 @@ def upgrade():
     op.alter_column(
         "portfolio_operations",
         "status",
-        schema=SCHEMA,
         existing_type=sa.String(20),
         type_=sa.String(128),
-        existing_nullable=False,
+        existing_nullable=False
     )
 
 
@@ -37,8 +36,7 @@ def downgrade():
     op.alter_column(
         "portfolio_operations",
         "status",
-        schema=SCHEMA,
         existing_type=sa.String(128),
         type_=sa.String(20),
-        existing_nullable=False,
+        existing_nullable=False
     )

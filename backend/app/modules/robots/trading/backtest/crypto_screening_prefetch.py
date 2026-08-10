@@ -42,7 +42,7 @@ def _cancel_checker(run_id: int) -> Callable[[], bool]:
                 text(
                     f"""
                     SELECT cancel_requested
-                    FROM {settings.DB_SCHEMA}.backtest_runs
+                    FROM backtest_runs
                     WHERE id = :rid
                     LIMIT 1
                     """
@@ -134,7 +134,7 @@ async def schedule_crypto_screening_prefetch(
     db.execute(
         text(
             f"""
-            UPDATE {settings.DB_SCHEMA}.backtest_runs
+            UPDATE backtest_runs
             SET run_phase = :phase,
                 phase_units_done = 0,
                 phase_units_total = :units,
@@ -242,7 +242,7 @@ async def run_crypto_screening_prefetch(payload: Dict[str, Any]) -> None:
             text(
                 f"""
                 SELECT status, cancel_requested, config_snapshot, started_at
-                FROM {settings.DB_SCHEMA}.backtest_runs
+                FROM backtest_runs
                 WHERE id = :rid AND user_id = :uid
                 LIMIT 1
                 """

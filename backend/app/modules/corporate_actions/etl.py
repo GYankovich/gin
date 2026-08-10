@@ -12,43 +12,11 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.scheduler_utils import scheduler_startup_delay
 from app.modules.moex.http_gate import moex_http_acquire
 
 logger = logging.getLogger(__name__)
 
 CCI_MAX_PAGES = 150
-
-
-def _bulk_upsert_tqbr_securities(
-    db: Session,
-    schema: str,
-    batch: List[Tuple[str, Optional[str], Optional[str]]],
-) -> int:
-    """Один INSERT … VALUES (…), (…) … ON CONFLICT вместо построчных execute."""
-    if not batch:
-        return 0
-    by_secid: Dict[str, Tuple[str, Optional[str], Optional[str]]] = {}
-    for secid, sn, isin in batch:
-        by_secid[secid] = (secid, sn, isin)
-    rows = list(by_secid.values())
-    parts: List[str] = []
-    params: Dict[str, Any] = {}
-    for i, (secid, sn, isin) in enumerate(rows):
-        parts.append(f"(:secid_{i}, :sn_{i}, :isin_{i}, CURRENT_TIMESTAMP)")
-        params[f"secid_{i}"] = secid
-        params[f"sn_{i}"] = sn
-        params[f"isin_{i}"] = isin
-    sql = f"""
-        INSERT INTO {schema}.tqbr_securities (secid, shortname, isin, updated_at)
-        VALUES {", ".join(parts)}
-        ON CONFLICT (secid) DO UPDATE SET
-            shortname = EXCLUDED.shortname,
-            isin = EXCLUDED.isin,
-            updated_at = CURRENT_TIMESTAMP
-    """
-    db.execute(text(sql), params)
-    return len(rows)
 
 
 CCI_URL = "https://iss.moex.com/iss/cci/corp-actions/dividends.json"
@@ -73,7 +41,7 @@ async def fetch_cci_dividends_page(
         updated_after: Optional[datetime] = None,
         date_from: Optional[date] = None,
         date_to: Optional[date] = None,
-        start: int = 0,
+        start: int = 0
 ) -> Dict[str, Any]:
     params: Dict[str, Any] = {"iss.meta": "off", "start": start}
     if updated_after:
@@ -101,12 +69,12 @@ def upsert_equity_dividend_row(
         amount_per_share: Optional[Decimal],
         currency: Optional[str],
         source_updated_at: Optional[datetime],
-        raw_payload: Dict[str, Any],
+        raw_payload: Dict[str, Any]
 ) -> None:
     schema = settings.DB_SCHEMA
     db.execute(
         text(f"""
-            INSERT INTO {schema}.equity_dividend_events
+            INSERT INTO equity_dividend_events
                 (source, external_corp_action_id, secid, ticker, ex_date,
                  amount_per_share, currency, source_updated_at, raw_payload)
             VALUES
@@ -131,7 +99,7 @@ def upsert_equity_dividend_row(
             "currency": (currency or "")[:12] or None,
             "src_upd": source_updated_at,
             "raw": json.dumps(raw_payload, ensure_ascii=False, default=str),
-        },
+        }
     )
 
 
@@ -168,7 +136,7 @@ def ingest_security_dividends_payload(db: Session, secid: str, payload: Dict[str
                 amount_per_share=amt,
                 currency=cur,
                 source_updated_at=datetime.now(timezone.utc),
-                raw_payload=raw,
+                raw_payload=raw
             )
             n += 1
         except Exception as ex:
@@ -181,9 +149,9 @@ def _securities_dividends_fallback_is_fresh(db: Session, *, schema: str) -> bool
     row = db.execute(
         text(f"""
             SELECT MAX(source_updated_at) AS mx
-            FROM {schema}.equity_dividend_events
+            FROM equity_dividend_events
             WHERE source = 'securities_dividends'
-        """),
+        """)
     ).scalar()
     if row is None or not isinstance(row, datetime):
         return False
@@ -215,7 +183,7 @@ async def sync_dividends_cci_incremental(db: Session) -> Tuple[int, bool]:
     """
     schema = settings.DB_SCHEMA
     row = db.execute(
-        text(f"SELECT MAX(source_updated_at) FROM {schema}.equity_dividend_events WHERE source = 'cci'"),
+        text(f"SELECT MAX(source_updated_at) FROM equity_dividend_events WHERE source = 'cci'")
     ).scalar()
     updated_after = row if isinstance(row, datetime) else None
     written = 0
@@ -272,7 +240,7 @@ async def sync_dividends_cci_incremental(db: Session) -> Tuple[int, bool]:
                         amount_per_share=amt,
                         currency=cur,
                         source_updated_at=src_upd,
-                        raw_payload={"columns": cols, "row": row},
+                        raw_payload={"columns": cols, "row": row}
                     )
                     written += 1
                 except Exception as ex:
@@ -280,7 +248,7 @@ async def sync_dividends_cci_incremental(db: Session) -> Tuple[int, bool]:
             if page_first_key is not None and page_first_key == last_page_first_key:
                 logger.warning(
                     "CCI dividends pagination stuck at start=%s (repeated first row); stopping",
-                    start,
+                    start
                 )
                 break
             last_page_first_key = page_first_key
@@ -306,18 +274,27 @@ async def run_scheduled_dividend_etl(db: Session) -> Dict[str, Any]:
         db.commit()
         return {"source": "cci", "upserted": 0, "detail": "no_new_cci_rows"}
     rows = db.execute(
-        text(f"SELECT secid FROM {schema}.tqbr_securities ORDER BY secid LIMIT 400"),
+        text(
+            """
+            SELECT secid
+            FROM tqbr_securities
+            WHERE primary_board = 'TQBR'
+              AND is_active = true
+            ORDER BY secid
+            LIMIT 400
+            """
+        )
     ).fetchall()
     secids = [str(r[0]) for r in rows if r and r[0]]
     if not secids:
-        logger.warning("tqbr_securities empty; dividend ETL skipped securities fallback")
+        logger.warning("tqbr_securities (TQBR) empty; dividend ETL skipped securities fallback")
         db.commit()
         return {"source": "none", "upserted": 0}
     if _securities_dividends_fallback_is_fresh(db, schema=schema) and not settings.CORP_ACTIONS_FORCE_SECURITIES_DIVIDENDS_SYNC:
         logger.info(
             "securities dividends fallback skipped (last securities_dividends sync < %.1fh; "
             "set CORP_ACTIONS_FORCE_SECURITIES_DIVIDENDS_SYNC=1 to force)",
-            settings.CORP_ACTIONS_SECURITIES_DIVIDENDS_MIN_INTERVAL_HOURS,
+            settings.CORP_ACTIONS_SECURITIES_DIVIDENDS_MIN_INTERVAL_HOURS
         )
         db.commit()
         return {"source": "securities_dividends_skipped", "upserted": 0}
@@ -326,76 +303,12 @@ async def run_scheduled_dividend_etl(db: Session) -> Dict[str, Any]:
     return {"source": "securities_dividends", "upserted": n}
 
 
-TQBR_URL = "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.json"
-
-# Не дергать MOEX на каждый рестарт: полный sync только если таблица пуста/мала или устарела.
-_TQBR_SYNC_MIN_ROWS = 120
-_TQBR_SYNC_MAX_AGE_HOURS = 6.0
-
-
-def _tqbr_reference_is_fresh(db: Session, *, schema: str) -> bool:
-    row = db.execute(
-        text(f"""
-            SELECT COUNT(*)::bigint AS n, MAX(updated_at) AS mx
-            FROM {schema}.tqbr_securities
-        """),
-    ).mappings().first()
-    if not row:
-        return False
-    n = int(row.get("n") or 0)
-    if n < _TQBR_SYNC_MIN_ROWS:
-        return False
-    mx = row.get("mx")
-    if mx is None:
-        return False
-    if not isinstance(mx, datetime):
-        return False
-    if mx.tzinfo is None:
-        mx = mx.replace(tzinfo=timezone.utc)
-    age = datetime.now(timezone.utc) - mx.astimezone(timezone.utc)
-    return age.total_seconds() < _TQBR_SYNC_MAX_AGE_HOURS * 3600
+# Legacy name kept for imports; full sync lives in moex_securities_updater.
 
 
 async def sync_tqbr_securities_reference(db: Session) -> int:
-    """Один запрос к ISS: список бумаг доски TQBR → `ganaly.tqbr_securities`.
+    """Backward-compatible wrapper around shares+bonds MOEX reference sync."""
+    from app.modules.robots.moex_securities_updater.robot import sync_moex_securities_reference
 
-    Доска TQBR целиком умещается в один ответ; параметр `start` для этого URL
-    фактически не режет выборку — старый цикл с пагинацией давал N одинаковых
-    GET и лишние UPSERT.
-    """
-    schema = settings.DB_SCHEMA
-    if _tqbr_reference_is_fresh(db, schema=schema):
-        logger.info(
-            "tqbr_securities: skip MOEX sync (%s+ rows, max(updated_at) < %.1fh)",
-            _TQBR_SYNC_MIN_ROWS,
-            _TQBR_SYNC_MAX_AGE_HOURS,
-        )
-        return 0
-    params = {
-        "iss.meta": "off",
-        "iss.only": "securities",
-        "securities.columns": "SECID,SHORTNAME,ISIN",
-        "securities.limit": 10000,
-    }
-    payload = await _http_get_json(TQBR_URL, params)
-    cols, data = _parse_iss_block(payload, "securities")
-    if not data:
-        return 0
-    idx = {c.upper(): i for i, c in enumerate(cols)}
-    i_id = idx.get("SECID", 0)
-    i_sn = idx.get("SHORTNAME", 1) if "SHORTNAME" in idx else None
-    i_isin = idx.get("ISIN", 2) if "ISIN" in idx else None
-    batch: List[Tuple[str, Optional[str], Optional[str]]] = []
-    for row in data:
-        try:
-            secid = str(row[i_id]).strip().upper()
-            if not secid:
-                continue
-            sn = str(row[i_sn]) if i_sn is not None and i_sn < len(row) else None
-            isin = str(row[i_isin]) if i_isin is not None and i_isin < len(row) else None
-            batch.append((secid, sn, isin))
-        except Exception as ex:
-            logger.debug("tqbr row skip: %s", ex)
-    if not batch:
-        return 0
-    return _bulk_upsert_tqbr_securities(db, schema, batch)
+    summary = await sync_moex_securities_reference(db)
+    return int(summary.get("upserted") or 0)
