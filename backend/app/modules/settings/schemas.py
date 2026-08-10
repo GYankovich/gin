@@ -43,11 +43,13 @@ class ApiKeyResponse(BaseModel):
     created_at: datetime
     masked_token: str
     last_used_at: Optional[datetime] = None
+    last_error: Optional[str] = None
+    last_error_at: Optional[datetime] = None
+    masked_secret: Optional[str] = None
     extra_data: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True
-
 
 
 class ApiKeyDetailResponse(ApiKeyResponse):
@@ -55,6 +57,9 @@ class ApiKeyDetailResponse(ApiKeyResponse):
     updated_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
     last_used_at: Optional[datetime] = None
+    last_error: Optional[str] = None
+    last_error_at: Optional[datetime] = None
+    masked_secret: Optional[str] = None
 
 
 class ApiKeyListResponse(BaseModel):
@@ -97,6 +102,8 @@ class ApiKeyTestRequest(BaseModel):
 class ApiKeyRevealResponse(BaseModel):
     token: str
     masked_token: str
+    token_secret: Optional[str] = None
+    masked_secret: Optional[str] = None
 
 
 class ApiKeyTestResponse(BaseModel):

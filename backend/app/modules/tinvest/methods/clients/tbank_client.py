@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 from app.modules.tinvest.http_client import is_transport_error, post_with_transport_recovery
+from app.modules.tinvest.token_usage import record_api_token_call
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +52,9 @@ class TBankClient:
 
     BASE_URL = "https://invest-public-api.tbank.ru/rest"
 
-    def __init__(self, token: str):
+    def __init__(self, token: str, token_id: Optional[int] = None):
         self.token = token
+        self.token_id = token_id
         self.headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
@@ -69,6 +71,21 @@ class TBankClient:
         """
         Базовый метод для выполнения POST-запросов к API
         """
+        try:
+            result = await self._execute_request(endpoint, data, timeout=timeout)
+        except Exception as e:
+            record_api_token_call(self.token_id, ok=False, error=str(e))
+            raise
+        record_api_token_call(self.token_id, ok=True)
+        return result
+
+    async def _execute_request(
+            self,
+            endpoint: str,
+            data: Optional[Dict] = None,
+            *,
+            timeout: float = 30.0,
+    ) -> Dict[str, Any]:
         url = f"{self.BASE_URL}/{endpoint}"
 
         logger.info(f"Making request to {url}")
@@ -290,8 +307,8 @@ class TBankClient:
 
 
 # ВАЖНО: эта функция должна быть на одном уровне с классом, а не внутри него
-def create_tbank_client(token: str) -> TBankClient:
+def create_tbank_client(token: str, token_id: Optional[int] = None) -> TBankClient:
     """
     Фабрика для создания клиента T-Bank API
     """
-    return TBankClient(token)
+    return TBankClient(token, token_id=token_id)

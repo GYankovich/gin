@@ -5798,7 +5798,11 @@ class RobotService:
                         broker_type,
                         token_str,
                         token_extra_data=token_extra,
-                        robot_config=config
+                        robot_config=config,
+                        user_id=user_id,
+                        token_id=int(token_id) if token_id is not None else None,
+                        context_type="robots_service",
+                        context_ref=str(robot_id),
                     )
                     resolved_account_id = await _resolve_robot_account_id(broker, account_id)
                     if not resolved_account_id:
@@ -6091,7 +6095,11 @@ class RobotService:
             broker_type,
             token_str,
             token_extra_data=token_extra,
-            robot_config=config
+            robot_config=config,
+            user_id=user_id,
+            token_id=token_id,
+            context_type="robots_service",
+            context_ref=str(robot_id),
         )
         account_id = await _resolve_robot_account_id(broker, config.get("account_id"))
         if not account_id:
@@ -6305,7 +6313,11 @@ class RobotService:
             broker_type,
             token_str,
             token_extra_data=token_extra,
-            robot_config=config
+            robot_config=config,
+            user_id=user_id,
+            token_id=int(token_meta["id"]),
+            context_type="robots_service",
+            context_ref=str(robot_id),
         )
         account_id = await _resolve_robot_account_id(broker, config.get("account_id"))
         if not account_id:

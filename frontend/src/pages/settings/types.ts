@@ -10,6 +10,9 @@ export type ApiKeyItem = {
     created_at: string
     masked_token: string
     last_used_at?: string | null
+    last_error?: string | null
+    last_error_at?: string | null
+    masked_secret?: string | null
     extra_data?: Record<string, unknown> | null
 }
 

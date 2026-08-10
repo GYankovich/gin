@@ -62,9 +62,10 @@ class AuthService:
         result = {
             "id": self._safe_int(row[0]),
             "login": self._safe_str(row[1]),
+            "created_at": self._safe_datetime(row[2]) if len(row) > 2 else None,
         }
 
-        idx = 2
+        idx = 3
         if has_email:
             result["email"] = self._safe_str(row[idx], None) if idx < len(row) else None
             idx += 1
@@ -72,6 +73,16 @@ class AuthService:
             result["phone"] = self._safe_str(row[idx], None) if idx < len(row) else None
 
         return result
+
+    @staticmethod
+    def to_user_out(user: dict) -> schemas.UserOut:
+        return schemas.UserOut(
+            id=user["id"],
+            login=user["login"],
+            email=user.get("email"),
+            phone=user.get("phone"),
+            created_at=user.get("created_at"),
+        )
 
     def authenticate_user(self, db: Session, login: str, password: str) -> Optional[dict]:
         """
@@ -100,6 +111,7 @@ class AuthService:
         if user_full:
             user_data["email"] = user_full.get("email")
             user_data["phone"] = user_full.get("phone")
+            user_data["created_at"] = user_full.get("created_at") or user_data.get("created_at")
 
         return user_data
 
@@ -185,7 +197,8 @@ class AuthService:
             "id": user_id,
             "login": user_data.login,
             "email": user_data.email,
-            "phone": user_data.phone
+            "phone": user_data.phone,
+            "created_at": now,
         }
 
     def create_user_token(self, db: Session, user_data: dict) -> schemas.TokenResponse:
@@ -231,12 +244,7 @@ class AuthService:
         )
         db.commit()
 
-        user_out = schemas.UserOut(
-            id=user_data["id"],
-            login=user_data["login"],
-            email=user_data.get("email"),
-            phone=user_data.get("phone"),
-        )
+        user_out = self.to_user_out(user_data)
 
         return schemas.TokenResponse(
             access_token=token,
@@ -354,6 +362,110 @@ class AuthService:
         result = self._execute(check_query, {"token": token}, fetch_one=True)
 
         return bool(result and result[2])  # is_active = True
+
+    def change_user(self, db: Session, user_id: int, data: schemas.UserChange) -> dict:
+        """Изменяет логин/контакты и опционально пароль текущего пользователя."""
+        self.db = db
+        payload = data.model_dump(exclude_unset=True)
+        now = datetime.now(timezone.utc)
+
+        new_login = str(payload.get("login") or "").strip()
+        if len(new_login) < 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Логин должен содержать минимум 2 символа",
+            )
+
+        taken = self._execute(
+            queries.build_check_login_taken_by_other_query(),
+            {"login": new_login, "user_id": user_id},
+            fetch_one=True,
+        )
+        if taken:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Login already taken",
+            )
+
+        self._execute(
+            queries.build_update_login_query(),
+            {"user_id": user_id, "login": new_login},
+        )
+
+        # Email/phone: only UPDATE existing contact rows (no INSERT).
+        email = payload.get("email")
+        if email:
+            self._execute(
+                queries.build_update_user_email_query(),
+                {"user_id": user_id, "email": str(email)},
+            )
+        else:
+            self._execute(
+                queries.build_expire_user_emails_query(),
+                {"user_id": user_id, "now": now},
+            )
+
+        phone = payload.get("phone")
+        if phone:
+            self._execute(
+                queries.build_update_user_phone_query(),
+                {"user_id": user_id, "phone": str(phone)},
+            )
+        else:
+            self._execute(
+                queries.build_expire_user_phones_query(),
+                {"user_id": user_id, "now": now},
+            )
+
+        if payload.get("new_password"):
+            row = self._execute(
+                queries.build_get_user_password_hash_query(),
+                {"user_id": user_id},
+                fetch_one=True,
+            )
+            if not row:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found",
+                )
+
+            password_hash = row[2]
+            current_password = payload.get("current_password") or ""
+            new_password = payload.get("new_password") or ""
+
+            if not verify_password(current_password, password_hash):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Неверный текущий пароль",
+                )
+            if len(new_password) < 3:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Новый пароль должен содержать минимум 3 символа",
+                )
+            if current_password == new_password:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Новый пароль должен отличаться от текущего",
+                )
+
+            self._execute(
+                queries.build_update_password_query(),
+                {
+                    "user_id": user_id,
+                    "password_hash": get_password_hash(new_password),
+                },
+            )
+            logger.info("Password changed for user_id=%s", user_id)
+
+        db.commit()
+        user = self.get_user_by_id_full(db, user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+        return user
 
 
 # Создаем глобальный экземпляр сервиса

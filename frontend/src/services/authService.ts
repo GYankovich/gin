@@ -13,6 +13,7 @@ interface UserOut {
     login: string
     email?: string | null
     phone?: string | null
+    created_at?: string | null
 }
 
 interface TokenResponse {
@@ -35,6 +36,17 @@ export const authService = {
 
     async me(): Promise<UserOut> {
         const { data } = await api.get<UserOut>('/auth/me')
+        return data
+    },
+
+    async changeUser(payload: {
+        login: string
+        email?: string | null
+        phone?: string | null
+        current_password?: string
+        new_password?: string
+    }): Promise<UserOut> {
+        const { data } = await api.post<UserOut>('/users/change', payload)
         return data
     },
 

@@ -7,6 +7,7 @@ from typing import List, Dict, Optional
 from datetime import datetime, timezone, timedelta
 
 from app.modules.tinvest.http_client import post_with_transport_recovery
+from app.modules.tinvest.token_usage import record_api_token_call
 logger = logging.getLogger(__name__)
 
 
@@ -14,8 +15,9 @@ class InstrumentsClient:
     """Клиент для получения данных об инструментах и выставления заявок"""
     BASE_URL = "https://invest-public-api.tbank.ru/rest"
 
-    def __init__(self, token: str):
+    def __init__(self, token: str, token_id: Optional[int] = None):
         self.token = token
+        self.token_id = token_id
         self.headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
@@ -25,25 +27,31 @@ class InstrumentsClient:
         """Базовый POST-запрос к API Т-Банка"""
         url = f"{self.BASE_URL}/{endpoint}"
         try:
-            response = await post_with_transport_recovery(
-                url,
-                headers=self.headers,
-                json=data,
-                timeout=30.0,
-                token=self.token,
-            )
+            try:
+                response = await post_with_transport_recovery(
+                    url,
+                    headers=self.headers,
+                    json=data,
+                    timeout=30.0,
+                    token=self.token,
+                )
+            except Exception as e:
+                raise Exception(f"Network error connecting to T-Bank API: {e}") from e
+            if response.status_code != 200:
+                error_text = (response.text or "").strip()
+                if not error_text:
+                    try:
+                        error_text = str(response.json())
+                    except Exception:
+                        error_text = f"<empty body>, status={response.status_code}"
+                logger.error("T-Bank API error %s: %s", response.status_code, error_text)
+                raise Exception(f"API error [{response.status_code}]: {error_text}")
+            result = response.json()
         except Exception as e:
-            raise Exception(f"Network error connecting to T-Bank API: {e}") from e
-        if response.status_code != 200:
-            error_text = (response.text or "").strip()
-            if not error_text:
-                try:
-                    error_text = str(response.json())
-                except Exception:
-                    error_text = f"<empty body>, status={response.status_code}"
-            logger.error("T-Bank API error %s: %s", response.status_code, error_text)
-            raise Exception(f"API error [{response.status_code}]: {error_text}")
-        return response.json()
+            record_api_token_call(self.token_id, ok=False, error=str(e))
+            raise
+        record_api_token_call(self.token_id, ok=True)
+        return result
 
     async def get_shares(self) -> List[Dict]:
         """Получить список акций"""
@@ -222,7 +230,7 @@ class InstrumentsClient:
     async def get_accounts(self) -> List[Dict]:
         """Получить список счетов (используем существующий метод)"""
         from app.modules.tinvest.methods import create_tbank_client
-        client = create_tbank_client(self.token)
+        client = create_tbank_client(self.token, token_id=self.token_id)
         return await client.get_accounts()
 
     async def get_order_state(self, account_id: str, order_id: str) -> Dict:

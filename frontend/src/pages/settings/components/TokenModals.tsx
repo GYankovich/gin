@@ -112,22 +112,27 @@ export function CreateTokenModal({ open, onClose, onCreated }: Props) {
     }
 
     return (
-        <Modal open={open} onClose={onClose} title="Создать токен" width="480px">
+        <Modal
+            open={open}
+            onClose={onClose}
+            title="Добавить токен"
+            width="520px"
+            className="dashboard-modal"
+        >
             <div className="form-group">
                 <label className="form-label">Тип брокера</label>
-                <div className="cyber-select-wrap">
-                    <Select
-                        options={tokenTypes}
-                        value={newTokenType}
-                        onChange={setNewTokenType}
-                        placeholder="Выберите тип токена"
-                    />
-                </div>
+                <Select
+                    options={tokenTypes}
+                    value={newTokenType}
+                    onChange={setNewTokenType}
+                    placeholder="Выберите тип токена"
+                    size="md"
+                />
             </div>
             <div className="form-group">
                 <label className="form-label">Название</label>
                 <input
-                    className="form-input cyber-input"
+                    className="gin-select__trigger"
                     value={newName}
                     onFocus={suggestName}
                     onChange={e => setNewName(e.target.value)}
@@ -137,7 +142,7 @@ export function CreateTokenModal({ open, onClose, onCreated }: Props) {
             <div className="form-group">
                 <label className="form-label">{bybit ? 'API Key' : 'Токен'}</label>
                 <input
-                    className="form-input cyber-input"
+                    className="gin-select__trigger"
                     value={newToken}
                     onChange={e => setNewToken(e.target.value)}
                     placeholder={bybit ? 'ByBit API Key' : 't.xxx...'}
@@ -148,7 +153,7 @@ export function CreateTokenModal({ open, onClose, onCreated }: Props) {
                 <div className="form-group">
                     <label className="form-label">API Secret</label>
                     <input
-                        className="form-input cyber-input"
+                        className="gin-select__trigger"
                         type="password"
                         value={newTokenSecret}
                         onChange={e => setNewTokenSecret(e.target.value)}
@@ -156,9 +161,6 @@ export function CreateTokenModal({ open, onClose, onCreated }: Props) {
                         autoComplete="new-password"
                     />
                 </div>
-            )}
-            {bybit && (
-                <p className="form-hint">ByBit: только mainnet (production).</p>
             )}
             {testResult && (
                 <div
@@ -168,10 +170,10 @@ export function CreateTokenModal({ open, onClose, onCreated }: Props) {
                     {testResult}
                 </div>
             )}
-            <div className="form-actions">
+            <div className="dashboard-settings-actions settings-token-create-actions">
                 <Button
                     variant="ghost"
-                    size="sm"
+                    className="settings-token-create-actions__test"
                     loading={testing}
                     onClick={handleTest}
                     disabled={!newToken || !newTokenType || (bybit && !newTokenSecret)}
@@ -179,7 +181,6 @@ export function CreateTokenModal({ open, onClose, onCreated }: Props) {
                     Проверить
                 </Button>
                 <Button
-                    variant="primary"
                     loading={saving}
                     onClick={handleSave}
                     disabled={!newName || !newToken || !newTokenType || (bybit && !newTokenSecret)}
@@ -209,7 +210,13 @@ export function DeleteTokenModal({ token, open, loading, onClose, onConfirm }: D
   if (!token) return null
 
   return (
-    <Modal open={open} onClose={onClose} title="Удалить токен?" width="440px">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Удалить токен?"
+      width="520px"
+      className="dashboard-modal"
+    >
       <p className="settings-delete-copy">
         Удалить токен <strong>{token.name || 'API key'}</strong>? Роботы, использующие этот ключ, перестанут работать.
       </p>
@@ -217,7 +224,7 @@ export function DeleteTokenModal({ token, open, loading, onClose, onConfirm }: D
         <input type="checkbox" checked={ack} onChange={e => setAck(e.target.checked)} />
         <span>Я понимаю последствия</span>
       </label>
-      <div className="form-actions">
+      <div className="dashboard-settings-actions">
         <Button variant="ghost" onClick={onClose} disabled={loading}>Отмена</Button>
         <Button variant="danger" loading={loading} disabled={!ack} onClick={onConfirm}>
           Удалить

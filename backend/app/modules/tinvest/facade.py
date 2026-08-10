@@ -20,8 +20,9 @@ logger = get_logger(__name__)
 class TInvestFacade(PriceParsingMixin):
     """Фасад для T-Invest API — чистая обёртка без дефолтных значений"""
 
-    def __init__(self, token: str):
+    def __init__(self, token: str, token_id: Optional[int] = None):
         self._token = token
+        self._token_id = token_id
         self._rest_client = None
         self._instruments_client = None
         self._ws_manager = None
@@ -30,13 +31,13 @@ class TInvestFacade(PriceParsingMixin):
     @property
     def rest(self):
         if self._rest_client is None:
-            self._rest_client = create_tbank_client(self._token)
+            self._rest_client = create_tbank_client(self._token, token_id=self._token_id)
         return self._rest_client
 
     @property
     def instruments(self):
         if self._instruments_client is None:
-            self._instruments_client = InstrumentsClient(self._token)
+            self._instruments_client = InstrumentsClient(self._token, token_id=self._token_id)
         return self._instruments_client
 
     @property

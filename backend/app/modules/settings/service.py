@@ -83,7 +83,7 @@ class ApiKeyService:
 
         # Two shapes:
         # - legacy (create/update RETURNING): [id, name, token_type, status, created_at, refresh_interval_minutes, token, extra_data] -> 0..7
-        # - list (/apikey/data): [id, name, token_type, status, created_at, token, refresh_interval_minutes, extra_data, type_name, type_description, last_used_at, status_name, status_description] -> 0..12
+        # - list (/apikey/data): [id, name, token_type, status, created_at, token, refresh_interval_minutes, extra_data, type_name, type_description, last_used_at, last_error, last_error_at, status_name, status_description] -> 0..14
         is_list_shape = len(row) >= 12
 
         status_val = self._safe_int(row[3]) if len(row) > 3 else 0
@@ -117,15 +117,25 @@ class ApiKeyService:
             result["refresh_interval_minutes"] = self._safe_int(row[6 if is_list_shape else 5], 60)
 
         extra_idx = 7 if is_list_shape else 7
-        if len(row) > extra_idx and isinstance(row[extra_idx], dict):
-            result["extra_data"] = row[extra_idx]
+        raw_extra = row[extra_idx] if len(row) > extra_idx and isinstance(row[extra_idx], dict) else None
+        if isinstance(raw_extra, dict):
+            secret = raw_extra.get("token_secret")
+            if secret:
+                result["masked_secret"] = self._mask_token(secret)
+            # Не отдаём сырой secret в списке ключей.
+            safe_extra = {k: v for k, v in raw_extra.items() if k != "token_secret"}
+            if secret:
+                safe_extra["has_token_secret"] = True
+            result["extra_data"] = safe_extra
         else:
             result["extra_data"] = None
 
         if is_list_shape:
             result["last_used_at"] = self._safe_datetime(row[10])
-            result["status_name"] = self._safe_str(row[11], None)
-            result["status_description"] = self._safe_str(row[12], None)
+            result["last_error"] = self._safe_str(row[11], None) if len(row) > 11 else None
+            result["last_error_at"] = self._safe_datetime(row[12]) if len(row) > 12 else None
+            result["status_name"] = self._safe_str(row[13], None) if len(row) > 13 else None
+            result["status_description"] = self._safe_str(row[14], None) if len(row) > 14 else None
 
             # Небольшой бэкап на случай отсутствия словарных записей.
             if result.get("status") == 3 and not result.get("status_name"):
@@ -152,7 +162,9 @@ class ApiKeyService:
             "updated_at": self._safe_datetime(row[6]) if len(row) > 6 else None,
             "expires_at": self._safe_datetime(row[7]) if len(row) > 7 else None,
             "last_used_at": self._safe_datetime(row[8]) if len(row) > 8 else None,
-            "extra_data": row[9] if len(row) > 9 and isinstance(row[9], dict) else None,
+            "last_error": self._safe_str(row[9], None) if len(row) > 9 else None,
+            "last_error_at": self._safe_datetime(row[10]) if len(row) > 10 else None,
+            "extra_data": row[11] if len(row) > 11 and isinstance(row[11], dict) else None,
         }
 
         result["masked_token"] = self._mask_token(token_value)
@@ -545,11 +557,13 @@ class ApiKeyService:
             token_secret: Optional[str] = None,
             testnet: bool = False,
             account_type: str = "UNIFIED",
+            key_id: Optional[int] = None,
     ) -> Dict[str, Any]:
+        del account_type
         kt = str(key_type or "").strip().lower()
         if kt in {"tinvest", "1"}:
             try:
-                client = create_tbank_client(token)
+                client = create_tbank_client(token, token_id=key_id)
                 accounts = await client.get_accounts()
                 return {
                     "is_valid": bool(accounts),
@@ -570,6 +584,7 @@ class ApiKeyService:
                 token=token,
                 token_secret=token_secret,
                 testnet=testnet,
+                key_id=key_id,
             )
 
         return {
@@ -585,6 +600,7 @@ class ApiKeyService:
             token: str,
             token_secret: Optional[str],
             testnet: bool = False,
+            key_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         del testnet
         if not token_secret:
@@ -600,6 +616,7 @@ class ApiKeyService:
             testnet=False,
             api_key=token,
             api_secret=token_secret,
+            token_id=key_id,
         )
         try:
             await client.query_api()
@@ -626,23 +643,37 @@ class ApiKeyService:
         if not detail:
             return None
         extra = detail.get("extra_data") if isinstance(detail.get("extra_data"), dict) else {}
-        return await self.test_key(
+        result = await self.test_key(
             token=str(detail.get("token") or ""),
             key_type=str(detail.get("key_type") or ""),
             token_secret=extra.get("token_secret"),
             testnet=False,
             account_type=str(extra.get("account_type") or "UNIFIED"),
+            key_id=key_id,
         )
+        if result and result.get("is_valid"):
+            # Успешная проверка → активный статус (в т.ч. после истечения status=3).
+            self.update_key(db, key_id, user_id, status=1)
+            db.commit()
+            logger.info("Key %s reactivated (status=1) after successful test for user %s", key_id, user_id)
+        return result
 
-    def reveal_key_token(self, db: Session, key_id: int, user_id: int) -> Optional[Dict[str, str]]:
+    def reveal_key_token(self, db: Session, key_id: int, user_id: int) -> Optional[Dict[str, Any]]:
         detail = self.get_key_by_id(db, key_id, user_id)
         if not detail:
             return None
         token = str(detail.get("token") or "")
-        return {
+        extra = detail.get("extra_data") if isinstance(detail.get("extra_data"), dict) else {}
+        secret_raw = extra.get("token_secret")
+        secret = str(secret_raw).strip() if secret_raw is not None else ""
+        out: Dict[str, Any] = {
             "token": token,
             "masked_token": self._mask_token(token),
         }
+        if secret:
+            out["token_secret"] = secret
+            out["masked_secret"] = self._mask_token(secret)
+        return out
 
 
 # Создаем экземпляр сервиса

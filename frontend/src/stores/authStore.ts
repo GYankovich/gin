@@ -8,6 +8,7 @@ interface User {
     login: string
     email?: string | null
     phone?: string | null
+    created_at?: string | null
 }
 
 interface AuthState {
@@ -15,6 +16,7 @@ interface AuthState {
     token: string | null
     loginAt: string | null
     setAuth: (user: User, token: string) => void
+    updateUser: (user: User) => void
     logout: () => void
 }
 
@@ -28,6 +30,10 @@ export const useAuthStore = create<AuthState>((set) => ({
         localStorage.setItem('gin-user', JSON.stringify(user))
         localStorage.setItem('gin-login-at', loginAt)
         set({ user, token, loginAt })
+    },
+    updateUser: (user) => {
+        localStorage.setItem('gin-user', JSON.stringify(user))
+        set({ user })
     },
     logout: () => {
         localStorage.removeItem('gin-token')

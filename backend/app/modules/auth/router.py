@@ -14,6 +14,7 @@ from app.core.database import get_db
 from . import schemas, service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+users_router = APIRouter(prefix="/users", tags=["users"])
 
 # Схема для получения токена из заголовка Authorization
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
@@ -93,12 +94,26 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return schemas.UserOut(
-        id=user["id"],
-        login=user["login"],
-        email=user.get("email"),
-        phone=user.get("phone")
-    )
+    return service.auth_service.to_user_out(user)
+
+
+@users_router.post("/change", response_model=schemas.UserOut)
+async def change_user(
+        payload: schemas.UserChange,
+        token: str = Depends(get_token_from_header),
+        db: Session = Depends(get_db),
+):
+    """Изменение email/телефона и/или пароля текущего пользователя."""
+    user = service.auth_service.get_user_from_token(db, token)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    updated = service.auth_service.change_user(db, user["id"], payload)
+    return service.auth_service.to_user_out(updated)
 
 
 @router.post("/logout")

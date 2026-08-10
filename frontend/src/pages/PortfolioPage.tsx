@@ -68,6 +68,7 @@ export default function PortfolioPage() {
     const [chartData, setChartData] = useState<AnalyticsChartSeriesResponse | null>(null)
     const [chartLoading, setChartLoading] = useState(false)
     const [chartMode, setChartMode] = useState<'portfolio' | 'instruments'>('portfolio')
+    const [chartSectionOpen, setChartSectionOpen] = useState(false)
     const [selectedFigis, setSelectedFigis] = useState<string[]>([])
     const [crosshairValue, setCrosshairValue] = useState<{ time: string; value: number; delta: number | null; deltaPct: number | null } | null>(null)
     const chartApiRef = useRef<IChartApi | null>(null)
@@ -593,11 +594,27 @@ export default function PortfolioPage() {
         </div>
     )
 
+    const papersToggle = (
+        <Toggle
+            checked={chartMode === 'instruments'}
+            onChange={(on) => {
+                setChartMode(on ? 'instruments' : 'portfolio')
+                if (isMobile) setChartSectionOpen(true)
+            }}
+            label={isMobile ? 'бумаги' : 'Посмотреть бумаги'}
+        />
+    )
+
     const chartBody = (
         <>
-            <div className={`portfolio-chart-header${isMobile ? ' portfolio-chart-header--mobile' : ''}`}>
-                {!isMobile && <h3 className="dashboard-panel-title">Стоимость портфеля</h3>}
-            </div>
+            {!isMobile && (
+                <div className="portfolio-chart-header">
+                    <h3 className="dashboard-panel-title">Стоимость портфеля</h3>
+                    <div className="portfolio-chart-header__controls">
+                        {papersToggle}
+                    </div>
+                </div>
+            )}
             {chartMode === 'portfolio' && crosshairValue && (
                 <div className="mono portfolio-crosshair-main">
                     {formatPortfolioMoney(crosshairValue.value, accountCurrency, 0)}
@@ -631,8 +648,8 @@ export default function PortfolioPage() {
                     key={`${selectedAccountId}-${fromDate}-${toDate}-${chartMode}-${selectedFigis.join(',')}`}
                 />
             )}
-            <div className="portfolio-chart-midbar">
-                {chartMode === 'instruments' && (
+            {chartMode === 'instruments' && (
+                <div className="portfolio-chart-midbar">
                     <Button
                         type="button"
                         variant="ghost"
@@ -643,13 +660,8 @@ export default function PortfolioPage() {
                     >
                         {allInstrumentsSelected ? 'Снять все' : 'Выделить все'}
                     </Button>
-                )}
-                <Toggle
-                    checked={chartMode === 'instruments'}
-                    onChange={(on) => setChartMode(on ? 'instruments' : 'portfolio')}
-                    label="Посмотреть бумаги"
-                />
-            </div>
+                </div>
+            )}
             {chartMode === 'instruments' && (
                 <div className="portfolio-legend">
                     {instrumentLegendItems.map((s) => {
@@ -777,6 +789,9 @@ export default function PortfolioPage() {
                     <CollapsibleSection
                         className="dashboard-assets-collapse"
                         title="Стоимость портфеля "
+                        headerEnd={papersToggle}
+                        open={chartSectionOpen}
+                        onOpenChange={setChartSectionOpen}
                         defaultOpen={false}
                     >
                         {chartBody}

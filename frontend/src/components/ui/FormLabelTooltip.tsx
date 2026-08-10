@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import React from 'react'
+import { Tooltip } from '@/components/ui/Tooltip'
 
 type Props = {
     text: string
@@ -31,71 +31,11 @@ function SquareQuestionIcon() {
     )
 }
 
+/** Dashboard/settings hint mark — thin wrapper over shared Tooltip. */
 export function FormLabelTooltip({ text }: Props) {
-    const tipId = useId()
-    const triggerRef = useRef<HTMLSpanElement>(null)
-    const [open, setOpen] = useState(false)
-    const [pos, setPos] = useState({ top: 0, left: 0 })
-
-    const updatePos = useCallback(() => {
-        const el = triggerRef.current
-        if (!el) return
-        const r = el.getBoundingClientRect()
-        const pad = 8
-        const maxW = Math.min(280, window.innerWidth - pad * 2)
-        let left = r.left
-        if (left + maxW > window.innerWidth - pad) {
-            left = Math.max(pad, window.innerWidth - pad - maxW)
-        }
-        setPos({ top: r.bottom + 8, left })
-    }, [])
-
-    const show = useCallback(() => {
-        updatePos()
-        setOpen(true)
-    }, [updatePos])
-
-    const hide = useCallback(() => setOpen(false), [])
-
-    useEffect(() => {
-        if (!open) return
-        const onScrollOrResize = () => updatePos()
-        window.addEventListener('scroll', onScrollOrResize, true)
-        window.addEventListener('resize', onScrollOrResize)
-        return () => {
-            window.removeEventListener('scroll', onScrollOrResize, true)
-            window.removeEventListener('resize', onScrollOrResize)
-        }
-    }, [open, updatePos])
-
     return (
-        <>
-            <span
-                ref={triggerRef}
-                className="form-label-tooltip"
-                tabIndex={0}
-                role="note"
-                aria-label={text}
-                aria-describedby={open ? tipId : undefined}
-                onMouseEnter={show}
-                onMouseLeave={hide}
-                onFocus={show}
-                onBlur={hide}
-            >
-                <SquareQuestionIcon />
-            </span>
-            {open &&
-                createPortal(
-                    <span
-                        id={tipId}
-                        className="form-label-tooltip__bubble"
-                        role="tooltip"
-                        style={{ top: pos.top, left: pos.left }}
-                    >
-                        {text}
-                    </span>,
-                    document.body,
-                )}
-        </>
+        <Tooltip text={text}>
+            <SquareQuestionIcon />
+        </Tooltip>
     )
 }

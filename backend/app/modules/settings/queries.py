@@ -100,6 +100,8 @@ def build_get_user_keys_query(
                         d.name as type_name,
                         d.description as type_description,
                         a.last_used_at,
+                        a.last_error,
+                        a.last_error_at,
                         ds.name as status_name,
                         ds.description as status_description
                  FROM api_tokens a
@@ -142,6 +144,8 @@ def build_get_key_by_id_query() -> str:
                updated_at,
                expires_at,
                last_used_at,
+               last_error,
+               last_error_at,
                extra_data
            FROM api_tokens
            WHERE id = :key_id AND user_id = :user_id \
@@ -202,11 +206,14 @@ def build_deactivate_key_query() -> str:
 
 
 def build_update_last_used_query() -> str:
-    """Обновление времени последнего использования"""
+    """Обновление времени последнего внешнего использования (успех — без ошибки)."""
     return """
            UPDATE api_tokens
-           SET last_used_at = :now
-           WHERE id = :key_id \
+           SET last_used_at = :now,
+               last_error = NULL,
+               last_error_at = NULL,
+               updated_at = :now
+           WHERE id = :key_id
            """
 
 

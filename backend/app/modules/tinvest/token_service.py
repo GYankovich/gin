@@ -66,8 +66,6 @@ class TokenService:
             token = utils.safe_str(result[0])
             token_id = utils.safe_int(result[1])
 
-            await self.update_last_used(db, token_id)
-
             return token
 
         return None
@@ -81,7 +79,6 @@ class TokenService:
         if result:
             token = utils.safe_str(result[0])
             token_id = utils.safe_int(result[1])
-            await self.update_last_used(db, token_id)
             return {"id": token_id, "token": token}
 
         return None

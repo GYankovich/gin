@@ -9,6 +9,8 @@ type Props = {
     defaultOpen?: boolean
     open?: boolean
     onOpenChange?: (open: boolean) => void
+    /** Держать children в DOM при закрытии (модалки/состояние в headerEnd). */
+    keepMounted?: boolean
     children: React.ReactNode
     className?: string
     id?: string
@@ -22,6 +24,7 @@ export function CollapsibleSection({
     defaultOpen = false,
     open: controlledOpen,
     onOpenChange,
+    keepMounted = false,
     children,
     className = '',
     id,
@@ -34,15 +37,25 @@ export function CollapsibleSection({
         onOpenChange?.(next)
     }
 
+    const toggle = () => setOpen(!open)
+    const showBody = open || keepMounted
+
     return (
         <section id={id} className={`collapsible-section ${open ? 'collapsible-section--open' : ''} ${className}`.trim()}>
-            <div className="collapsible-section__toggle">
-                <button
-                    type="button"
-                    className="collapsible-section__toggle-main"
-                    aria-expanded={open}
-                    onClick={() => setOpen(!open)}
-                >
+            <div
+                className="collapsible-section__toggle"
+                role="button"
+                tabIndex={0}
+                aria-expanded={open}
+                onClick={toggle}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        toggle()
+                    }
+                }}
+            >
+                <span className="collapsible-section__toggle-main">
                     <span className="collapsible-section__chevron" aria-hidden>
                         {open ? '▾' : '▸'}
                     </span>
@@ -50,7 +63,7 @@ export function CollapsibleSection({
                         <span className="collapsible-section__title">{title}</span>
                         {badge}
                     </span>
-                </button>
+                </span>
                 {headerEnd != null && (
                     <div
                         className="collapsible-section__header-end"
@@ -62,7 +75,15 @@ export function CollapsibleSection({
                 )}
             </div>
             {hint && !open && <p className="collapsible-section__hint">{hint}</p>}
-            {open && <div className="collapsible-section__body">{children}</div>}
+            {showBody && (
+                <div
+                    className="collapsible-section__body"
+                    hidden={!open}
+                    inert={!open && keepMounted ? true : undefined}
+                >
+                    {children}
+                </div>
+            )}
         </section>
     )
 }

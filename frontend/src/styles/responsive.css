@@ -5,6 +5,111 @@
     display: none;
 }
 
+/* ===== MOBILE DOCK DROPDOWN (shared: dock menu + in-page action menus) ===== */
+.mobile-dock__menu {
+    position: relative;
+}
+
+.mobile-dock__dropdown {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 10px);
+    min-width: 148px;
+    padding: 4px;
+    border-radius: 10px;
+    background: var(--bg-card);
+    border: 1px solid color-mix(in srgb, var(--neon-cyan) 35%, var(--border-subtle));
+    box-shadow:
+        0 0 18px color-mix(in srgb, var(--neon-cyan) 14%, transparent),
+        0 16px 32px rgba(0, 0, 0, 0.45);
+    z-index: var(--z-dropdown);
+    animation: fadeScaleIn var(--transition-fast) ease both;
+}
+
+.mobile-dock__dropdown--below {
+    bottom: auto;
+    top: calc(100% + 10px);
+}
+
+.mobile-dock__dropdown--portaled {
+    position: fixed;
+    top: auto;
+    bottom: auto;
+    right: auto;
+    z-index: var(--z-popover);
+}
+
+.mobile-dock__dropdown button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.35;
+    text-transform: none;
+    text-align: left;
+    cursor: pointer;
+}
+
+.mobile-dock__dropdown button:hover,
+.mobile-dock__dropdown button:focus-visible {
+    background: color-mix(in srgb, var(--neon-cyan) 12%, transparent);
+    color: var(--neon-cyan);
+    outline: none;
+}
+
+.mobile-dock__dropdown button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.mobile-dock__dropdown-alert {
+    color: var(--color-warn) !important;
+    font-family: var(--font-cyber) !important;
+    font-size: var(--text-xs) !important;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1.2;
+}
+
+.mobile-dock__dropdown-item--danger {
+    color: var(--color-down) !important;
+}
+
+.mobile-dock__dropdown-item--danger:hover,
+.mobile-dock__dropdown-item--danger:focus-visible {
+    background: color-mix(in srgb, var(--color-down) 12%, transparent) !important;
+    color: var(--color-down) !important;
+}
+
+.mobile-dock__dropdown-divider {
+    height: 1px;
+    margin: 4px 6px;
+    background: var(--border-subtle);
+}
+
+.mobile-dock__dropdown-icon {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+}
+
+.mobile-dock__dropdown-glyph {
+    width: 14px;
+    font-size: var(--text-sm);
+    line-height: 1;
+    text-align: center;
+    opacity: 0.85;
+}
+
 /* ===== TABLET: 768px – 1279px ===== */
 @media (max-width: 1279px) {
     .main-content {
@@ -551,7 +656,6 @@
     }
 
     .mobile-dock__menu {
-        position: relative;
         flex: 0 0 auto;
         display: flex;
         align-items: center;
@@ -602,71 +706,6 @@
         border-radius: 50%;
         background: var(--color-warn);
         box-shadow: 0 0 8px color-mix(in srgb, var(--color-warn) 70%, transparent);
-    }
-
-    .mobile-dock__dropdown {
-        position: absolute;
-        right: 0;
-        bottom: calc(100% + 10px);
-        min-width: 180px;
-        padding: 6px;
-        border-radius: 12px;
-        background: var(--bg-card);
-        border: 1px solid color-mix(in srgb, var(--neon-cyan) 35%, var(--border-subtle));
-        box-shadow:
-            0 0 18px color-mix(in srgb, var(--neon-cyan) 14%, transparent),
-            0 16px 32px rgba(0, 0, 0, 0.45);
-        z-index: 6;
-        animation: fadeScaleIn var(--transition-fast) ease both;
-    }
-
-    .mobile-dock__dropdown button {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 10px;
-        border: 0;
-        border-radius: 8px;
-        background: transparent;
-        color: var(--text-primary);
-        font-family: var(--font-sans);
-        font-size: var(--text-sm);
-        text-align: left;
-        cursor: pointer;
-    }
-
-    .mobile-dock__dropdown button:hover,
-    .mobile-dock__dropdown button:focus-visible {
-        background: color-mix(in srgb, var(--neon-cyan) 12%, transparent);
-        color: var(--neon-cyan);
-        outline: none;
-    }
-
-    .mobile-dock__dropdown-alert {
-        color: var(--color-warn) !important;
-        font-family: var(--font-cyber) !important;
-        font-size: 0.68rem !important;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-    }
-
-    .mobile-dock__dropdown-divider {
-        height: 1px;
-        margin: 4px 6px;
-        background: var(--border-subtle);
-    }
-
-    .mobile-dock__dropdown-icon {
-        width: 16px;
-        height: 16px;
-        flex: 0 0 auto;
-    }
-
-    .mobile-dock__dropdown-glyph {
-        width: 16px;
-        text-align: center;
-        opacity: 0.85;
     }
 
     .mobile-dock__tooltip {
@@ -991,22 +1030,26 @@
     }
     .dashboard-account-card__name {
         min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        flex: 1 1 auto;
     }
     .dashboard-account-card__open {
         flex-shrink: 0;
         opacity: 0.9;
+        font-size: var(--text-2xl);
+        letter-spacing: 0;
+        text-transform: none;
+        line-height: 1;
+    }
+    .dashboard-account-card__open-label {
+        display: none;
     }
     .dashboard-account-stack {
         gap: var(--space-3);
     }
     .dashboard-account-card__meta-sync {
-        display: flex;
-        flex-direction: row;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
         align-items: baseline;
-        justify-content: space-between;
         gap: var(--space-3);
         padding-top: 0;
         border-top: 0;
@@ -1031,10 +1074,8 @@
         align-items: baseline;
         justify-content: flex-end;
         gap: 0.35em;
-        flex-shrink: 0;
         text-align: right;
         min-width: 0;
-        margin-left: auto;
         font-size: var(--text-xs);
         color: var(--text-muted);
     }

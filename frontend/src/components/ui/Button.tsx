@@ -32,7 +32,7 @@ export function Button({
     return (
         <button className={cls} disabled={disabled || loading} {...rest}>
             {loading && <span className="btn__spinner" />}
-            {children}
+            <span className="btn__content">{children}</span>
         </button>
     )
 }

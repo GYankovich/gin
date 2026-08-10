@@ -2,6 +2,7 @@
 ///@ Исходный модуль `frontend/src/components/ui/Modal.tsx` — автоматическая разметка для Obsidian Source Scanner.
 
 import React, { useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 
 interface ModalProps {
     open: boolean
@@ -30,7 +31,7 @@ export function Modal({ open, onClose, title, width = '560px', className = '', c
 
     if (!open) return null
 
-    return (
+    return createPortal(
         <div className={`modal-backdrop ${className ? `${className}-backdrop` : ''}`.trim()} onClick={onClose}>
             <div
                 className={`modal ${className}`.trim()}
@@ -45,6 +46,7 @@ export function Modal({ open, onClose, title, width = '560px', className = '', c
                 )}
                 <div className="modal__body">{children}</div>
             </div>
-        </div>
+        </div>,
+        document.body,
     )
 }

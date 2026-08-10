@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Bybit">
+  <!-- Official Bybit brand yellow mark -->
+  <rect width="32" height="32" rx="6" fill="#F7A600"/>
+  <path fill="#111111" d="M9.2 9.4h5.1c2.9 0 4.7 1.6 4.7 4 0 1.7-.9 3-2.4 3.6l3 5.6h-3.5l-2.6-5.1H12.4v5.1H9.2V9.4zm3.2 2.4v3.4h1.7c1.3 0 2-.6 2-1.7s-.7-1.7-2-1.7h-1.7z"/>
+</svg>

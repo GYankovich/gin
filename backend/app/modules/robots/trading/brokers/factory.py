@@ -32,7 +32,7 @@ def create_broker_facade(
 ) -> BrokerFacade:
     normalized = normalize_broker_type(broker_type)
     if normalized == "tinvest":
-        return TInvestBrokerFacade(token)
+        return TInvestBrokerFacade(token, token_id=token_id)
     if normalized == "bybit":
         secret = resolve_bybit_api_secret(
             api_secret=api_secret,

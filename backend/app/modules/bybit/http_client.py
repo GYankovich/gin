@@ -13,6 +13,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import SessionLocal
+from app.modules.tinvest.token_usage import record_api_token_call
 from .environment import bybit_use_testnet
 from .signer import BybitSigner
 
@@ -307,6 +308,12 @@ class BybitHttpClient:
                     "success": 1 if success else 0,
                     "error_message": (error_message or "")[:2000] or None,
                 },
+            )
+            record_api_token_call(
+                self._token_id,
+                ok=bool(success),
+                error=error_message,
+                db=db,
             )
             db.commit()
         except Exception:

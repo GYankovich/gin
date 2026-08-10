@@ -15,31 +15,35 @@ const OPTIONS: Array<{ id: ThemePreference; previewClass: string }> = [
 
 export function ThemeSection({ preference, onChange }: Props) {
     return (
-        <div className="settings-theme-picker">
-            <div className="settings-theme-picker__grid" role="radiogroup" aria-label="Тема оформления">
-                {OPTIONS.map(option => {
-                    const selected = preference === option.id
-                    const label = themePreferenceLabel(option.id)
-                    return (
-                        <button
-                            key={option.id}
-                            type="button"
-                            role="radio"
-                            aria-checked={selected}
-                            aria-label={label}
-                            title={label}
-                            className={`theme-preview-card${selected ? ' theme-preview-card--selected' : ''}`}
-                            onClick={() => onChange(option.id)}
-                        >
-                            <div className={`theme-preview-card__mock ${option.previewClass}`} aria-hidden>
-                                <span className="theme-preview-card__bar" />
-                                <span className="theme-preview-card__line" />
-                                <span className="theme-preview-card__line theme-preview-card__line--short" />
-                            </div>
-                        </button>
-                    )
-                })}
-            </div>
+        <div className="settings-theme-picker" role="radiogroup" aria-label="Тема оформления">
+            {OPTIONS.map((option) => {
+                const selected = preference === option.id
+                const label = themePreferenceLabel(option.id)
+                return (
+                    <button
+                        key={option.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        className={`theme-option${selected ? ' theme-option--selected' : ''}`}
+                        onClick={() => onChange(option.id)}
+                    >
+                        <span
+                            className={`theme-option__swatch theme-option__swatch--${option.id}`}
+                            aria-hidden
+                        />
+                        <span className={`theme-option__preview ${option.previewClass}`} aria-hidden>
+                            <span className="theme-preview-card__bar" />
+                            <span className="theme-preview-card__line" />
+                            <span className="theme-preview-card__line theme-preview-card__line--short" />
+                        </span>
+                        <span className="theme-option__copy">
+                            <span className="theme-option__label">{label}</span>
+                            {selected ? <span className="theme-option__badge">выбрано</span> : null}
+                        </span>
+                    </button>
+                )
+            })}
         </div>
     )
 }

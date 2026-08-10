@@ -1,4 +1,4 @@
-import type { ApiKeyItem, BrokerKind, TokenConnectionStatus } from '@/pages/settings/types'
+import type { ApiKeyItem, BrokerKind, TokenConnectionStatus, TokenHealth } from '@/pages/settings/types'
 
 export async function copyText(value: string): Promise<boolean> {
     const text = String(value || '').trim()
@@ -70,10 +70,24 @@ export function connectionStatusLabel(status: TokenConnectionStatus): string {
 
 export function connectionStatusVariant(status: TokenConnectionStatus): 'up' | 'warn' | 'down' | 'neutral' {
     if (status === 'active') return 'up'
-    if (status === 'expired') return 'down'
-    if (status === 'error') return 'warn'
-    if (status === 'inactive') return 'down'
+    if (status === 'expired') return 'warn'
+    if (status === 'error') return 'down'
+    if (status === 'inactive') return 'neutral'
     return 'neutral'
+}
+
+/** Цвет чипа по статусу токена в БД + результату проверки. */
+export function tokenStatusChipVariant(
+    token: ApiKeyItem,
+    health: TokenHealth,
+): 'up' | 'warn' | 'down' | 'neutral' | 'expired' {
+    if (token.status === 3) return 'expired'
+    if (health.status === 'error') return 'down'
+    if (token.status === 1) return 'up'
+    if (token.status === 0) return 'neutral'
+    return connectionStatusVariant(
+        token.status === 1 ? health.status : 'inactive',
+    )
 }
 
 export function sortTokens(tokens: ApiKeyItem[]): ApiKeyItem[] {
@@ -110,6 +124,13 @@ export function formatLoginTime(iso: string | null | undefined): string {
         && date.getDate() === today.getDate()
     const time = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
     return sameDay ? `сегодня ${time}` : `${date.toLocaleDateString('ru-RU')} ${time}`
+}
+
+export function formatProfileDate(iso: string | null | undefined): string {
+    if (!iso) return '—'
+    const date = new Date(iso)
+    if (Number.isNaN(date.getTime())) return '—'
+    return date.toLocaleDateString('ru-RU')
 }
 
 export function tokenCountLabel(count: number): string {

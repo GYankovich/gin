@@ -160,7 +160,7 @@ class TInvestService:
         """
         Получение списка счетов пользователя
         """
-        client = create_tbank_client(token)
+        client = create_tbank_client(token, token_id=token_id)
         try:
             accounts = await client.get_accounts()
         except TBankAuthError as e:
@@ -217,7 +217,7 @@ class TInvestService:
         Получение данных портфеля
         """
         try:
-            client = create_tbank_client(token)
+            client = create_tbank_client(token, token_id=token_id)
 
             # Получаем список счетов
             accounts = await self.get_accounts(
@@ -633,8 +633,7 @@ class TInvestService:
         account_db_id = account_row[0]
         external_account_id = account_row[1]
 
-        client = create_tbank_client(token)
-        api_started = datetime.now(timezone.utc)
+        client = create_tbank_client(token, token_id=effective_token_id)
         request_for_log = {
             "accountId": external_account_id,
             "from": from_dt.isoformat().replace("+00:00", "Z"),

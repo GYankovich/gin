@@ -1,102 +1,88 @@
 import React, { useEffect, useState } from 'react'
-import { Button } from '@/components/ui/Button'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faPlus } from '@fortawesome/free-solid-svg-icons'
+import { Card } from '@/components/ui/Card'
+import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
+import { PageHero } from '@/components/ui/PageHero'
+import { authService } from '@/services/authService'
 import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
-import { SettingsBlock } from '@/pages/settings/components/SettingsBlock'
 import { ProfileSection } from '@/pages/settings/components/ProfileSection'
 import { ThemeSection } from '@/pages/settings/components/ThemeSection'
 import { TokensSection } from '@/pages/settings/components/TokensSection'
-import cyberHero from '@/assets/dashboard/cyber-hero.png'
-
-const ONBOARDING_KEY = 'gin-settings-onboarding-dismissed'
 
 ///@EPIC Frontend.ITEM Settings.TOPIC Profile Tokens Theme [1]
 ///@ Экран пользовательских настроек: профиль, API токены, оформление.
 export default function SettingsPage() {
     const user = useAuthStore(s => s.user)
-    const token = useAuthStore(s => s.token)
     const loginAt = useAuthStore(s => s.loginAt)
+    const updateUser = useAuthStore(s => s.updateUser)
     const { preference, setPreference } = useThemeStore()
     const [createOpen, setCreateOpen] = useState(false)
-    const [showOnboarding, setShowOnboarding] = useState(false)
+    const [tokenCount, setTokenCount] = useState(0)
 
     useEffect(() => {
-        setShowOnboarding(localStorage.getItem(ONBOARDING_KEY) !== '1')
-    }, [])
-
-    const dismissOnboarding = () => {
-        localStorage.setItem(ONBOARDING_KEY, '1')
-        setShowOnboarding(false)
-    }
+        let cancelled = false
+        void authService.me().then((fresh) => {
+            if (!cancelled) updateUser(fresh)
+        }).catch(() => { /* keep cached user */ })
+        return () => { cancelled = true }
+    }, [updateUser])
 
     return (
         <div className="page settings-page" data-page="settings">
-            <header className="settings-hero">
-                <div className="settings-hero__bg" style={{ backgroundImage: `url(${cyberHero})` }} aria-hidden />
-                <div className="settings-hero__veil" aria-hidden />
-                <div className="settings-hero__content">
-                    <p className="settings-hero__eyebrow">GIN // CONTROL NODE</p>
-                    <h1 className="settings-hero__title">
-                        <span className="settings-hero__title-glitch" data-text="НАСТРОЙКИ">НАСТРОЙКИ</span>
-                    </h1>
-                    <p className="settings-hero__sub">Токены · оформление · профиль</p>
-                </div>
-            </header>
+            <PageHero
+                eyebrow="CONTROL NODE"
+                title="НАСТРОЙКИ"
+                subtitle="Профиль · токены · оформление"
+            />
 
-            {showOnboarding && (
-                <div className="settings-onboarding" role="note">
-                    <div>
-                        <strong>API токены</strong> — ключи для подключения роботов к брокерам.
-                        Без них торговые роботы не смогут работать.
-                    </div>
-                    <button type="button" className="settings-onboarding__close" onClick={dismissOnboarding}>
-                        Понятно
-                    </button>
-                </div>
-            )}
+            <div className="dashboard-layout settings-page__stack">
+                <div className="settings-top-grid">
+                    <Card className="dashboard-account-card settings-profile-card">
+                        <ProfileSection
+                            login={user?.login}
+                            email={user?.email}
+                            phone={user?.phone}
+                            createdAt={user?.created_at}
+                            loginAt={loginAt}
+                        />
+                    </Card>
 
-            <div className="settings-page__stack">
-                <SettingsBlock
+                    <Card className="dashboard-assets-card settings-theme-card">
+                        <div className="dashboard-assets-card__head">
+                            <h3 className="dashboard-panel-title">Оформление</h3>
+                        </div>
+                        <ThemeSection preference={preference} onChange={setPreference} />
+                    </Card>
+                </div>
+
+                <CollapsibleSection
                     id="tokens"
-                    title="API токены"
-                    action={(
-                        <Button variant="primary" size="sm" className="settings-block__action" onClick={() => setCreateOpen(true)}>
-                            + Токен
-                        </Button>
+                    className="portfolio-collapse settings-tokens-collapse"
+                    title="API токены "
+                    badge={
+                        <span className="portfolio-collapse__count">{tokenCount}</span>
+                    }
+                    headerEnd={(
+                        <button
+                            type="button"
+                            className="settings-tokens__add"
+                            onClick={() => setCreateOpen(true)}
+                            aria-label="Добавить токен"
+                        >
+                            <FontAwesomeIcon icon={faPlus} className="settings-tokens__add-icon" />
+                        </button>
                     )}
+                    keepMounted
                 >
                     <TokensSection
                         createOpen={createOpen}
                         onCreateOpenChange={setCreateOpen}
+                        onCountChange={setTokenCount}
                     />
-                </SettingsBlock>
-
-                <SettingsBlock id="theme" title="Оформление">
-                    <ThemeSection preference={preference} onChange={setPreference} />
-                </SettingsBlock>
-
-                <SettingsBlock id="profile" title="Профиль" className="settings-block--profile" hideHeader>
-                    <ProfileSection
-                        login={user?.login}
-                        email={user?.email}
-                        phone={user?.phone}
-                        loginAt={loginAt}
-                        sessionActive={Boolean(token)}
-                    />
-                </SettingsBlock>
+                </CollapsibleSection>
             </div>
-
-            <button
-                type="button"
-                className="settings-fab"
-                aria-label="Добавить токен"
-                onClick={() => {
-                    document.getElementById('tokens')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                    setCreateOpen(true)
-                }}
-            >
-                +
-            </button>
         </div>
     )
 }

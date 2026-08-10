@@ -234,6 +234,10 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
                 self.token,
                 token_extra_data=self._token_extra_data,
                 robot_config=self.config if isinstance(self.config, dict) else None,
+                user_id=self.user_id,
+                token_id=self.token_id,
+                context_type="trading_session",
+                context_ref=str(self.robot_id),
             )
         return self._broker
 

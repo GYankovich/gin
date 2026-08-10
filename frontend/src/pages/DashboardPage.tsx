@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -276,9 +276,6 @@ export default function DashboardPage() {
                     ))}
                 </div>
                 <div className="dashboard-settings-actions">
-                    <Button variant="ghost" onClick={() => setSettingsOpen(false)} disabled={savingVisibility}>
-                        Отмена
-                    </Button>
                     <Button onClick={() => void saveVisibility()} loading={savingVisibility}>
                         Сохранить
                     </Button>
@@ -587,6 +584,42 @@ function AccountSection({ row }: { row: DashboardAccountItem }) {
     const title = row.account_name || row.external_account_id
     const openedText = formatAccountOpenedText(row.account_opened)
     const syncText = formatAccountSyncText(row.last_account_sync)
+    const nameWrapRef = useRef<HTMLSpanElement>(null)
+    const nameTextRef = useRef<HTMLSpanElement>(null)
+    const [nameMarquee, setNameMarquee] = useState(false)
+
+    const syncNameMarquee = useCallback(() => {
+        const wrap = nameWrapRef.current
+        const text = nameTextRef.current
+        if (!wrap || !text) {
+            setNameMarquee(false)
+            return
+        }
+        const truncated = text.scrollWidth > wrap.clientWidth + 1
+        if (!truncated) {
+            text.style.removeProperty('--marquee-shift')
+            text.style.removeProperty('--marquee-duration')
+            setNameMarquee(false)
+            return
+        }
+        const shift = wrap.clientWidth - text.scrollWidth
+        const durationSec = Math.min(14, Math.max(3, Math.abs(shift) / 24))
+        text.style.setProperty('--marquee-shift', `${shift}px`)
+        text.style.setProperty('--marquee-duration', `${durationSec}s`)
+        setNameMarquee(true)
+    }, [])
+
+    useEffect(() => {
+        syncNameMarquee()
+        const wrap = nameWrapRef.current
+        if (!wrap || typeof ResizeObserver === 'undefined') {
+            window.addEventListener('resize', syncNameMarquee)
+            return () => window.removeEventListener('resize', syncNameMarquee)
+        }
+        const ro = new ResizeObserver(() => syncNameMarquee())
+        ro.observe(wrap)
+        return () => ro.disconnect()
+    }, [syncNameMarquee, title])
     const s = row.summary
     const d = s.day_over_day_delta
     const dp = s.day_over_day_delta_percent
@@ -605,8 +638,18 @@ function AccountSection({ row }: { row: DashboardAccountItem }) {
         >
             <div className="dashboard-account-card__head">
                 <h2 className="dashboard-account-card__title">
-                    <span className="dashboard-account-card__name">{title}</span>
-                    <span className="dashboard-account-card__open">Открыть →</span>
+                    <span
+                        ref={nameWrapRef}
+                        className={`dashboard-account-card__name${nameMarquee ? ' dashboard-account-card__name--marquee' : ''}`}
+                        title={nameMarquee ? title : undefined}
+                    >
+                        <span ref={nameTextRef} className="dashboard-account-card__name-text">
+                            {title}
+                        </span>
+                    </span>
+                    <span className="dashboard-account-card__open">
+                        <span className="dashboard-account-card__open-label">Открыть </span>→
+                    </span>
                 </h2>
                 <div className="dashboard-account-card__meta-sync">
                     <div className="dashboard-account-card__meta mono">
@@ -768,7 +811,6 @@ function formatAccountSyncText(iso: string | null | undefined): string {
     const time = date.toLocaleTimeString('ru-RU', {
         hour: '2-digit',
         minute: '2-digit',
-        second: '2-digit',
     })
     const startOfDay = (value: Date) =>
         new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime()

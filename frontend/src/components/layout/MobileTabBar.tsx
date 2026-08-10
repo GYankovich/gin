@@ -6,6 +6,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
 import { api } from '@/services/api'
+import { MobileDockDropdown } from '@/components/ui/MobileDockDropdown'
 
 type TabIconProps = { className?: string }
 
@@ -234,7 +235,6 @@ export function MobileTabBar() {
     const hideTimerRef = React.useRef<number | null>(null)
     const suppressNavUntilRef = React.useRef(0)
     const dockRef = React.useRef<HTMLElement | null>(null)
-    const menuRef = React.useRef<HTMLDivElement | null>(null)
 
     const initials = user?.login?.slice(0, 2).toUpperCase() || 'U'
 
@@ -255,30 +255,6 @@ export function MobileTabBar() {
             active = false
         }
     }, [])
-
-    React.useEffect(() => {
-        if (!menuOpen) return
-
-        const onPointerDown = (event: MouseEvent | TouchEvent) => {
-            const root = menuRef.current
-            const target = event.target as Node | null
-            if (root && target && !root.contains(target)) {
-                setMenuOpen(false)
-            }
-        }
-        const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setMenuOpen(false)
-        }
-
-        document.addEventListener('mousedown', onPointerDown)
-        document.addEventListener('touchstart', onPointerDown)
-        document.addEventListener('keydown', onKeyDown)
-        return () => {
-            document.removeEventListener('mousedown', onPointerDown)
-            document.removeEventListener('touchstart', onPointerDown)
-            document.removeEventListener('keydown', onKeyDown)
-        }
-    }, [menuOpen])
 
     const clearHideTimer = React.useCallback(() => {
         if (hideTimerRef.current != null) {
@@ -344,75 +320,49 @@ export function MobileTabBar() {
 
                 <div className="mobile-dock__divider" aria-hidden />
 
-                <div className="mobile-dock__menu" ref={menuRef}>
-                    <button
-                        type="button"
+                <MobileDockDropdown open={menuOpen} onOpenChange={setMenuOpen}>
+                    <MobileDockDropdown.Trigger
                         className={`mobile-dock__avatar ${menuOpen ? 'mobile-dock__avatar--open' : ''} ${hasExpiredToken ? 'mobile-dock__avatar--alert' : ''}`}
                         aria-label="Меню профиля"
-                        aria-haspopup="menu"
-                        aria-expanded={menuOpen}
-                        onClick={() => {
-                            dismissTooltip()
-                            setMenuOpen(open => !open)
-                        }}
+                        onClick={() => dismissTooltip()}
                     >
                         <span className="mobile-dock__avatar-text">{initials}</span>
                         {hasExpiredToken && <span className="mobile-dock__avatar-dot" aria-hidden />}
-                    </button>
+                    </MobileDockDropdown.Trigger>
 
-                    {menuOpen && (
-                        <div className="mobile-dock__dropdown" role="menu">
-                            {hasExpiredToken && (
-                                <button
-                                    type="button"
-                                    role="menuitem"
-                                    className="mobile-dock__dropdown-alert"
-                                    onClick={() => {
-                                        setMenuOpen(false)
-                                        navigate('/settings#tokens')
-                                    }}
-                                >
-                                    Истёкший токен
-                                </button>
-                            )}
-                            <button
-                                type="button"
-                                role="menuitem"
-                                onClick={() => {
-                                    setMenuOpen(false)
-                                    toggle()
-                                }}
+                    <MobileDockDropdown.Panel>
+                        {hasExpiredToken && (
+                            <MobileDockDropdown.Item
+                                variant="alert"
+                                onClick={() => navigate('/settings#tokens')}
                             >
-                                <IconTheme className="mobile-dock__dropdown-icon" />
-                                {theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-                            </button>
-                            <button
-                                type="button"
-                                role="menuitem"
-                                onClick={() => {
-                                    setMenuOpen(false)
-                                    navigate('/settings')
-                                }}
-                            >
-                                <span className="mobile-dock__dropdown-glyph" aria-hidden>⚙</span>
-                                Настройки
-                            </button>
-                            <div className="mobile-dock__dropdown-divider" />
-                            <button
-                                type="button"
-                                role="menuitem"
-                                onClick={() => {
-                                    setMenuOpen(false)
-                                    logout()
-                                    navigate('/login')
-                                }}
-                            >
-                                <span className="mobile-dock__dropdown-glyph" aria-hidden>↩</span>
-                                Выход
-                            </button>
-                        </div>
-                    )}
-                </div>
+                                Истёкший токен
+                            </MobileDockDropdown.Item>
+                        )}
+                        <MobileDockDropdown.Item
+                            icon={<IconTheme className="mobile-dock__dropdown-icon" />}
+                            onClick={() => toggle()}
+                        >
+                            {theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+                        </MobileDockDropdown.Item>
+                        <MobileDockDropdown.Item
+                            icon={<span className="mobile-dock__dropdown-glyph" aria-hidden>⚙</span>}
+                            onClick={() => navigate('/settings')}
+                        >
+                            Настройки
+                        </MobileDockDropdown.Item>
+                        <MobileDockDropdown.Divider />
+                        <MobileDockDropdown.Item
+                            icon={<span className="mobile-dock__dropdown-glyph" aria-hidden>↩</span>}
+                            onClick={() => {
+                                logout()
+                                navigate('/login')
+                            }}
+                        >
+                            Выход
+                        </MobileDockDropdown.Item>
+                    </MobileDockDropdown.Panel>
+                </MobileDockDropdown>
 
                 {tooltip && (
                     <span

@@ -19,9 +19,10 @@ logger = get_logger(__name__)
 class TInvestBrokerFacade(BrokerFacade):
     broker_type = "tinvest"
 
-    def __init__(self, token: str):
+    def __init__(self, token: str, token_id: int | None = None):
         self._token = token
-        self._facade = TInvestFacade(token)
+        self._token_id = token_id
+        self._facade = TInvestFacade(token, token_id=token_id)
 
     @property
     def cache_namespace(self) -> str:

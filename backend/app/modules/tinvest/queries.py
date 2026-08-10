@@ -133,11 +133,14 @@ def build_delete_token_query() -> str:
 
 
 def build_update_last_used_query() -> str:
-    """Обновление времени последнего использования токена"""
+    """Обновление времени последнего внешнего использования (успех — без ошибки)."""
     return """
            UPDATE api_tokens
-           SET last_used_at = :now
-           WHERE id = :token_id \
+           SET last_used_at = :now,
+               last_error = NULL,
+               last_error_at = NULL,
+               updated_at = :now
+           WHERE id = :token_id
            """
 
 

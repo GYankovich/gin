@@ -26,6 +26,23 @@ def build_check_login_exists_query() -> str:
            """
 
 
+def build_check_login_taken_by_other_query() -> str:
+    """Проверяет, занят ли логин другим пользователем"""
+    return """
+           SELECT id FROM "user"
+           WHERE login = :login AND id <> :user_id \
+           """
+
+
+def build_update_login_query() -> str:
+    """Обновляет логин пользователя"""
+    return """
+           UPDATE "user"
+           SET login = :login
+           WHERE id = :user_id \
+           """
+
+
 def build_create_user_query() -> str:
     """Возвращает запрос для создания пользователя"""
     return """
@@ -66,7 +83,8 @@ def build_get_user_by_id_query(include_email: bool = True, include_phone: bool =
     base_query = """
         SELECT
             u.id,
-            u.login
+            u.login,
+            u.created_at
     """
 
     if include_email:
@@ -156,6 +174,84 @@ def build_clean_expired_tokens_query() -> str:
            UPDATE user_token
            SET status = 3, invalidated_at = CURRENT_TIMESTAMP
            WHERE expires_at < CURRENT_TIMESTAMP AND status = 1 \
+           """
+
+
+def build_get_user_password_hash_query() -> str:
+    """Возвращает password_hash пользователя по id"""
+    return """
+           SELECT id, login, password_hash
+           FROM "user"
+           WHERE id = :user_id \
+           """
+
+
+def build_update_password_query() -> str:
+    """Обновляет password_hash пользователя"""
+    return """
+           UPDATE "user"
+           SET password_hash = :password_hash
+           WHERE id = :user_id \
+           """
+
+
+def build_update_user_email_query() -> str:
+    """Обновляет актуальную email-запись пользователя (без INSERT)."""
+    return """
+           UPDATE user_email
+           SET email = :email,
+               is_primary = TRUE,
+               valid_to = NULL
+           WHERE id = (
+               SELECT id FROM (
+                   SELECT id FROM user_email
+                   WHERE user_id = :user_id
+                   ORDER BY CASE WHEN valid_to IS NULL THEN 0 ELSE 1 END,
+                            is_primary DESC,
+                            valid_from DESC
+                   LIMIT 1
+               ) AS pick
+           )
+           """
+
+
+def build_update_user_phone_query() -> str:
+    """Обновляет актуальную phone-запись пользователя (без INSERT)."""
+    return """
+           UPDATE user_phone
+           SET phone = :phone,
+               is_primary = TRUE,
+               valid_to = NULL
+           WHERE id = (
+               SELECT id FROM (
+                   SELECT id FROM user_phone
+                   WHERE user_id = :user_id
+                   ORDER BY CASE WHEN valid_to IS NULL THEN 0 ELSE 1 END,
+                            is_primary DESC,
+                            valid_from DESC
+                   LIMIT 1
+               ) AS pick
+           )
+           """
+
+
+def build_expire_user_emails_query() -> str:
+    """Закрывает активные email-записи пользователя"""
+    return """
+           UPDATE user_email
+           SET valid_to = :now
+           WHERE user_id = :user_id
+             AND (valid_to IS NULL OR valid_to > :now) \
+           """
+
+
+def build_expire_user_phones_query() -> str:
+    """Закрывает активные phone-записи пользователя"""
+    return """
+           UPDATE user_phone
+           SET valid_to = :now
+           WHERE user_id = :user_id
+             AND (valid_to IS NULL OR valid_to > :now) \
            """
 
 

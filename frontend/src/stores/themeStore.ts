@@ -75,5 +75,5 @@ if (typeof window !== 'undefined') {
 export function themePreferenceLabel(preference: ThemePreference): string {
     if (preference === 'dark') return 'Тёмная'
     if (preference === 'light') return 'Светлая'
-    return 'Системная'
+    return 'Авто'
 }

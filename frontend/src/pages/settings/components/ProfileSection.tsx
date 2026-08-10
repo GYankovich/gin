@@ -1,125 +1,94 @@
-import React from 'react'
-
-import { CopyButton } from '@/pages/settings/components/CopyButton'
-
-import { formatLoginTime } from '@/pages/settings/utils'
-
-
+import React, { useState } from 'react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faPencil } from '@fortawesome/free-solid-svg-icons'
+import { useToast } from '@/components/ui/Toast'
+import { EditUserModal } from '@/pages/settings/components/ProfileModals'
+import { useCopyableField } from '@/pages/settings/hooks/useLongPressCopy'
+import { formatLoginTime, formatProfileDate } from '@/pages/settings/utils'
 
 type Props = {
-
     login?: string | null
-
     email?: string | null
-
     phone?: string | null
-
+    createdAt?: string | null
     loginAt?: string | null
-
-    sessionActive: boolean
-
 }
 
-
-
-function InfoRow({
-
+function ProfileRow({
     label,
-
     value,
-
     copyValue,
-
-    index,
-
 }: {
-
     label: string
-
     value: string
-
     copyValue?: string
-
-    index: number
-
 }) {
+    const toast = useToast()
+    const { className: copyClass, ...copyHandlers } = useCopyableField(copyValue, {
+        onCopied: () => toast.show(`${label} скопирован`, 'success'),
+        onFailed: () => toast.show('Не удалось скопировать', 'error'),
+    })
 
     return (
-
-        <div className="settings-profile-field" style={{ animationDelay: `${index * 45}ms` }}>
-
-            <span className="settings-profile-field__label">{label}</span>
-
-            <div className="settings-profile-field__value-wrap">
-
-                <span className="settings-profile-field__value mono">{value || '—'}</span>
-
-                {copyValue && <CopyButton value={copyValue} label={`Скопировать ${label.toLowerCase()}`} />}
-
+        <div className="settings-profile-row">
+            <span className="settings-profile-row__label">{label}</span>
+            <div className="settings-profile-row__value-wrap">
+                {copyValue ? (
+                    <span
+                        className={`settings-profile-row__value mono ${copyClass}`}
+                        {...copyHandlers}
+                    >
+                        {value || '—'}
+                    </span>
+                ) : (
+                    <span className="settings-profile-row__value mono">{value || '—'}</span>
+                )}
             </div>
-
         </div>
-
     )
-
 }
 
-
-
-export function ProfileSection({ login, email, phone, loginAt, sessionActive }: Props) {
-
+export function ProfileSection({ login, email, phone, createdAt, loginAt }: Props) {
+    const [editOpen, setEditOpen] = useState(false)
     const initials = login?.slice(0, 2).toUpperCase() || 'U'
 
-
-
     return (
-
         <div className="settings-profile-panel">
-
-            <div className="settings-profile-panel__hero">
-
-                <div className="settings-profile-panel__avatar-ring">
-
-                    <div className="settings-profile-panel__avatar">{initials}</div>
-
+            <div className="settings-profile-panel__head">
+                <div className="settings-profile-panel__who">
+                    <div className="settings-profile-panel__avatar" aria-hidden>
+                        {initials}
+                    </div>
+                    <div className="settings-profile-panel__identity">
+                        <h2 className="settings-profile-panel__name">{login || 'Пользователь'}</h2>
+                        <span className="settings-profile-panel__login-at mono">
+                            вход {formatLoginTime(loginAt)}
+                        </span>
+                    </div>
                 </div>
-
-                <div className="settings-profile-panel__identity">
-
-                    <div className="settings-profile-panel__name">{login || 'Пользователь'}</div>
-
-                    <span
-
-                        className={`token-chip token-chip--status token-chip--status-${sessionActive ? 'up' : 'neutral'}`}
-
-                    >
-
-                        {sessionActive ? 'Сессия активна' : 'Сессия неактивна'}
-
-                    </span>
-
-                </div>
-
+                <button
+                    type="button"
+                    className="settings-profile-panel__edit"
+                    onClick={() => setEditOpen(true)}
+                    aria-label="Редактировать профиль"
+                >
+                    <FontAwesomeIcon icon={faPencil} className="settings-profile-panel__edit-icon" />
+                </button>
             </div>
 
-
-
-            <div className="settings-profile-panel__fields">
-
-                <InfoRow label="Логин" value={login || '—'} copyValue={login || undefined} index={0} />
-
-                <InfoRow label="Email" value={email || '—'} copyValue={email || undefined} index={1} />
-
-                <InfoRow label="Телефон" value={phone || '—'} copyValue={phone || undefined} index={2} />
-
-                <InfoRow label="Последний вход" value={formatLoginTime(loginAt)} index={3} />
-
+            <div className="settings-profile-rows">
+                <ProfileRow label="Email" value={email || '—'} copyValue={email || undefined} />
+                <ProfileRow label="Телефон" value={phone || '—'} copyValue={phone || undefined} />
+                <ProfileRow label="Создан" value={formatProfileDate(createdAt)} />
             </div>
 
+            <EditUserModal
+                open={editOpen}
+                onClose={() => setEditOpen(false)}
+                login={login}
+                email={email}
+                phone={phone}
+            />
         </div>
-
     )
-
 }
-
-

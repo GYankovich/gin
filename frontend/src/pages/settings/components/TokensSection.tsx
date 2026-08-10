@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button } from '@/components/ui/Button'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faPlus } from '@fortawesome/free-solid-svg-icons'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useToast } from '@/components/ui/Toast'
 import { api } from '@/services/api'
 import { TokenCard } from '@/pages/settings/components/TokenCard'
 import { CreateTokenModal, DeleteTokenModal } from '@/pages/settings/components/TokenModals'
 import type { ApiKeyItem, TokenHealth } from '@/pages/settings/types'
-import { sortTokens, detectBrokerKind, brokerWrapClass, tokenStatusWrapClass } from '@/pages/settings/utils'
+import { sortTokens } from '@/pages/settings/utils'
 
 type Props = {
     createOpen: boolean
@@ -64,6 +65,22 @@ export function TokensSection({ createOpen, onCreateOpenChange, onCountChange }:
                     checkedAt: new Date().toISOString(),
                 },
             }))
+            if (valid) {
+                setTokens(prev =>
+                    prev.map(t =>
+                        t.id === id
+                            ? {
+                                  ...t,
+                                  status: 1,
+                                  status_name: 'Активный',
+                                  status_description: 'Токен активен',
+                                  last_error: null,
+                                  last_error_at: null,
+                              }
+                            : t,
+                    ),
+                )
+            }
             toast.show(
                 valid ? 'Токен работает' : String(data?.message || 'Ошибка подключения'),
                 valid ? 'success' : 'error',
@@ -111,9 +128,14 @@ export function TokensSection({ createOpen, onCreateOpenChange, onCountChange }:
                     <p className="settings-tokens__hint">
                         Токены нужны для подключения роботов к брокерам. Создайте первый ключ.
                     </p>
-                    <Button variant="primary" size="sm" className="robot-create-btn" onClick={() => onCreateOpenChange(true)}>
-                        + Токен
-                    </Button>
+                    <button
+                        type="button"
+                        className="settings-tokens__add"
+                        onClick={() => onCreateOpenChange(true)}
+                        aria-label="Добавить токен"
+                    >
+                        <FontAwesomeIcon icon={faPlus} className="settings-tokens__add-icon" />
+                    </button>
                 </div>
             ) : (
                 <>
@@ -127,9 +149,6 @@ export function TokensSection({ createOpen, onCreateOpenChange, onCountChange }:
                             const health = healthMap[token.id] || {
                                 status: token.status === 1 ? 'unknown' : 'inactive',
                             }
-                            const status =
-                                token.status === 3 ? 'expired' : token.status === 1 ? health.status : 'inactive'
-                            const broker = detectBrokerKind(token)
                             const isTesting = testingId === token.id
                             const isRemoving = removingId === token.id
                             return (
@@ -138,8 +157,6 @@ export function TokensSection({ createOpen, onCreateOpenChange, onCountChange }:
                                     role="listitem"
                                     className={[
                                         'settings-token-wrap',
-                                        brokerWrapClass(broker),
-                                        tokenStatusWrapClass(status),
                                         isTesting ? 'settings-token-wrap--testing' : '',
                                         isRemoving ? 'settings-token-wrap--removing' : '',
                                     ]
