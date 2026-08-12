@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { memo } from 'react'
 
 export type RobotEditorStage = 'general' | 'p1' | 'p2' | 'p3' | 'risk'
 
@@ -67,7 +67,7 @@ function StageIcon({ stage }: { stage: RobotEditorStage }) {
     }
 }
 
-export function PipelineVisualizer({
+function PipelineVisualizerImpl({
     nodes,
     activeStage,
     onStageChange,
@@ -112,3 +112,5 @@ export function PipelineVisualizer({
         </nav>
     )
 }
+
+export const PipelineVisualizer = memo(PipelineVisualizerImpl)

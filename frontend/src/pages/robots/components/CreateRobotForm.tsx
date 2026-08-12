@@ -1,4 +1,4 @@
-import React from 'react'
+﻿import React, { memo, useEffect, useRef, useState } from 'react'
 import { Select } from '@/components/ui/Select'
 import type { ValidationIssue } from '@/pages/robots/robotSettingsValidation'
 
@@ -23,7 +23,7 @@ function fieldIssues(issues: ValidationIssue[] | null | undefined, field: string
     return (issues || []).filter(i => i.field === field)
 }
 
-export function CreateRobotForm({
+function CreateRobotFormImpl({
     name,
     onNameChange,
     tokenId,
@@ -36,14 +36,46 @@ export function CreateRobotForm({
     brokerLabel,
     checkedIssues,
 }: Props) {
+    // Keep keystrokes snappy: paint locally first, then flush to the heavy page tree.
+    const [localName, setLocalName] = useState(name)
+    const localNameRef = useRef(localName)
+    const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    localNameRef.current = localName
+
+    useEffect(() => {
+        setLocalName(name)
+    }, [name])
+
+    useEffect(() => () => {
+        if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
+    }, [])
+
+    const flushName = (value: string) => {
+        if (flushTimerRef.current) {
+            clearTimeout(flushTimerRef.current)
+            flushTimerRef.current = null
+        }
+        onNameChange(value)
+    }
+
+    const handleNameChange = (value: string) => {
+        setLocalName(value)
+        if (flushTimerRef.current) clearTimeout(flushTimerRef.current)
+        flushTimerRef.current = setTimeout(() => {
+            flushTimerRef.current = null
+            onNameChange(value)
+        }, 0)
+    }
+
     return (
         <>
             <div className="form-group">
                 <label className="form-label">Название робота</label>
                 <input
                     className="form-input cyber-input"
-                    value={name}
-                    onChange={e => onNameChange(e.target.value)}
+                    value={localName}
+                    onChange={e => handleNameChange(e.target.value)}
+                    onBlur={() => flushName(localNameRef.current)}
                 />
                 {fieldIssues(checkedIssues, 'name').map(issue => (
                     <p key={issue.id} className="field-inline-error">{issue.message}</p>
@@ -101,3 +133,5 @@ export function CreateRobotForm({
         </>
     )
 }
+
+export const CreateRobotForm = memo(CreateRobotFormImpl)

@@ -30,8 +30,23 @@ class BybitKlineEvent:
     raw: dict[str, Any]
 
 
+@dataclass
+class BybitTradeEvent:
+    symbol: str
+    side: str  # buy | sell
+    price: float
+    size: float
+    turnover: float
+    trade_time_ms: int
+    raw: dict[str, Any]
+
+
 def kline_topic(symbol: str, interval: str) -> str:
     return f"kline.{interval}.{str(symbol).upper()}"
+
+
+def public_trade_topic(symbol: str) -> str:
+    return f"publicTrade.{str(symbol).upper()}"
 
 
 def symbol_from_kline_topic(topic: str) -> str:
@@ -41,6 +56,15 @@ def symbol_from_kline_topic(topic: str) -> str:
         return ""
     prefix = parts[0].lower()
     if prefix not in {"kline", "kline_lt"}:
+        return ""
+    return str(parts[-1]).strip().upper()
+
+
+def symbol_from_public_trade_topic(topic: str) -> str:
+    parts = str(topic or "").strip().split(".")
+    if len(parts) < 2:
+        return ""
+    if parts[0] != "publicTrade":
         return ""
     return str(parts[-1]).strip().upper()
 
@@ -85,8 +109,51 @@ def parse_kline_event(payload: dict[str, Any]) -> list[BybitKlineEvent]:
     return out
 
 
+def parse_public_trade_event(payload: dict[str, Any]) -> list[BybitTradeEvent]:
+    topic = str(payload.get("topic") or "")
+    if not topic.startswith("publicTrade."):
+        return []
+    topic_symbol = symbol_from_public_trade_topic(topic)
+    data = payload.get("data")
+    if isinstance(data, dict):
+        rows = [data]
+    elif isinstance(data, list):
+        rows = [x for x in data if isinstance(x, dict)]
+    else:
+        rows = []
+    out: list[BybitTradeEvent] = []
+    for row in rows:
+        try:
+            row_symbol = str(row.get("s") or row.get("symbol") or "").strip().upper()
+            symbol = row_symbol or topic_symbol
+            if not symbol:
+                continue
+            side_raw = str(row.get("S") or row.get("side") or "").strip().lower()
+            side = "buy" if side_raw.startswith("b") else "sell"
+            price = float(row.get("p") or row.get("price") or 0)
+            size = float(row.get("v") or row.get("size") or 0)
+            turnover = float(row.get("turnover") or 0) or (price * size if price > 0 and size > 0 else 0)
+            trade_time_ms = int(row.get("T") or row.get("tradeTime") or 0)
+            if price <= 0 or size <= 0:
+                continue
+            out.append(
+                BybitTradeEvent(
+                    symbol=symbol,
+                    side=side,
+                    price=price,
+                    size=size,
+                    turnover=turnover,
+                    trade_time_ms=trade_time_ms,
+                    raw=row,
+                )
+            )
+        except Exception:
+            continue
+    return out
+
+
 class BybitWebSocketClient:
-    """Minimal ByBit public WS client for kline stream."""
+    """Minimal ByBit public WS client for kline + publicTrade streams."""
 
     def __init__(
         self,
@@ -128,6 +195,16 @@ class BybitWebSocketClient:
         if not self.connected or self._ws is None:
             await self.connect()
         topics = [kline_topic(symbol, interval) for symbol in symbols if str(symbol or "").strip()]
+        if not topics:
+            return []
+        msg = {"op": "subscribe", "args": topics}
+        await self._ws.send(json.dumps(msg))
+        return topics
+
+    async def subscribe_public_trades(self, *, symbols: Iterable[str]) -> list[str]:
+        if not self.connected or self._ws is None:
+            await self.connect()
+        topics = [public_trade_topic(symbol) for symbol in symbols if str(symbol or "").strip()]
         if not topics:
             return []
         msg = {"op": "subscribe", "args": topics}

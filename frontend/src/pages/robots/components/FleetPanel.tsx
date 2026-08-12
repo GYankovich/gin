@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react'
+import React, { memo, useEffect } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { Skeleton } from '@/components/ui/Skeleton'
 import type { Robot } from '@/types/robot'
 
 type Props = {
@@ -37,7 +38,7 @@ function formatLastStarted(iso: string): string {
     })
 }
 
-export function FleetPanel({
+function FleetPanelImpl({
     robots,
     loading,
     error,
@@ -92,9 +93,14 @@ export function FleetPanel({
                     mobileOpen ? 'robots-workspace__sidebar--open' : '',
                 ].filter(Boolean).join(' ')}
             >
-                <Card className="robots-list-card portfolio-panel">
+                <Card className="robots-list-card">
                     <div className="robots-list-card__head">
-                        <h3 className="dashboard-panel-title">Роботы</h3>
+                        <h3 className="dashboard-panel-title">
+                            Роботы
+                            {robots.length > 0 ? (
+                                <span className="portfolio-collapse__count robots-list-card__count">{robots.length}</span>
+                            ) : null}
+                        </h3>
                         <div className="robots-list-card__head-actions">
                             {robots.length > 0 && (
                                 <Button
@@ -130,7 +136,16 @@ export function FleetPanel({
                     )}
 
                     {loading && !error ? (
-                        <p className="dashboard-empty">Загрузка…</p>
+                        <div className="robots-list-cards" aria-busy="true" aria-label="Загрузка списка роботов">
+                            {[0, 1, 2].map((i) => (
+                                <div key={i} className="robots-list-item" aria-hidden>
+                                    <Skeleton width="70%" height="14px" borderRadius="4px" />
+                                    <div style={{ marginTop: 'var(--space-2)' }}>
+                                        <Skeleton width="45%" height="12px" borderRadius="4px" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     ) : robots.length === 0 && !error ? (
                         <div className="robots-empty-fleet">
                             <p className="dashboard-empty">Нет роботов</p>
@@ -182,3 +197,5 @@ export function FleetPanel({
         </>
     )
 }
+
+export const FleetPanel = memo(FleetPanelImpl)

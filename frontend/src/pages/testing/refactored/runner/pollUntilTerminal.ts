@@ -13,18 +13,24 @@ export type PollUntilTerminalCallbacks = {
     onTerminal?: (status: RobotBacktestRunStatus, runId: number) => void
 }
 
-/** Poll GET /history-backtest/runs/{id}/status until terminal or max ticks (T1.3). */
+/** Poll GET …/runs/{id}/status until terminal or max ticks (T1.3). */
 export async function pollUntilTerminal(
     runId: number,
     callbacks?: PollUntilTerminalCallbacks,
+    api?: {
+        getStatus: (id: number) => Promise<RobotBacktestRunStatus>
+        getDetails: (id: number) => Promise<RobotBacktestRunDetails>
+    },
 ): Promise<RobotBacktestRunDetails | null> {
+    const getStatus = api?.getStatus ?? ((id: number) => robotService.getHistoryBacktestRunStatus(id))
+    const getDetails = api?.getDetails ?? ((id: number) => robotService.getHistoryBacktestRunDetails(id))
     let details: RobotBacktestRunDetails | null = null
     try {
         for (let i = 0; i < BACKTEST_POLL_MAX_TICKS; i++) {
-            const status = await robotService.getHistoryBacktestRunStatus(runId)
+            const status = await getStatus(runId)
             callbacks?.onStatus?.(status, runId)
             if (isBacktestTerminalStatus(status.status)) {
-                details = await robotService.getHistoryBacktestRunDetails(runId)
+                details = await getDetails(runId)
                 callbacks?.onTerminal?.(status, runId)
                 break
             }
@@ -34,7 +40,7 @@ export async function pollUntilTerminal(
         }
         if (!details) {
             try {
-                const last = await robotService.getHistoryBacktestRunStatus(runId)
+                const last = await getStatus(runId)
                 callbacks?.onStatus?.(last, runId)
             } catch {
                 /* ignore */

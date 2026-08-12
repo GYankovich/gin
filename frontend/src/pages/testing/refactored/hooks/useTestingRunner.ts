@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { robotService } from '@/services/robotService'
+import { robotV2Service } from '@/services/robotV2Service'
 import type { Robot } from '@/types/robot'
 import {
     buildTradingRobotConfig,
     buildTradingRobotSchedulePatch,
 } from '@/pages/testing/buildTradingRobotConfig'
+import { buildTradingRobotConfigV4 } from '@/pages/testing/buildTradingRobotConfigV4'
+import {
+    isRobotsV2BacktestEnabled,
+    isV2BacktestStrategy,
+} from '@/pages/testing/refactored/robotsV2BacktestFlag'
 import { clampDateToToday, fmtErr, normalizeBacktestResult, toApiDate } from '@/pages/testing/testingUtils'
 import { periodSpanDays } from '@/pages/testing/refactored/validation'
 import {
@@ -80,6 +86,13 @@ export function useTestingRunner({
         async (runId: number) => {
             pollRunIdRef.current = runId
             setPollingRunId(runId)
+            const v2 = isRobotsV2BacktestEnabled()
+            const backtestApi = v2
+                ? {
+                      getStatus: (id: number) => robotV2Service.getBacktestRunStatus(id),
+                      getDetails: (id: number) => robotV2Service.getBacktestRunDetails(id),
+                  }
+                : undefined
             return pollUntilTerminal(runId, {
                 onStatus: (status, rid) => applyRunStatus(status, rid),
                 onTerminal: (status, rid) => {
@@ -91,7 +104,7 @@ export function useTestingRunner({
                     })
                     applyRunStatus(status, rid)
                 },
-            })
+            }, backtestApi)
         },
         [applyRunStatus],
     )
@@ -101,7 +114,9 @@ export function useTestingRunner({
         if (rid == null) return
         setCancellingRun(true)
         try {
-            await robotService.cancelHistoryBacktestRun(rid)
+            await (isRobotsV2BacktestEnabled()
+                ? robotV2Service.cancelBacktestRun(rid)
+                : robotService.cancelHistoryBacktestRun(rid))
             toast.show('Запрос на отмену отправлен', 'info', 3500)
         } catch (e: unknown) {
             toast.show(fmtErr(e), 'error', 4500)
@@ -191,52 +206,83 @@ export function useTestingRunner({
             const cfg = selectedRobot?.config as Record<string, unknown> | undefined
             const daysSpan = periodSpanDays(fromClamped, toClamped) ?? 1
             const effectiveStrategy = form.strategy || (cfg?.strategy as string) || 'grain_seed'
+            const useV2Backtest = isRobotsV2BacktestEnabled()
+            if (useV2Backtest && !isV2BacktestStrategy(effectiveStrategy)) {
+                toast.show(
+                    'Robots v2 backtest поддерживает momentum_breakout и reversion_to_ma. Отключите VITE_ROBOTS_V2_BACKTEST или смените стратегию.',
+                    'error',
+                    7000,
+                )
+                results.setStatusWindow([])
+                return
+            }
             const sameStrategyAsRobot = !!cfg && String(cfg.strategy ?? '') === effectiveStrategy
             const baseFromRobot =
                 selectedRobot && sameStrategyAsRobot
                     ? ((cfg?.strategy_params as Record<string, unknown>) || {})
                     : undefined
 
-            const backtestConfig = buildTradingRobotConfig({
-                ...config.snapshot,
-                strategy: effectiveStrategy,
-                mergeStrategyParamsFrom: baseFromRobot,
-            })
+            const backtestConfig = useV2Backtest
+                ? buildTradingRobotConfigV4({
+                      ...config.snapshot,
+                      strategy: effectiveStrategy,
+                  })
+                : buildTradingRobotConfig({
+                      ...config.snapshot,
+                      strategy: effectiveStrategy,
+                      mergeStrategyParamsFrom: baseFromRobot,
+                  })
             const schedule = buildTradingRobotSchedulePatch({
                 ...config.snapshot,
                 pollValue: form.pollValue,
                 pollUnit: form.pollUnit,
             })
 
-            const btWrap = selectedRobot
-                ? await robotService.runHistoryBacktest({
-                      robot_id: selectedRobot.id,
-                      from_date: `${toApiDate(fromClamped)}T00:00:00Z`,
-                      to_date: `${toApiDate(toClamped)}T23:59:59Z`,
-                      initial_capital: form.capital,
-                      token_id: selectedRobot.token?.id,
-                      type: 2,
-                      async_execution: true,
+            const fromIso = `${toApiDate(fromClamped)}T00:00:00Z`
+            const toIso = `${toApiDate(toClamped)}T23:59:59Z`
+
+            const btWrap = useV2Backtest
+                ? await robotV2Service.runBacktest({
                       config: backtestConfig,
-                      ...schedule,
-                  })
-                : await robotService.runHistoryBacktest({
-                      robot_id: null,
-                      strategy: effectiveStrategy,
-                      from_date: `${toApiDate(fromClamped)}T00:00:00Z`,
-                      to_date: `${toApiDate(toClamped)}T23:59:59Z`,
+                      from_date: fromIso,
+                      to_date: toIso,
                       initial_capital: form.capital,
-                      async_execution: true,
-                      config: backtestConfig,
-                      ...schedule,
+                      robotId: selectedRobot?.id ?? null,
+                      tokenId: selectedRobot?.token?.id ?? null,
+                      asyncExecution: true,
                   })
+                : selectedRobot
+                  ? await robotService.runHistoryBacktest({
+                        robot_id: selectedRobot.id,
+                        from_date: fromIso,
+                        to_date: toIso,
+                        initial_capital: form.capital,
+                        token_id: selectedRobot.token?.id,
+                        type: 2,
+                        async_execution: true,
+                        config: backtestConfig,
+                        ...schedule,
+                    })
+                  : await robotService.runHistoryBacktest({
+                        robot_id: null,
+                        strategy: effectiveStrategy,
+                        from_date: fromIso,
+                        to_date: toIso,
+                        initial_capital: form.capital,
+                        async_execution: true,
+                        config: backtestConfig,
+                        ...schedule,
+                    })
 
             if (btWrap.status === 202) {
                 const rid = btWrap.data.run_id
                 results.setStatusWindow(
                     [
                         `Прогон #${rid} принят (HTTP 202, async_execution; ~${daysSpan} календарных дн.)`,
-                        btWrap.data.message || 'Опрос: GET /api/robots/history-backtest/runs/{run_id}',
+                        btWrap.data.message ||
+                            (useV2Backtest
+                                ? `Опрос: GET /api/v2/robots/backtest/runs/${rid}/status`
+                                : 'Опрос: GET /api/robots/history-backtest/runs/{run_id}'),
                     ].filter(Boolean),
                 )
                 const details = await pollRun(rid)
@@ -255,7 +301,9 @@ export function useTestingRunner({
                 results.setStatusWindow(bt.stages ?? ['Backtest завершен'])
                 if (bt.run_id) {
                     try {
-                        const details = await robotService.getHistoryBacktestRunDetails(bt.run_id)
+                        const details = useV2Backtest
+                            ? await robotV2Service.getBacktestRunDetails(bt.run_id)
+                            : await robotService.getHistoryBacktestRunDetails(bt.run_id)
                         results.ingestRunDetails(details)
                     } catch {
                         results.ingestRawResult(normalizeBacktestResult(bt))

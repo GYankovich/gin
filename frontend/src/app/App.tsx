@@ -11,6 +11,10 @@ const LoginPage = lazy(() => import('@/pages/LoginPage'))
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
 const PortfolioPage = lazy(() => import('@/pages/PortfolioPage'))
 const RobotsPage = lazy(() => import('@/pages/RobotsPage'))
+const RobotsV2FleetPage = lazy(() => import('@/pages/robots-v2/RobotsV2FleetPage'))
+const RobotV2WizardPage = lazy(() => import('@/pages/robots-v2/RobotV2WizardPage'))
+const RobotV2MonitorPage = lazy(() => import('@/pages/robots-v2/RobotV2MonitorPage'))
+const RobotV2LogsPage = lazy(() => import('@/pages/robots-v2/RobotV2LogsPage'))
 const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
 const LivePage = lazy(() => import('@/pages/LivePage'))
@@ -42,6 +46,11 @@ export function App() {
                         <Route path="portfolio" element={<PortfolioPage />} />
                         <Route path="robots" element={<RobotsPage />} />
                         <Route path="robots/settings" element={<Navigate to="/robots" replace />} />
+                        <Route path="robots-v2" element={<RobotsV2FleetPage />} />
+                        <Route path="robots-v2/new" element={<RobotV2WizardPage />} />
+                        <Route path="robots-v2/edit/:id" element={<RobotV2WizardPage />} />
+                        <Route path="robots-v2/:id/monitor" element={<RobotV2MonitorPage />} />
+                        <Route path="robots-v2/:id/logs" element={<RobotV2LogsPage />} />
                         <Route path="analytics" element={<AnalyticsPage />} />
                         <Route path="settings" element={<SettingsPage />} />
                         <Route path="testing" element={<TestingPage />} />

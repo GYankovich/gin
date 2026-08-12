@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Set
 
 from app.core.logging_config import get_logger
 from app.modules.bybit import BybitHttpClient, BybitWebSocketClient, parse_kline_event
+from app.modules.bybit.websocket import parse_public_trade_event
 from app.modules.robots.trading.brokers.base import BrokerFacade
 
 logger = get_logger(__name__)
@@ -95,6 +96,7 @@ class ByBitBrokerFacade(BrokerFacade):
         self._queue_to_symbols: dict[asyncio.Queue, Set[str]] = {}
         self._symbol_to_queues: dict[str, Set[asyncio.Queue]] = {}
         self._subscribed_symbols: Set[str] = set()
+        self._subscribed_trade_symbols: Set[str] = set()
         self._last_prices: dict[str, float] = {}
         self._ws_interval = "5"
         self._asset_overview_cache: dict[str, Any] | None = None
@@ -1054,6 +1056,10 @@ class ByBitBrokerFacade(BrokerFacade):
         if new_symbols:
             await self._ws.subscribe_klines(symbols=new_symbols, interval=interval)
             self._subscribed_symbols.update(new_symbols)
+            trade_new = [s for s in new_symbols if s not in self._subscribed_trade_symbols]
+            if trade_new:
+                await self._ws.subscribe_public_trades(symbols=trade_new)
+                self._subscribed_trade_symbols.update(trade_new)
         return {s: ("SUBSCRIBE_SENT" if s in new_symbols else "ALREADY_SUBSCRIBED") for s in symbols}
 
     async def unsubscribe_prices(self, user_id: int, figis: List[str], queue) -> None:
@@ -1123,7 +1129,9 @@ class ByBitBrokerFacade(BrokerFacade):
             symbols = list(self._symbol_to_queues.keys())
             if symbols:
                 await self._ws.subscribe_klines(symbols=symbols, interval=self._ws_interval)
+                await self._ws.subscribe_public_trades(symbols=symbols)
                 self._subscribed_symbols = set(symbols)
+                self._subscribed_trade_symbols = set(symbols)
             return True
         except Exception:
             logger.exception("ByBit WS force resubscribe failed user=%s", user_id)
@@ -1144,6 +1152,25 @@ class ByBitBrokerFacade(BrokerFacade):
                 if not msg:
                     await asyncio.sleep(0)
                     continue
+
+                for trade in parse_public_trade_event(msg):
+                    self._last_prices[trade.symbol] = trade.price
+                    listeners = list(self._symbol_to_queues.get(trade.symbol, set()))
+                    if not listeners:
+                        continue
+                    payload = {
+                        "type": "trade",
+                        "figi": trade.symbol,
+                        "symbol": trade.symbol,
+                        "price": trade.price,
+                        "side": trade.side,
+                        "volume": trade.size,
+                        "turnover": trade.turnover,
+                        "tradeTimeMs": trade.trade_time_ms,
+                    }
+                    for q in listeners:
+                        self._put_nowait_drop_oldest(q, payload)
+
                 events = parse_kline_event(msg)
                 for ev in events:
                     self._last_prices[ev.symbol] = ev.close
@@ -1170,6 +1197,7 @@ class ByBitBrokerFacade(BrokerFacade):
                                 "low": ev.low,
                                 "close": ev.close,
                                 "volume": ev.volume,
+                                "turnover": ev.turnover,
                                 "isComplete": True,
                             },
                         }

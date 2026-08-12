@@ -128,6 +128,9 @@ def _register_api_routers(app: FastAPI) -> None:
     from app.modules.auth.router import users_router
     from app.modules.tinvest.router import router as tinvest_router
     from app.modules.robots.router import router as robots_router
+    from app.modules.robots_v2.router import router as robots_v2_router
+    from app.modules.robots_v2.universe.router import router as universe_v2_router
+    from app.modules.robots_v2.strategy.router import router as strategy_v2_router
     from app.modules.analytics.router import router as analytics_router
     from app.modules.recommendations.router import router as recommendations_router
     from app.modules.market_data.router import router as market_router
@@ -142,6 +145,9 @@ def _register_api_routers(app: FastAPI) -> None:
     app.include_router(users_router, prefix="/api", tags=["users"])
     app.include_router(tinvest_router, prefix="/api/tinvest", tags=["tinvest"])
     app.include_router(robots_router, prefix="/api", tags=["robots"])
+    app.include_router(robots_v2_router, prefix="/api", tags=["robots-v2"])
+    app.include_router(universe_v2_router, prefix="/api", tags=["universe-v2"])
+    app.include_router(strategy_v2_router, prefix="/api", tags=["strategy-v2"])
     app.include_router(analytics_router, prefix="/api", tags=["analytics"])
     app.include_router(recommendations_router, prefix="/api", tags=["recommendations"])
     app.include_router(market_router, prefix="/api", tags=["market"])

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Combobox } from '@/components/ui/Combobox'
@@ -124,7 +124,9 @@ import {
 import { useRobotsList } from '@/pages/robots/hooks/useRobotsList'
 import { useRobotEditorSave } from '@/pages/robots/hooks/useRobotEditor'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
-import cyberHero from '@/assets/dashboard/cyber-hero.png'
+import { PageHero } from '@/components/ui/PageHero'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { RobotIllustration } from '@/components/ui/RobotIllustration'
 
 ///@EPIC Frontend.ITEM RobotsUI.TOPIC Trading Robot Configuration [1]
 ///@ Главная форма настройки торгового робота: pipeline-фильтры, риск/costs, расписание,
@@ -701,6 +703,31 @@ export default function TradingRobotSettingsPage() {
         setIsEditing(true)
     }
 
+    const fleetActionsRef = useRef({
+        onSelect: openRobotForEdit,
+        onCreate: startCreateRobot,
+        onRetry: () => { void loadRobotsList(listFilters, true) },
+        onMobileClose: () => setFleetDrawerOpen(false),
+    })
+    fleetActionsRef.current = {
+        onSelect: openRobotForEdit,
+        onCreate: startCreateRobot,
+        onRetry: () => { void loadRobotsList(listFilters, true) },
+        onMobileClose: () => setFleetDrawerOpen(false),
+    }
+    const onFleetSelect = useCallback((robotId: number) => {
+        fleetActionsRef.current.onSelect(robotId)
+    }, [])
+    const onFleetCreate = useCallback(() => {
+        fleetActionsRef.current.onCreate()
+    }, [])
+    const onFleetRetry = useCallback(() => {
+        fleetActionsRef.current.onRetry()
+    }, [])
+    const onFleetClose = useCallback(() => {
+        fleetActionsRef.current.onMobileClose()
+    }, [])
+
     const upsertRobotInList = useCallback((robot: Robot) => {
         upsertRobotInListState(robot)
     }, [upsertRobotInListState])
@@ -935,8 +962,15 @@ export default function TradingRobotSettingsPage() {
     useEffect(() => {
         if (hydratingDraftRef.current) return
         if (!baselineDraft) return
-        const current = serializeDirtySnapshot(buildDirtySnapshotFromState())
-        setIsEditing(current !== baselineDraft)
+        const timer = window.setTimeout(() => {
+            if (hydratingDraftRef.current) return
+            const current = serializeDirtySnapshot(buildDirtySnapshotFromState())
+            const nextEditing = current !== baselineDraft
+            startTransition(() => {
+                setIsEditing(nextEditing)
+            })
+        }, 160)
+        return () => window.clearTimeout(timer)
     }, [
         buildDirtySnapshotFromState,
         name,
@@ -979,6 +1013,58 @@ export default function TradingRobotSettingsPage() {
         maxDrawdownPct,
         filters,
         baselineDraft,
+    ])
+
+    useEffect(() => {
+        if (hydratingDraftRef.current) return
+        setCheckedIssues(prev => (prev == null ? prev : null))
+    }, [
+        name,
+        tokenId,
+        robotType,
+        pollValue,
+        pollUnit,
+        strategyForm.brokerCommissionPct,
+        strategyForm.ndflPct,
+        strategyForm.strategy,
+        strategyForm.capital,
+        strategyForm.strategyParams,
+        strategyForm.interval,
+        strategyForm.stopLossPct,
+        strategyForm.takeProfitPct,
+        strategyForm.maxPositionPct,
+        strategyForm.maxPositionRub,
+        strategyForm.maxDailyLoss,
+        strategyForm.minTradeAmountRub,
+        hoursFrom,
+        hoursTo,
+        weekdaysMask,
+        pipelineMode,
+        universeMode,
+        fixedTickersText,
+        historicalEnabled,
+        historicalInterval,
+        historicalLookbackDays,
+        historicalDailyAtMsk,
+        paperRefreshMinutes,
+        bybitTestnet,
+        instrumentCategory,
+        leverage,
+        makerFeePct,
+        takerFeePct,
+        fundingMode,
+        backtestExecution,
+        backtestFeeModel,
+        maintenanceMarginPct,
+        cryptoUniverseMode,
+        cryptoFilters,
+        portfolioBrokerType,
+        portfolioBybitTestnet,
+        portfolioBybitAccountType,
+        slippagePct,
+        executionLatencySec,
+        maxDrawdownPct,
+        filters,
     ])
 
     useEffect(() => {
@@ -1418,47 +1504,20 @@ export default function TradingRobotSettingsPage() {
         toast.show(`Пресет П2 «${preset === 'conservative' ? 'Консервативная' : preset === 'moderate' ? 'Умеренная' : 'Агрессивная'}» применён`, 'success')
     }
 
-    const dirtyDraftKey = useMemo(() => {
-        if (!isEditing) return ''
-        return serializeDirtySnapshot(buildDirtySnapshotFromState())
-    }, [
-        isEditing,
-        buildDirtySnapshotFromState,
-        name,
-        tokenId,
-        robotType,
-        pollValue,
-        pollUnit,
-        strategyForm.brokerCommissionPct,
-        strategyForm.ndflPct,
-        strategyForm.strategy,
-        strategyForm.capital,
-        strategyForm.strategyParams,
-        strategyForm.interval,
-        strategyForm.stopLossPct,
-        strategyForm.takeProfitPct,
-        strategyForm.maxPositionPct,
-        strategyForm.maxPositionRub,
-        strategyForm.maxDailyLoss,
-        strategyForm.minTradeAmountRub,
-        hoursFrom,
-        hoursTo,
-        weekdaysMask,
-        pipelineMode,
-        universeMode,
-        fixedTickersText,
-        historicalEnabled,
-        historicalInterval,
-        historicalLookbackDays,
-        historicalDailyAtMsk,
-        paperRefreshMinutes,
-        filters,
-    ])
+    const onStageChange = useCallback((stage: RobotEditorStage) => {
+        setActiveStage(stage)
+    }, [])
 
-    useEffect(() => {
-        if (!dirtyDraftKey) return
-        setCheckedIssues(null)
-    }, [dirtyDraftKey])
+    const onTokenChange = useCallback((next: number) => {
+        setTokenId(next)
+        const broker = brokerFromTokenId(next, tokenCatalog)
+        if (broker) syncBrokerFromToken(broker, true)
+    }, [tokenCatalog, syncBrokerFromToken])
+
+    const onRobotTypeChange = useCallback((next: 1 | 2) => {
+        setRobotType(next)
+        if (next === 1) setActiveStage('general')
+    }, [])
 
     const isNarrow = useMediaQuery('(max-width: 1279px)')
     const isGrainSeed = strategyForm.strategy === 'grain_seed'
@@ -1481,29 +1540,18 @@ export default function TradingRobotSettingsPage() {
                 data-page="robots"
                 data-robots-layout={isNarrow ? 'narrow' : 'desktop'}
             >
-                <RobotsHero />
+                <PageHero
+                    eyebrow="ROBOT NODE"
+                    title="РОБОТЫ"
+                    subtitle="Флот · pipeline · запуск"
+                />
                 {isNarrow && (
                     <div className="robots-fleet-trigger-bar" aria-hidden>
-                        <div className="soft-loading-bar" style={{ width: '100%', height: 40 }} />
+                        <Skeleton width="100%" height="40px" borderRadius="8px" />
                     </div>
                 )}
-                <div className="dashboard-layout robots-page-layout" aria-busy="true" aria-label="Загрузка роботов">
-                    <div className="robots-workspace">
-                        {!isNarrow && (
-                            <aside className="robots-workspace__sidebar">
-                                <Card className="robots-list-card portfolio-panel">
-                                    <div className="ops-loader" style={{ minHeight: 80 }}>
-                                        <div className="soft-loading-bar" />
-                                    </div>
-                                </Card>
-                            </aside>
-                        )}
-                        <div className="robots-workspace__main">
-                            <div className="ops-loader" style={{ minHeight: 120 }}>
-                                <div className="soft-loading-bar" />
-                            </div>
-                        </div>
-                    </div>
+                <div className="dashboard-layout robots-page-layout">
+                    <RobotsSkeleton narrow={isNarrow} />
                 </div>
             </div>
         )
@@ -1515,7 +1563,11 @@ export default function TradingRobotSettingsPage() {
             data-page="robots"
             data-robots-layout={isNarrow ? 'narrow' : 'desktop'}
         >
-            <RobotsHero />
+            <PageHero
+                eyebrow="ROBOT NODE"
+                title="РОБОТЫ"
+                subtitle="Флот · pipeline · запуск"
+            />
 
             {isNarrow && (
                 <div className="robots-fleet-trigger-bar">
@@ -1540,24 +1592,34 @@ export default function TradingRobotSettingsPage() {
                     error={robotsLoadError}
                     selectedRobotId={selectedRobot}
                     isNewRobot={isNewRobot}
-                    onRetry={() => void loadRobotsList(listFilters, true)}
-                    onSelect={openRobotForEdit}
-                    onCreate={startCreateRobot}
+                    onRetry={onFleetRetry}
+                    onSelect={onFleetSelect}
+                    onCreate={onFleetCreate}
                     mobileOpen={isNarrow ? fleetDrawerOpen : false}
-                    onMobileClose={() => setFleetDrawerOpen(false)}
+                    onMobileClose={onFleetClose}
                     forceDrawer={isNarrow}
                 />
 
                 <div className="robots-workspace__main">
                     {!hasEditor ? (
-                        <div className="robots-editor-empty">
+                        <Card className="dashboard-error-card robots-editor-empty">
+                            <div className="dashboard-error-card__robot" aria-hidden>
+                                <RobotIllustration size={96} mode="inactive" interactive={false} />
+                            </div>
                             <p className="dashboard-empty">
-                                {isNarrow
-                                    ? 'Откройте список роботов или создайте нового.'
-                                    : 'Выберите робота слева или создайте нового.'}
+                                {robotsLoadError
+                                    ? robotsLoadError
+                                    : isNarrow
+                                        ? 'Откройте список роботов или создайте нового.'
+                                        : 'Выберите робота слева или создайте нового.'}
                             </p>
-                            <div className="robots-editor-empty__actions">
-                                {isNarrow && (
+                            <div className="robots-editor-empty__actions dashboard-error-card__actions">
+                                {robotsLoadError ? (
+                                    <Button variant="secondary" size="sm" onClick={onFleetRetry}>
+                                        Повторить
+                                    </Button>
+                                ) : null}
+                                {isNarrow && !robotsLoadError && (
                                     <Button variant="secondary" size="sm" onClick={() => setFleetDrawerOpen(true)}>
                                         Список роботов
                                     </Button>
@@ -1566,14 +1628,14 @@ export default function TradingRobotSettingsPage() {
                                     + Создать
                                 </Button>
                             </div>
-                        </div>
+                        </Card>
                     ) : (
                     <div className="robots-editor-card">
                     {robotType === 2 && pipelineVisualizerNodes.length > 0 && (
                         <PipelineVisualizer
                             nodes={pipelineVisualizerNodes}
                             activeStage={activeStage}
-                            onStageChange={setActiveStage}
+                            onStageChange={onStageChange}
                             variant={isNarrow ? 'segmented' : 'default'}
                         />
                     )}
@@ -1605,17 +1667,10 @@ export default function TradingRobotSettingsPage() {
                 onNameChange={setName}
                 tokenId={tokenId}
                 tokenOptions={tokenOptions}
-                onTokenChange={next => {
-                    setTokenId(next)
-                    const broker = brokerFromTokenId(next, tokenCatalog)
-                    if (broker) syncBrokerFromToken(broker, true)
-                }}
+                onTokenChange={onTokenChange}
                 robotType={robotType}
                 robotTypeOptions={robotTypeOptions}
-                onRobotTypeChange={next => {
-                    setRobotType(next)
-                    if (next === 1) setActiveStage('general')
-                }}
+                onRobotTypeChange={onRobotTypeChange}
                 typeLocked={!isNewRobot}
                 brokerLabel={brokerLabelFromToken(tokenId, tokenCatalog)}
                 checkedIssues={checkedIssues}
@@ -1964,18 +2019,42 @@ export default function TradingRobotSettingsPage() {
     )
 }
 
-function RobotsHero() {
+function RobotsSkeleton({ narrow }: { narrow: boolean }) {
     return (
-        <header className="dashboard-hero">
-            <div className="dashboard-hero__bg" style={{ backgroundImage: `url(${cyberHero})` }} aria-hidden />
-            <div className="dashboard-hero__veil" aria-hidden />
-            <div className="dashboard-hero__content">
-                <p className="dashboard-hero__eyebrow">GIN // ROBOT NODE</p>
-                <h1 className="dashboard-hero__title">
-                    <span className="dashboard-hero__title-glitch" data-text="РОБОТЫ">РОБОТЫ</span>
-                </h1>
-                <p className="dashboard-hero__sub">Флот · pipeline · запуск</p>
+        <div
+            className={`robots-workspace${narrow ? ' robots-workspace--narrow' : ''}`}
+            aria-busy="true"
+            aria-label="Загрузка роботов"
+        >
+            {!narrow && (
+                <aside className="robots-workspace__sidebar">
+                    <Card className="robots-list-card">
+                        <div className="robots-list-card__head">
+                            <Skeleton width="88px" height="18px" borderRadius="4px" />
+                        </div>
+                        <div className="robots-list-cards">
+                            {[0, 1, 2].map((i) => (
+                                <div key={i} className="robots-list-item" aria-hidden>
+                                    <Skeleton width="70%" height="14px" borderRadius="4px" />
+                                    <div style={{ marginTop: 'var(--space-2)' }}>
+                                        <Skeleton width="45%" height="12px" borderRadius="4px" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+                </aside>
+            )}
+            <div className="robots-workspace__main">
+                <Card className="robots-editor-card">
+                    <div style={{ padding: 'var(--space-4)' }}>
+                        <Skeleton width="140px" height="18px" borderRadius="4px" />
+                        <div style={{ marginTop: 'var(--space-3)' }}>
+                            <Skeleton width="100%" height="220px" borderRadius="8px" />
+                        </div>
+                    </div>
+                </Card>
             </div>
-        </header>
+        </div>
     )
 }

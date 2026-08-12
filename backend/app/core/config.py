@@ -74,6 +74,10 @@ class Settings(BaseSettings):
 
     # ---- Роботы (переопределение через ROBOTS__BROKER_COMMISSION_RATE, ROBOTS__NDFL_RATE) ----
     robots: RobotsSettings = Field(default_factory=RobotsSettings)
+    ROBOTS_V2_ENABLED: bool = Field(
+        default=False,
+        description="Enable greenfield robots v2 API (/api/v2/robots/*)",
+    )
 
     TINVEST_API_URL: str = "https://invest-public-api.tinkoff.ru/rest"
     # Опционально: токен только для загрузки рыночных данных в общую БД (бэктест). Иначе используется токен пользователя.
