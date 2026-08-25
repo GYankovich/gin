@@ -95,6 +95,8 @@ class BacktestRunStore:
             rec.run_id = new_id
             self._runs[new_id] = rec
             return rec
+
+    async def request_cancel(self, run_id: int, *, user_id: int) -> BacktestRunRecord | None:
         async with self._lock:
             rec = self._runs.get(run_id)
             if rec is None or rec.user_id != user_id:

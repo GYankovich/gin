@@ -38,9 +38,11 @@ export type RobotV2WizardDraft = {
     stopMode: 'soft' | 'hard'
     eodFlattenEnabled: boolean | null
     eodMinutesBeforeClose: number
+    portfolioEnabled: boolean
 }
 
 export const DRAFT_STORAGE_KEY = 'gin-robots-v2-wizard-draft'
+export const PORTFOLIO_DRAFT_STORAGE_KEY = 'gin-robots-v2-wizard-draft-portfolio'
 const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 export function defaultWizardDraft(): RobotV2WizardDraft {
@@ -81,6 +83,7 @@ export function defaultWizardDraft(): RobotV2WizardDraft {
         stopMode: 'soft',
         eodFlattenEnabled: null,
         eodMinutesBeforeClose: 15,
+        portfolioEnabled: true,
     }
 }
 
@@ -94,7 +97,18 @@ export function archetypeDefaults(archetype: WizardArchetype): {
             return {
                 timeframe: '1m',
                 advancedMode: true,
-                params: { deltaThresholdPct: 5, requiresWebSocket: true, minVolumeWindow: 30, cooldownSec: 60 },
+                params: {
+                    deltaThresholdPct: 8,
+                    requiresWebSocket: true,
+                    minVolumeWindow: 30,
+                    cooldownSec: 180,
+                    stopLossCooldownSec: 600,
+                    trendLookbackTicks: 10,
+                    trendBlockLongBps: 30,
+                    minHoldSec: 90,
+                    minExitMoveBps: 80,
+                    minFlowTicks: 5,
+                },
             }
         case 'momentum':
             return {
@@ -147,7 +161,7 @@ export function draftToV4Config(draft: RobotV2WizardDraft): Record<string, unkno
                 preset: draft.screenerPreset,
                 filters: [],
                 filterMode: 'all',
-                refreshPolicy: 'on_session',
+                refreshPolicy: 'daily',
             },
             excluded: [],
             maxAssets: draft.maxAssets,
@@ -176,7 +190,8 @@ export function draftToV4Config(draft: RobotV2WizardDraft): Record<string, unkno
         },
         universe,
         risk: {
-            capital: draft.capital,
+            // Live sizing uses broker equity at runtime; keep a positive placeholder for schema.
+            capital: draft.mode === 'live' ? Math.max(Number(draft.capital) || 1, 1) : draft.capital,
             maxPositionSharePct: draft.maxPositionSharePct,
             stopLossPct: draft.stopLossPct,
             takeProfitPct: draft.takeProfitPct,
@@ -244,13 +259,62 @@ export function configToDraft(config: Record<string, unknown>, name: string, tok
         eodMinutesBeforeClose: Number(
             (risk.eodFlatten as { minutesBeforeClose?: number } | undefined)?.minutesBeforeClose ?? 15,
         ),
+        portfolioEnabled: true,
     }
 }
 
-export function saveDraftLocal(draft: RobotV2WizardDraft): void {
+function padWeekdays(raw: unknown): boolean[] {
+    const src = Array.isArray(raw) ? raw.map(Boolean) : []
+    const out = [...src.slice(0, 7)]
+    while (out.length < 7) out.push(false)
+    if (!out.some(Boolean)) {
+        return [true, true, true, true, true, false, false]
+    }
+    return out
+}
+
+export function draftToPortfolioV4Config(draft: RobotV2WizardDraft): Record<string, unknown> {
+    return {
+        configVersion: 4,
+        schedule: {
+            weekdays: padWeekdays(draft.weekdays),
+            timeFrom: draft.timeFrom,
+            timeTo: draft.timeTo,
+            pollInterval: draft.pollInterval,
+        },
+    }
+}
+
+export function configToPortfolioDraft(
+    config: Record<string, unknown>,
+    name: string,
+    tokenId: number | null,
+    status?: number | null,
+): RobotV2WizardDraft {
+    const base = defaultWizardDraft()
+    const core = (config.core || {}) as Record<string, unknown>
+    const schedule = (
+        (config.schedule as Record<string, unknown> | undefined)
+        || (core.schedule as Record<string, unknown> | undefined)
+        || {}
+    )
+    return {
+        ...base,
+        name,
+        tokenId,
+        weekdays: padWeekdays(schedule.weekdays),
+        timeFrom: String(schedule.timeFrom || base.timeFrom),
+        timeTo: String(schedule.timeTo || base.timeTo),
+        pollInterval: (schedule.pollInterval as RobotV2WizardDraft['pollInterval']) || base.pollInterval,
+        portfolioEnabled: status !== 2,
+    }
+}
+
+export function saveDraftLocal(draft: RobotV2WizardDraft, key?: string): void {
+    const storageKey = key ?? DRAFT_STORAGE_KEY
     try {
         localStorage.setItem(
-            DRAFT_STORAGE_KEY,
+            storageKey,
             JSON.stringify({ savedAt: Date.now(), draft }),
         )
     } catch {
@@ -258,14 +322,15 @@ export function saveDraftLocal(draft: RobotV2WizardDraft): void {
     }
 }
 
-export function loadDraftLocal(): RobotV2WizardDraft | null {
+export function loadDraftLocal(key?: string): RobotV2WizardDraft | null {
+    const storageKey = key ?? DRAFT_STORAGE_KEY
     try {
-        const raw = localStorage.getItem(DRAFT_STORAGE_KEY)
+        const raw = localStorage.getItem(storageKey)
         if (!raw) return null
         const parsed = JSON.parse(raw) as { savedAt?: number; draft?: RobotV2WizardDraft }
         if (!parsed?.draft || !parsed.savedAt) return null
         if (Date.now() - parsed.savedAt > DRAFT_TTL_MS) {
-            localStorage.removeItem(DRAFT_STORAGE_KEY)
+            localStorage.removeItem(storageKey)
             return null
         }
         return { ...defaultWizardDraft(), ...parsed.draft }
@@ -274,9 +339,9 @@ export function loadDraftLocal(): RobotV2WizardDraft | null {
     }
 }
 
-export function clearDraftLocal(): void {
+export function clearDraftLocal(key?: string): void {
     try {
-        localStorage.removeItem(DRAFT_STORAGE_KEY)
+        localStorage.removeItem(key ?? DRAFT_STORAGE_KEY)
     } catch {
         /* ignore */
     }

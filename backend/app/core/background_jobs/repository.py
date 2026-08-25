@@ -243,6 +243,27 @@ def touch_background_job(db: Session, job_id: UUID) -> None:
     )
 
 
+def fail_stale_queued_portfolio_jobs(db: Session, *, stale_seconds: int) -> int:
+    """Fail portfolio_sync jobs stuck in queued (dead worker blocks idempotency key)."""
+    if stale_seconds <= 0:
+        return 0
+    row = db.execute(
+        text(f"""
+            UPDATE background_jobs
+            SET status = 'failed',
+                error = COALESCE(error, 'stale queued portfolio_sync'),
+                message = 'failed (stale queued)',
+                finished_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE status = 'queued'
+              AND job_type = 'portfolio_sync'
+              AND created_at < (CURRENT_TIMESTAMP - make_interval(secs => :stale_seconds))
+        """),
+        {"stale_seconds": int(stale_seconds)},
+    )
+    return int(row.rowcount or 0)
+
+
 def fail_stale_background_jobs(db: Session, *, stale_seconds: int) -> int:
     """Fail short-lived jobs stuck in running.
 

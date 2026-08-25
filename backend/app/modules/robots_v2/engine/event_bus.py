@@ -37,7 +37,15 @@ class EventBus:
             try:
                 q.put_nowait(event)
             except asyncio.QueueFull:
-                pass
+                # Drop oldest so the latest cycle/positions marks still arrive.
+                try:
+                    q.get_nowait()
+                except asyncio.QueueEmpty:
+                    pass
+                try:
+                    q.put_nowait(event)
+                except asyncio.QueueFull:
+                    pass
 
     def recent(self, robot_id: int, *, limit: int = 100, event_type: str | None = None) -> list[dict[str, Any]]:
         items = list(self._history.get(robot_id, ()))

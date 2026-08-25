@@ -6,7 +6,19 @@
 #/// Исходный модуль `backend/app/modules/robots/trading/costs.py` — автоматическая разметка для Obsidian Source Scanner.
 
 from typing import Any, Dict, Optional
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP
+
+
+def ceil_money(value: Decimal | float | str, *, places: int = 2) -> float:
+    """Round money/price up to ``places`` decimals (e.g. 2065.0635 → 2065.07)."""
+    quant = Decimal("1").scaleb(-places)
+    return float(Decimal(str(value)).quantize(quant, rounding=ROUND_CEILING))
+
+
+def floor_money(value: Decimal | float | str, *, places: int = 2) -> float:
+    """Round money/price down to ``places`` decimals."""
+    quant = Decimal("1").scaleb(-places)
+    return float(Decimal(str(value)).quantize(quant, rounding=ROUND_FLOOR))
 
 
 def resolve_robot_cost_rates(robot_config: Optional[Dict[str, Any]]) -> tuple[float, float]:
@@ -165,37 +177,28 @@ class TradingCosts:
         return float(tax.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
 
     def calculate_break_even_price(self) -> float:
-        """
-        Рассчитывает цену безубыточности для сделки
-        """
-        entry_price = self.price
-        commission_rate = self.broker_commission_rate
-        numerator = entry_price * (Decimal('1') + Decimal('2') * commission_rate)
-        denominator = Decimal('1') - self.ndfl_rate
+        """Long break-even sell price after entry+exit commission (no tax).
 
-        break_even = numerator / denominator
-
-        return float(break_even.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+        Exact: ``Entry * (1+f) / (1-f)``, ceil to kopecks.
+        """
+        f = self.broker_commission_rate
+        break_even = self.price * (Decimal("1") + f) / (Decimal("1") - f)
+        return ceil_money(break_even)
 
     def calculate_min_profit_price(self, target_profit_percent: float) -> float:
+        """Long TP: net-in-pocket after fees + NDFL equals ``target_profit_percent`` of entry.
+
+        ``Exit*(1-f) - Entry*(1+f) = Entry * (TP%/100) / (1-t)``
+        → ``Exit = Entry * ((1+f) + target/(1-t)) / (1-f)``  (ceil)
         """
-        Рассчитывает цену, при которой достигается целевая прибыль с учетом налогов и комиссий
-
-        Args:
-            target_profit_percent: Целевая прибыль в процентах (например, 3 = 3%)
-        """
-        entry_price = self.price
-        commission_rate = self.broker_commission_rate
-        tax_rate = self.ndfl_rate
-        target = Decimal(str(target_profit_percent)) / Decimal('100')
-
-        target_price = entry_price * (
-                Decimal('1') +
-                target / (Decimal('1') - tax_rate) +
-                Decimal('2') * commission_rate
-        )
-
-        return float(target_price.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+        f = self.broker_commission_rate
+        tax = self.ndfl_rate
+        target = Decimal(str(target_profit_percent)) / Decimal("100")
+        one = Decimal("1")
+        if tax >= one:
+            raise ValueError("ndfl_rate must be < 1")
+        target_price = self.price * ((one + f) + target / (one - tax)) / (one - f)
+        return ceil_money(target_price)
 
     def calculate_actual_profit(self, exit_price: float) -> Dict[str, float]:
         """
@@ -273,16 +276,62 @@ def calculate_position_size(
     return float(max_amount / price)
 
 
+def calculate_break_even_price(
+        entry_price: float,
+        is_long: bool = True,
+        *,
+        broker_commission_rate: Optional[float] = None,
+) -> float:
+    """Sell/cover price that nets zero after entry+exit commission (no tax).
+
+    Long:  ``Exit = Entry * (1+f) / (1-f)``  (ceil)
+    Short: ``Exit = Entry * (1-f) / (1+f)``  (floor)
+    """
+    from app.core.config import settings
+
+    f = Decimal(str(
+        broker_commission_rate if broker_commission_rate is not None
+        else settings.robots.broker_commission_rate
+    ))
+    entry = Decimal(str(entry_price))
+    one = Decimal("1")
+    if is_long:
+        return ceil_money(entry * (one + f) / (one - f))
+    return floor_money(entry * (one - f) / (one + f))
+
+
 def calculate_stop_loss_price(
         entry_price: float,
         stop_loss_percent: float,
-        is_long: bool = True
+        is_long: bool = True,
+        *,
+        broker_commission_rate: Optional[float] = None,
 ) -> float:
-    """Рассчитывает цену стоп-лосса"""
+    """Stop price such that net loss after entry+exit fees equals ``stop_loss_percent``.
+
+    Long:  ``Exit*(1-f) - Entry*(1+f) = -Entry * SL%/100``
+           → ``Exit = Entry * ((1+f) - SL%/100) / (1-f)``  (ceil — не превысить убыток)
+    Short: ``Entry*(1-f) - Exit*(1+f) = -Entry * SL%/100``
+           → ``Exit = Entry * ((1-f) + SL%/100) / (1+f)``  (floor — не превысить убыток)
+    """
+    from app.core.config import settings
+
+    f = Decimal(str(
+        broker_commission_rate if broker_commission_rate is not None
+        else settings.robots.broker_commission_rate
+    ))
+    entry = Decimal(str(entry_price))
+    sl = Decimal(str(stop_loss_percent)) / Decimal("100")
+    one = Decimal("1")
+
     if is_long:
-        return entry_price * (1 - stop_loss_percent / 100)
-    else:
-        return entry_price * (1 + stop_loss_percent / 100)
+        raw = entry * ((one + f) - sl) / (one - f)
+        if raw <= 0:
+            return 0.0
+        return ceil_money(raw)
+
+    raw = entry * ((one - f) + sl) / (one + f)
+    return floor_money(raw)
 
 
 def calculate_take_profit_price(
@@ -293,16 +342,32 @@ def calculate_take_profit_price(
         broker_commission_rate: Optional[float] = None,
         ndfl_rate: Optional[float] = None,
 ) -> float:
-    """
-    Рассчитывает цену тейк-профита с учетом комиссий и налогов
-    """
-    costs = TradingCosts(
-        entry_price, 1, is_buy=is_long,
-        broker_commission_rate=broker_commission_rate,
-        ndfl_rate=ndfl_rate,
-    )
+    """TP price for net-in-pocket target after entry/exit fees and NDFL on profit."""
+    from app.core.config import settings
+
+    f = Decimal(str(
+        broker_commission_rate if broker_commission_rate is not None
+        else settings.robots.broker_commission_rate
+    ))
+    tax = Decimal(str(
+        ndfl_rate if ndfl_rate is not None else settings.robots.ndfl_rate
+    ))
+    entry = Decimal(str(entry_price))
+    target = Decimal(str(take_profit_percent)) / Decimal("100")
+    one = Decimal("1")
+    if tax >= one:
+        raise ValueError("ndfl_rate must be < 1")
 
     if is_long:
+        costs = TradingCosts(
+            entry_price, 1, is_buy=True,
+            broker_commission_rate=float(f),
+            ndfl_rate=float(tax),
+        )
         return costs.calculate_min_profit_price(take_profit_percent)
-    else:
-        return entry_price * (1 - take_profit_percent / 100)
+
+    # Short: Entry*(1-f) - Exit*(1+f) = Entry * target / (1-t)
+    raw = entry * ((one - f) - target / (one - tax)) / (one + f)
+    if raw <= 0:
+        return 0.0
+    return floor_money(raw)

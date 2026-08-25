@@ -2,7 +2,7 @@ import React from 'react'
 import cyberHero from '@/assets/dashboard/cyber-hero.png'
 
 type PageHeroProps = {
-    eyebrow: string
+    eyebrow?: string
     title: string
     subtitle?: React.ReactNode
     actions?: React.ReactNode
@@ -16,20 +16,24 @@ export function PageHero({ eyebrow, title, subtitle, actions, className = '' }: 
             <div className="dashboard-hero__bg" style={{ backgroundImage: `url(${cyberHero})` }} aria-hidden />
             <div className="dashboard-hero__veil" aria-hidden />
             <div className="dashboard-hero__content">
-                <div className="dashboard-hero__top">
-                    <p className="dashboard-hero__eyebrow">{eyebrow}</p>
-                    {actions ? <div className="dashboard-hero__actions">{actions}</div> : null}
+                <div className="dashboard-hero__copy">
+                    {eyebrow ? (
+                        <div className="dashboard-hero__top">
+                            <p className="dashboard-hero__eyebrow">{eyebrow}</p>
+                        </div>
+                    ) : null}
+                    <h1 className="dashboard-hero__title">
+                        <span className="dashboard-hero__title-glitch" data-text={title}>{title}</span>
+                    </h1>
+                    {subtitle != null ? (
+                        typeof subtitle === 'string' || typeof subtitle === 'number' ? (
+                            <p className="dashboard-hero__sub">{subtitle}</p>
+                        ) : (
+                            subtitle
+                        )
+                    ) : null}
                 </div>
-                <h1 className="dashboard-hero__title">
-                    <span className="dashboard-hero__title-glitch" data-text={title}>{title}</span>
-                </h1>
-                {subtitle != null ? (
-                    typeof subtitle === 'string' || typeof subtitle === 'number' ? (
-                        <p className="dashboard-hero__sub">{subtitle}</p>
-                    ) : (
-                        subtitle
-                    )
-                ) : null}
+                {actions ? <div className="dashboard-hero__actions">{actions}</div> : null}
             </div>
         </header>
     )

@@ -62,6 +62,23 @@ def test_eod_not_in_window():
     assert should_eod_flatten(risk=risk, schedule=schedule, instrument_type="stock", now=now) is False
 
 
+def test_eod_not_all_evening_after_close():
+    """Regression: after MOEX close, mins is largely negative — must NOT stay in EOD forever."""
+    risk = _risk()
+    schedule = _schedule()
+    # Monday 22:20 MSK = 19:20 UTC
+    now = datetime(2026, 8, 10, 19, 20, tzinfo=timezone.utc)
+    assert should_eod_flatten(risk=risk, schedule=schedule, instrument_type="stock", now=now) is False
+
+
+def test_eod_grace_just_after_close():
+    risk = _risk()
+    schedule = _schedule()
+    # Monday 18:40 MSK = 15:40 UTC (10 min past close, within 30m grace)
+    now = datetime(2026, 8, 10, 15, 40, tzinfo=timezone.utc)
+    assert should_eod_flatten(risk=risk, schedule=schedule, instrument_type="stock", now=now) is True
+
+
 def test_eod_explicit_off():
     risk = _risk(eodFlatten={"enabled": False, "minutesBeforeClose": 15})
     schedule = _schedule()
@@ -83,6 +100,27 @@ def test_event_bus_keeps_history():
     signals = bus.recent(7, event_type="signal")
     assert len(signals) == 1
     assert signals[0]["ticker"] == "SBER"
+
+
+def test_event_bus_drops_oldest_when_full():
+    bus = EventBus()
+
+    async def _run():
+        q = bus.subscribe(1)
+        for i in range(256):
+            await bus.publish(1, "cycle", {"n": i})
+        await bus.publish(1, "cycle", {"n": 256})
+        first = q.get_nowait()
+        assert first["n"] == 1
+        last = first
+        while True:
+            try:
+                last = q.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+        assert last["n"] == 256
+
+    asyncio.run(_run())
 
 
 def test_v4_config_accepts_eod_flatten():

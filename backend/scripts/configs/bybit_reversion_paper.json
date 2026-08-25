@@ -1,0 +1,49 @@
+{
+  "configVersion": 4,
+  "core": {
+    "goal": "conservative",
+    "instrumentType": "perpetual",
+    "mode": "paper",
+    "advancedMode": false,
+    "schedule": {
+      "weekdays": [true, true, true, true, true, true, true],
+      "timeFrom": "00:00",
+      "timeTo": "23:59",
+      "pollInterval": "5m"
+    }
+  },
+  "strategy": {
+    "archetype": "reversion",
+    "timeframe": "15m",
+    "params": {
+      "indicator": "rsi",
+      "rsiPeriod": 14,
+      "oversoldThreshold": 28,
+      "overboughtThreshold": 72
+    }
+  },
+  "universe": {
+    "mode": "fixed",
+    "fixedList": ["BTCUSDT", "ETHUSDT"],
+    "excluded": [],
+    "maxAssets": 2,
+    "exitOnDrop": false
+  },
+  "risk": {
+    "capital": 200000,
+    "maxPositionSharePct": 40,
+    "stopLossPct": 0.8,
+    "takeProfitPct": 1.2,
+    "maxDailyLoss": 4000,
+    "maxDrawdownPct": 12,
+    "maxConcurrentPositions": 2,
+    "brokerCommissionPct": 0.06,
+    "taxPct": 0,
+    "slippagePct": 0.03,
+    "stopMode": "soft",
+    "eodFlatten": {
+      "enabled": false,
+      "minutesBeforeClose": 15
+    }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "configVersion": 4,
+  "core": {
+    "goal": "conservative",
+    "instrumentType": "perpetual",
+    "mode": "paper",
+    "advancedMode": false,
+    "schedule": {
+      "weekdays": [true, true, true, true, true, true, true],
+      "timeFrom": "00:00",
+      "timeTo": "23:59",
+      "pollInterval": "5m"
+    }
+  },
+  "strategy": {
+    "archetype": "grid",
+    "timeframe": "15m",
+    "params": {
+      "gridStepAtrPct": 1.2,
+      "gridDepth": 4,
+      "baseAllocationPct": 20,
+      "scaleMultiplier": 1.15
+    }
+  },
+  "universe": {
+    "mode": "fixed",
+    "fixedList": ["BTCUSDT", "ETHUSDT"],
+    "excluded": [],
+    "maxAssets": 2,
+    "exitOnDrop": false
+  },
+  "risk": {
+    "capital": 200000,
+    "maxPositionSharePct": 35,
+    "stopLossPct": 1.5,
+    "takeProfitPct": 2.5,
+    "maxDailyLoss": 5000,
+    "maxDrawdownPct": 15,
+    "maxConcurrentPositions": 2,
+    "brokerCommissionPct": 0.06,
+    "taxPct": 0,
+    "slippagePct": 0.03,
+    "stopMode": "soft",
+    "eodFlatten": {
+      "enabled": false,
+      "minutesBeforeClose": 15
+    }
+  }
+}

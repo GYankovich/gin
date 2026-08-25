@@ -381,7 +381,7 @@ class TInvestService:
                 insert_snapshot,
                 {
                     "account_id": db_account_id,
-                    "snapshot_date": datetime.utcnow(),
+                    "snapshot_date": datetime.now(timezone.utc),
                     "total_amount_portfolio": utils.safe_float(portfolio["total_amount_portfolio"].get("decimal") if portfolio["total_amount_portfolio"] else None),
                     "total_amount_shares": utils.safe_float((portfolio.get("total_amount_shares") or {}).get("decimal")),
                     "total_amount_bonds": utils.safe_float((portfolio.get("total_amount_bonds") or {}).get("decimal")),

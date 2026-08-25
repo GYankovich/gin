@@ -47,8 +47,7 @@ async def _start_api_background() -> None:
         system_log.info("Embedded lane workers отключены (WORKER_EMBEDDED_ENABLED=false)")
 
     schedulers = [
-        ("portfolio", "app.modules.robots.portfolio_updater.scheduler", "start_portfolio_scheduler"),
-        ("trading", "app.modules.robots.trading.scheduler", "start_trading_scheduler"),
+        ("portfolio", "app.modules.robots_v2.portfolio.scheduler", "start_portfolio_v2_scheduler"),
         ("dms", "app.modules.dms.scheduler", "start_dms_scheduler"),
         ("candle_load", "app.modules.market_data_v1.scheduler", "start_candle_load_scheduler"),
         ("corporate_actions", "app.modules.corporate_actions.scheduler", "start_corporate_actions_scheduler"),
@@ -63,18 +62,24 @@ async def _start_api_background() -> None:
         except Exception as e:
             system_log.error("Ошибка запуска планировщика %s: %s", name, e)
 
+    if settings.ROBOTS_V2_ENABLED and settings.ROBOTS_V2_AUTO_RESUME:
+        try:
+            from app.modules.robots_v2.engine.session_resume import resume_robots_v2_sessions
+            asyncio.create_task(resume_robots_v2_sessions(), name="robots_v2_auto_resume")
+            system_log.info("robots_v2 auto-resume scheduled")
+        except Exception as e:
+            system_log.error("robots_v2 auto-resume schedule failed: %s", e)
+
 
 async def _stop_api_background() -> None:
-    from app.modules.robots.portfolio_updater.scheduler import stop_portfolio_scheduler
-    from app.modules.robots.trading.scheduler import stop_trading_scheduler
+    from app.modules.robots_v2.portfolio.scheduler import stop_portfolio_v2_scheduler
     from app.modules.dms.scheduler import stop_dms_scheduler
     from app.modules.market_data_v1.scheduler import stop_candle_load_scheduler
     from app.modules.corporate_actions.scheduler import stop_corporate_actions_scheduler
     from app.modules.robots.moex_securities_updater.scheduler import stop_moex_securities_scheduler
     from app.core.background_jobs.worker import stop_embedded_lane_workers
 
-    await _stop_background_task("portfolio", stop_portfolio_scheduler())
-    await _stop_background_task("trading", stop_trading_scheduler())
+    await _stop_background_task("portfolio", stop_portfolio_v2_scheduler())
     await _stop_background_task("dms", stop_dms_scheduler())
     await _stop_background_task("candle_load", stop_candle_load_scheduler())
     await _stop_background_task("corporate_actions", stop_corporate_actions_scheduler())
@@ -127,7 +132,6 @@ def _register_api_routers(app: FastAPI) -> None:
     from app.modules.auth.router import router as auth_router
     from app.modules.auth.router import users_router
     from app.modules.tinvest.router import router as tinvest_router
-    from app.modules.robots.router import router as robots_router
     from app.modules.robots_v2.router import router as robots_v2_router
     from app.modules.robots_v2.universe.router import router as universe_v2_router
     from app.modules.robots_v2.strategy.router import router as strategy_v2_router
@@ -144,7 +148,6 @@ def _register_api_routers(app: FastAPI) -> None:
     app.include_router(auth_router, prefix="/api", tags=["auth"])
     app.include_router(users_router, prefix="/api", tags=["users"])
     app.include_router(tinvest_router, prefix="/api/tinvest", tags=["tinvest"])
-    app.include_router(robots_router, prefix="/api", tags=["robots"])
     app.include_router(robots_v2_router, prefix="/api", tags=["robots-v2"])
     app.include_router(universe_v2_router, prefix="/api", tags=["universe-v2"])
     app.include_router(strategy_v2_router, prefix="/api", tags=["strategy-v2"])
@@ -175,28 +178,21 @@ def create_api_app() -> FastAPI:
 
     @app.get("/api/scheduler/portfolio/run")
     async def force_portfolio_update():
-        from app.modules.robots.portfolio_updater.scheduler import run_portfolio_update_once
-        return await run_portfolio_update_once()
+        from app.modules.robots_v2.portfolio.scheduler import portfolio_v2_scheduler
 
-    @app.get("/api/scheduler/trading/run/{robot_id}")
-    async def force_trading_robot(robot_id: int):
-        from app.modules.robots.trading.scheduler import force_run_trading_robot
-        return await force_run_trading_robot(robot_id)
+        return await portfolio_v2_scheduler.run_once()
 
     return app
 
 
 def create_ws_app() -> FastAPI:
-    from app.modules.robots.live_ws import router as live_ws_router
-
     app = FastAPI(
         title="Ganaly Live WS",
-        description="WebSocket gateway для live-мониторинга роботов",
+        description="WebSocket gateway (legacy live removed; v2 stream on API process)",
         version="2.0.0",
         lifespan=ws_lifespan,
     )
     _apply_common_middleware(app)
-    app.include_router(live_ws_router, tags=["live"])
 
     @app.get("/health")
     async def health_check():

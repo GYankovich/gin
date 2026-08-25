@@ -33,6 +33,8 @@ class SessionRiskState:
 class RiskEngine:
     def __init__(self, risk_config: RiskConfig, *, allow_short: bool = False) -> None:
         self.config = risk_config
+        # Hard budget for live micro-accounts (allocatedCapital, else wizard capital).
+        self._budget_cap = float(risk_config.allocated_capital or risk_config.capital or 0)
         self.manager = RiskManager(
             risk_params_from_v4(risk_config, allow_short=allow_short),
             commission_rate=risk_config.broker_commission_pct / 100.0,
@@ -40,9 +42,32 @@ class RiskEngine:
         self.session_state = SessionRiskState()
         self._risk_dict = risk_params_dict_from_v4(risk_config)
 
+    def _capped_equity(self, equity: float) -> float:
+        eq = float(equity or 0)
+        if eq <= 0:
+            return 0.0
+        if self._budget_cap > 0:
+            return min(eq, self._budget_cap)
+        return eq
+
     def begin_session(self, equity: float) -> None:
-        self.manager.begin_day(equity)
-        self.session_state.peak_equity = equity
+        eq = self._capped_equity(equity) or float(equity or 0)
+        self.manager.begin_day(eq)
+        self.session_state.peak_equity = eq
+
+    def begin_trading_day(self, equity: float) -> None:
+        """Reset daily PnL/loss counters without touching session peak (drawdown)."""
+        eq = self._capped_equity(equity) or float(equity or 0)
+        self.manager.begin_day(eq)
+
+    def rebind_capital(self, equity: float) -> None:
+        """Live: size from account equity, capped by allocatedCapital/wizard capital."""
+        eq = self._capped_equity(equity)
+        if eq <= 0:
+            return
+        self.config.capital = eq
+        share = float(self.config.max_position_share_pct or 0) / 100.0
+        self.manager.params.max_position_rub = eq * share
 
     def evaluate_exits(
         self,
@@ -53,6 +78,10 @@ class RiskEngine:
             open_positions,
             prices,
             self._risk_dict,
+            cost_kw={
+                "broker_commission_rate": self.config.broker_commission_pct / 100.0,
+                "ndfl_rate": self.config.tax_pct / 100.0,
+            },
         )
 
     def pre_trade(
@@ -81,18 +110,19 @@ class RiskEngine:
             d = Decision(code="SESSION_HALTED", message=self.session_state.halt_reason or "halt", allow=False)
             return RiskDecision(allow=False, reason=d.code), d
 
-        if equity > self.session_state.peak_equity:
-            self.session_state.peak_equity = equity
+        eq = self._capped_equity(equity)
+        if eq > self.session_state.peak_equity:
+            self.session_state.peak_equity = eq
         dd_limit = self.config.max_drawdown_pct
         if dd_limit > 0 and self.session_state.peak_equity > 0:
-            dd = (self.session_state.peak_equity - equity) / self.session_state.peak_equity * 100.0
+            dd = (self.session_state.peak_equity - eq) / self.session_state.peak_equity * 100.0
             if dd >= dd_limit:
                 self.session_state.halt_session = True
                 self.session_state.halt_reason = "MAX_DRAWDOWN"
                 d = Decision(code="MAX_DRAWDOWN", message=f"Drawdown {dd:.1f}% >= {dd_limit}%", allow=False)
                 return RiskDecision(allow=False, reason=d.code), d
 
-        decision = self.manager.pre_trade_check(signal, cash=cash, equity=equity, positions=positions)
+        decision = self.manager.pre_trade_check(signal, cash=cash, equity=eq, positions=positions)
         code = decision.reason if not decision.allow else "ALLOW"
         audit = Decision(
             code=code,
@@ -125,6 +155,10 @@ class RiskEngine:
 
     def pause_entries(self) -> None:
         self.session_state.accept_new_entries = False
+
+    def resume_entries(self) -> None:
+        if not self.session_state.halt_session:
+            self.session_state.accept_new_entries = True
 
     def halt(self, reason: str) -> None:
         self.session_state.accept_new_entries = False

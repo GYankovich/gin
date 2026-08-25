@@ -61,6 +61,52 @@ def avg_daily_value_rub_from_candles(
     return sum(values) / len(values)
 
 
+def point_in_time_metrics(
+    db: Session,
+    *,
+    tickers: list[str],
+    as_of_date: date,
+    lookback_days: int = 14,
+    market: str = "moex",
+) -> dict[str, dict[str, float]]:
+    """Last close and mean daily turnover using only candles strictly before as_of_date."""
+    from app.modules.robots.trading.data.providers.db_cache import query_candles_cache_rows_bulk
+
+    ids = [str(t).upper() for t in tickers if t]
+    if not ids:
+        return {}
+    end = _day_start_utc(as_of_date)
+    start = end - timedelta(days=max(1, int(lookback_days)))
+    grouped = query_candles_cache_rows_bulk(
+        db,
+        market=market,
+        instrument_ids=ids,
+        interval_code="D1",
+        interval_code_num=24,
+        from_dt=start,
+        to_dt_exclusive=end,
+    )
+    out: dict[str, dict[str, float]] = {}
+    for ticker, rows in grouped.items():
+        values: list[float] = []
+        last_close = 0.0
+        for row in rows:
+            close = float(row.get("close") or 0)
+            volume = float(row.get("volume") or 0)
+            if close <= 0:
+                continue
+            last_close = close
+            if volume > 0:
+                values.append(close * volume)
+        if last_close <= 0:
+            continue
+        out[str(ticker).upper()] = {
+            "last_close": last_close,
+            "avg_value": (sum(values) / len(values)) if values else 0.0,
+        }
+    return out
+
+
 def enrich_moex_snapshot_rows_historical_liquidity(
     db: Session,
     *,

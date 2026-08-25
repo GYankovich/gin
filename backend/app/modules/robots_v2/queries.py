@@ -13,7 +13,10 @@ def build_list_robots_query(
     schema: str = "public",
 ) -> tuple[str, dict[str, Any]]:
     params: dict[str, Any] = {"user_id": user_id}
-    conditions = ["r.user_id = :user_id"]
+    conditions = [
+        "r.user_id = :user_id",
+        "COALESCE(r.metadata->>'deletedAt', '') = ''",
+    ]
     if robot_status:
         placeholders = ", ".join(f":status_{i}" for i in range(len(robot_status)))
         conditions.append(f"r.status IN ({placeholders})")
@@ -36,8 +39,20 @@ def build_list_robots_query(
             r.config,
             r.metadata,
             r.date_creation,
-            r.date_modification
+            r.date_modification,
+            r.last_started,
+            dt.name AS type_name,
+            ds.name AS status_name
         FROM {schema}.robots_v2 r
+        LEFT JOIN {schema}.dictionary dt
+            ON r.type = dt.num_value
+           AND dt.table_name = 'ROBOT'
+           AND dt.column_name = 'TYPE'
+        INNER JOIN {schema}.dictionary ds
+            ON r.status = ds.num_value
+           AND ds.table_name = 'ROBOT'
+           AND ds.column_name = 'STATUS'
+           AND COALESCE(ds.hide_from_ui, 0) != 1
         WHERE {where}
         ORDER BY r.date_creation DESC
     """
@@ -56,9 +71,22 @@ def build_get_robot_query(*, robot_id: int, user_id: int, schema: str = "public"
             r.config,
             r.metadata,
             r.date_creation,
-            r.date_modification
+            r.date_modification,
+            r.last_started,
+            dt.name AS type_name,
+            ds.name AS status_name
         FROM {schema}.robots_v2 r
-        WHERE r.id = :robot_id AND r.user_id = :user_id
+        LEFT JOIN {schema}.dictionary dt
+            ON r.type = dt.num_value
+           AND dt.table_name = 'ROBOT'
+           AND dt.column_name = 'TYPE'
+        LEFT JOIN {schema}.dictionary ds
+            ON r.status = ds.num_value
+           AND ds.table_name = 'ROBOT'
+           AND ds.column_name = 'STATUS'
+        WHERE r.id = :robot_id
+          AND r.user_id = :user_id
+          AND COALESCE(r.metadata->>'deletedAt', '') = ''
     """
     return query, {"robot_id": robot_id, "user_id": user_id}
 
@@ -92,10 +120,18 @@ def build_update_robot_query(schema: str = "public") -> str:
     """
 
 
-def build_delete_robot_query(schema: str = "public") -> str:
+def build_soft_delete_robot_query(schema: str = "public") -> str:
+    """Soft delete: metadata.deletedAt + status=0 for portfolio (legacy parity)."""
     return f"""
-        DELETE FROM {schema}.robots_v2
-        WHERE id = :robot_id AND user_id = :user_id
+        UPDATE {schema}.robots_v2
+        SET
+            status = :status,
+            metadata = CAST(:metadata AS jsonb),
+            usermod = :usermod,
+            date_modification = NOW()
+        WHERE id = :robot_id
+          AND user_id = :user_id
+          AND COALESCE(metadata->>'deletedAt', '') = ''
         RETURNING id
     """
 

@@ -5,7 +5,7 @@ ORM-модели портфельных данных (брокер-незави�
 """
 #///EPIC Modules.ITEM Module.TOPIC BackendAppModulesPortfolioModels [1]
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     BigInteger,
@@ -72,7 +72,7 @@ class PortfolioSnapshot(Base):
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     account_id = Column(BigInteger, ForeignKey(f"portfolio_accounts.id", ondelete="CASCADE"), nullable=False)
-    snapshot_date = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    snapshot_date = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
     total_amount_portfolio = Column(Numeric(20, 4), nullable=False)
     total_amount_shares = Column(Numeric(20, 4), nullable=True)

@@ -15,34 +15,68 @@ from app.modules.moex.http_gate import moex_http_acquire
 MOEX_INDEX_TICKERS_URL = "https://iss.moex.com/iss/index/{index_code}/tickers.json"
 
 
-async def fetch_moex_index_tickers(index_code: str) -> list[str]:
+async def fetch_moex_index_tickers(
+    index_code: str,
+    *,
+    as_of: date | None = None,
+    robot_id: int | None = None,
+    user_id: int | None = None,
+    token_id: int | None = None,
+) -> list[str]:
     code = str(index_code or "").strip().upper()
     url = MOEX_INDEX_TICKERS_URL.format(index_code=code)
-    params = {"iss.meta": "off", "limit": 500}
-    async with moex_http_acquire():
-        async with httpx.AsyncClient(timeout=20, verify=False) as client:
-            resp = await client.get(url, params=params)
-    if resp.status_code != 200:
-        return []
-    payload = resp.json()
-    block = payload.get("tickers") or payload.get("analytics") or {}
-    columns = block.get("columns") or []
-    data = block.get("data") or []
-    ticker_idx = None
-    for i, col in enumerate(columns):
-        if str(col).lower() in ("ticker", "secid", "securityid"):
-            ticker_idx = i
-            break
-    if ticker_idx is None:
-        return []
+    params: dict[str, Any] = {"iss.meta": "off", "limit": 500}
+    if as_of is not None:
+        params["date"] = as_of.isoformat()
+    started = datetime.now(timezone.utc)
+    status = None
+    err: str | None = None
     out: list[str] = []
-    for row in data:
-        if not row or ticker_idx >= len(row):
-            continue
-        t = str(row[ticker_idx] or "").strip().upper()
-        if t:
-            out.append(t)
-    return sorted(set(out))
+    try:
+        async with moex_http_acquire():
+            async with httpx.AsyncClient(timeout=20, verify=False) as client:
+                resp = await client.get(url, params=params)
+        status = int(resp.status_code)
+        if resp.status_code != 200:
+            err = f"HTTP {resp.status_code}"
+            return []
+        payload = resp.json()
+        block = payload.get("tickers") or payload.get("analytics") or {}
+        columns = block.get("columns") or []
+        data = block.get("data") or []
+        ticker_idx = None
+        for i, col in enumerate(columns):
+            if str(col).lower() in ("ticker", "secid", "securityid"):
+                ticker_idx = i
+                break
+        if ticker_idx is None:
+            return []
+        for row in data:
+            if not row or ticker_idx >= len(row):
+                continue
+            t = str(row[ticker_idx] or "").strip().upper()
+            if t:
+                out.append(t)
+        out = sorted(set(out))
+        return out
+    except Exception as exc:
+        err = str(exc)[:500]
+        return []
+    finally:
+        if robot_id is not None:
+            from app.modules.robots_v2.engine.session_log import log_external_api
+
+            await log_external_api(
+                robot_id=robot_id,
+                user_id=user_id,
+                token_id=token_id,
+                endpoint=f"moex.iss.index/{code}/tickers",
+                request_data={"index_code": code, "params": params},
+                response_data={"count": len(out)} if not err else None,
+                response_status=status,
+                error_message=err,
+                started_at=started,
+            )
 
 
 def _read_cache(db: Session, *, index_code: str, as_of: date, schema: str) -> list[str] | None:
@@ -91,6 +125,9 @@ async def resolve_moex_index_constituents(
     as_of: date | None = None,
     schema: str = "public",
     use_cache: bool = True,
+    robot_id: int | None = None,
+    user_id: int | None = None,
+    token_id: int | None = None,
 ) -> list[str]:
     code = str(index_code or "").strip().upper()
     trade_date = as_of or datetime.now(timezone.utc).date()
@@ -98,7 +135,9 @@ async def resolve_moex_index_constituents(
         cached = _read_cache(db, index_code=code, as_of=trade_date, schema=schema)
         if cached is not None:
             return cached
-    tickers = await fetch_moex_index_tickers(code)
+    tickers = await fetch_moex_index_tickers(
+        code, as_of=trade_date, robot_id=robot_id, user_id=user_id, token_id=token_id,
+    )
     if tickers:
         _write_cache(db, index_code=code, as_of=trade_date, tickers=tickers, schema=schema)
         db.commit()
@@ -112,10 +151,23 @@ async def resolve_crypto_index_constituents(
     index_code: str,
     token_id: int | None = None,
     limit: int = 10,
+    as_of: date | None = None,
 ) -> list[str]:
     code = str(index_code or "").strip().upper()
     if code != "TOP_BYBIT":
         return []
+    if as_of is not None:
+        from app.modules.robots.trading.pipeline.historical_liquidity import (
+            list_bybit_symbols_from_cache,
+            point_in_time_metrics,
+        )
+        symbols = list_bybit_symbols_from_cache(db)
+        pit = point_in_time_metrics(
+            db, tickers=symbols, as_of_date=as_of, lookback_days=20, market="bybit",
+        )
+        ranked = sorted(pit.items(), key=lambda kv: float(kv[1].get("avg_value") or 0), reverse=True)
+        return [str(sym).upper() for sym, _ in ranked[:limit] if sym]
+
     from app.modules.robots.crypto_universe import _find_active_bybit_token, fetch_bybit_tickers
 
     token_row = _find_active_bybit_token(db, user_id, token_id=token_id)

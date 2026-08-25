@@ -51,6 +51,8 @@ class RobotV2BacktestTrade(BaseModel):
     quantity: int
     commission: float = 0.0
     pnl_net: float | None = None
+    reason: str | None = None
+    kind: str | None = None
 
 
 class RobotV2BacktestResultPayload(BaseModel):
@@ -94,3 +96,42 @@ class RobotV2BacktestDetailsResponse(RobotV2BacktestStatusResponse):
     orders: list[dict[str, Any]] = Field(default_factory=list)
     portfolio_snapshots: list[dict[str, Any]] = Field(default_factory=list)
     daily_summary: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class RobotV2BacktestListItem(BaseModel):
+    run_id: int
+    robot_id: int | None = None
+    status: str
+    requested_from: datetime
+    requested_to: datetime
+    started_at: datetime
+    finished_at: datetime | None = None
+    initial_capital: float = 0.0
+    total_return_percent: float | None = None
+    max_drawdown_percent: float | None = None
+    final_equity: float | None = None
+    trades_total: int = 0
+    error_message: str | None = None
+
+
+class RobotV2BacktestListResponse(BaseModel):
+    items: list[RobotV2BacktestListItem] = Field(default_factory=list)
+    total: int = 0
+
+
+class RobotV2BacktestCompareRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    base_run_id: int = Field(..., alias="baseRunId")
+    compare_run_id: int = Field(..., alias="compareRunId")
+
+
+class RobotV2BacktestCompareResponse(BaseModel):
+    base_run_id: int
+    compare_run_id: int
+    metrics_base: dict[str, Any] = Field(default_factory=dict)
+    metrics_compare: dict[str, Any] = Field(default_factory=dict)
+    metrics_diff: dict[str, Any] = Field(default_factory=dict)
+    config_diff: dict[str, Any] = Field(default_factory=dict)
+    base: dict[str, Any] = Field(default_factory=dict)
+    compare: dict[str, Any] = Field(default_factory=dict)

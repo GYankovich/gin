@@ -74,9 +74,7 @@ const MOVE_CANCEL_PX = 12
 
 const tabs = [
     { to: '/portfolio', label: 'Портфель', Icon: IconPortfolio },
-    { to: '/robots', label: 'Роботы', Icon: IconRobots },
-    { to: '/testing', label: 'Тест', Icon: IconTesting },
-    { to: '/live', label: 'Live', Icon: IconLive, accent: 'live' as const },
+    { to: '/robots-v2', label: 'Роботы', Icon: IconRobots },
 ]
 
 type TooltipState = {

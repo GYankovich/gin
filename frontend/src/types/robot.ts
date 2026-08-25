@@ -294,6 +294,8 @@ export interface RobotHistoryBacktestTrade {
     quantity: number
     commission: number
     pnl_net?: number | null
+    reason?: string | null
+    kind?: string | null
 }
 
 export interface RobotHistoryBacktestResult {

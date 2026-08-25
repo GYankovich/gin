@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from app.modules.robots.trading.risk.params import RiskParams
 from app.modules.robots_v2.config.v4_schema import RiskConfig
 
@@ -20,8 +22,8 @@ def risk_params_from_v4(cfg: RiskConfig, *, allow_short: bool = False) -> RiskPa
         take_profit_pct=cfg.take_profit_pct,
         commission_pct=cfg.broker_commission_pct,
         free_funds_reserve_pct=5.0,
-        min_hold_seconds=0.0,
-        min_tp_move_bps=0.0,
+        min_hold_seconds=30.0,
+        min_tp_move_bps=10.0,
     )
 
 
@@ -34,4 +36,49 @@ def risk_params_dict_from_v4(cfg: RiskConfig) -> dict:
         "take_profit_pct": p.take_profit_pct,
         "min_hold_seconds": p.min_hold_seconds,
         "min_tp_move_bps": p.min_tp_move_bps,
+        # TP order only after ~90% of the move entry→TP (never right after buy).
+        "tp_arm_ratio": 0.90,
+        "tp_approach_bps": 15.0,
     }
+
+
+def enrich_positions_with_exit_prices(
+    positions: list[dict[str, Any]],
+    risk: RiskConfig,
+) -> list[dict[str, Any]]:
+    """Add break_even / stop_loss / take_profit prices to open position rows for UI."""
+    from app.modules.robots.trading.costs import (
+        calculate_break_even_price,
+        calculate_stop_loss_price,
+        calculate_take_profit_price,
+    )
+
+    comm = float(risk.broker_commission_pct) / 100.0
+    tax = float(risk.tax_pct) / 100.0
+    out: list[dict[str, Any]] = []
+    for raw in positions:
+        row = dict(raw)
+        entry = float(row.get("entry_price") or row.get("avg_entry_price") or 0)
+        is_long = str(row.get("side", "")).lower() in ("long", "buy")
+        if entry > 0:
+            row["break_even_price"] = calculate_break_even_price(
+                entry,
+                is_long=is_long,
+                broker_commission_rate=comm,
+            )
+            row["stop_loss_price"] = calculate_stop_loss_price(
+                entry,
+                risk.stop_loss_pct,
+                is_long=is_long,
+                broker_commission_rate=comm,
+            )
+            # Already ceil'd to kopecks inside calculate_take_profit_price.
+            row["take_profit_price"] = calculate_take_profit_price(
+                entry,
+                risk.take_profit_pct,
+                is_long=is_long,
+                broker_commission_rate=comm,
+                ndfl_rate=tax,
+            )
+        out.append(row)
+    return out

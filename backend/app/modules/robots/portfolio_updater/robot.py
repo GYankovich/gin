@@ -624,7 +624,7 @@ class PortfolioUpdaterRobot(BaseRobot):
         self.db.execute(
             text(
                 f"""
-                UPDATE robots
+                UPDATE {self.schema}.robots
                 SET status = 2,
                     last_error = :error_message,
                     last_error_at = :now,
@@ -635,6 +635,22 @@ class PortfolioUpdaterRobot(BaseRobot):
                   AND status != 0
                 """
             ),
-            params
+            params,
+        )
+        self.db.execute(
+            text(
+                f"""
+                UPDATE {self.schema}.robots_v2
+                SET status = 2,
+                    usermod = :user_id,
+                    date_modification = :now
+                WHERE token_id = :token_id
+                  AND user_id = :user_id
+                  AND type = 1
+                  AND status = 1
+                  AND COALESCE(metadata->>'deletedAt', '') = ''
+                """
+            ),
+            params,
         )
         self.db.commit()

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from app.modules.robots.trading.contracts import Position, Signal
@@ -32,6 +34,12 @@ class StrategyRuntime:
         signals = plugin.evaluate(ctx)
         return self._order_exits_first(signals)
 
+    def last_scan(self, session_id: int, archetype: StrategyArchetype) -> list[dict[str, Any]]:
+        plugin = self._sessions.get(session_id)
+        if plugin is None or plugin.archetype != archetype:
+            return []
+        return plugin.last_scan
+
     def on_universe_change(
         self,
         session_id: int,
@@ -42,6 +50,19 @@ class StrategyRuntime:
     ) -> None:
         plugin = self.get_plugin(session_id, archetype)
         plugin.on_universe_change(added, removed, open_positions)
+
+    def notify_stop_loss(
+        self,
+        session_id: int,
+        archetype: StrategyArchetype,
+        ticker: str,
+        *,
+        at: datetime | None = None,
+    ) -> None:
+        plugin = self._sessions.get(session_id)
+        if plugin is None or plugin.archetype != archetype:
+            return
+        plugin.on_stop_loss(ticker, at=at)
 
     @staticmethod
     def _order_exits_first(signals: list[Signal]) -> list[Signal]:

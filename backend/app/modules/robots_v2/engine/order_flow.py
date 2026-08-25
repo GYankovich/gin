@@ -20,6 +20,7 @@ class _Tick:
     price: float
     side: str  # buy | sell
     volume: float  # notional
+    real_trade: bool = False
 
 
 class OrderFlowAggregator:
@@ -53,7 +54,7 @@ class OrderFlowAggregator:
         if notional <= 0:
             notional = max(float(price), 1.0)
         q = self._ticks[t]
-        q.append(_Tick(ts=ts, price=price, side=side, volume=notional))
+        q.append(_Tick(ts=ts, price=price, side=side, volume=notional, real_trade=False))
         self._trim(t, ts)
 
     def on_trade(
@@ -77,6 +78,7 @@ class OrderFlowAggregator:
                 price=price,
                 side="buy" if side.lower().startswith("b") else "sell",
                 volume=max(0.0, notional),
+                real_trade=True,
             )
         )
         self._trim(t, ts)
@@ -100,11 +102,18 @@ class OrderFlowAggregator:
         if total <= 0:
             return None
         delta_pct = (buy - sell) / total * 100.0
+        tick_count = len(q)
+        trade_count = sum(1 for x in q if x.real_trade)
+        has_real = bool(self._has_real_trades.get(t) or trade_count > 0)
         return OrderFlowSnapshot(
             buyVolume=buy,
             sellVolume=sell,
             deltaPct=delta_pct,
             windowSec=self.window_sec,
+            tickCount=tick_count,
+            tradeCount=trade_count,
+            hasRealTrades=has_real,
+            flowSource="trades" if has_real else "inferred",
         )
 
     def snapshots(self, tickers: list[str], *, now: datetime | None = None) -> dict[str, OrderFlowSnapshot]:

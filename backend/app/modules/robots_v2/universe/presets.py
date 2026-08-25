@@ -21,6 +21,7 @@ MOEX_PRESETS: dict[ScreenerPreset, list[dict[str, Any]]] = {
     ],
     "volatile": [
         *MOEX_STATUS_FILTERS,
+        {"type": "volume", "min": 5_000_000},
         {"type": "atr", "min_percent": 2.0},
     ],
     "low_price": [

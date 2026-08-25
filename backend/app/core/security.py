@@ -236,6 +236,17 @@ async def get_current_user(
             detail="Internal server error"
         )
 
+def authenticate_ws_user_id(token_str: str) -> Optional[int]:
+    """Return user_id from bearer token or None (session checked in DB, not JWT exp)."""
+    from app.core.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        return resolve_session_user_id(db, token_str, slide=False)
+    finally:
+        db.close()
+
+
 async def get_optional_current_user(
         token: str = Depends(oauth2_scheme),
         db: Session = Depends(get_db)

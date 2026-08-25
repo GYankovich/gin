@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 try:
     from zoneinfo import ZoneInfo
@@ -40,6 +40,7 @@ def should_eod_flatten(
     schedule: ScheduleConfig,
     instrument_type: str,
     now: datetime | None = None,
+    grace_after_close_min: int = 30,
 ) -> bool:
     if not risk.eod_flatten_enabled_for(instrument_type):  # type: ignore[arg-type]
         return False
@@ -47,5 +48,28 @@ def should_eod_flatten(
     if mins is None:
         return False
     threshold = int(risk.eod_flatten.minutes_before_close)
-    # Inside window: 0 < minutes_to_close <= threshold (also flatten if slightly past close)
-    return mins <= threshold
+    # Window only: [close - threshold, close + grace].
+    # Do NOT treat all evening/night as EOD (mins is largely negative after close).
+    grace = max(0, int(grace_after_close_min))
+    return -grace <= mins <= threshold
+
+
+def trade_date_msk(now: datetime | None = None) -> date:
+    """Calendar trade date in Europe/Moscow."""
+    return (now or datetime.now(timezone.utc)).astimezone(MSK).date()
+
+
+def is_within_trading_session(
+    schedule: ScheduleConfig,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """True when current MSK time is between timeFrom and timeTo on an enabled weekday."""
+    now_msk = (now or datetime.now(timezone.utc)).astimezone(MSK)
+    wd = now_msk.weekday()
+    if wd >= len(schedule.weekdays) or not schedule.weekdays[wd]:
+        return False
+    start_t = _parse_hhmm(schedule.time_from)
+    close_t = _parse_hhmm(schedule.time_to)
+    t = now_msk.time()
+    return start_t <= t <= close_t

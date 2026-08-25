@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 
 type Props = {
-    title: string
+    title: React.ReactNode
     hint?: string
     badge?: React.ReactNode
     /** Контент справа в шапке (тогглы и т.п.) — клик не сворачивает секцию. */

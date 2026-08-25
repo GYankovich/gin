@@ -42,6 +42,31 @@ def make_entry_signal(
     )
 
 
+def block_exit_below_break_even(
+    *,
+    entry: float,
+    price: float,
+    side: str,
+    broker_commission_rate: float | None = None,
+) -> str | None:
+    """Block strategy MARKET exits while price is still below break-even."""
+    if entry <= 0 or price <= 0:
+        return None
+    from app.modules.robots.trading.costs import calculate_break_even_price
+
+    is_long = str(side or "long").lower() in ("long", "buy")
+    floor_px = calculate_break_even_price(
+        entry,
+        is_long=is_long,
+        broker_commission_rate=float(broker_commission_rate or 0.0),
+    )
+    if is_long and price + 1e-9 < floor_px:
+        return f"below_break_even price={price:.4f}<be={floor_px:.4f}"
+    if not is_long and price > floor_px + 1e-9:
+        return f"above_break_even price={price:.4f}>be={floor_px:.4f}"
+    return None
+
+
 def make_exit_signal(
     *,
     ticker: str,

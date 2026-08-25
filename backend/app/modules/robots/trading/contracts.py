@@ -280,6 +280,7 @@ class OrderIntent:
     signal_id: Optional[Any] = None
     trade_id: Optional[int] = None
     estimated_profit: Optional[float] = None
+    order_type: Literal["MARKET", "LIMIT"] = "MARKET"
     meta: Dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -298,6 +299,7 @@ class OrderIntent:
             "intent_kind": self.kind,
             "intent_source": self.kind,
             "reason": self.reason,
+            "order_type": self.order_type,
             "_signal_id": self.signal_id,
             "trade_id": self.trade_id,
             "estimated_profit": self.estimated_profit,

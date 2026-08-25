@@ -1046,6 +1046,10 @@ async def fetch_bybit_tickers(
     category: str,
     ttl_seconds: Optional[int] = None,
     force: bool = False,
+    user_id: Optional[int] = None,
+    token_id: Optional[int] = None,
+    context_type: Optional[str] = "bybit_http",
+    context_ref: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
     Full-category tickers list with short TTL cache.
@@ -1077,7 +1081,15 @@ async def fetch_bybit_tickers(
             if cached is not None and cached[0] > now:
                 return copy.deepcopy(cached[1])
 
-        client = BybitHttpClient(testnet=testnet, api_key=api_key, api_secret=api_secret)
+        client = BybitHttpClient(
+            testnet=testnet,
+            api_key=api_key,
+            api_secret=api_secret,
+            user_id=user_id,
+            token_id=token_id,
+            context_type=context_type,
+            context_ref=context_ref,
+        )
         try:
             payload = await client.get_tickers(category=cat)
             rows = list((payload.get("result") or {}).get("list") or [])

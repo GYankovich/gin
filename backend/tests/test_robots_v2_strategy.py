@@ -78,6 +78,18 @@ def test_momentum_no_entry_on_poll():
     runtime = StrategyRuntime()
     signals = runtime.evaluate(2, ctx)
     assert not any(s.side == "BUY" for s in signals)
+    scan = runtime.last_scan(2, "momentum")
+    assert len(scan) == 1
+    assert scan[0]["code"] == "WRONG_TRIGGER"
+    assert scan[0]["metrics"]["triggeredBy"] == "poll"
+
+
+def test_momentum_scan_warmup():
+    ctx = _ctx(candles={"SBER": []}, triggered_by="bar_close")
+    runtime = StrategyRuntime()
+    runtime.evaluate(99, ctx)
+    scan = runtime.last_scan(99, "momentum")
+    assert scan and scan[0]["code"] == "WARMUP"
 
 
 def test_momentum_exit_on_ma_cross():
@@ -106,8 +118,9 @@ def test_reversion_rsi_oversold_entry():
     assert any(s.side == "BUY" for s in signals)
 
 
-def test_scalper_requires_ws_and_order_flow():
+def test_scalper_requires_order_flow_on_price_tick():
     plugin = create_plugin("scalper")
+    # No order-flow → no entry even on price_tick
     ctx = _ctx(
         config=StrategyConfig(
             archetype="scalper",
@@ -116,13 +129,373 @@ def test_scalper_requires_ws_and_order_flow():
         ),
         ws_healthy=False,
         triggered_by="price_tick",
-        order_flow={"SBER": OrderFlowSnapshot(buyVolume=5000, sellVolume=1000, deltaPct=50, windowSec=30)},
+        order_flow=None,
     )
     assert plugin.evaluate(ctx) == []
 
-    ctx.ws_healthy = True
+    # REST fallback: ws unhealthy but price_tick + flow still allowed
+    ctx.order_flow = {
+        "SBER": OrderFlowSnapshot(
+            buyVolume=5000,
+            sellVolume=1000,
+            deltaPct=50,
+            windowSec=30,
+            tickCount=5,
+            tradeCount=4,
+            hasRealTrades=True,
+            flowSource="trades",
+        ),
+    }
     signals = plugin.evaluate(ctx)
     assert any(s.side == "BUY" for s in signals)
+
+    # poll trigger never entries for scalper
+    ctx.triggered_by = "poll"
+    assert plugin.evaluate(ctx) == []
+
+
+def test_scalper_delta_reversal_blocked_by_min_hold():
+    from datetime import timedelta
+
+    plugin = create_plugin("scalper")
+    opened = datetime.now(timezone.utc) - timedelta(seconds=5)
+    pos = Position(
+        side="LONG",
+        quantity=10,
+        avg_entry_price=100.0,
+        secid="SBER",
+        current_price=100.05,
+        opened_at=opened,
+    )
+    ctx = _ctx(
+        config=StrategyConfig(
+            archetype="scalper",
+            timeframe="1m",
+            params={"deltaThresholdPct": 5, "minHoldSec": 30, "minExitMoveBps": 10},
+        ),
+        open_positions=[pos],
+        last_price={"SBER": 100.05},
+        triggered_by="price_tick",
+        order_flow={
+            "SBER": OrderFlowSnapshot(buyVolume=1000, sellVolume=9000, deltaPct=-8, windowSec=30),
+        },
+    )
+    signals = plugin.evaluate(ctx)
+    assert not any(s.side == "CLOSE" for s in signals)
+    scan = plugin.last_scan or []
+    assert any(row.get("code") == "EXIT_BLOCKED" for row in scan)
+
+
+def test_scalper_delta_reversal_exits_after_hold_and_move():
+    from datetime import timedelta
+
+    plugin = create_plugin("scalper")
+    opened = datetime.now(timezone.utc) - timedelta(seconds=60)
+    pos = Position(
+        side="LONG",
+        quantity=10,
+        avg_entry_price=100.0,
+        secid="SBER",
+        current_price=102.0,
+        opened_at=opened,
+    )
+    ctx = _ctx(
+        config=StrategyConfig(
+            archetype="scalper",
+            timeframe="1m",
+            params={"deltaThresholdPct": 5, "minHoldSec": 30, "minExitMoveBps": 10},
+        ),
+        open_positions=[pos],
+        last_price={"SBER": 102.0},
+        triggered_by="price_tick",
+        take_profit_pct=1.0,
+        order_flow={
+            "SBER": OrderFlowSnapshot(buyVolume=1000, sellVolume=9000, deltaPct=-8, windowSec=30),
+        },
+    )
+    signals = plugin.evaluate(ctx)
+    assert any(s.side == "CLOSE" and s.reason == "scalper_delta_reversal" for s in signals)
+
+
+def test_scalper_delta_reversal_blocked_below_break_even():
+    from datetime import timedelta
+
+    plugin = create_plugin("scalper")
+    opened = datetime.now(timezone.utc) - timedelta(seconds=60)
+    pos = Position(
+        side="LONG",
+        quantity=10,
+        avg_entry_price=322.6,
+        secid="ROSN",
+        current_price=322.3,
+        opened_at=opened,
+    )
+    ctx = _ctx(
+        config=StrategyConfig(
+            archetype="scalper",
+            timeframe="1m",
+            params={"deltaThresholdPct": 5, "minHoldSec": 30, "minExitMoveBps": 5},
+        ),
+        open_positions=[pos],
+        universe=["ROSN"],
+        last_price={"ROSN": 322.3},
+        triggered_by="price_tick",
+        take_profit_pct=1.0,
+        order_flow={
+            "ROSN": OrderFlowSnapshot(buyVolume=1000, sellVolume=9000, deltaPct=-10, windowSec=30),
+        },
+    )
+    signals = plugin.evaluate(ctx)
+    assert not any(s.side == "CLOSE" for s in signals)
+    scan = plugin.last_scan or []
+    row = next(r for r in scan if r.get("ticker") == "ROSN")
+    assert row.get("code") == "EXIT_BLOCKED"
+    assert "безубыт" in str(row.get("message") or "").lower()
+
+
+def test_scalper_delta_reversal_blocked_when_price_below_entry():
+    from datetime import timedelta
+
+    plugin = create_plugin("scalper")
+    opened = datetime.now(timezone.utc) - timedelta(seconds=60)
+    pos = Position(
+        side="LONG",
+        quantity=10,
+        avg_entry_price=1157.0,
+        secid="PLZL",
+        current_price=1155.8,
+        opened_at=opened,
+    )
+    ctx = _ctx(
+        config=StrategyConfig(
+            archetype="scalper",
+            timeframe="1m",
+            params={"deltaThresholdPct": 5, "minHoldSec": 30, "minExitMoveBps": 10},
+        ),
+        open_positions=[pos],
+        universe=["PLZL"],
+        last_price={"PLZL": 1155.8},
+        triggered_by="price_tick",
+        order_flow={
+            "PLZL": OrderFlowSnapshot(buyVolume=1000, sellVolume=9000, deltaPct=-16, windowSec=30),
+        },
+    )
+    signals = plugin.evaluate(ctx)
+    assert not any(s.side == "CLOSE" for s in signals)
+    scan = plugin.last_scan or []
+    assert any(row.get("code") == "EXIT_BLOCKED" for row in scan)
+    blocked = next(r for r in scan if r.get("code") == "EXIT_BLOCKED")
+    assert "Ждём" in str(blocked.get("message") or "")
+    assert "безубыт" in str(blocked.get("message") or "").lower()
+
+
+def test_scalper_in_position_explains_wait_and_readings():
+    plugin = create_plugin("scalper")
+    pos = Position(
+        side="LONG",
+        quantity=10,
+        avg_entry_price=100.0,
+        secid="SBER",
+        current_price=100.05,
+    )
+    ctx = _ctx(
+        config=StrategyConfig(
+            archetype="scalper",
+            timeframe="1m",
+            params={"deltaThresholdPct": 8, "minHoldSec": 90, "minExitMoveBps": 80},
+        ),
+        open_positions=[pos],
+        last_price={"SBER": 100.05},
+        triggered_by="price_tick",
+        take_profit_pct=1.5,
+        stop_loss_pct=0.6,
+        broker_commission_rate=0.0005,
+        tax_pct=13,
+        order_flow={
+            "SBER": OrderFlowSnapshot(buyVolume=5000, sellVolume=5000, deltaPct=0.0, windowSec=30),
+        },
+    )
+    signals = plugin.evaluate(ctx)
+    assert not any(s.side == "CLOSE" for s in signals)
+    row = next(r for r in (plugin.last_scan or []) if r.get("ticker") == "SBER")
+    assert row.get("code") == "IN_POSITION"
+    msg = str(row.get("message") or "")
+    assert "Ждём" in msg
+    assert "разворот delta" in msg
+    assert "delta +0.0%" in msg
+    assert "безубыток" in msg
+    assert "TP" in msg
+    assert "SL" in msg
+
+
+def test_scalper_delta_reversal_allows_above_break_even_below_take_profit():
+    from datetime import timedelta
+
+    plugin = create_plugin("scalper")
+    opened = datetime.now(timezone.utc) - timedelta(seconds=60)
+    pos = Position(
+        side="LONG",
+        quantity=10,
+        avg_entry_price=100.0,
+        secid="SBER",
+        current_price=100.20,
+        opened_at=opened,
+    )
+    ctx = _ctx(
+        config=StrategyConfig(
+            archetype="scalper",
+            timeframe="1m",
+            params={"deltaThresholdPct": 5, "minHoldSec": 30, "minExitMoveBps": 10},
+        ),
+        open_positions=[pos],
+        universe=["SBER"],
+        last_price={"SBER": 100.20},
+        triggered_by="price_tick",
+        take_profit_pct=1.0,
+        broker_commission_rate=0.0005,
+        order_flow={
+            "SBER": OrderFlowSnapshot(buyVolume=1000, sellVolume=9000, deltaPct=-10, windowSec=30),
+        },
+    )
+    signals = plugin.evaluate(ctx)
+    assert any(s.side == "CLOSE" and s.reason == "scalper_delta_reversal" for s in signals)
+
+
+def test_scalper_blocks_thin_one_sided_inferred_flow():
+    """PLZL-style +100% delta from 2 upticks must not trigger entry."""
+    plugin = create_plugin("scalper")
+    ctx = _ctx(
+        config=StrategyConfig(
+            archetype="scalper",
+            timeframe="1m",
+            params={"deltaThresholdPct": 5, "requiresWebSocket": True},
+        ),
+        universe=["PLZL"],
+        last_price={"PLZL": 1157.0},
+        triggered_by="price_tick",
+        order_flow={
+            "PLZL": OrderFlowSnapshot(
+                buyVolume=2314.0,
+                sellVolume=0.0,
+                deltaPct=100.0,
+                windowSec=30,
+                tickCount=2,
+                tradeCount=0,
+                hasRealTrades=False,
+                flowSource="inferred",
+            ),
+        },
+    )
+    signals = plugin.evaluate(ctx)
+    assert not any(s.side == "BUY" for s in signals)
+    scan = plugin.last_scan or []
+    row = next(r for r in scan if r.get("ticker") == "PLZL")
+    assert row.get("code") == "THIN_ORDER_FLOW"
+    assert row.get("metrics", {}).get("buyVolume") == 2314.0
+    assert row.get("metrics", {}).get("sellVolume") == 0.0
+    assert row.get("metrics", {}).get("hasRealTrades") is False
+
+
+def test_scalper_scan_includes_flow_metrics():
+    plugin = create_plugin("scalper")
+    ctx = _ctx(
+        config=StrategyConfig(
+            archetype="scalper",
+            timeframe="1m",
+            params={"deltaThresholdPct": 5},
+        ),
+        universe=["SBER"],
+        last_price={"SBER": 100.0},
+        triggered_by="price_tick",
+        order_flow={
+            "SBER": OrderFlowSnapshot(
+                buyVolume=2000,
+                sellVolume=500,
+                deltaPct=60,
+                windowSec=30,
+                tickCount=4,
+                tradeCount=0,
+                hasRealTrades=False,
+                flowSource="inferred",
+            ),
+        },
+    )
+    plugin.evaluate(ctx)
+    scan = plugin.last_scan or []
+    row = next(r for r in scan if r.get("ticker") == "SBER")
+    metrics = row.get("metrics", {})
+    assert metrics.get("buyVolume") == 2000.0
+    assert metrics.get("sellVolume") == 500.0
+    assert metrics.get("tickCount") == 4
+    assert metrics.get("hasRealTrades") is False
+    assert metrics.get("flowSource") == "inferred"
+
+
+def test_scalper_blocks_entry_after_stop_loss_cooldown():
+    from datetime import timedelta
+
+    plugin = create_plugin("scalper")
+    now = datetime.now(timezone.utc)
+    plugin.on_stop_loss("SMLT", at=now - timedelta(seconds=60))
+    ctx = _ctx(
+        config=StrategyConfig(
+            archetype="scalper",
+            timeframe="1m",
+            params={"deltaThresholdPct": 5, "stopLossCooldownSec": 300},
+        ),
+        universe=["SMLT"],
+        last_price={"SMLT": 380.0},
+        triggered_by="price_tick",
+        now=now,
+        order_flow={
+            "SMLT": OrderFlowSnapshot(
+                buyVolume=5000,
+                sellVolume=1000,
+                deltaPct=50,
+                windowSec=30,
+                tickCount=5,
+                hasRealTrades=True,
+                flowSource="trades",
+            ),
+        },
+    )
+    assert plugin.evaluate(ctx) == []
+    scan = plugin.last_scan or []
+    assert any(row.get("code") == "SL_COOLDOWN" for row in scan)
+
+
+def test_scalper_blocks_long_in_downtrend():
+    plugin = create_plugin("scalper")
+    ts = plugin.ticker_state("SMLT")
+    ts["priceHist"] = [400.0, 399.0, 398.0, 397.0, 396.0]
+    ctx = _ctx(
+        config=StrategyConfig(
+            archetype="scalper",
+            timeframe="1m",
+            params={
+                "deltaThresholdPct": 5,
+                "trendLookbackTicks": 5,
+                "trendBlockLongBps": 30,
+            },
+        ),
+        universe=["SMLT"],
+        last_price={"SMLT": 396.0},
+        triggered_by="price_tick",
+        order_flow={
+            "SMLT": OrderFlowSnapshot(
+                buyVolume=5000,
+                sellVolume=1000,
+                deltaPct=50,
+                windowSec=30,
+                tickCount=5,
+                hasRealTrades=True,
+                flowSource="trades",
+            ),
+        },
+    )
+    assert plugin.evaluate(ctx) == []
+    scan = plugin.last_scan or []
+    assert any(row.get("code") == "TREND_DOWN" for row in scan)
 
 
 def test_grid_initial_entry():

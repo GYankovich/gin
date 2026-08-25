@@ -94,6 +94,16 @@ def normalize_universe_mode(config: Optional[Dict[str, Any]]) -> str:
     return UNIVERSE_MODE_DMS
 
 
+def normalize_universe_mode_arg(mode_or_config: Any) -> str:
+    """Accept raw mode string (robots v2 / DMS setup) or legacy robot config dict."""
+    if isinstance(mode_or_config, dict):
+        return normalize_universe_mode(mode_or_config)
+    raw = str(mode_or_config or "").strip().lower()
+    if raw in UNIVERSE_MODES:
+        return raw
+    return UNIVERSE_MODE_DMS
+
+
 def resolve_fixed_tickers(config: Optional[Dict[str, Any]], *, infer_mode: bool = True) -> List[str]:
     if not isinstance(config, dict):
         return []

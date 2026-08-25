@@ -5,7 +5,6 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
-import { FormLabelTooltip } from '@/components/ui/FormLabelTooltip'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { dashboardService } from '@/services/dashboardService'
 import type {
@@ -15,7 +14,6 @@ import type {
     DashboardDataResponse,
 } from '@/types/api'
 import { PageHero } from '@/components/ui/PageHero'
-import { StatTile } from '@/components/ui/StatTile'
 import { RobotIllustration } from '@/components/ui/RobotIllustration'
 
 ///@EPIC Frontend.ITEM Dashboard.TOPIC Accounts Summary View [1]
@@ -127,7 +125,7 @@ export default function DashboardPage() {
     if (loading) {
         return (
             <div className="page" data-page="dashboard">
-                <PageHero eyebrow="PORTFOLIO NODE" title="ДАШБОРД" subtitle="Сводка капитала · структура · счета" />
+                <PageHero className="dashboard-hero--node" eyebrow="PORTFOLIO NODE" title="ДАШБОРД" />
                 <DashboardSkeleton />
             </div>
         )
@@ -136,7 +134,7 @@ export default function DashboardPage() {
     if (!data) {
         return (
             <div className="page" data-page="dashboard">
-                <PageHero eyebrow="PORTFOLIO NODE" title="ДАШБОРД" subtitle="Сводка капитала · структура · счета" />
+                <PageHero className="dashboard-hero--node" eyebrow="PORTFOLIO NODE" title="ДАШБОРД" />
                 <Card className={`dashboard-totals-card dashboard-error-card${retrying ? ' dashboard-error-card--retrying' : ''}`}>
                     <div className="dashboard-error-card__robot" aria-hidden>
                         {/* Same default SVG animation as robots-empty-fleet while waiting for the response */}
@@ -176,12 +174,19 @@ export default function DashboardPage() {
     return (
         <div className="page" data-page="dashboard">
             <PageHero
+                className="dashboard-hero--node"
                 eyebrow="PORTFOLIO NODE"
                 title="ДАШБОРД"
-                subtitle="Сводка капитала · структура · счета"
                 actions={
-                    <Button variant="ghost" size="sm" className="dashboard-hero__cfg" onClick={openSettings}>
-                        Настроить
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="dashboard-hero__cfg"
+                        onClick={openSettings}
+                        aria-label="Настроить"
+                    >
+                        <IconSliders />
+                        <span className="dashboard-hero__cfg-text">Настроить</span>
                     </Button>
                 }
             />
@@ -195,31 +200,11 @@ export default function DashboardPage() {
             ) : (
                 <div className="dashboard-layout">
                     {isMobile && stickyTotals.length > 1 && (
-                        <div
-                            className="dashboard-sticky-strip"
-                            role="tablist"
-                            aria-label="Валюта дашборда"
-                        >
-                            {stickyTotals.map((t) => {
-                                const currency = (t.currency || 'RUB').toUpperCase()
-                                const active = mobileView === currency
-                                return (
-                                    <button
-                                        key={currency}
-                                        type="button"
-                                        role="tab"
-                                        aria-selected={active}
-                                        className={`dashboard-sticky-chip${active ? ' dashboard-sticky-chip--active' : ''}`}
-                                        onClick={() => setMobileView(currency)}
-                                    >
-                                        <span className="dashboard-sticky-chip__cur">{currency}</span>
-                                        <span className="dashboard-sticky-chip__val mono">
-                                            {formatMoneyCompact(t.total_value, currency)}
-                                        </span>
-                                    </button>
-                                )
-                            })}
-                        </div>
+                        <DashboardStickyStrip
+                            totals={stickyTotals}
+                            activeCurrency={mobileView}
+                            onSelect={setMobileView}
+                        />
                     )}
 
                     {isMobile ? (
@@ -230,6 +215,7 @@ export default function DashboardPage() {
                                 assets={activeCurrencyRow.assets}
                                 accounts={activeCurrencyRow.accounts}
                                 showTitle={false}
+                                compact
                             />
                         ) : (
                             <Card>
@@ -244,7 +230,7 @@ export default function DashboardPage() {
                                 totals={totals}
                                 assets={assets}
                                 accounts={accounts}
-                                showTitle
+                                showTitle={currencyRows.length > 1}
                             />
                         ))
                     )}
@@ -254,31 +240,45 @@ export default function DashboardPage() {
             <Modal
                 open={settingsOpen}
                 onClose={() => setSettingsOpen(false)}
-                title={
-                    <>
-                        Счета на дашборде
-                        <FormLabelTooltip text="Снимите галочку, чтобы исключить счёт из сводки, структуры активов и списка счетов на дашборде." />
-                    </>
-                }
-                width="520px"
+                title="Видимость счетов"
+                width="560px"
                 className="dashboard-modal"
             >
-                <div className="dashboard-settings-list">
-                    {settingsAccountGroups.map(({ currency, accounts }) => (
-                        <DashboardSettingsGroup
-                            key={currency}
-                            currency={currency}
-                            accounts={accounts}
-                            draftHidden={draftHidden}
-                            onDraftHiddenChange={setDraftHidden}
-                            onSetGroupVisible={setGroupAccountsVisible}
-                        />
-                    ))}
-                </div>
-                <div className="dashboard-settings-actions">
-                    <Button onClick={() => void saveVisibility()} loading={savingVisibility}>
-                        Сохранить
-                    </Button>
+                <div className="dashboard-settings">
+                    <div className="dashboard-settings-list">
+                        {settingsAccountGroups.map(({ currency, accounts }) => (
+                            <DashboardSettingsGroup
+                                key={currency}
+                                currency={currency}
+                                accounts={accounts}
+                                draftHidden={draftHidden}
+                                onDraftHiddenChange={setDraftHidden}
+                                onSetGroupVisible={setGroupAccountsVisible}
+                            />
+                        ))}
+                    </div>
+                    <div className="dashboard-settings-actions">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="dashboard-settings-actions__cancel"
+                            onClick={() => setSettingsOpen(false)}
+                            disabled={savingVisibility}
+                        >
+                            Отмена
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="dashboard-settings-actions__apply"
+                            onClick={() => void saveVisibility()}
+                            loading={savingVisibility}
+                        >
+                            Применить
+                        </Button>
+                    </div>
                 </div>
             </Modal>
         </div>
@@ -298,118 +298,283 @@ function DashboardSettingsGroup({
     onDraftHiddenChange: React.Dispatch<React.SetStateAction<Record<number, boolean>>>
     onSetGroupVisible: (accounts: DashboardAccountItem[], visible: boolean) => void
 }) {
-    const [open, setOpen] = useState(true)
     const allVisible = accounts.every((a) => !draftHidden[a.account_id])
 
     return (
-        <section
-            className={`dashboard-settings-group${open ? ' dashboard-settings-group--open' : ' dashboard-settings-group--collapsed'}`}
-        >
-            <div className="dashboard-settings-group__panel">
-                <header className="dashboard-settings-group__head">
+        <section className="dashboard-settings-group">
+            <header className="dashboard-settings-group__head">
+                <div className="dashboard-settings-group__title-wrap">
+                    <span className="dashboard-settings-group__cur">{currency}</span>
+                </div>
+                <div className="dashboard-settings-group__head-actions">
                     <button
                         type="button"
-                        className="dashboard-settings-group__toggle"
-                        aria-expanded={open}
-                        onClick={() => setOpen((prev) => !prev)}
+                        className={`dashboard-settings-group__bulk${allVisible ? '' : ' dashboard-settings-group__bulk--on'}`}
+                        onClick={() => onSetGroupVisible(accounts, !allVisible)}
                     >
-                        <span className="dashboard-settings-group__chevron" aria-hidden>
-                            {open ? '▾' : '▸'}
-                        </span>
-                        <span className="dashboard-settings-group__cur">{currency}</span>
-                        <span className="dashboard-settings-group__count mono">{accounts.length}</span>
+                        {allVisible ? 'Снять все' : 'Выделить все'}
                     </button>
-                    <div className="dashboard-settings-group__head-actions">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="dashboard-settings-group__bulk"
-                            onClick={() => onSetGroupVisible(accounts, !allVisible)}
-                        >
-                            {allVisible ? 'Снять все' : 'Выделить все'}
-                        </Button>
-                    </div>
-                </header>
-                {open && accounts.map((a) => {
-                    const included = !draftHidden[a.account_id]
-                    const title = a.account_name || a.external_account_id
-                    const openedText = formatAccountOpenedText(a.account_opened)
-                    const accountCurrency = (a.summary?.currency || 'RUB').toUpperCase()
-                    return (
-                        <label key={a.account_id} className="dashboard-settings-row">
-                            <input
-                                type="checkbox"
-                                className="dashboard-settings-row__check"
-                                checked={included}
-                                onChange={(e) => {
-                                    const on = e.target.checked
-                                    onDraftHiddenChange((prev) => ({
-                                        ...prev,
-                                        [a.account_id]: !on,
-                                    }))
-                                }}
-                                aria-label={included ? `Скрыть ${title}` : `Показать ${title}`}
-                            />
-                            <span className="dashboard-settings-row__body">
-                                <span className="dashboard-settings-row__title">{title}</span>
-                                <span className="dashboard-settings-row__meta mono">
-                                    открыт {openedText} · {formatMoneyCompact(a.summary.value, accountCurrency)}
-                                </span>
-                            </span>
-                        </label>
-                    )
-                })}
+                </div>
+            </header>
+            <div className="dashboard-settings-group__rows">
+                {accounts.map((a) => (
+                    <DashboardSettingsRow
+                        key={a.account_id}
+                        account={a}
+                        included={!draftHidden[a.account_id]}
+                        onIncludedChange={(on) => {
+                            onDraftHiddenChange((prev) => ({
+                                ...prev,
+                                [a.account_id]: !on,
+                            }))
+                        }}
+                    />
+                ))}
             </div>
         </section>
     )
 }
 
+function useOverflowMarquee(content: string) {
+    const wrapRef = useRef<HTMLElement>(null)
+    const textRef = useRef<HTMLSpanElement>(null)
+    const [marquee, setMarquee] = useState(false)
+
+    const sync = useCallback(() => {
+        const wrap = wrapRef.current
+        const text = textRef.current
+        if (!wrap || !text) {
+            setMarquee(false)
+            return
+        }
+        const truncated = text.scrollWidth > wrap.clientWidth + 1
+        if (!truncated) {
+            text.style.removeProperty('--marquee-shift')
+            text.style.removeProperty('--marquee-duration')
+            setMarquee(false)
+            return
+        }
+        const shift = wrap.clientWidth - text.scrollWidth
+        const durationSec = Math.min(14, Math.max(3, Math.abs(shift) / 24))
+        text.style.setProperty('--marquee-shift', `${shift}px`)
+        text.style.setProperty('--marquee-duration', `${durationSec}s`)
+        setMarquee(true)
+    }, [])
+
+    useEffect(() => {
+        sync()
+        const wrap = wrapRef.current
+        if (!wrap || typeof ResizeObserver === 'undefined') {
+            window.addEventListener('resize', sync)
+            return () => window.removeEventListener('resize', sync)
+        }
+        const ro = new ResizeObserver(() => sync())
+        ro.observe(wrap)
+        return () => ro.disconnect()
+    }, [sync, content])
+
+    return { wrapRef, textRef, marquee }
+}
+
+function DashboardSettingsRow({
+    account,
+    included,
+    onIncludedChange,
+}: {
+    account: DashboardAccountItem
+    included: boolean
+    onIncludedChange: (included: boolean) => void
+}) {
+    const title = account.account_name || account.external_account_id
+    const tag = formatAccountPlatformTag(account.account_type)
+    const accountCurrency = (account.summary?.currency || 'RUB').toUpperCase()
+    const titleMarquee = useOverflowMarquee(title)
+
+    return (
+        <label className={`dashboard-settings-row${included ? '' : ' dashboard-settings-row--off'}`}>
+            <input
+                type="checkbox"
+                className="dashboard-settings-row__check"
+                checked={included}
+                onChange={(e) => onIncludedChange(e.target.checked)}
+                aria-label={included ? `Скрыть ${title}` : `Показать ${title}`}
+            />
+            <div className="dashboard-settings-row__main">
+                <span
+                    ref={titleMarquee.wrapRef}
+                    className={`dashboard-settings-row__title${
+                        titleMarquee.marquee ? ' dashboard-settings-row__title--marquee' : ''
+                    }`}
+                >
+                    <span ref={titleMarquee.textRef} className="dashboard-settings-row__title-text">
+                        {title}
+                    </span>
+                </span>
+                <div className="dashboard-settings-row__meta">
+                    <span className="dashboard-settings-row__tag">{tag}</span>
+                    <span className="dashboard-settings-row__value mono">
+                        {formatMoney(account.summary.value, accountCurrency)}
+                    </span>
+                </div>
+            </div>
+        </label>
+    )
+}
+
 function DashboardSkeleton() {
+    const isMobile = useMediaQuery('(max-width: 767px)')
+    const useAccountCards = useMediaQuery('(max-width: 767px)')
+
     return (
         <div className="dashboard-layout dashboard-skeleton" aria-busy="true" aria-label="Загрузка дашборда">
-            {[0, 1].map((row) => (
-                <section key={row} className="dashboard-currency-row">
-                    <Skeleton width="48px" height="14px" borderRadius="4px" />
-                    <div className="dashboard-currency-grid" style={{ marginTop: 'var(--space-3)' }}>
-                        <Card className="dashboard-totals-card dashboard-skeleton-card">
+            <section className="dashboard-currency-row">
+                <div className="dashboard-currency-grid">
+                    <Card className="dashboard-totals-card dashboard-skeleton-card">
+                        {!isMobile && (
                             <div className="dashboard-totals-card__head">
-                                <Skeleton width="72px" height="18px" borderRadius="4px" />
+                                <Skeleton width="72px" height="12px" borderRadius="4px" />
                             </div>
-                            <div className="portfolio-stats-grid dashboard-summary-grid">
-                                {[0, 1, 2, 3].map((i) => (
-                                    <div key={i} className="portfolio-stat-tile">
-                                        <Skeleton width="70%" height="12px" borderRadius="4px" />
-                                        <div style={{ marginTop: 'var(--space-2)' }}>
-                                            <Skeleton width="55%" height="20px" borderRadius="4px" />
-                                        </div>
+                        )}
+                        {isMobile ? (
+                            <div className="dashboard-summary-metrics dashboard-summary-metrics--compact">
+                                <div className="dashboard-summary-hero">
+                                    <div className="dashboard-summary-hero__head">
+                                        <Skeleton width="48%" height="10px" borderRadius="4px" />
+                                        <Skeleton width="28%" height="10px" borderRadius="4px" />
                                     </div>
-                                ))}
-                            </div>
-                        </Card>
-                        <Card className="dashboard-assets-card dashboard-skeleton-card">
-                            <div className="dashboard-assets-card__head">
-                                <Skeleton width="140px" height="18px" borderRadius="4px" />
-                            </div>
-                            <div className="dashboard-dist-list">
-                                {[0, 1, 2, 3].map((i) => (
-                                    <div key={i} className="dashboard-dist-row">
-                                        <div className="dashboard-dist-row__main">
-                                            <Skeleton width="88px" height="12px" borderRadius="4px" />
-                                            <Skeleton width="160px" height="12px" borderRadius="4px" />
-                                        </div>
-                                        <Skeleton width="100%" height="4px" borderRadius="999px" />
+                                    <Skeleton width="72%" height="28px" borderRadius="4px" />
+                                </div>
+                                <div className="dashboard-summary-divider" aria-hidden />
+                                <div className="dashboard-summary-hero">
+                                    <div className="dashboard-summary-hero__head">
+                                        <Skeleton width="48%" height="10px" borderRadius="4px" />
+                                        <Skeleton width="28%" height="10px" borderRadius="4px" />
                                     </div>
-                                ))}
+                                    <Skeleton width="64%" height="28px" borderRadius="4px" />
+                                </div>
                             </div>
-                        </Card>
+                        ) : (
+                            <div className="dashboard-summary-metrics">
+                                <div className="dashboard-summary-metric dashboard-summary-metric--own dashboard-summary-metric--primary">
+                                    <Skeleton width="70%" height="10px" borderRadius="4px" />
+                                    <div style={{ marginTop: 'var(--space-2)' }}>
+                                        <Skeleton width="55%" height="14px" borderRadius="4px" />
+                                    </div>
+                                </div>
+                                <div className="dashboard-summary-metric dashboard-summary-metric--value dashboard-summary-metric--primary">
+                                    <Skeleton width="40%" height="10px" borderRadius="4px" />
+                                    <div style={{ marginTop: 'var(--space-2)' }}>
+                                        <Skeleton width="70%" height="22px" borderRadius="4px" />
+                                    </div>
+                                </div>
+                                <div className="dashboard-summary-metric dashboard-summary-metric--gain">
+                                    <Skeleton width="60%" height="10px" borderRadius="4px" />
+                                    <div style={{ marginTop: 'var(--space-2)' }}>
+                                        <Skeleton width="75%" height="14px" borderRadius="4px" />
+                                    </div>
+                                </div>
+                                <div className="dashboard-summary-metric dashboard-summary-metric--day">
+                                    <Skeleton width="48%" height="10px" borderRadius="4px" />
+                                    <div style={{ marginTop: 'var(--space-2)' }}>
+                                        <Skeleton width="50%" height="14px" borderRadius="4px" />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </Card>
+                    <Card className="dashboard-assets-card dashboard-skeleton-card">
+                        <div className="dashboard-assets-card__head">
+                            <Skeleton width="160px" height="12px" borderRadius="4px" />
+                        </div>
+                        <div className="dashboard-dist-list">
+                            {[0, 1, 2, 3].map((i) => (
+                                <div key={i} className="dashboard-dist-row">
+                                    <div className="dashboard-dist-row__main">
+                                        <Skeleton width="88px" height="12px" borderRadius="4px" />
+                                        <Skeleton width="36px" height="12px" borderRadius="4px" />
+                                    </div>
+                                    <Skeleton width="100%" height="6px" borderRadius="999px" />
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+                </div>
+                {useAccountCards ? (
+                    <div className="dashboard-accounts-reveal dashboard-skeleton-reveal">
+                        <div className="dashboard-accounts-reveal__strip">
+                            <Skeleton width="100%" height="36px" borderRadius="8px" />
+                        </div>
                     </div>
-                    <div style={{ marginTop: 'var(--space-3)' }}>
-                        <Skeleton width="120px" height="36px" borderRadius="8px" />
+                ) : (
+                    <div className="dashboard-accounts-collapse dashboard-skeleton-table">
+                        <Skeleton width="88px" height="16px" borderRadius="4px" />
+                        <div style={{ marginTop: 'var(--space-4)' }}>
+                            {[0, 1, 2].map((i) => (
+                                <div key={i} className="dashboard-accounts-skel-row">
+                                    <Skeleton width="28%" height="14px" borderRadius="4px" />
+                                    <Skeleton width="18%" height="14px" borderRadius="4px" />
+                                    <Skeleton width="22%" height="14px" borderRadius="4px" />
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                </section>
-            ))}
+                )}
+            </section>
         </div>
+    )
+}
+
+function DashboardStickyStrip({
+    totals,
+    activeCurrency,
+    onSelect,
+}: {
+    totals: DashboardCurrencyTotals[]
+    activeCurrency: string | null
+    onSelect: (currency: string) => void
+}) {
+    const sentinelRef = useRef<HTMLDivElement>(null)
+    const [pinned, setPinned] = useState(false)
+
+    useEffect(() => {
+        const sentinel = sentinelRef.current
+        if (!sentinel || typeof IntersectionObserver === 'undefined') return
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                setPinned(!entry.isIntersecting)
+            },
+            { threshold: 0, rootMargin: '0px 0px 0px 0px' },
+        )
+        observer.observe(sentinel)
+        return () => observer.disconnect()
+    }, [])
+
+    return (
+        <>
+            <div ref={sentinelRef} className="dashboard-sticky-strip-sentinel" aria-hidden />
+            <div
+                className={`dashboard-sticky-strip${pinned ? ' dashboard-sticky-strip--pinned' : ''}`}
+                role="tablist"
+                aria-label="Валюта дашборда"
+            >
+                {totals.map((t) => {
+                    const currency = (t.currency || 'RUB').toUpperCase()
+                    const active = activeCurrency === currency
+                    return (
+                        <button
+                            key={currency}
+                            type="button"
+                            role="tab"
+                            aria-selected={active}
+                            className={`dashboard-sticky-chip${active ? ' dashboard-sticky-chip--active' : ''}`}
+                            onClick={() => onSelect(currency)}
+                        >
+                            <span className="dashboard-sticky-chip__cur">{currency}</span>
+                        </button>
+                    )
+                })}
+            </div>
+        </>
     )
 }
 
@@ -419,21 +584,28 @@ function CurrencyRowSection({
     assets,
     accounts,
     showTitle,
+    compact = false,
 }: {
     currency: string
     totals: DashboardCurrencyTotals | null
     assets: DashboardAssetItem[]
     accounts: DashboardAccountItem[]
     showTitle: boolean
+    compact?: boolean
 }) {
     return (
         <section className="dashboard-currency-row" aria-label={`Сводка ${currency}`}>
-            {showTitle && <h2 className="dashboard-section__title">{currency}</h2>}
             <div className="dashboard-currency-grid">
                 {totals ? (
-                    <TotalsBlock totals={totals} />
+                    <TotalsBlock totals={totals} compact={compact} showCurrency={showTitle} />
                 ) : (
                     <Card className="dashboard-totals-card">
+                        {showTitle ? (
+                            <div className="dashboard-totals-card__head">
+                                <h3 className="dashboard-panel-title">Сводка</h3>
+                                <span className="dashboard-panel-title">{currency}</span>
+                            </div>
+                        ) : null}
                         <p className="dashboard-empty">Нет сводки по {currency}.</p>
                     </Card>
                 )}
@@ -450,141 +622,194 @@ function CurrencyRowSection({
             </div>
 
             {accounts.length > 0 && (
-                <CollapsibleSection
-                    className="dashboard-accounts-collapse"
-                    title="Счета "
-                    badge={
-                        <span className="dashboard-accounts-collapse__count">
-                            {accounts.length}
-                        </span>
-                    }
-                    defaultOpen={false}
-                >
-                    <div className="dashboard-account-stack">
-                        {accounts.map((row) => (
-                            <AccountSection key={row.account_id} row={row} />
-                        ))}
-                    </div>
-                </CollapsibleSection>
+                <AccountsSection accounts={accounts} />
             )}
         </section>
     )
 }
 
-function TotalsBlock({ totals }: { totals: DashboardCurrencyTotals }) {
-    const d = totals.total_day_over_day_delta
-    const dp = totals.total_day_over_day_delta_percent
-    const showDayPct = dp != null && d != null && Math.abs(d) > 1e-9
-    const showGainPct =
-        totals.total_minus_own_funds_percent != null
-        && Math.abs(totals.total_minus_own_funds) > 1e-9
-    return (
-        <Card className="dashboard-totals-card">
-            <div className="dashboard-totals-card__head">
-                <h3 className="dashboard-panel-title">Сводка</h3>
-            </div>
-            <div className="portfolio-stats-grid dashboard-summary-grid">
-                <StatTile
-                    label="Собственные средства"
-                    value={formatMoney(totals.total_own_funds, totals.currency)}
-                />
-                <StatTile
-                    label="Текущая стоимость"
-                    value={formatMoney(totals.total_value, totals.currency)}
-                />
-                <StatTile
-                    label="К портфелю vs вводы"
-                    valueClassName={roiClass(totals.total_minus_own_funds)}
-                    value={
-                        <>
-                            {formatMoneySigned(totals.total_minus_own_funds, totals.currency)}
-                            {showGainPct && formatPercentSuffix(totals.total_minus_own_funds_percent)}
-                        </>
-                    }
-                />
-                <StatTile
-                    label="Изменение к пред. дню"
-                    valueClassName={d == null ? '' : roiClass(d)}
-                    value={
-                        <>
-                            {d == null ? '—' : formatMoneySigned(d, totals.currency)}
-                            {showDayPct && formatPercentSuffix(dp)}
-                        </>
-                    }
-                />
-            </div>
-        </Card>
-    )
-}
+function AccountsSection({ accounts }: { accounts: DashboardAccountItem[] }) {
+    const useReveal = useMediaQuery('(max-width: 767px)')
+    const [open, setOpen] = useState(false)
 
-function AssetsBlock({ currency, items }: { currency: string; items: DashboardAssetItem[] }) {
-    const isMobile = useMediaQuery('(max-width: 767px)')
-
-    const list = (
-        <div className="dashboard-dist-list">
-            {items.map((a) => {
-                const d = a.day_over_day_delta
-                const dp = a.day_over_day_delta_percent
-                const showDayPct = dp != null && d != null && Math.abs(d) > 1e-9
-                return (
-                    <div key={`${currency}-${a.type}`} className="dashboard-dist-row">
-                        <div className="dashboard-dist-row__main">
-                            <span className="dashboard-dist-row__type">{a.type}</span>
-                            <span className="dashboard-dist-row__figures mono">
-                                <span className="dashboard-dist-row__value">
-                                    {formatMoneyCompact(a.value, a.currency)}
-                                </span>
-                                <span className="dashboard-dist-row__pct">{Math.round(a.percent)}%</span>
-                                <span className={`dashboard-dist-row__delta ${d == null ? 'dashboard-dist-row__delta-empty' : roiClass(d)}`}>
-                                    {d == null
-                                        ? '—'
-                                        : `${formatMoneySignedCompact(d, a.currency)}${showDayPct ? formatPercentSuffix(dp) : ''}`}
-                                </span>
-                            </span>
-                        </div>
-                        <div className="dashboard-dist-bar-track" aria-hidden>
-                            <div
-                                className="dashboard-dist-bar-fill"
-                                style={{ width: `${clampPercent(a.percent)}%` }}
-                            />
-                        </div>
-                    </div>
-                )
-            })}
-        </div>
-    )
-
-    if (isMobile) {
+    if (!useReveal) {
         return (
             <CollapsibleSection
-                className="dashboard-assets-collapse"
-                title="Структура активов "
-                badge={
-                    <span className="dashboard-assets-collapse__count">{items.length}</span>
+                className="dashboard-accounts-collapse"
+                title={
+                    <span className="dashboard-collapse__label">
+                        <IconWallet />
+                        Счета
+                    </span>
                 }
-                defaultOpen={false}
             >
-                {list}
+                <AccountsTable accounts={accounts} forceTable />
             </CollapsibleSection>
         )
     }
 
     return (
+        <div className={`dashboard-accounts-reveal${open ? ' dashboard-accounts-reveal--open' : ''}`}>
+            <div className="dashboard-accounts-reveal__strip">
+                <button
+                    type="button"
+                    className={`dashboard-sticky-chip dashboard-accounts-reveal__btn${
+                        open ? ' dashboard-sticky-chip--active dashboard-accounts-reveal__btn--active' : ''
+                    }`}
+                    aria-expanded={open}
+                    onClick={() => setOpen((v) => !v)}
+                >
+                    <span className="dashboard-sticky-chip__cur dashboard-accounts-reveal__btn-label">
+                        {open ? 'Скрыть счета' : 'Показать счета'}
+                    </span>
+                    <span className="dashboard-accounts-reveal__btn-count mono">{accounts.length}</span>
+                </button>
+            </div>
+            <div className="dashboard-accounts-reveal__panel" aria-hidden={!open}>
+                <div className="dashboard-accounts-reveal__inner">
+                    <AccountsTable accounts={accounts} forceCards />
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function TotalsBlock({
+    totals,
+    compact = false,
+    showCurrency = false,
+}: {
+    totals: DashboardCurrencyTotals
+    compact?: boolean
+    showCurrency?: boolean
+}) {
+    const d = totals.total_day_over_day_delta
+    const dp = totals.total_day_over_day_delta_percent
+    const gain = totals.total_minus_own_funds
+    const gainPct = totals.total_minus_own_funds_percent
+    const currency = (totals.currency || 'RUB').toUpperCase()
+
+    return (
+        <Card className="dashboard-totals-card">
+            <div className="dashboard-totals-card__head">
+                <h3 className="dashboard-panel-title">Сводка</h3>
+                {showCurrency ? <span className="dashboard-panel-title">{currency}</span> : null}
+            </div>
+            {compact ? (
+                <div className="dashboard-summary-metrics dashboard-summary-metrics--compact">
+                    <div className="dashboard-summary-hero">
+                        <div className="dashboard-summary-hero__head">
+                            <span className="dashboard-summary-metric__label">Текущая стоимость</span>
+                            <span className={`dashboard-summary-hero__day mono ${roiClass(d)}`}>
+                                {formatAbsWithPercent(d, dp, totals.currency)}
+                            </span>
+                        </div>
+                        <div className="dashboard-summary-hero__value mono">
+                            {formatMoney(totals.total_value, totals.currency)}
+                        </div>
+                    </div>
+                    <div className="dashboard-summary-divider" role="separator" />
+                    <div className="dashboard-summary-hero">
+                        <div className="dashboard-summary-hero__head">
+                            <span className="dashboard-summary-metric__label">Собственные</span>
+                            <span className={`dashboard-summary-hero__day mono ${roiClass(gain)}`}>
+                                {formatAbsWithPercent(gain, gainPct, totals.currency)}
+                            </span>
+                        </div>
+                        <div className="dashboard-summary-hero__value mono">
+                            {formatMoney(totals.total_own_funds, totals.currency)}
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="dashboard-summary-metrics">
+                    <div className="dashboard-summary-metric dashboard-summary-metric--own dashboard-summary-metric--primary">
+                        <span className="dashboard-summary-metric__label">Собственные средства</span>
+                        <span className="dashboard-summary-metric__value mono">
+                            {formatMoney(totals.total_own_funds, totals.currency)}
+                        </span>
+                    </div>
+                    <div className="dashboard-summary-metric dashboard-summary-metric--value dashboard-summary-metric--primary">
+                        <span className="dashboard-summary-metric__label">Текущая стоимость</span>
+                        <span className="dashboard-summary-metric__value mono">
+                            {formatMoney(totals.total_value, totals.currency)}
+                        </span>
+                    </div>
+                    <div className="dashboard-summary-metric dashboard-summary-metric--gain">
+                        <span className="dashboard-summary-metric__label">Общее изменение</span>
+                        <span className={`dashboard-summary-metric__value mono ${roiClass(gain)}`}>
+                            {formatAbsWithPercent(gain, gainPct, totals.currency)}
+                        </span>
+                    </div>
+                    <div className="dashboard-summary-metric dashboard-summary-metric--day">
+                        <span className="dashboard-summary-metric__label">За день</span>
+                        <span className={`dashboard-summary-metric__value mono ${roiClass(d)}`}>
+                            {formatAbsWithPercent(d, dp, totals.currency)}
+                        </span>
+                    </div>
+                </div>
+            )}
+        </Card>
+    )
+}
+
+function AssetsBlock({ currency, items }: { currency: string; items: DashboardAssetItem[] }) {
+    const list = (
+        <div className="dashboard-dist-list">
+            {items.map((a, index) => (
+                <div
+                    key={`${currency}-${a.type}`}
+                    className={`dashboard-dist-row dashboard-dist-row--${assetBarTone(a.type, index)}`}
+                    title={formatMoneyCompact(a.value, a.currency)}
+                >
+                    <div className="dashboard-dist-row__main">
+                        <span className="dashboard-dist-row__type">{a.type}</span>
+                        <span className="dashboard-dist-row__pct mono">
+                            {formatMoneyCompact(a.value, a.currency)} ({Math.round(a.percent)} %)
+                        </span>
+                    </div>
+                    <div className="dashboard-dist-bar-track" aria-hidden>
+                        <div
+                            className="dashboard-dist-bar-fill"
+                            style={{ width: `${clampPercent(a.percent)}%` }}
+                        />
+                    </div>
+                </div>
+            ))}
+        </div>
+    )
+
+    return (
         <Card className="dashboard-assets-card">
             <div className="dashboard-assets-card__head">
-                <h3 className="dashboard-panel-title">Структура активов</h3>
+                <h3 className="dashboard-panel-title">
+                    <IconPie />
+                    Структура активов
+                </h3>
             </div>
             {list}
         </Card>
     )
 }
 
-function AccountSection({ row }: { row: DashboardAccountItem }) {
-    const navigate = useNavigate()
+function AccountCard({
+    row,
+    index = 0,
+    onNavigate,
+}: {
+    row: DashboardAccountItem
+    index?: number
+    onNavigate: (accountId: string) => void
+}) {
     const title = row.account_name || row.external_account_id
-    const openedText = formatAccountOpenedText(row.account_opened)
-    const syncText = formatAccountSyncText(row.last_account_sync)
-    const nameWrapRef = useRef<HTMLSpanElement>(null)
+    const active = isAccountActive(row)
+    const s = row.summary
+    const gain = s.minus_own_funds
+    const gainPct = s.minus_own_funds_percent
+    const day = s.day_over_day_delta
+    const dayPct = s.day_over_day_delta_percent
+
+    const nameWrapRef = useRef<HTMLElement>(null)
     const nameTextRef = useRef<HTMLSpanElement>(null)
     const [nameMarquee, setNameMarquee] = useState(false)
 
@@ -620,92 +845,190 @@ function AccountSection({ row }: { row: DashboardAccountItem }) {
         ro.observe(wrap)
         return () => ro.disconnect()
     }, [syncNameMarquee, title])
-    const s = row.summary
-    const d = s.day_over_day_delta
-    const dp = s.day_over_day_delta_percent
-    const showDayPct = dp != null && d != null && Math.abs(d) > 1e-9
-    const showGainPct =
-        s.minus_own_funds_percent != null && Math.abs(s.minus_own_funds) > 1e-9
 
-    const openPortfolio = () => {
-        navigate(`/portfolio?accountId=${row.account_id}`)
+    return (
+        <article
+            className="dashboard-accounts-card"
+            style={{ '--account-card-i': index } as React.CSSProperties}
+            role="button"
+            tabIndex={0}
+            onClick={() => onNavigate(row.account_id)}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onNavigate(row.account_id)
+                }
+            }}
+        >
+            <header className="dashboard-accounts-card__head">
+                <span
+                    className={`dashboard-status-dot${active ? ' dashboard-status-dot--on' : ''}`}
+                    aria-hidden
+                />
+                <div className="dashboard-accounts-card__identity">
+                    <div className="dashboard-accounts-card__title-row">
+                        <span
+                            ref={nameWrapRef}
+                            className={`dashboard-accounts-card__name${
+                                nameMarquee ? ' dashboard-accounts-card__name--marquee' : ''
+                            }`}
+                        >
+                            <span ref={nameTextRef} className="dashboard-accounts-card__name-text">
+                                {title}
+                            </span>
+                        </span>
+                        <span className="dashboard-accounts-card__sync mono">
+                            {formatAccountSyncCompact(row.last_account_sync)}
+                        </span>
+                    </div>
+                    <div className="dashboard-accounts-card__meta mono">
+                        {formatAccountOpenedText(row.account_opened)}
+                    </div>
+                </div>
+            </header>
+
+            <div className="dashboard-accounts-card__body">
+                <div className="dashboard-accounts-card__row">
+                    <span className="dashboard-accounts-card__value mono">
+                        {formatMoney(s.value, s.currency)}
+                    </span>
+                    <span className={`dashboard-accounts-card__day mono ${roiClass(day)}`}>
+                        {formatPercent(dayPct)}
+                    </span>
+                </div>
+                <div className="dashboard-accounts-card__row dashboard-accounts-card__row--sub">
+                    <span className={`dashboard-accounts-card__gain mono ${roiClass(gain)}`}>
+                        {formatAbsWithPercent(gain, gainPct, s.currency)}
+                    </span>
+                    <span className="dashboard-accounts-card__own mono">
+                        {formatMoneyCompact(s.own_funds, s.currency)}
+                    </span>
+                </div>
+            </div>
+        </article>
+    )
+}
+
+function AccountsTable({
+    accounts,
+    forceCards,
+    forceTable,
+}: {
+    accounts: DashboardAccountItem[]
+    forceCards?: boolean
+    forceTable?: boolean
+}) {
+    const navigate = useNavigate()
+    const cardsQuery = useMediaQuery('(max-width: 767px)')
+    const useCards = forceTable ? false : forceCards ? true : cardsQuery
+
+    if (useCards) {
+        return (
+            <div className="dashboard-accounts-cards">
+                {accounts.map((row, index) => (
+                    <AccountCard
+                        key={row.account_id}
+                        row={row}
+                        index={index}
+                        onNavigate={(accountId) => navigate(`/portfolio?accountId=${accountId}`)}
+                    />
+                ))}
+            </div>
+        )
     }
 
     return (
-        <Card
-            className="dashboard-account-card dashboard-account-card--link"
-            onClick={openPortfolio}
-        >
-            <div className="dashboard-account-card__head">
-                <h2 className="dashboard-account-card__title">
-                    <span
-                        ref={nameWrapRef}
-                        className={`dashboard-account-card__name${nameMarquee ? ' dashboard-account-card__name--marquee' : ''}`}
-                        title={nameMarquee ? title : undefined}
-                    >
-                        <span ref={nameTextRef} className="dashboard-account-card__name-text">
-                            {title}
-                        </span>
-                    </span>
-                    <span className="dashboard-account-card__open">
-                        <span className="dashboard-account-card__open-label">Открыть </span>→
-                    </span>
-                </h2>
-                <div className="dashboard-account-card__meta-sync">
-                    <div className="dashboard-account-card__meta mono">
-                        <span className="dashboard-account-card__meta-primary">
-                            {row.external_account_id} · {row.account_type} · {row.account_status}
-                        </span>
-                        <span className="dashboard-account-card__meta-opened">
-                            открыт {openedText}
-                        </span>
-                        <span className="dashboard-account-card__meta-sync-append">
-                            {' · '}
-                            {syncText}
-                        </span>
-                    </div>
-                    <div className="dashboard-account-card__sync mono">
-                        <span className="dashboard-account-card__sync-label">обновлено</span>
-                        {syncText ? (
-                            <span className="dashboard-account-card__sync-value">{syncText}</span>
-                        ) : null}
-                    </div>
-                </div>
-            </div>
+        <div className="dashboard-accounts-table-wrap">
+            <table className="dashboard-accounts-table">
+                <thead>
+                    <tr>
+                        <th>Счёт</th>
+                        <th>Обновлено</th>
+                        <th className="dashboard-accounts-table__num">Свои средства</th>
+                        <th className="dashboard-accounts-table__num">Текущая стоимость</th>
+                        <th className="dashboard-accounts-table__num">Дельта</th>
+                        <th className="dashboard-accounts-table__num">За день</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {accounts.map((row) => {
+                        const title = row.account_name || row.external_account_id
+                        const active = isAccountActive(row)
+                        const s = row.summary
+                        const gain = s.minus_own_funds
+                        const gainPct = s.minus_own_funds_percent
+                        const day = s.day_over_day_delta
+                        const dayPct = s.day_over_day_delta_percent
+                        return (
+                            <tr
+                                key={row.account_id}
+                                className="dashboard-accounts-table__row"
+                                onClick={() => navigate(`/portfolio?accountId=${row.account_id}`)}
+                            >
+                                <td>
+                                    <span className="dashboard-account-cell">
+                                        <span className="dashboard-account-name">
+                                            <span
+                                                className={`dashboard-status-dot${active ? ' dashboard-status-dot--on' : ''}`}
+                                                aria-hidden
+                                            />
+                                            <span className="dashboard-account-name__text">{title}</span>
+                                        </span>
+                                        <span className="dashboard-account-opened">
+                                            <span className="dashboard-account-opened__label">открыт </span>
+                                            {formatAccountOpenedText(row.account_opened)}
+                                        </span>
+                                    </span>
+                                </td>
+                                <td className="mono">{formatAccountSyncText(row.last_account_sync)}</td>
+                                <td className="dashboard-accounts-table__num mono">
+                                    {formatMoney(s.own_funds, s.currency)}
+                                </td>
+                                <td className="dashboard-accounts-table__num dashboard-accounts-table__sum mono">
+                                    {formatMoney(s.value, s.currency)}
+                                </td>
+                                <td className={`dashboard-accounts-table__num mono ${roiClass(gain)}`}>
+                                    {formatAbsWithPercent(gain, gainPct, s.currency)}
+                                </td>
+                                <td className={`dashboard-accounts-table__num mono ${roiClass(day)}`}>
+                                    {formatAbsWithPercent(day, dayPct, s.currency)}
+                                </td>
+                            </tr>
+                        )
+                    })}
+                </tbody>
+            </table>
+        </div>
+    )
+}
 
-            <div className="dashboard-account-card__stats">
-                <div className="portfolio-stats-grid dashboard-summary-grid">
-                    <StatTile
-                        label="Собственные средства"
-                        value={formatMoney(s.own_funds, s.currency)}
-                    />
-                    <StatTile
-                        label="Текущая стоимость"
-                        value={formatMoney(s.value, s.currency)}
-                    />
-                    <StatTile
-                        label="К портфелю vs вводы"
-                        valueClassName={roiClass(s.minus_own_funds)}
-                        value={
-                            <>
-                                {formatMoneySigned(s.minus_own_funds, s.currency)}
-                                {showGainPct && formatPercentSuffix(s.minus_own_funds_percent)}
-                            </>
-                        }
-                    />
-                    <StatTile
-                        label="Изменение к пред. дню"
-                        valueClassName={d == null ? '' : roiClass(d)}
-                        value={
-                            <>
-                                {d == null ? '—' : formatMoneySigned(d, s.currency)}
-                                {showDayPct && formatPercentSuffix(dp)}
-                            </>
-                        }
-                    />
-                </div>
-            </div>
-        </Card>
+function IconSliders() {
+    return (
+        <svg className="dashboard-icon" viewBox="0 0 24 24" aria-hidden>
+            <path fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" d="M5 4v16M12 4v16M19 4v16" />
+            <circle cx="5" cy="9" r="2.1" fill="var(--bg-card)" stroke="currentColor" strokeWidth="1.7" />
+            <circle cx="12" cy="15" r="2.1" fill="var(--bg-card)" stroke="currentColor" strokeWidth="1.7" />
+            <circle cx="19" cy="11" r="2.1" fill="var(--bg-card)" stroke="currentColor" strokeWidth="1.7" />
+        </svg>
+    )
+}
+
+function IconPie() {
+    return (
+        <svg className="dashboard-icon" viewBox="0 0 24 24" aria-hidden>
+            <path fill="none" stroke="currentColor" strokeWidth="1.7" d="M12 3.6a8.4 8.4 0 1 1-8.4 8.4" />
+            <path fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" d="M12 3.6V12h8.4" />
+        </svg>
+    )
+}
+
+function IconWallet() {
+    return (
+        <svg className="dashboard-icon" viewBox="0 0 24 24" aria-hidden>
+            <rect x="3.2" y="6.2" width="17.6" height="11.6" rx="2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+            <path fill="none" stroke="currentColor" strokeWidth="1.7" d="M3.2 9.4h17.6" />
+            <circle cx="16.4" cy="13.6" r="1.05" fill="currentColor" />
+        </svg>
     )
 }
 
@@ -792,6 +1115,32 @@ function clampPercent(val: number): number {
     return Math.max(0, Math.min(100, val))
 }
 
+function assetBarTone(type: string, index: number): 'cyan' | 'magenta' | 'violet' | 'up' | 'warn' {
+    const t = type.toLowerCase()
+    if (/etf|фонд/.test(t)) return 'cyan'
+    if (/share|equity|акци|stock/.test(t)) return 'magenta'
+    if (/bond|облиг/.test(t)) return 'warn'
+    if (/currenc|cash|валют|деньг|money|currency/.test(t)) return 'up'
+    const tones = ['cyan', 'magenta', 'violet', 'warn', 'up'] as const
+    return tones[index % tones.length]
+}
+
+function isAccountActive(row: DashboardAccountItem): boolean {
+    const status = (row.account_status || '').toUpperCase()
+    return status === 'OPEN' || status === 'ACTIVE'
+}
+
+function formatAccountPlatformTag(type: string | null | undefined): string {
+    const raw = String(type || '').trim()
+    const t = raw.toLowerCase().replace(/^account_type_/, '')
+    if (/tinkoff|t-bank|tbank|broker/.test(t)) return 'T-BANK'
+    if (/bybit|unified|contract|spot/.test(t)) return 'BYBIT'
+    if (/sber/.test(t)) return 'SBER'
+    if (/binance/.test(t)) return 'BINANCE'
+    if (!raw) return 'ACC'
+    return raw.replace(/_/g, ' ').slice(0, 12).toUpperCase()
+}
+
 function formatAccountOpenedText(iso: string | null | undefined): string {
     if (!iso) return '—'
     const date = new Date(iso)
@@ -807,7 +1156,6 @@ function formatAccountSyncText(iso: string | null | undefined): string {
     if (!iso) return '—'
     const date = new Date(iso)
     if (Number.isNaN(date.getTime())) return '—'
-
     const time = date.toLocaleTimeString('ru-RU', {
         hour: '2-digit',
         minute: '2-digit',
@@ -815,7 +1163,6 @@ function formatAccountSyncText(iso: string | null | undefined): string {
     const startOfDay = (value: Date) =>
         new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime()
     const diffDays = Math.round((startOfDay(new Date()) - startOfDay(date)) / 86_400_000)
-
     if (diffDays === 0) return time
     if (diffDays === 1) return `вчера ${time}`
     const day = date.toLocaleDateString('ru-RU', {
@@ -824,6 +1171,25 @@ function formatAccountSyncText(iso: string | null | undefined): string {
         year: 'numeric',
     })
     return `${day} ${time}`
+}
+
+function formatAccountSyncCompact(iso: string | null | undefined): string {
+    if (!iso) return '—'
+    const date = new Date(iso)
+    if (Number.isNaN(date.getTime())) return '—'
+    const time = date.toLocaleTimeString('ru-RU', {
+        hour: '2-digit',
+        minute: '2-digit',
+    })
+    const startOfDay = (value: Date) =>
+        new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime()
+    const diffDays = Math.round((startOfDay(new Date()) - startOfDay(date)) / 86_400_000)
+    if (diffDays === 0) return time
+    if (diffDays === 1) return `вчера ${time}`
+    return date.toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+    })
 }
 
 function formatMoney(val: any, currency = 'RUB'): string {
@@ -847,34 +1213,33 @@ function formatMoneyCompact(val: any, currency = 'RUB'): string {
     return n.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + ' ' + sym
 }
 
-function formatMoneySigned(val: any, currency = 'RUB'): string {
-    if (val == null || Number.isNaN(Number(val))) return '—'
+function formatMoneySigned(val: number, currency = 'RUB'): string {
     const n = Number(val)
     const sym = currency === 'RUB' ? '₽' : currency
     return `${n >= 0 ? '+' : ''}${n.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${sym}`
 }
 
-function formatMoneySignedCompact(val: any, currency = 'RUB'): string {
+function formatPercent(val: number | null | undefined): string {
     if (val == null || Number.isNaN(Number(val))) return '—'
     const n = Number(val)
-    const sym = currency === 'RUB' ? '₽' : currency
-    const abs = Math.abs(n)
-    const sign = n >= 0 ? '+' : ''
-    if (abs >= 10_000) {
-        return `${sign}${Math.round(n).toLocaleString('ru-RU')} ${sym}`
-    }
-    return `${sign}${n.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${sym}`
+    return `${n >= 0 ? '+' : ''}${n.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} %`
 }
 
-function formatPercentSuffix(val: number | null | undefined): string {
-    if (val == null || Number.isNaN(Number(val))) return ''
-    const n = Number(val)
-    return ` (${n >= 0 ? '+' : ''}${n.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}%)`
+/** Absolute signed amount + optional percent, e.g. `-7 832 ₽ (-0,32 %)`. */
+function formatAbsWithPercent(
+    abs: number | null | undefined,
+    pct: number | null | undefined,
+    currency: string,
+): string {
+    if (abs == null || Number.isNaN(Number(abs))) return '—'
+    const money = formatMoneySigned(Number(abs), currency)
+    if (pct == null || Number.isNaN(Number(pct))) return money
+    return `${money} (${formatPercent(pct)})`
 }
 
-function roiClass(val: number | null | undefined, drawdown = false): string {
-    if (val == null || Number.isNaN(Number(val))) return ''
+function roiClass(val: number | null | undefined): string {
+    if (val == null || Number.isNaN(Number(val))) return 'dashboard-delta--flat'
     const n = Number(val)
-    if (drawdown) return n > 0 ? 'color-down' : 'color-up'
-    return n >= 0 ? 'color-up' : 'color-down'
+    if (Math.abs(n) <= 1e-9) return 'dashboard-delta--flat'
+    return n > 0 ? 'color-up' : 'color-down'
 }

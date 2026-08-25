@@ -8,9 +8,10 @@ import { Select } from '@/components/ui/Select'
 import { Chart, type IChartApi, type Time } from '@/components/ui/Chart'
 import { AreaSeries, HistogramSeries, LineSeries } from 'lightweight-charts'
 import { analyticsService } from '@/services/analyticsService'
-import { robotService } from '@/services/robotService'
+import { robotV2Service } from '@/services/robotV2Service'
 import type { AccountSummary, AccountDetail, PortfolioSnapshotSummary } from '@/types/api'
-import type { Robot, RobotMetrics, RobotTradeItem, UserRobotsTradingOverview } from '@/types/robot'
+import type { RobotMetrics, RobotTradeItem, UserRobotsTradingOverview } from '@/types/robot'
+import type { RobotV2 } from '@/types/robotV2'
 
 ///@EPIC Frontend.ITEM Analytics.TOPIC Portfolio And Robot Metrics [1]
 ///@ Аналитический экран: KPI, доходность/просадка, сделки и метрики роботов,
@@ -29,7 +30,7 @@ const PERIOD_OPTIONS = [
 
 export default function AnalyticsPage() {
     const [accounts, setAccounts] = useState<AccountSummary[]>([])
-    const [robots, setRobots] = useState<Robot[]>([])
+    const [robots, setRobots] = useState<RobotV2[]>([])
     const [selectedAccount, setSelectedAccount] = useState<number | null>(null)
     const [selectedRobot, setSelectedRobot] = useState<number | null>(null)
     const [period, setPeriod] = useState(365)
@@ -48,7 +49,7 @@ export default function AnalyticsPage() {
         try {
             const [summary, robotRes] = await Promise.all([
                 analyticsService.getSummary(),
-                robotService.list(),
+                robotV2Service.list({ robot_type: [2] }),
             ])
             const accs = summary.accounts ?? []
             setAccounts(accs)

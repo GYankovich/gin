@@ -15,6 +15,7 @@ from app.core.background_jobs.repository import (
     fail_orphaned_live_session_jobs,
     fail_stale_background_jobs,
     fail_stale_live_session_jobs,
+    fail_stale_queued_portfolio_jobs,
     touch_background_job,
 )
 from app.core.background_jobs.worker_lease import (
@@ -224,14 +225,24 @@ class LaneWorkerPool:
                 db_sweep,
                 stale_seconds=int(settings.BACKGROUND_JOB_STALE_SECONDS),
             )
+            n_queued = fail_stale_queued_portfolio_jobs(
+                db_sweep,
+                stale_seconds=int(settings.PORTFOLIO_SYNC_QUEUED_STALE_SECONDS),
+            )
             n_live = fail_stale_live_session_jobs(
                 db_sweep,
                 stale_seconds=int(settings.LIVE_SESSION_STALE_SECONDS),
             )
-            if n or n_live:
+            if n or n_queued or n_live:
                 db_sweep.commit()
                 if n:
                     logger.warning("lane=%s marked %s stale jobs failed", self.lane, n)
+                if n_queued:
+                    logger.warning(
+                        "lane=%s marked %s stale queued portfolio_sync jobs failed",
+                        self.lane,
+                        n_queued,
+                    )
                 if n_live:
                     logger.warning(
                         "lane=%s marked %s stale live_trading_session jobs failed",

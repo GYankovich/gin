@@ -10,12 +10,22 @@ from typing import Any
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.database import get_db_context
 from app.modules.robots.trading.intervals import resolve_strategy_interval
 from app.modules.robots.trading.runtime.orchestrator import get_trading_orchestrator
 from app.modules.robots_v2.backtest.host import BacktestHost, dicts_to_candles
-from app.modules.robots_v2.backtest.persist import create_db_run, persist_result_payload, update_db_run
+from app.modules.robots_v2.backtest.persist import (
+    compare_runs,
+    create_db_run,
+    fetch_db_run,
+    list_db_runs,
+    persist_result_payload,
+    update_db_run,
+)
 from app.modules.robots_v2.backtest.schemas import (
+    RobotV2BacktestCompareResponse,
     RobotV2BacktestDetailsResponse,
+    RobotV2BacktestListResponse,
     RobotV2BacktestRequest,
     RobotV2BacktestStatusResponse,
 )
@@ -95,6 +105,12 @@ class BacktestService:
         except Exception as exc:
             raise HTTPException(status_code=422, detail=f"Invalid v4 config: {exc}") from exc
 
+        if config.strategy.archetype == "scalper":
+            raise HTTPException(
+                status_code=422,
+                detail="Scalper requires tick/order-flow data and cannot run on bar-close backtest",
+            )
+
         capital = float(request.initial_capital or config.risk.capital)
         config.risk.capital = capital
         snap = config.model_dump(by_alias=True)
@@ -123,34 +139,83 @@ class BacktestService:
                 rec = rebound
 
         if request.async_execution:
-            task = asyncio.create_task(self._execute(db, user_id, rec.run_id, config, request))
+            task = asyncio.create_task(self._execute(user_id, rec.run_id, config, request))
             self._tasks[rec.run_id] = task
             return rec, True
 
-        await self._execute(db, user_id, rec.run_id, config, request)
+        await self._execute(user_id, rec.run_id, config, request)
         updated = await backtest_run_store.get(rec.run_id, user_id=user_id)
         return updated or rec, False
 
-    async def get_status(self, run_id: int, *, user_id: int) -> RobotV2BacktestStatusResponse:
+    async def get_status(
+        self, run_id: int, *, user_id: int, db: Session | None = None,
+    ) -> RobotV2BacktestStatusResponse:
         rec = await backtest_run_store.get(run_id, user_id=user_id)
-        if rec is None:
-            raise HTTPException(status_code=404, detail="Backtest run not found")
-        return RobotV2BacktestStatusResponse.model_validate(_record_to_status(rec))
+        if rec is not None:
+            return RobotV2BacktestStatusResponse.model_validate(_record_to_status(rec))
+        if db is not None:
+            row = fetch_db_run(db, run_id, user_id=user_id)
+            if row is not None:
+                return RobotV2BacktestStatusResponse.model_validate(row)
+        raise HTTPException(status_code=404, detail="Backtest run not found")
 
-    async def get_details(self, run_id: int, *, user_id: int) -> RobotV2BacktestDetailsResponse:
+    async def get_details(
+        self, run_id: int, *, user_id: int, db: Session | None = None,
+    ) -> RobotV2BacktestDetailsResponse:
         rec = await backtest_run_store.get(run_id, user_id=user_id)
-        if rec is None:
-            raise HTTPException(status_code=404, detail="Backtest run not found")
-        return RobotV2BacktestDetailsResponse.model_validate(_record_to_status(rec))
+        if rec is not None:
+            return RobotV2BacktestDetailsResponse.model_validate(_record_to_status(rec))
+        if db is not None:
+            row = fetch_db_run(db, run_id, user_id=user_id)
+            if row is not None:
+                return RobotV2BacktestDetailsResponse.model_validate(row)
+        raise HTTPException(status_code=404, detail="Backtest run not found")
 
-    async def cancel(self, run_id: int, *, user_id: int) -> BacktestRunRecord:
+    async def list_runs(
+        self, db: Session, *, user_id: int, robot_id: int | None = None, limit: int = 30,
+    ) -> RobotV2BacktestListResponse:
+        items = list_db_runs(db, user_id=user_id, robot_id=robot_id, limit=limit)
+        return RobotV2BacktestListResponse(items=items, total=len(items))
+
+    async def compare(
+        self, db: Session, *, user_id: int, base_run_id: int, compare_run_id: int,
+    ) -> RobotV2BacktestCompareResponse:
+        base = fetch_db_run(db, base_run_id, user_id=user_id)
+        other = fetch_db_run(db, compare_run_id, user_id=user_id)
+        mem_base = await backtest_run_store.get(base_run_id, user_id=user_id)
+        mem_other = await backtest_run_store.get(compare_run_id, user_id=user_id)
+        if mem_base is not None:
+            base = {**_record_to_status(mem_base), "config_snapshot": mem_base.config_snapshot}
+        if mem_other is not None:
+            other = {**_record_to_status(mem_other), "config_snapshot": mem_other.config_snapshot}
+        if base is None or other is None:
+            raise HTTPException(status_code=404, detail="One or both backtest runs were not found")
+        return RobotV2BacktestCompareResponse.model_validate(compare_runs(base, other))
+
+    async def cancel(self, run_id: int, *, user_id: int, db: Session | None = None) -> BacktestRunRecord:
         rec = await backtest_run_store.request_cancel(run_id, user_id=user_id)
-        if rec is None:
-            raise HTTPException(status_code=404, detail="Backtest run not found")
         self._cancel_flags[run_id] = True
+        if rec is None:
+            if db is not None and fetch_db_run(db, run_id, user_id=user_id) is not None:
+                update_db_run(db, run_id, cancel_requested=True)
+                rec = await backtest_run_store.get(run_id, user_id=user_id)
+            if rec is None:
+                raise HTTPException(status_code=404, detail="Backtest run not found")
+        if db is not None:
+            update_db_run(db, run_id, cancel_requested=True)
         return rec
 
     async def _execute(
+        self,
+        user_id: int,
+        run_id: int,
+        config: TradingRobotConfigV4,
+        request: RobotV2BacktestRequest,
+    ) -> None:
+        with get_db_context() as db:
+            await self._execute_with_db(db, user_id, run_id, config, request)
+
+    async def _execute_with_db(
         self,
         db: Session,
         user_id: int,
@@ -180,6 +245,16 @@ class BacktestService:
             from_date = from_dt.date()
             till_date = to_dt.date()
 
+            from app.modules.robots_v2.engine.candle_seed import lookback_days_for_warmup, warmup_bars_needed
+
+            need_warmup = warmup_bars_needed(config)
+            warmup_days = lookback_days_for_warmup(
+                timeframe=config.strategy.timeframe,
+                need_bars=need_warmup,
+            ) if need_warmup else 0
+            load_from_date = from_date - timedelta(days=warmup_days)
+            load_from_dt = datetime.combine(load_from_date, time.min, tzinfo=timezone.utc)
+
             if market == "moex":
                 from app.modules.robots.trading.data.providers.moex_backtest import ensure_candles_moex_backtest
                 from app.modules.robots_v2.universe.token_context import board_for_instrument_type
@@ -190,7 +265,7 @@ class BacktestService:
                     board=board,
                     tickers=universe,
                     resolved=resolved,
-                    from_date=from_date,
+                    from_date=load_from_date,
                     till_date=till_date,
                     user_id=user_id,
                     run_id=run_id,
@@ -213,7 +288,7 @@ class BacktestService:
                             db,
                             symbols=universe,
                             resolved=resolved,
-                            from_date=from_date,
+                            from_date=load_from_date,
                             till_date=till_date,
                             instrument_category=category,
                             testnet=ctx.testnet,
@@ -240,7 +315,7 @@ class BacktestService:
                 symbols=universe,
                 interval_code=resolved.cache_label,
                 interval_code_num=resolved.code_num,
-                from_dt=from_dt,
+                from_dt=load_from_dt,
                 to_dt_exclusive=to_dt_exclusive,
                 market=market,
             )
@@ -250,27 +325,55 @@ class BacktestService:
                 for t, series in raw_candles.items()
             }
 
-            async def progress(done: int, total: int) -> None:
-                pct = round(done / total * 100.0, 1) if total > 0 else 0.0
-                await backtest_run_store.update(
-                    run_id,
-                    progress_percent=pct,
-                    phase_units_done=done,
-                    phase_units_total=total,
-                )
+            from time import monotonic
+
+            progress_state = {"done": 0, "total": 1}
+            sim_done = False
+
+            def on_progress(done: int, total: int) -> None:
+                progress_state["done"] = done
+                progress_state["total"] = total
+
+            async def pump_progress() -> None:
+                last_touch = 0.0
+                while True:
+                    done = int(progress_state["done"])
+                    total = int(progress_state["total"] or 1)
+                    now_m = monotonic()
+                    if now_m - last_touch >= 0.25 or sim_done:
+                        last_touch = now_m
+                        pct = round(done / total * 100.0, 1) if total > 0 else 0.0
+                        await backtest_run_store.update(
+                            run_id,
+                            progress_percent=pct,
+                            phase_units_done=done,
+                            phase_units_total=total,
+                            run_phase="simulating",
+                            phase_label="Simulating",
+                        )
+                    if sim_done:
+                        return
+                    await asyncio.sleep(0.25)
 
             session_id = 1_000_000 + run_id
-            result = await self._host.run(
-                config=config,
-                universe=universe,
-                candles_by_ticker=candles_by_ticker,
-                initial_capital=float(request.initial_capital or config.risk.capital),
-                session_id=session_id,
-                robot_id=request.robot_id or 0,
-                user_id=user_id,
-                is_cancelled=lambda: self._is_cancelled(run_id),
-                progress_callback=progress,
-            )
+            pump_task = asyncio.create_task(pump_progress())
+            try:
+                result = await asyncio.to_thread(
+                    self._host.run_sync,
+                    config=config,
+                    universe=universe,
+                    candles_by_ticker=candles_by_ticker,
+                    initial_capital=float(request.initial_capital or config.risk.capital),
+                    session_id=session_id,
+                    robot_id=request.robot_id or 0,
+                    user_id=user_id,
+                    trade_from=from_dt,
+                    is_cancelled=lambda: self._is_cancelled(run_id),
+                    progress_callback=on_progress,
+                )
+            finally:
+                sim_done = True
+                await pump_task
 
             if self._is_cancelled(run_id):
                 finished = datetime.now(timezone.utc)
@@ -369,6 +472,7 @@ class BacktestService:
             instrument_type=config.core.instrument_type,
             universe_raw=config.universe.model_dump(by_alias=True),
             robot_id=request.robot_id,
+            as_of=request.from_date,
         )
         tickers = [i.ticker.upper() for i in resolved.instruments]
         excluded = {x.upper() for x in u.excluded}

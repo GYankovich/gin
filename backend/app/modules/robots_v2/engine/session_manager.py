@@ -34,6 +34,8 @@ class SessionManager:
     ) -> SessionStatus:
         if self.is_running(robot_id):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Session already running")
+        # Replace previous ERROR/TERMINATED snapshot if any
+        self._sessions.pop(robot_id, None)
         session = TradingSessionV2(
             robot_id=robot_id,
             user_id=user_id,
@@ -61,6 +63,10 @@ class SessionManager:
         return session.status()
 
     def on_session_ended(self, robot_id: int) -> None:
+        session = self._sessions.get(robot_id)
+        # Keep ERROR sessions so monitor can show why start failed
+        if session is not None and session.state == SessionState.ERROR:
+            return
         self._sessions.pop(robot_id, None)
 
 

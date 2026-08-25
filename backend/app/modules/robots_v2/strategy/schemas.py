@@ -28,6 +28,10 @@ class OrderFlowSnapshot(BaseModel):
     sell_volume: float = Field(alias="sellVolume")
     delta_pct: float = Field(alias="deltaPct")
     window_sec: int = Field(alias="windowSec")
+    tick_count: int = Field(default=0, alias="tickCount")
+    trade_count: int = Field(default=0, alias="tradeCount")
+    has_real_trades: bool = Field(default=False, alias="hasRealTrades")
+    flow_source: Literal["trades", "inferred"] = Field(default="inferred", alias="flowSource")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -49,6 +53,10 @@ class StrategyContext:
     order_flow: dict[str, OrderFlowSnapshot] | None = None
     ws_healthy: bool = True
     allow_short: bool = False
+    take_profit_pct: float | None = None
+    stop_loss_pct: float | None = None
+    broker_commission_rate: float | None = None
+    tax_pct: float | None = None
 
 
 @dataclass

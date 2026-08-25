@@ -59,3 +59,12 @@ def test_crypto_screener_presets_have_volume_floor():
     for preset in ("high_liquidity", "volatile", "low_price"):
         cfg = presets.resolve_crypto_filters(preset=preset, custom_filters=None)
         assert cfg["min_volume_24h_usd"] > 0
+
+
+def test_moex_volatile_preset_has_volume_fast_filter():
+    flt = presets.resolve_moex_dms_filters(preset="volatile", custom_filters=None)
+    types = {str(f.get("type") or "").lower() for f in flt}
+    assert "volume" in types
+    assert "atr" in types
+    vol = next(f for f in flt if str(f.get("type") or "").lower() == "volume")
+    assert float(vol.get("min") or 0) >= 5_000_000

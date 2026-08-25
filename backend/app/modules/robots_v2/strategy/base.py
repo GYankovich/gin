@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from datetime import datetime, timezone
 from typing import Any
 
 from app.modules.robots.trading.contracts import Position, Signal
@@ -23,6 +24,39 @@ class StrategyPlugin(ABC):
 
     def __init__(self) -> None:
         self._state = StrategySessionState(archetype=self.archetype)
+        self._last_scan: list[dict[str, Any]] = []
+        self.scan_enabled = True
+
+    @property
+    def last_scan(self) -> list[dict[str, Any]]:
+        return list(self._last_scan)
+
+    def _begin_scan(self) -> None:
+        if not self.scan_enabled:
+            return
+        self._last_scan = []
+
+    def _record_scan(
+        self,
+        ticker: str,
+        *,
+        code: str,
+        message: str,
+        price: float | None = None,
+        metrics: dict[str, Any] | None = None,
+    ) -> None:
+        if not self.scan_enabled:
+            return
+        row: dict[str, Any] = {
+            "ticker": ticker.upper(),
+            "code": code,
+            "message": message,
+        }
+        if price is not None and price > 0:
+            row["price"] = round(float(price), 4)
+        if metrics:
+            row["metrics"] = metrics
+        self._last_scan.append(row)
 
     @property
     def state(self) -> StrategySessionState:
@@ -57,6 +91,12 @@ class StrategyPlugin(ABC):
         ticker = str(position.secid or position.figi or "").upper()
         if ticker:
             self._state.per_ticker.pop(ticker, None)
+
+    def on_stop_loss(self, ticker: str, *, at: datetime | None = None) -> None:
+        """Called after a stop-loss fill — plugins may pause re-entry on this ticker."""
+        t = ticker.upper()
+        ts = self.ticker_state(t)
+        ts["lastSlAt"] = at or datetime.now(timezone.utc)
 
     def _in_universe(self, ctx: StrategyContext, ticker: str) -> bool:
         u = {t.upper() for t in ctx.universe}

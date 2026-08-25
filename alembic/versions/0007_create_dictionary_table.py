@@ -63,11 +63,11 @@ def upgrade():
     # ROBOT STATUS
     op.execute(f"""
         INSERT INTO dictionary 
-            (table_name, column_name, num_value, name, description)
+            (table_name, column_name, num_value, name, description, hide_from_ui)
         VALUES 
-            ('ROBOT', 'STATUS', 1, 'Выключен', 'Робот остановлен'),
-            ('ROBOT', 'STATUS', 2, 'Включен', 'Робот активен и работает'),
-            ('ROBOT', 'STATUS', 0, 'Удален', 'Робот удален')
+            ('ROBOT', 'STATUS', 1, 'Выключен', 'Робот остановлен', 0),
+            ('ROBOT', 'STATUS', 2, 'Включен', 'Робот активен и работает', 0),
+            ('ROBOT', 'STATUS', 0, 'Удален', 'Робот удален', 1)
     """)
 
     # ROBOT TYPE

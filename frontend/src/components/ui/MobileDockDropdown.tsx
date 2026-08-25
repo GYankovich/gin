@@ -94,10 +94,33 @@ function Root({
 
 type TriggerProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
     'aria-label': string
+    /** Передаёт поведение триггера единственному дочернему Button без дополнительной обёртки. */
+    asChild?: boolean
 }
 
-function Trigger({ className, children, onClick, type = 'button', ...props }: TriggerProps) {
+function Trigger({ className, children, onClick, type = 'button', asChild = false, ...props }: TriggerProps) {
     const { open, onOpenChange } = useMobileDockDropdown()
+
+    const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+        onClick?.(e)
+        if (e.defaultPrevented) return
+        onOpenChange(!open)
+    }
+
+    if (asChild && React.isValidElement<React.ButtonHTMLAttributes<HTMLButtonElement>>(children)) {
+        const child = children
+        return React.cloneElement(child, {
+            ...props,
+            type,
+            className: [child.props.className, className].filter(Boolean).join(' '),
+            'aria-haspopup': 'menu',
+            'aria-expanded': open,
+            onClick: (e: React.MouseEvent<HTMLButtonElement>) => {
+                child.props.onClick?.(e)
+                if (!e.defaultPrevented) handleClick(e)
+            },
+        })
+    }
 
     return (
         <button
@@ -105,11 +128,7 @@ function Trigger({ className, children, onClick, type = 'button', ...props }: Tr
             className={className}
             aria-haspopup="menu"
             aria-expanded={open}
-            onClick={(e) => {
-                onClick?.(e)
-                if (e.defaultPrevented) return
-                onOpenChange(!open)
-            }}
+            onClick={handleClick}
             {...props}
         >
             {children}

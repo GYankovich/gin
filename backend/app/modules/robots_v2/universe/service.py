@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
-from typing import Any
+from datetime import date, datetime, timezone
+from typing import Any, Callable
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -123,8 +123,47 @@ def _paginate_assets(assets: list[PreviewAsset], page: int, page_size: int) -> l
     return assets[start : start + page_size]
 
 
-def _cache_key(*, universe: dict[str, Any], market: str, token_id: int) -> str:
-    bucket = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H")
+UniverseProgressFn = Callable[[str, int, int, str], None]
+
+
+def _apply_point_in_time_screen(
+    db: Session,
+    rows: list[dict[str, Any]],
+    *,
+    as_of: date,
+    market: str,
+    lookback_days: int = 14,
+) -> tuple[list[dict[str, Any]], list[RejectedInstrument]]:
+    """Replace live snapshot fields with candles strictly before as_of; drop names with no history."""
+    from app.modules.robots.trading.pipeline.historical_liquidity import point_in_time_metrics
+
+    tickers = [str(r.get("ticker") or "").upper() for r in rows if r.get("ticker")]
+    metrics = point_in_time_metrics(
+        db, tickers=tickers, as_of_date=as_of, lookback_days=lookback_days, market=market,
+    )
+    kept: list[dict[str, Any]] = []
+    rejected: list[RejectedInstrument] = []
+    for row in rows:
+        ticker = str(row.get("ticker") or "").upper()
+        pit = metrics.get(ticker)
+        if pit is None or pit.get("last_close", 0) <= 0:
+            rejected.append(RejectedInstrument(
+                ticker=ticker,
+                stage="historical",
+                code="NO_HISTORY",
+                message=f"No candles before {as_of.isoformat()}",
+            ))
+            continue
+        row = dict(row)
+        row["last_price"] = pit["last_close"]
+        row["value_today"] = pit["avg_value"]
+        row["volume24h"] = pit["avg_value"]
+        kept.append(row)
+    return kept, rejected
+
+
+def _cache_key(*, universe: dict[str, Any], market: str, token_id: int, as_of: date | None = None) -> str:
+    bucket = as_of.isoformat() if as_of is not None else datetime.now(timezone.utc).strftime("%Y-%m-%d-%H")
     raw = json.dumps({"universe": universe, "market": market, "tokenId": token_id, "bucket": bucket}, sort_keys=True)
     return hashlib.sha256(raw.encode()).hexdigest()
 
@@ -142,10 +181,14 @@ class UniverseService:
         universe_raw: dict[str, Any],
         page: int = 1,
         page_size: int = 20,
+        robot_id: int | None = None,
+        on_progress: UniverseProgressFn | None = None,
+        as_of: datetime | date | None = None,
     ) -> UniversePreview:
         universe = UniverseConfig.model_validate(universe_raw)
         ctx = load_token_context(db, user_id=user_id, token_id=token_id, instrument_type=instrument_type, schema=self.schema)
-        as_of = datetime.now(timezone.utc)
+        as_of_day = as_of.date() if isinstance(as_of, datetime) else as_of
+        as_of_dt = datetime.combine(as_of_day, datetime.min.time(), tzinfo=timezone.utc) if as_of_day else datetime.now(timezone.utc)
         excluded = set(_normalize_tickers(universe.excluded))
 
         if universe.mode == "fixed":
@@ -154,11 +197,12 @@ class UniverseService:
             )
         elif universe.mode == "index":
             assets, rejected = await self._preview_index(
-                db, ctx, universe, instrument_type, excluded,
+                db, ctx, universe, instrument_type, excluded, robot_id=robot_id, as_of=as_of_day,
             )
         elif universe.mode == "screener":
             assets, rejected = await self._preview_screener(
-                db, ctx, universe, instrument_type, excluded,
+                db, ctx, universe, instrument_type, excluded, robot_id=robot_id,
+                on_progress=on_progress, as_of=as_of_day,
             )
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported universe mode: {universe.mode}")
@@ -177,7 +221,7 @@ class UniverseService:
         total = len(preview_assets)
         page_assets = _paginate_assets(preview_assets, page, page_size)
         return UniversePreview(
-            asOf=as_of,
+            asOf=as_of_dt,
             total=total,
             page=page,
             pageSize=page_size,
@@ -194,6 +238,8 @@ class UniverseService:
         instrument_type: str,
         universe_raw: dict[str, Any],
         robot_id: int | None = None,
+        on_progress: UniverseProgressFn | None = None,
+        as_of: datetime | date | None = None,
     ) -> ResolvedUniverse:
         preview = await self.preview(
             db, user_id,
@@ -202,6 +248,9 @@ class UniverseService:
             universe_raw=universe_raw,
             page=1,
             page_size=10_000,
+            robot_id=robot_id,
+            on_progress=on_progress,
+            as_of=as_of,
         )
         instruments = [
             InstrumentRef(
@@ -226,7 +275,7 @@ class UniverseService:
             stats=stats,
             cacheKey=_cache_key(universe=universe_raw, market=load_token_context(
                 db, user_id=user_id, token_id=token_id, instrument_type=instrument_type, schema=self.schema,
-            ).market, token_id=token_id),
+            ).market, token_id=token_id, as_of=preview.as_of.date() if preview.as_of else None),
         )
 
     async def validate_tickers(
@@ -246,11 +295,12 @@ class UniverseService:
             from app.modules.robots.crypto_universe import fetch_bybit_tickers
             if not ctx.api_key:
                 raise HTTPException(status_code=400, detail="Bybit token missing")
+            category = "inverse" if instrument_type == "coin_futures" else "linear"
             live = await fetch_bybit_tickers(
                 api_key=ctx.api_key,
                 api_secret=ctx.api_secret or "",
                 testnet=ctx.testnet,
-                category="linear",
+                category=category,
             )
             known = {str(r.get("symbol") or "").upper() for r in live}
             for t in normalized:
@@ -348,18 +398,40 @@ class UniverseService:
         universe: UniverseConfig,
         instrument_type: str,
         excluded: set[str],
+        *,
+        robot_id: int | None = None,
+        as_of: date | None = None,
     ) -> tuple[list[dict[str, Any]], list[RejectedInstrument]]:
         code = str(universe.index or "").strip().upper()
         if not code:
             raise HTTPException(status_code=422, detail="universe.index is required")
         if ctx.market == "crypto":
             constituents = await resolve_crypto_index_constituents(
-                db, ctx.user_id, index_code=code, token_id=ctx.token_id,
+                db, ctx.user_id, index_code=code, token_id=ctx.token_id, as_of=as_of,
             )
         else:
-            constituents = await resolve_moex_index_constituents(db, index_code=code, schema=self.schema)
+            constituents = await resolve_moex_index_constituents(
+                db,
+                index_code=code,
+                as_of=as_of,
+                schema=self.schema,
+                robot_id=robot_id,
+                user_id=ctx.user_id,
+                token_id=ctx.token_id,
+            )
         if not constituents:
             raise HTTPException(status_code=502, detail=f"Index {code} returned no constituents")
+        if as_of is not None:
+            rows = [{"ticker": t, "last_price": 0.0, "value_today": 0.0, "volume24h": 0.0, "atr": 0.0} for t in constituents]
+            accepted, rejected = _rank_and_cap(rows, max_assets=universe.max_assets, excluded=excluded)
+            assets = [{
+                "ticker": r["ticker"],
+                "name": r["ticker"],
+                "price": float(r.get("last_price") or 0),
+                "volume24h": float(r.get("volume24h") or 0),
+                "atr": float(r.get("atr") or 0),
+            } for r in accepted]
+            return assets, rejected
         fixed = UniverseConfig(
             mode="fixed",
             fixedList=constituents,
@@ -376,6 +448,10 @@ class UniverseService:
         universe: UniverseConfig,
         instrument_type: str,
         excluded: set[str],
+        *,
+        robot_id: int | None = None,
+        on_progress: UniverseProgressFn | None = None,
+        as_of: date | None = None,
     ) -> tuple[list[dict[str, Any]], list[RejectedInstrument]]:
         screener = universe.screener
         if screener is None:
@@ -384,10 +460,30 @@ class UniverseService:
         custom = screener.filters or None
 
         if ctx.market == "crypto":
-            return await self._preview_crypto_screener(db, ctx, universe, preset, custom, excluded)
-        return await self._preview_moex_screener(
+            return await self._preview_crypto_screener(
+                db, ctx, universe, preset, custom, excluded,
+                instrument_type=instrument_type,
+                robot_id=robot_id,
+                as_of=as_of,
+            )
+        assets, rejected = await self._preview_moex_screener(
             db, ctx, universe, instrument_type, preset, custom, screener.filter_mode, excluded,
+            on_progress=on_progress,
+            as_of=as_of,
         )
+        if assets or custom or not preset or preset == "custom":
+            return assets, rejected
+        # Automatic fallback: strict presets may return 0 on thin days — relax once.
+        fallback_preset = {"volatile": "high_liquidity", "low_price": "high_liquidity"}.get(str(preset))
+        if fallback_preset and fallback_preset != preset:
+            fb_assets, fb_rejected = await self._preview_moex_screener(
+                db, ctx, universe, instrument_type, fallback_preset, None, screener.filter_mode, excluded,
+                on_progress=on_progress,
+                as_of=as_of,
+            )
+            if fb_assets:
+                return fb_assets, rejected + fb_rejected
+        return assets, rejected
 
     async def _preview_moex_screener(
         self,
@@ -399,11 +495,46 @@ class UniverseService:
         custom: list[dict[str, Any]] | None,
         filter_mode: str,
         excluded: set[str],
+        *,
+        on_progress: UniverseProgressFn | None = None,
+        as_of: date | None = None,
     ) -> tuple[list[dict[str, Any]], list[RejectedInstrument]]:
         raw_filters = presets.resolve_moex_dms_filters(preset=preset, custom_filters=custom)  # type: ignore[arg-type]
         dms_filters, price_filters = _split_v4_price_filters(raw_filters)
         board = board_for_instrument_type(instrument_type)
         mode = "ANY" if filter_mode == "any" else "ALL"
+        if as_of is not None:
+            from app.modules.robots_v2.universe.board_as_of import (
+                list_moex_board_tickers_as_of,
+                list_moex_symbols_from_cache,
+            )
+            if on_progress:
+                on_progress("screener_filters", 0, 0, board)
+            hist_tickers = await list_moex_board_tickers_as_of(board, as_of)
+            if not hist_tickers:
+                hist_tickers = list_moex_symbols_from_cache(db, as_of=as_of, market="moex")
+            rows = [{"ticker": t, "last_price": 0.0, "value_today": 0.0, "volume24h": 0.0, "atr": 0.0} for t in hist_tickers]
+            rejected: list[RejectedInstrument] = []
+            rows, hist_rejected = _apply_point_in_time_screen(
+                db, rows, as_of=as_of, market="moex", lookback_days=14,
+            )
+            rejected.extend(hist_rejected)
+            if price_filters or preset:
+                rows, price_rejected = _apply_price_filters(rows, price_filters, preset, custom)
+                rejected.extend(price_rejected)
+            accepted, cap_rejected = _rank_and_cap(rows, max_assets=universe.max_assets, excluded=excluded)
+            rejected.extend(cap_rejected)
+            assets = [{
+                "ticker": r["ticker"],
+                "name": r["ticker"],
+                "price": float(r.get("last_price") or 0),
+                "volume24h": float(r.get("volume24h") or 0),
+                "atr": float(r.get("atr") or 0),
+            } for r in accepted]
+            return assets, rejected
+
+        if on_progress:
+            on_progress("screener_filters", 0, 0, board)
         result = await dms_service.preview_pipeline_setup(
             db=db,
             user_id=ctx.user_id,
@@ -413,6 +544,7 @@ class UniverseService:
             universe_mode="tqbr_scan",
             fixed_tickers=[],
             warmup_candles=True,
+            on_progress=on_progress,
         )
         rows: list[dict[str, Any]] = []
         rejected: list[RejectedInstrument] = []
@@ -455,6 +587,10 @@ class UniverseService:
         preset: str | None,
         custom: list[dict[str, Any]] | None,
         excluded: set[str],
+        *,
+        instrument_type: str = "perpetual",
+        robot_id: int | None = None,
+        as_of: date | None = None,
     ) -> tuple[list[dict[str, Any]], list[RejectedInstrument]]:
         from app.modules.robots.crypto_universe import (
             _resolve_filters,
@@ -466,37 +602,119 @@ class UniverseService:
         if not ctx.api_key:
             raise HTTPException(status_code=400, detail="Bybit API token required")
 
+        category = "inverse" if instrument_type == "coin_futures" else "linear"
+        quote_coin = "USD" if category == "inverse" else "USDT"
         filter_kwargs = presets.resolve_crypto_filters(preset=preset, custom_filters=custom)  # type: ignore[arg-type]
+        min_vol = float(filter_kwargs.get("min_volume_24h_usd") or 5_000_000)
+        # Inverse coin futures report much smaller USD turnovers than USDT linear.
+        if category == "inverse":
+            min_vol = min(min_vol, 1_000_000.0)
+        # V2 presets are liquidity/ATR only — explicitly disable R5.1 derivative defaults
+        # (funding/OI/LSR/rvol) that `_resolve_filters` otherwise injects.
+        cu: dict[str, Any] = {
+            "min_volume_24h_usd": min_vol,
+            "max_spread_pct": filter_kwargs.get("max_spread_pct", 0.15),
+            "min_last_price": filter_kwargs.get("min_last_price", 0.05),
+            "category": category,
+            "quote_coin": quote_coin,
+            "lookback_days": 20,
+            "min_funding_rate": None,
+            "max_funding_rate": None,
+            "min_open_interest_usd": None,
+            "min_lsr": None,
+            "max_lsr": None,
+            "min_rvol": None,
+            "min_atr_percent": None,
+            "max_atr_percent": None,
+        }
+        if filter_kwargs.get("min_atr_percent") is not None:
+            cu["min_atr_percent"] = filter_kwargs["min_atr_percent"]
+        if filter_kwargs.get("max_atr_percent") is not None:
+            cu["max_atr_percent"] = filter_kwargs["max_atr_percent"]
+        if filter_kwargs.get("max_last_price") is not None:
+            cu["max_last_price"] = filter_kwargs["max_last_price"]
         config = {
-            "crypto_universe": {
-                "min_volume_24h_usd": filter_kwargs.get("min_volume_24h_usd", 5_000_000),
-                "max_spread_pct": filter_kwargs.get("max_spread_pct", 0.15),
-                "min_atr_percent": filter_kwargs.get("min_atr_percent"),
-                "max_atr_percent": filter_kwargs.get("max_atr_percent"),
-                "min_last_price": filter_kwargs.get("min_last_price", 0.05),
-                "category": "linear",
-                "lookback_days": 20,
-            },
-            "bybit": {"instrument_category": "linear", "testnet": ctx.testnet},
+            "crypto_universe": cu,
+            "bybit": {"instrument_category": category, "testnet": ctx.testnet},
         }
         filters = _resolve_filters(config)
+        # max_last_price is v2-only — apply after screening if present
+        max_last = filter_kwargs.get("max_last_price")
+        if as_of is not None:
+            from app.modules.robots.trading.pipeline.historical_liquidity import (
+                list_bybit_symbols_from_cache,
+                point_in_time_metrics,
+            )
+            symbols = list_bybit_symbols_from_cache(db)
+            pit = point_in_time_metrics(
+                db, tickers=symbols, as_of_date=as_of, lookback_days=20, market="bybit",
+            )
+            min_last = float(filter_kwargs.get("min_last_price") or 0)
+            rows = []
+            rejected: list[RejectedInstrument] = []
+            for sym, m in pit.items():
+                if float(m.get("avg_value") or 0) < min_vol:
+                    continue
+                close = float(m.get("last_close") or 0)
+                if min_last and close < min_last:
+                    continue
+                if max_last is not None and close > float(max_last):
+                    continue
+                rows.append({
+                    "ticker": sym,
+                    "last_price": close,
+                    "volume24h": float(m.get("avg_value") or 0),
+                    "atr": 0.0,
+                })
+            accepted, cap_rejected = _rank_and_cap(rows, max_assets=universe.max_assets, excluded=excluded)
+            rejected.extend(cap_rejected)
+            assets = [{
+                "ticker": r["ticker"],
+                "name": r["ticker"],
+                "price": float(r.get("last_price") or 0),
+                "volume24h": float(r.get("volume24h") or 0),
+                "atr": float(r.get("atr") or 0),
+            } for r in accepted]
+            return assets, rejected
+        context_ref = str(robot_id) if robot_id is not None else str(ctx.token_id)
         tickers = await fetch_bybit_tickers(
             api_key=ctx.api_key,
             api_secret=ctx.api_secret or "",
             testnet=ctx.testnet,
-            category=filters.category,
+            category=category,
+            user_id=ctx.user_id,
+            token_id=ctx.token_id,
+            context_type="universe",
+            context_ref=context_ref,
         )
-        client = BybitHttpClient(testnet=ctx.testnet, api_key=ctx.api_key, api_secret=ctx.api_secret or "")
+        client = BybitHttpClient(
+            testnet=ctx.testnet,
+            api_key=ctx.api_key,
+            api_secret=ctx.api_secret or "",
+            user_id=ctx.user_id,
+            token_id=ctx.token_id,
+            context_type="universe",
+            context_ref=context_ref,
+        )
         try:
             accepted_rows, rejected_rows = await screen_bybit_universe_live(
-                db,
+                tickers,
                 client=client,
-                tickers=tickers,
                 filters=filters,
-                user_id=ctx.user_id,
+                db=db,
             )
         finally:
             await client.close()
+
+        if max_last is not None:
+            kept = []
+            for r in accepted_rows:
+                if float(r.lastPrice or 0) <= float(max_last):
+                    kept.append(r)
+                else:
+                    r.reject_reason = "price_above_max"
+                    rejected_rows.append(r)
+            accepted_rows = kept
 
         rows = [{
             "ticker": str(r.symbol).upper(),

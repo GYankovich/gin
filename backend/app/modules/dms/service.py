@@ -14,10 +14,14 @@ from app.modules.robots.universe import (
     UNIVERSE_MODE_FIXED,
     UNIVERSE_MODE_TQBR,
     normalize_universe_mode,
+    normalize_universe_mode_arg,
     universe_min_tradable_row,
     universe_uses_pipeline,
     universe_whitelist_tickers,
 )
+
+# MOEX snapshot older than this is refreshed before screener/universe pipeline runs.
+SNAPSHOT_MAX_AGE_MINUTES = 45
 from app.modules.dms.models import CandleCache
 from app.modules.moex.http_gate import moex_http_acquire
 
@@ -694,6 +698,7 @@ class DmsService:
         as_of_date: Optional[date] = None,
         fetch_missing_candles: bool = True,
         user_id: Optional[int] = None,
+        on_ticker_processed: Optional[Callable[[int, int, str], None]] = None,
     ) -> tuple[Dict[str, float], Dict[str, int]]:
         atr_filter = next((f for f in filters if str((f or {}).get("type") or "").lower() == "atr" and (f or {}).get("enabled", True) is not False), None)
         if not atr_filter:
@@ -722,6 +727,7 @@ class DmsService:
                 till_date=atr_till_date,
                 refresh_recent_intraday=False,
                 user_id=user_id,
+                on_ticker_processed=on_ticker_processed,
             )
         else:
             cache_stats = {
@@ -1919,10 +1925,11 @@ class DmsService:
         universe_mode: str,
         fixed_tickers: List[str],
         warmup_candles: bool = False,
+        on_progress: Optional[Callable[[str, int, int, str], None]] = None,
     ) -> Dict[str, Any]:
         """Preview pipeline для ad-hoc /testing (без robot_id)."""
         synthetic_config = {
-            "universe_mode": normalize_universe_mode(universe_mode),
+            "universe_mode": normalize_universe_mode_arg(universe_mode),
             "allowed_figis": [str(t).strip().upper() for t in (fixed_tickers or []) if str(t).strip()],
             "pipeline": {"mode": mode, "filters": filters, "optimize_order": True},
         }
@@ -1935,6 +1942,7 @@ class DmsService:
             mode=mode,
             warmup_candles=warmup_candles,
             config_override=synthetic_config,
+            on_progress=on_progress,
         )
 
     async def preview_pipeline(
@@ -1947,6 +1955,7 @@ class DmsService:
         mode: str,
         warmup_candles: bool = True,
         config_override: Optional[Dict[str, Any]] = None,
+        on_progress: Optional[Callable[[str, int, int, str], None]] = None,
     ) -> Dict[str, Any]:
         if config_override is not None:
             robot_config = dict(config_override)
@@ -1988,9 +1997,13 @@ class DmsService:
             latest_snapshot_id
             and latest_snapshot_time is not None
             and latest_snapshot_time.astimezone(timezone.utc).date() == today_utc
+            and (now_utc - latest_snapshot_time.astimezone(timezone.utc))
+            <= timedelta(minutes=SNAPSHOT_MAX_AGE_MINUTES)
         )
 
         if not is_fresh_today:
+            if on_progress:
+                on_progress("snapshot", 0, 0, board)
             created = await self.create_snapshot(db, board=board, ttl_minutes=0, is_manual=True, user_id=user_id)
             if created.get("status") != "SUCCESS":
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=created.get("message") or "Не удалось получить snapshot")
@@ -2035,6 +2048,47 @@ class DmsService:
             mapped_rows = [r for r in mapped_rows if str(r.get("ticker") or "").upper() in allowed_figis]
         elif universe_mode == UNIVERSE_MODE_TQBR:
             mapped_rows = [r for r in mapped_rows if universe_min_tradable_row({**r, "ticker": str(r.get("ticker") or "").upper()})]
+            if not mapped_rows and rows and snapshot_id == latest_snapshot_id:
+                created = await self.create_snapshot(db, board=board, ttl_minutes=0, is_manual=True, user_id=user_id)
+                if created.get("status") == "SUCCESS":
+                    snapshot_id = int(created["snapshot_id"])
+                    rows = db.execute(
+                        text(
+                            f"""
+                            SELECT ticker, last_price, open_price, high_price, low_price, prev_price, value_today, volume_lots, security_status, trading_status, num_trades, min_step, issue_size, spread, bid, ask, prev_legal_close_price
+                            FROM market_snapshot_data
+                            WHERE snapshot_id=:snapshot_id
+                            ORDER BY ticker
+                            """
+                        ),
+                        {"snapshot_id": snapshot_id},
+                    ).fetchall()
+                    mapped_rows = [
+                        {
+                            "ticker": r[0],
+                            "last_price": float(r[1]) if r[1] is not None else None,
+                            "open_price": float(r[2]) if r[2] is not None else None,
+                            "high_price": float(r[3]) if r[3] is not None else None,
+                            "low_price": float(r[4]) if r[4] is not None else None,
+                            "prev_price": float(r[5]) if r[5] is not None else None,
+                            "value_today": float(r[6]) if r[6] is not None else 0.0,
+                            "volume_lots": float(r[7]) if r[7] is not None else 0.0,
+                            "security_status": r[8],
+                            "trading_status": r[9],
+                            "num_trades": int(r[10]) if r[10] is not None else 0,
+                            "min_step": float(r[11]) if r[11] is not None else None,
+                            "issue_size": float(r[12]) if r[12] is not None else None,
+                            "spread": float(r[13]) if r[13] is not None else None,
+                            "bid": float(r[14]) if r[14] is not None else None,
+                            "ask": float(r[15]) if r[15] is not None else None,
+                            "prev_legal_close_price": float(r[16]) if r[16] is not None else None,
+                        }
+                        for r in rows
+                    ]
+                    mapped_rows = [
+                        r for r in mapped_rows
+                        if universe_min_tradable_row({**r, "ticker": str(r.get("ticker") or "").upper()})
+                    ]
         pipeline_mode = "ANY" if str(mode or "").upper() == "ANY" else "ALL"
         atr_filter_enabled = any(str((f or {}).get("type") or "").lower() == "atr" and (f or {}).get("enabled", True) is not False for f in filters)
         fast_filters = [f for f in filters if str((f or {}).get("type") or "").lower() != "atr"]
@@ -2045,8 +2099,20 @@ class DmsService:
             )
             if (pipeline_mode == "ALL" and pre_res["accepted"]) or (pipeline_mode == "ANY" and not pre_res["accepted"]):
                 pre_candidates.append(mapped)
+        atr_progress = (
+            (lambda cur, total, tk: on_progress("atr_warmup", cur, total, tk))
+            if on_progress
+            else None
+        )
+        if on_progress and atr_filter_enabled:
+            on_progress("atr_warmup", 0, len(pre_candidates), "")
         atr_map, _ = await self._load_atr_percent_map(
-            db=db, board=board, rows=pre_candidates if atr_filter_enabled else [], filters=filters, user_id=user_id
+            db=db,
+            board=board,
+            rows=pre_candidates if atr_filter_enabled else [],
+            filters=filters,
+            user_id=user_id,
+            on_ticker_processed=atr_progress,
         )
         total = len(rows)
         passed = 0

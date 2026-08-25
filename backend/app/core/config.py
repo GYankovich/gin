@@ -78,6 +78,10 @@ class Settings(BaseSettings):
         default=False,
         description="Enable greenfield robots v2 API (/api/v2/robots/*)",
     )
+    ROBOTS_V2_AUTO_RESUME: bool = Field(
+        default=True,
+        description="After API restart, resume robots v2 sessions with sessionDesired=running",
+    )
 
     TINVEST_API_URL: str = "https://invest-public-api.tinkoff.ru/rest"
     # Опционально: токен только для загрузки рыночных данных в общую БД (бэктест). Иначе используется токен пользователя.
@@ -121,6 +125,12 @@ class Settings(BaseSettings):
     )
     WORKER_POLL_INTERVAL_SECONDS: float = Field(default=1.0, ge=0.2, le=30.0)
     BACKGROUND_JOB_STALE_SECONDS: int = Field(default=7200, ge=60, le=86400)
+    PORTFOLIO_SYNC_QUEUED_STALE_SECONDS: int = Field(
+        default=600,
+        ge=60,
+        le=3600,
+        description="Queued portfolio_sync jobs older than this are failed so scheduler can re-enqueue",
+    )
     LIVE_SESSION_HEARTBEAT_SECONDS: float = Field(
         default=30.0,
         ge=5.0,

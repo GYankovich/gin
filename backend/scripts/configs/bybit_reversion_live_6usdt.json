@@ -1,0 +1,50 @@
+{
+  "configVersion": 4,
+  "core": {
+    "goal": "conservative",
+    "instrumentType": "perpetual",
+    "mode": "live",
+    "advancedMode": false,
+    "schedule": {
+      "weekdays": [true, true, true, true, true, true, true],
+      "timeFrom": "00:00",
+      "timeTo": "23:59",
+      "pollInterval": "5m"
+    }
+  },
+  "strategy": {
+    "archetype": "reversion",
+    "timeframe": "5m",
+    "params": {
+      "indicator": "rsi",
+      "rsiPeriod": 14,
+      "oversoldThreshold": 35,
+      "overboughtThreshold": 65
+    }
+  },
+  "universe": {
+    "mode": "fixed",
+    "fixedList": ["DOGEUSDT"],
+    "excluded": [],
+    "maxAssets": 1,
+    "exitOnDrop": false
+  },
+  "risk": {
+    "capital": 6,
+    "allocatedCapital": 6,
+    "maxPositionSharePct": 90,
+    "stopLossPct": 1.0,
+    "takeProfitPct": 1.5,
+    "maxDailyLoss": 1.5,
+    "maxDrawdownPct": 25,
+    "maxConcurrentPositions": 1,
+    "brokerCommissionPct": 0.06,
+    "taxPct": 0,
+    "slippagePct": 0.05,
+    "stopMode": "soft",
+    "eodFlatten": {
+      "enabled": false,
+      "minutesBeforeClose": 15
+    }
+  }
+}

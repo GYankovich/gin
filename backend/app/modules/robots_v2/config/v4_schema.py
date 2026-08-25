@@ -60,6 +60,47 @@ class ScalperParams(BaseModel):
     requires_web_socket: Literal[True] = Field(default=True, alias="requiresWebSocket")
     min_volume_window: int = Field(default=30, alias="minVolumeWindow", ge=5, le=300)
     cooldown_sec: int = Field(default=60, alias="cooldownSec", ge=0, le=3600)
+    min_hold_sec: int = Field(
+        default=30,
+        alias="minHoldSec",
+        ge=0,
+        le=3600,
+        description="Не закрывать по delta-reversal раньше N секунд после входа",
+    )
+    min_exit_move_bps: float = Field(
+        default=10.0,
+        alias="minExitMoveBps",
+        ge=0,
+        description="Мин. движение цены в сторону профита (bps) для выхода по delta-reversal",
+    )
+    min_flow_ticks: int = Field(
+        default=3,
+        alias="minFlowTicks",
+        ge=2,
+        le=100,
+        description="Мин. событий в окне order-flow для входа",
+    )
+    stop_loss_cooldown_sec: int = Field(
+        default=300,
+        alias="stopLossCooldownSec",
+        ge=0,
+        le=3600,
+        description="Пауза после stop-loss перед новым входом по тикеру (с)",
+    )
+    trend_lookback_ticks: int = Field(
+        default=0,
+        alias="trendLookbackTicks",
+        ge=0,
+        le=200,
+        description="Сколько последних price_tick хранить для micro-trend (0 = выкл)",
+    )
+    trend_block_long_bps: float = Field(
+        default=30.0,
+        alias="trendBlockLongBps",
+        ge=0,
+        le=500,
+        description="Не входить LONG если цена упала > N bps за lookback",
+    )
 
 
 class MomentumParams(BaseModel):
@@ -74,14 +115,14 @@ class ReversionParams(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     indicator: ReversionIndicator
-    overbought_threshold: float = Field(..., alias="overboughtThreshold", ge=70, le=90)
-    oversold_threshold: float | None = Field(default=None, alias="oversoldThreshold", ge=10, le=30)
+    overbought_threshold: float = Field(..., alias="overboughtThreshold", ge=60, le=90)
+    oversold_threshold: float | None = Field(default=None, alias="oversoldThreshold", ge=10, le=40)
     rsi_period: int = Field(default=14, alias="rsiPeriod", ge=5, le=50)
 
     @model_validator(mode="after")
     def _default_oversold(self) -> ReversionParams:
         if self.oversold_threshold is None:
-            object.__setattr__(self, "oversold_threshold", max(10.0, min(30.0, 100.0 - self.overbought_threshold)))
+            object.__setattr__(self, "oversold_threshold", max(10.0, min(40.0, 100.0 - self.overbought_threshold)))
         return self
 
 
@@ -120,7 +161,7 @@ class ScreenerConfig(BaseModel):
     preset: ScreenerPreset | None = None
     filters: list[dict[str, Any]] = Field(default_factory=list)
     filter_mode: FilterMode = Field(default="all", alias="filterMode")
-    refresh_policy: RefreshPolicy = Field(default="on_session", alias="refreshPolicy")
+    refresh_policy: RefreshPolicy = Field(default="daily", alias="refreshPolicy")
 
 
 class UniverseConfig(BaseModel):

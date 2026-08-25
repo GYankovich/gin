@@ -76,10 +76,7 @@ export function Navbar() {
                 <nav className="navbar__links">
                     <NavLink to="/dashboard" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Дашборд</NavLink>
                     <NavLink to="/portfolio" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Портфель</NavLink>
-                    <NavLink to="/robots" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Роботы</NavLink>
-                    <NavLink to="/robots-v2" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Роботы v2</NavLink>
-                    <NavLink to="/testing" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Тестирование</NavLink>
-                    <NavLink to="/live" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Live</NavLink>
+                    <NavLink to="/robots-v2" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Роботы</NavLink>
                 </nav>
             </div>
 

@@ -109,12 +109,82 @@ def tp_move_bps(entry_price: float, current_price: float) -> float:
     return abs(px - entry) / entry * 10_000.0
 
 
+def tp_progress_ratio(
+    entry_price: float,
+    current_price: float,
+    take_profit: float,
+    *,
+    is_long: bool,
+) -> float:
+    """0..1+ how far mark moved from entry toward TP (negative if moved away)."""
+    entry = float(entry_price or 0)
+    px = float(current_price or 0)
+    tp = float(take_profit or 0)
+    if entry <= 0 or px <= 0 or tp <= 0:
+        return 0.0
+    if is_long:
+        span = tp - entry
+        if span <= 1e-12:
+            return 1.0 if px >= tp else 0.0
+        return (px - entry) / span
+    span = entry - tp
+    if span <= 1e-12:
+        return 1.0 if px <= tp else 0.0
+    return (entry - px) / span
+
+
+def decide_take_profit_order(
+    *,
+    entry_price: float,
+    current_price: float,
+    take_profit: float,
+    is_long: bool,
+    risk_params: Dict[str, Any],
+) -> Optional[tuple[str, Optional[float]]]:
+    """When to place a TP exit.
+
+    Returns ``(\"MARKET\", None)`` if TP reached, ``(\"LIMIT\", tp)`` if armed & near,
+    or ``None`` to wait. Never arms immediately after entry: requires real progress
+    toward TP (default ≥ 90% of entry→TP span) or mark already at/through TP.
+    """
+    entry = float(entry_price or 0)
+    px = float(current_price or 0)
+    tp = float(take_profit or 0)
+    if entry <= 0 or px <= 0 or tp <= 0:
+        return None
+
+    reached = (px >= tp) if is_long else (px <= tp)
+    if reached:
+        return ("MARKET", None)
+
+    # Must move toward TP (not sideways / against).
+    if is_long and px <= entry:
+        return None
+    if (not is_long) and px >= entry:
+        return None
+
+    arm_ratio = float(risk_params.get("tp_arm_ratio") or 0.90)
+    approach_bps = float(risk_params.get("tp_approach_bps") or 15.0)
+    progress = tp_progress_ratio(entry, px, tp, is_long=is_long)
+    gap_bps = abs(tp - px) / entry * 10_000.0
+
+    # Arm only late in the move to TP (scales with TP%). Approach bps alone
+    # must not fire right after entry when TP% is small.
+    if progress >= arm_ratio and gap_bps <= max(approach_bps, 5.0):
+        return ("LIMIT", tp)
+    if progress >= arm_ratio and gap_bps <= approach_bps * 2:
+        # Very close after arming — still LIMIT at TP.
+        return ("LIMIT", tp)
+    return None
+
+
 def should_skip_take_profit(
     position: Dict[str, Any],
     *,
     current_price: float,
     risk_params: Dict[str, Any],
     now: Optional[datetime] = None,
+    require_favorable_move: bool = False,
 ) -> Optional[str]:
     """Return skip reason for soft TP, or None if TP is allowed. SL never uses this."""
     min_hold = float(risk_params.get("min_hold_seconds") or 0)
@@ -125,9 +195,20 @@ def should_skip_take_profit(
     min_bps = float(risk_params.get("min_tp_move_bps") or 0)
     if min_bps > 0:
         entry = float(position.get("entry_price") or 0)
-        move = tp_move_bps(entry, current_price)
-        if move < min_bps:
-            return f"min_tp_move_bps move={move:.2f}<{min_bps:.2f}"
+        if require_favorable_move:
+            side = str(position.get("side") or "long").lower()
+            is_long = side in ("long", "buy")
+            if entry > 0 and current_price > 0:
+                if is_long:
+                    fav_bps = (current_price - entry) / entry * 10_000.0
+                else:
+                    fav_bps = (entry - current_price) / entry * 10_000.0
+                if fav_bps < min_bps:
+                    return f"min_exit_move_bps favorable={fav_bps:.2f}<{min_bps:.2f}"
+        else:
+            move = tp_move_bps(entry, current_price)
+            if move < min_bps:
+                return f"min_tp_move_bps move={move:.2f}<{min_bps:.2f}"
     return None
 
 
@@ -355,7 +436,7 @@ class RiskManager:
                 log_func(msg)
 
         for position in open_positions or []:
-            figi = position.get("figi")
+            figi = position.get("figi") or position.get("ticker") or position.get("secid")
             figi_key = normalize_figi(figi)
             entry_price = float(position.get("entry_price") or 0)
             quantity = float(position.get("quantity") or 0)
@@ -363,51 +444,125 @@ class RiskManager:
             current_price = prices.get(figi) if figi is not None else None
             if current_price is None and figi_key:
                 current_price = prices.get(figi_key)
+            if current_price is None:
+                # Fall back to mark already attached on the position row (ledger/UI).
+                try:
+                    cur = float(position.get("current_price") or 0)
+                except (TypeError, ValueError):
+                    cur = 0.0
+                if cur > 0:
+                    current_price = cur
             if not current_price or entry_price <= 0 or quantity <= 0:
                 if not current_price:
                     _log(f"   {figi}: нет текущей цены")
                 continue
 
-            stop_loss = calculate_stop_loss_price(entry_price, stop_loss_percent, is_long=is_long)
+            stop_loss = calculate_stop_loss_price(
+                entry_price,
+                stop_loss_percent,
+                is_long=is_long,
+                broker_commission_rate=kw.get("broker_commission_rate"),
+            )
             take_profit = calculate_take_profit_price(
                 entry_price, take_profit_percent, is_long=is_long, **kw
             )
             _log(f"   {figi}: цена={float(current_price):.4f}, SL={stop_loss:.4f}, TP={take_profit:.4f}")
 
             reason: Optional[str] = None
+            limit_price: Optional[float] = None
+            order_type: str = "MARKET"
             px = float(current_price)
             if is_long:
                 if px <= stop_loss:
                     reason = "stop_loss"
                     _log("      ⚠️ Сработал STOP-LOSS!")
-                elif px >= take_profit:
-                    reason = "take_profit"
-                    _log("      🎯 Сработал TAKE-PROFIT!")
+                else:
+                    block = should_skip_take_profit(
+                        position,
+                        current_price=px,
+                        risk_params=risk_params,
+                        now=now,
+                    )
+                    if block:
+                        _log(f"      ⏭️ Soft TP отложен: {block}")
+                    else:
+                        decision = decide_take_profit_order(
+                            entry_price=entry_price,
+                            current_price=px,
+                            take_profit=float(take_profit),
+                            is_long=True,
+                            risk_params=risk_params,
+                        )
+                        if decision is None:
+                            prog = tp_progress_ratio(
+                                entry_price, px, float(take_profit), is_long=True,
+                            )
+                            _log(
+                                f"      … TP ждём: mark={px:.4f} TP={take_profit:.4f} "
+                                f"progress={prog:.0%}"
+                            )
+                        else:
+                            reason = "take_profit"
+                            order_type, limit_price = decision[0], decision[1]
+                            if order_type == "LIMIT":
+                                _log(
+                                    f"      🎯 TP armed → LIMIT @ {float(limit_price):.4f} "
+                                    f"(mark={px:.4f})"
+                                )
+                            else:
+                                _log(
+                                    f"      🎯 TP достигнут mark={px:.4f} ≥ {take_profit:.4f} "
+                                    f"→ MARKET"
+                                )
             else:
                 if px >= stop_loss:
                     reason = "stop_loss"
                     _log("      ⚠️ Сработал STOP-LOSS (short)!")
-                elif px <= take_profit:
-                    reason = "take_profit"
-                    _log("      🎯 Сработал TAKE-PROFIT (short)!")
+                else:
+                    block = should_skip_take_profit(
+                        position,
+                        current_price=px,
+                        risk_params=risk_params,
+                        now=now,
+                    )
+                    if block:
+                        _log(f"      ⏭️ Soft TP отложен: {block}")
+                    else:
+                        decision = decide_take_profit_order(
+                            entry_price=entry_price,
+                            current_price=px,
+                            take_profit=float(take_profit),
+                            is_long=False,
+                            risk_params=risk_params,
+                        )
+                        if decision is None:
+                            prog = tp_progress_ratio(
+                                entry_price, px, float(take_profit), is_long=False,
+                            )
+                            _log(
+                                f"      … TP short ждём: mark={px:.4f} TP={take_profit:.4f} "
+                                f"progress={prog:.0%}"
+                            )
+                        else:
+                            reason = "take_profit"
+                            order_type, limit_price = decision[0], decision[1]
+                            if order_type == "LIMIT":
+                                _log(
+                                    f"      🎯 TP short armed → LIMIT @ {float(limit_price):.4f}"
+                                )
+                            else:
+                                _log(
+                                    f"      🎯 TP short достигнут mark={px:.4f} ≤ "
+                                    f"{take_profit:.4f} → MARKET"
+                                )
 
             if not reason:
                 continue
 
-            if reason == "take_profit":
-                skip = should_skip_take_profit(
-                    position,
-                    current_price=px,
-                    risk_params=risk_params,
-                    now=now,
-                )
-                if skip:
-                    _log(f"      ⏭️ Soft TP пропущен: {skip}")
-                    continue
-
             side = "BUY" if str(position.get("side", "")).lower() == "sell" else "SELL"
+            exit_px = float(limit_price) if (order_type == "LIMIT" and limit_price) else px
             costs = TradingCosts(entry_price, float(quantity), is_buy=is_long, **kw)
-            profit_calc = costs.calculate_actual_profit(px)
+            profit_calc = costs.calculate_actual_profit(exit_px)
             trade_id = position.get("id")
             intents.append(
                 OrderIntent(
@@ -415,12 +570,19 @@ class RiskManager:
                     figi=figi_key or str(figi or ""),
                     side=side,  # type: ignore[arg-type]
                     quantity=quantity,
-                    price=px,
+                    price=exit_px,
                     reduce_only=True,
                     reason=reason,
+                    order_type=order_type,  # type: ignore[arg-type]
                     trade_id=int(trade_id) if trade_id is not None else None,
                     estimated_profit=float(profit_calc.get("net_profit") or 0),
-                    meta={"position_side": position.get("side"), "entry_price": entry_price},
+                    meta={
+                        "position_side": position.get("side"),
+                        "entry_price": entry_price,
+                        "mark_price": px,
+                        "take_profit": float(take_profit),
+                        "stop_loss": float(stop_loss),
+                    },
                 )
             )
         return intents
@@ -680,5 +842,7 @@ __all__ = [
     "risk_budget_max_quantity",
     "position_age_seconds",
     "tp_move_bps",
+    "tp_progress_ratio",
+    "decide_take_profit_order",
     "should_skip_take_profit",
 ]
