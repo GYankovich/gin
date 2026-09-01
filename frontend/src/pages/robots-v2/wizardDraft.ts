@@ -107,6 +107,7 @@ export function archetypeDefaults(archetype: WizardArchetype): {
                     trendBlockLongBps: 30,
                     minHoldSec: 90,
                     minExitMoveBps: 80,
+                    invalidateBelowEntryBps: 180,
                     minFlowTicks: 5,
                 },
             }
@@ -236,7 +237,14 @@ export function configToDraft(config: Record<string, unknown>, name: string, tok
         pollInterval: (schedule.pollInterval as RobotV2WizardDraft['pollInterval']) || base.pollInterval,
         archetype: (strategy.archetype as WizardArchetype) || 'momentum',
         timeframe: String(strategy.timeframe || base.timeframe),
-        strategyParams: (strategy.params as Record<string, number | string | boolean>) || base.strategyParams,
+        strategyParams: (() => {
+            const stored = (strategy.params as Record<string, number | string | boolean>) || {}
+            const arch = (strategy.archetype as WizardArchetype) || 'momentum'
+            if (arch === 'scalper') {
+                return { ...archetypeDefaults('scalper').params, ...stored }
+            }
+            return Object.keys(stored).length ? stored : base.strategyParams
+        })(),
         universeMode: (universe.mode as WizardUniverseMode) || 'fixed',
         fixedList,
         indexCode: String(universe.index || base.indexCode),

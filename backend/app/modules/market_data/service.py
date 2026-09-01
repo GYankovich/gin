@@ -26,6 +26,9 @@ from app.modules.tinvest.token_service import token_service
 CHUNK_DAYS = 365
 MOEX_HTTP_RETRIES = 3
 MOEX_HTTP_TIMEOUT_SEC = 20
+IMOEX_FIGI = "IMOEX"
+IMOEX_TICKER = "IMOEX"
+IMOEX_DAY_INTERVAL = "CANDLE_INTERVAL_DAY"
 
 
 async def _moex_get_json_with_retry(
@@ -465,22 +468,172 @@ def list_backtests(db: Session, user_id: int, limit: int = 50) -> List[Dict[str,
     return out
 
 
+async def _fetch_moex_index_candles(
+        secid: str,
+        start: datetime,
+        end: datetime,
+        interval: str = IMOEX_DAY_INTERVAL,
+) -> List[Tuple]:
+    """Daily candles for MOEX stock index (market=index), e.g. IMOEX."""
+    moex_interval_map = {
+        "CANDLE_INTERVAL_1_MIN": 1,
+        "CANDLE_INTERVAL_10_MIN": 10,
+        "CANDLE_INTERVAL_HOUR": 60,
+        "CANDLE_INTERVAL_DAY": 24,
+        "CANDLE_INTERVAL_WEEK": 7,
+        "CANDLE_INTERVAL_MONTH": 31,
+    }
+    if interval not in moex_interval_map:
+        supported = ", ".join(moex_interval_map.keys())
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"MOEX index source does not support interval: {interval}. Supported: {supported}",
+        )
+    moex_interval = moex_interval_map[interval]
+    index_code = (secid or IMOEX_TICKER).strip().upper()
+    if not index_code:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Index secid is required")
+
+    url = f"https://iss.moex.com/iss/engines/stock/markets/index/securities/{index_code}/candles.json"
+    rows: List[Tuple] = []
+    cur = _utc(start)
+    end_u = _utc(end)
+    while cur < end_u:
+        chunk_end = min(end_u, cur + timedelta(days=365))
+        start_offset = 0
+        while True:
+            params = {
+                "from": cur.date().isoformat(),
+                "till": chunk_end.date().isoformat(),
+                "interval": moex_interval,
+                "start": start_offset,
+            }
+            payload = await _moex_get_json_with_retry(
+                url,
+                params=params,
+                timeout=MOEX_HTTP_TIMEOUT_SEC,
+                retries=MOEX_HTTP_RETRIES,
+                context=(
+                    "Загрузка свечей MOEX index "
+                    f"{index_code} {cur.date().isoformat()}..{chunk_end.date().isoformat()}"
+                ),
+            )
+            candles = payload.get("candles", {})
+            cols = candles.get("columns", []) or []
+            data = candles.get("data", []) or []
+            if not data:
+                break
+            idx = {name: i for i, name in enumerate(cols)}
+            for item in data:
+                begin = item[idx["begin"]] if "begin" in idx else None
+                if not begin:
+                    continue
+                ts = _utc(datetime.fromisoformat(str(begin).replace("Z", "+00:00")))
+                o = Decimal(str(item[idx["open"]])) if "open" in idx and item[idx["open"]] is not None else Decimal(0)
+                h = Decimal(str(item[idx["high"]])) if "high" in idx and item[idx["high"]] is not None else o
+                l = Decimal(str(item[idx["low"]])) if "low" in idx and item[idx["low"]] is not None else o
+                c = Decimal(str(item[idx["close"]])) if "close" in idx and item[idx["close"]] is not None else o
+                vol = int(item[idx["volume"]]) if "volume" in idx and item[idx["volume"]] is not None else None
+                rows.append((IMOEX_FIGI, interval, ts, o, h, l, c, vol))
+            if len(data) < 500:
+                break
+            start_offset += len(data)
+        cur = chunk_end
+    return rows
+
+
+def _load_imoex_closes(db: Session, from_dt: datetime, to_dt: datetime) -> List[Tuple[datetime, float]]:
+    schema = settings.DB_SCHEMA
+    rows = repo.fetch_candles_range(
+        db, schema, IMOEX_FIGI, IMOEX_DAY_INTERVAL, _utc(from_dt), _utc(to_dt),
+    )
+    out: List[Tuple[datetime, float]] = []
+    for row in rows:
+        ts = _utc(row[0])
+        close = float(row[4] or 0.0)
+        out.append((ts, close))
+    return sorted(out, key=lambda item: item[0])
+
+
+async def ensure_imoex_candles(db: Session, from_dt: datetime, to_dt: datetime) -> None:
+    """Persist official IMOEX daily closes from MOEX ISS (index market) into market_candles."""
+    schema = settings.DB_SCHEMA
+    from_u = _utc(from_dt)
+    to_u = _utc(to_dt)
+    if from_u >= to_u:
+        return
+
+    async def sync_range(start: datetime, end: datetime) -> None:
+        rows = await _fetch_moex_index_candles(IMOEX_TICKER, start, end, IMOEX_DAY_INTERVAL)
+        if not rows:
+            return
+        await run_in_threadpool(
+            repo.upsert_instrument,
+            db,
+            schema,
+            IMOEX_FIGI,
+            IMOEX_TICKER,
+            "Индекс MOEX",
+            "index",
+        )
+        await run_in_threadpool(repo.upsert_candles_batch, db, schema, rows)
+        await run_in_threadpool(db.commit)
+
+    bounds = await run_in_threadpool(repo.fetch_coverage_bounds, db, schema, IMOEX_FIGI, IMOEX_DAY_INTERVAL)
+    if bounds is None:
+        await sync_range(from_u, to_u)
+        return
+    mn, mx = _utc(bounds[0]), _utc(bounds[1])
+    if from_u < mn:
+        await sync_range(from_u, mn)
+    if to_u > mx:
+        await sync_range(mx, to_u)
+
+
+async def get_imoex_benchmark(db: Session, from_dt: datetime, to_dt: datetime) -> Dict[str, Any]:
+    """
+    Benchmark IMOEX for period: official index daily closes (MOEX ISS, market=index),
+    stored in market_candles, return % and cumulative return series from period start.
+    """
+    empty: Dict[str, Any] = {"return_percent": None, "series": [], "unavailable": True}
+    start = _utc(from_dt)
+    end = _utc(to_dt)
+    if start >= end:
+        return empty
+    try:
+        await ensure_imoex_candles(db, start, end)
+        closes = await run_in_threadpool(_load_imoex_closes, db, start, end)
+        if len(closes) < 2:
+            return empty
+        first_close = closes[0][1]
+        last_close = closes[-1][1]
+        if abs(first_close) < 1e-9:
+            return empty
+        return_pct = ((last_close - first_close) / first_close) * 100.0
+        series = [
+            {
+                "date": ts,
+                "close": round(close, 4),
+                "return_percent": round(((close - first_close) / first_close) * 100.0, 4),
+            }
+            for ts, close in closes
+        ]
+        return {
+            "return_percent": round(return_pct, 4),
+            "series": series,
+            "unavailable": False,
+        }
+    except Exception:
+        return empty
+
+
 async def get_imoex_return_percent(from_dt: datetime, to_dt: datetime) -> Optional[float]:
-    """
-    Доходность IMOEX за период в процентах.
-    Использует MOEX ISS свечи (дневной интервал) по индексу IMOEX.
-    """
+    """Deprecated: prefer get_imoex_benchmark(db, ...) with persisted index series."""
     start = _utc(from_dt)
     end = _utc(to_dt)
     if start >= end:
         return None
-    rows = await _fetch_moex_range_chunks(
-        figi="IMOEX",
-        ticker="IMOEX",
-        start=start,
-        end=end,
-        interval="CANDLE_INTERVAL_DAY"
-    )
+    rows = await _fetch_moex_index_candles(IMOEX_TICKER, start, end, IMOEX_DAY_INTERVAL)
     if not rows:
         return None
     rows_sorted = sorted(rows, key=lambda x: x[2])

@@ -13,7 +13,10 @@ from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
 from app.modules.robots_v2.engine.execution import ExecutionService
 from app.modules.robots_v2.engine.paper_ledger import PaperLedger
 from app.modules.robots_v2.risk.engine import RiskEngine
-from app.modules.robots_v2.strategy.helpers import block_exit_below_break_even
+from app.modules.robots_v2.strategy.helpers import (
+    allow_strategy_exit_below_break_even,
+    block_exit_below_break_even,
+)
 from app.modules.robots_v2.strategy.runtime import StrategyRuntime
 from app.modules.robots_v2.strategy.schemas import OrderFlowSnapshot, StrategyContext
 
@@ -160,6 +163,7 @@ def run_paper_cycle_sync(
                     config.strategy.archetype,
                     result.ticker,
                     at=clock,
+                    price=result.price,
                 )
 
     positions_dict = ledger.positions_dict(prices)
@@ -199,7 +203,7 @@ def run_paper_cycle_sync(
                     side="long" if pos.is_long else "short",
                     broker_commission_rate=config.risk.broker_commission_pct / 100.0,
                 )
-                if tp_block:
+                if tp_block and not allow_strategy_exit_below_break_even(signal.reason):
                     continue
                 intent = OrderIntent(
                     kind="exit_strategy",
@@ -231,6 +235,14 @@ def run_paper_cycle_sync(
                     })
                     positions_dict = ledger.positions_dict(prices)
                     equity = ledger.mark_equity(prices)
+                    if str(signal.reason or "") == "scalper_delta_invalidation":
+                        runtime.notify_stop_loss(
+                            session_id,
+                            config.strategy.archetype,
+                            ticker,
+                            at=clock,
+                            price=result.price or px,
+                        )
             continue
 
         if not risk.session_state.accept_new_entries and signal.side in ("BUY", "SELL"):

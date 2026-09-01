@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.core.database import get_db
+from app.core.logging_config import get_logger
 from app.core.security import get_current_user
 from app.modules.auth.models import User
 from app.modules.tinvest.service import tinvest_service
@@ -14,6 +15,7 @@ from . import schemas
 from .service import analytics_service
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
+logger = get_logger("analytics.router")
 
 
 @router.get("/accounts", response_model=List[schemas.AccountSummary])
@@ -150,28 +152,32 @@ def get_account_history(
     }
 
 
-@router.post("/snapshots")
+@router.post("/snapshots", response_model=schemas.AnalyticsSnapshotsResponse)
 def get_snapshots_by_period(
-        body: schemas.AnalyticsRangeRequest,
+        body: schemas.AnalyticsSnapshotsRequest,
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    account = analytics_service.check_account_ownership(db, body.account_id, current_user.id)
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
-    history = analytics_service.get_account_history(
-        db,
-        body.account_id,
+    result = analytics_service.get_account_snapshots_page(
+        db=db,
+        account_id=body.account_id,
+        user_id=current_user.id,
         from_date=body.from_date,
         to_date=body.to_date,
-        order="desc",
+        limit=body.limit,
+        offset=body.offset,
     )
-    return {
-        "account_id": body.account_id,
-        "from_date": body.from_date,
-        "to_date": body.to_date,
-        "history": history,
-    }
+    if not result:
+        raise HTTPException(status_code=404, detail="Account not found")
+    logger.info(
+        "analytics.snapshots.page account_id=%s offset=%s limit=%s count=%s dates_omitted=%s",
+        body.account_id,
+        body.offset,
+        body.limit,
+        result["count"],
+        body.from_date is None and body.to_date is None,
+    )
+    return schemas.AnalyticsSnapshotsResponse(**result)
 
 
 @router.post("/operations", response_model=schemas.AnalyticsOperationsResponse)
@@ -180,20 +186,34 @@ def get_operations_by_period(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    items = analytics_service.get_account_operations(
+    result = analytics_service.get_account_operations(
         db=db,
         account_id=body.account_id,
         user_id=current_user.id,
         from_date=body.from_date,
         to_date=body.to_date,
-        operation_type=body.operation_type
+        operation_type=body.operation_type,
+        limit=body.limit,
+        offset=body.offset,
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Account not found")
+    logger.info(
+        "analytics.operations.page account_id=%s offset=%s limit=%s count=%s dates_omitted=%s",
+        body.account_id,
+        body.offset,
+        body.limit,
+        result["count"],
+        body.from_date is None and body.to_date is None,
     )
     return schemas.AnalyticsOperationsResponse(
-        account_id=body.account_id,
-        from_date=body.from_date,
-        to_date=body.to_date,
-        total=len(items),
-        items=[schemas.AnalyticsOperationsItem(**x) for x in items]
+        account_id=result["account_id"],
+        from_date=result["from_date"],
+        to_date=result["to_date"],
+        count=result["count"],
+        limit=result["limit"],
+        offset=result["offset"],
+        items=[schemas.AnalyticsOperationsItem(**x) for x in result["items"]],
     )
 
 

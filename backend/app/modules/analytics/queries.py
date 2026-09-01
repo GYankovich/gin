@@ -411,15 +411,120 @@ def build_instrument_type_labels_query() -> tuple[str, Dict[str, Any]]:
     """, {}
 
 
+def _optional_date_range_clauses(
+        column: str,
+        from_date: Optional[datetime],
+        to_date: Optional[datetime],
+        params: Dict[str, Any],
+) -> List[str]:
+    """Append inclusive date bounds when both ends are provided (all-time if omitted)."""
+    clauses: List[str] = []
+    if from_date is not None:
+        clauses.append(f"{column} >= :from_date")
+        params["from_date"] = from_date
+    if to_date is not None:
+        clauses.append(f"{column} <= :to_date")
+        params["to_date"] = to_date
+    return clauses
+
+
+def build_account_snapshots_count_query(
+        account_id: int,
+        from_date: Optional[datetime] = None,
+        to_date: Optional[datetime] = None,
+) -> tuple[str, Dict[str, Any]]:
+    """COUNT snapshots for account with optional inclusive date filter."""
+    params: Dict[str, Any] = {"account_id": account_id}
+    conditions = ["account_id = :account_id"]
+    conditions.extend(
+        _optional_date_range_clauses("snapshot_date", from_date, to_date, params)
+    )
+    query = f"""
+        SELECT COUNT(*)::int AS count
+        FROM portfolio_snapshots
+        WHERE {' AND '.join(conditions)}
+    """
+    return query, params
+
+
+def build_account_snapshots_page_query(
+        account_id: int,
+        from_date: Optional[datetime] = None,
+        to_date: Optional[datetime] = None,
+        limit: int = 50,
+        offset: int = 0,
+) -> tuple[str, Dict[str, Any]]:
+    """Page of snapshots newest→oldest with optional inclusive date filter."""
+    params: Dict[str, Any] = {
+        "account_id": account_id,
+        "limit": limit,
+        "offset": offset,
+    }
+    conditions = ["account_id = :account_id"]
+    conditions.extend(
+        _optional_date_range_clauses("snapshot_date", from_date, to_date, params)
+    )
+    query = f"""
+        SELECT
+            id AS snapshot_id,
+            snapshot_date AS date,
+            total_amount_portfolio AS total_value,
+            daily_yield,
+            expected_yield
+        FROM portfolio_snapshots
+        WHERE {' AND '.join(conditions)}
+        ORDER BY snapshot_date DESC
+        LIMIT :limit OFFSET :offset
+    """
+    return query, params
+
+
+def build_account_operations_count_query(
+        account_id: int,
+        from_date: Optional[datetime] = None,
+        to_date: Optional[datetime] = None,
+        operation_type: Optional[str] = None,
+) -> tuple[str, Dict[str, Any]]:
+    """COUNT operations for account with optional date and type filters."""
+    params: Dict[str, Any] = {"account_id": account_id}
+    conditions = ["account_id = :account_id"]
+    conditions.extend(
+        _optional_date_range_clauses("operation_date", from_date, to_date, params)
+    )
+    if operation_type:
+        conditions.append("operation_type = :operation_type")
+        params["operation_type"] = operation_type
+    query = f"""
+        SELECT COUNT(*)::int AS count
+        FROM portfolio_operations
+        WHERE {' AND '.join(conditions)}
+    """
+    return query, params
+
+
 def build_account_operations_query(
         account_id: int,
-        from_date: datetime,
-        to_date: datetime,
+        from_date: Optional[datetime] = None,
+        to_date: Optional[datetime] = None,
         operation_type: Optional[str] = None,
-        limit: int = 5000,
+        limit: int = 50,
+        offset: int = 0,
 ) -> tuple[str, Dict[str, Any]]:
-    """Строит запрос операций счета за период с лейблами dictionary и именем актива."""
-    query = """
+    """Page of account operations with dictionary labels; newest→oldest."""
+    params: Dict[str, Any] = {
+        "account_id": account_id,
+        "limit": limit,
+        "offset": offset,
+    }
+    conditions = ["po.account_id = :account_id"]
+    conditions.extend(
+        _optional_date_range_clauses("po.operation_date", from_date, to_date, params)
+    )
+    if operation_type:
+        conditions.append("po.operation_type = :operation_type")
+        params["operation_type"] = operation_type
+
+    query = f"""
         SELECT
             po.operation_id,
             po.operation_date,
@@ -460,20 +565,10 @@ def build_account_operations_query(
         ) pt ON true
         LEFT JOIN tqbr_securities ts
             ON UPPER(TRIM(replace(ts.secid, '@', ''))) = UPPER(TRIM(COALESCE(pt.ticker, po.figi)))
-        WHERE po.account_id = :account_id
-          AND po.operation_date >= :from_date
-          AND po.operation_date <= :to_date
+        WHERE {' AND '.join(conditions)}
+        ORDER BY po.operation_date DESC
+        LIMIT :limit OFFSET :offset
     """
-    params: Dict[str, Any] = {
-        "account_id": account_id,
-        "from_date": from_date,
-        "to_date": to_date,
-        "limit": limit,
-    }
-    if operation_type:
-        query += " AND po.operation_type = :operation_type"
-        params["operation_type"] = operation_type
-    query += " ORDER BY po.operation_date DESC LIMIT :limit"
     return query, params
 
 

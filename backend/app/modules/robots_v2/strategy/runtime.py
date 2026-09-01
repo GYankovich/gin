@@ -58,11 +58,12 @@ class StrategyRuntime:
         ticker: str,
         *,
         at: datetime | None = None,
+        price: float | None = None,
     ) -> None:
         plugin = self._sessions.get(session_id)
         if plugin is None or plugin.archetype != archetype:
             return
-        plugin.on_stop_loss(ticker, at=at)
+        plugin.on_stop_loss(ticker, at=at, price=price)
 
     @staticmethod
     def _order_exits_first(signals: list[Signal]) -> list[Signal]:

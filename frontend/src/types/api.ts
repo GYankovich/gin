@@ -32,6 +32,64 @@ export interface PortfolioSnapshotSummary {
     expected_yield: number
 }
 
+/** Paginated snapshots: omit both dates for all-time. */
+export interface AnalyticsSnapshotsRequest {
+    account_id: number
+    from_date?: string | null
+    to_date?: string | null
+    limit?: number
+    offset?: number
+}
+
+export interface AnalyticsSnapshotsResponse {
+    account_id: number
+    from_date: string | null
+    to_date: string | null
+    count: number
+    limit: number
+    offset: number
+    history: PortfolioSnapshotSummary[]
+}
+
+export interface AnalyticsOperationItem {
+    operation_id: string
+    operation_date: string
+    operation_type?: string | null
+    operation_type_name?: string | null
+    type_text?: string | null
+    ticker?: string | null
+    ticker_name?: string | null
+    short_name?: string | null
+    figi?: string | null
+    quantity?: number | null
+    price?: number | null
+    payment?: number | null
+    currency?: string | null
+    status?: string | null
+    status_name?: string | null
+    [key: string]: unknown
+}
+
+/** Paginated operations: omit both dates for all-time. Uses `count` (not `total`). */
+export interface AnalyticsOperationsRequest {
+    account_id: number
+    from_date?: string | null
+    to_date?: string | null
+    operation_type?: string | null
+    limit?: number
+    offset?: number
+}
+
+export interface AnalyticsOperationsResponse {
+    account_id: number
+    from_date: string | null
+    to_date: string | null
+    count: number
+    limit: number
+    offset: number
+    items: AnalyticsOperationItem[]
+}
+
 export interface PositionDistribution {
     instrument_type: string
     value: number
@@ -112,6 +170,13 @@ export interface BenchmarkMetrics {
     imoex_return_percent: number | null
     relative_return_percent: number | null
     benchmark_unavailable: boolean
+    imoex_series?: ImoexBenchmarkPoint[]
+}
+
+export interface ImoexBenchmarkPoint {
+    date: string
+    close: number
+    return_percent: number
 }
 
 export interface RiskRecoveryMetrics {

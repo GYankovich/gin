@@ -1800,9 +1800,12 @@ class TradingSessionV2:
                         self._write_log(
                             f"RECONCILE diffs={len(rec.diffs)} cash={rec.cash:.2f} positions={rec.positions}"
                         )
-            # Avoid double-counting order-flow when WS already ingested the tick
+            # Avoid double-counting order-flow when WS already ingested the tick.
+            # Poll REST snapshots must not inject a fake print (PLZL 1020 vs tape ~1001).
             if triggered_by != "price_tick" or self._ws_task is None:
                 for t, px in prices.items():
+                    if triggered_by == "poll" and t in self.last_prices:
+                        continue
                     self.order_flow.on_price(t, px, volume=1.0, now=now)
 
             from app.modules.robots_v2.engine.candle_seed import warmup_bars_needed

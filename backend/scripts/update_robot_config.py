@@ -21,6 +21,7 @@ NEW_PARAMS = {
     "trendBlockLongBps": 30,
     "minHoldSec": 90,
     "minExitMoveBps": 80,
+    "invalidateBelowEntryBps": 180,
     "minFlowTicks": 5,
 }
 

@@ -356,27 +356,85 @@ class AnalyticsService:
 
         return positions
 
+    def get_account_snapshots_page(
+            self,
+            db: Session,
+            account_id: int,
+            user_id: int,
+            from_date: Optional[datetime] = None,
+            to_date: Optional[datetime] = None,
+            limit: int = 50,
+            offset: int = 0,
+    ) -> Optional[Dict[str, Any]]:
+        """Paginated snapshot history with filtered count. None if account not owned."""
+        self.db = db
+        if not self.check_account_ownership(db, account_id, user_id):
+            return None
+
+        count_row = self._execute(
+            queries.build_account_snapshots_count_query(account_id, from_date, to_date),
+            fetch_all=False,
+        )
+        count = self._safe_int(count_row[0] if count_row else 0, 0)
+
+        rows = self._execute(
+            queries.build_account_snapshots_page_query(
+                account_id=account_id,
+                from_date=from_date,
+                to_date=to_date,
+                limit=limit,
+                offset=offset,
+            )
+        )
+        history = [self._row_to_history_item(row, has_snapshot_id=True) for row in rows]
+        return {
+            "account_id": account_id,
+            "from_date": from_date,
+            "to_date": to_date,
+            "count": count,
+            "limit": limit,
+            "offset": offset,
+            "history": history,
+        }
+
     def get_account_operations(
             self,
             db: Session,
             account_id: int,
             user_id: int,
-            from_date: datetime,
-            to_date: datetime,
+            from_date: Optional[datetime] = None,
+            to_date: Optional[datetime] = None,
             operation_type: Optional[str] = None,
-            limit: int = 5000,
-    ) -> List[dict]:
+            limit: int = 50,
+            offset: int = 0,
+    ) -> Optional[Dict[str, Any]]:
+        """Paginated operations with filtered count. None if account not owned."""
         self.db = db
         if not self.check_account_ownership(db, account_id, user_id):
-            return []
-        query_tuple = queries.build_account_operations_query(
-            account_id, from_date, to_date, operation_type, limit
+            return None
+
+        count_row = self._execute(
+            queries.build_account_operations_count_query(
+                account_id, from_date, to_date, operation_type
+            ),
+            fetch_all=False,
         )
-        rows = self._execute(query_tuple)
-        out: List[dict] = []
+        count = self._safe_int(count_row[0] if count_row else 0, 0)
+
+        rows = self._execute(
+            queries.build_account_operations_query(
+                account_id=account_id,
+                from_date=from_date,
+                to_date=to_date,
+                operation_type=operation_type,
+                limit=limit,
+                offset=offset,
+            )
+        )
+        items: List[dict] = []
         for r in rows:
             extra = r[15] or {}
-            out.append({
+            items.append({
                 "operation_id": self._safe_str(r[0]),
                 "operation_date": self._safe_datetime(r[1]),
                 "operation_type": self._safe_str(r[2]),
@@ -394,7 +452,15 @@ class AnalyticsService:
                 "status_name": self._safe_str(r[14], None) or self._safe_str(r[13]),
                 "type_text": self._safe_str(extra.get("type_text"), None) if extra else None,
             })
-        return out
+        return {
+            "account_id": account_id,
+            "from_date": from_date,
+            "to_date": to_date,
+            "count": count,
+            "limit": limit,
+            "offset": offset,
+            "items": items,
+        }
 
     def get_account_chart_series(
             self,
@@ -977,13 +1043,15 @@ class AnalyticsService:
         drawdown_full = self._compute_drawdown_series(all_history)
 
         portfolio_return = base_stats["period"]["period_roi_percent"]
-        imoex_return = None
-        benchmark_unavailable = False
-        try:
-            imoex_return = await market_data_service.get_imoex_return_percent(from_date, to_date)
-        except Exception:
-            benchmark_unavailable = True
-        relative_return = (portfolio_return - imoex_return) if portfolio_return is not None and imoex_return is not None else None
+        imoex_benchmark = await market_data_service.get_imoex_benchmark(db, from_date, to_date)
+        imoex_return = imoex_benchmark.get("return_percent")
+        benchmark_unavailable = bool(imoex_benchmark.get("unavailable", True))
+        imoex_series = imoex_benchmark.get("series") or []
+        relative_return = (
+            (portfolio_return - imoex_return)
+            if portfolio_return is not None and imoex_return is not None
+            else None
+        )
 
         current_total = float(base_stats["overall"]["current_total_value"] or 0.0)
         dividends_share = (dividends / current_total * 100.0) if current_total > 1e-9 else None
@@ -1036,6 +1104,7 @@ class AnalyticsService:
                 "imoex_return_percent": round(imoex_return, 4) if imoex_return is not None else None,
                 "relative_return_percent": round(relative_return, 4) if relative_return is not None else None,
                 "benchmark_unavailable": benchmark_unavailable,
+                "imoex_series": imoex_series,
             },
             "risk_recovery": {
                 "max_drawdown_percent": round(abs(max_dd), 4) if drawdown_period else None,

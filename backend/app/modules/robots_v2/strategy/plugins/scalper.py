@@ -81,6 +81,37 @@ def _sl_cooldown_block(ts: dict[str, Any], params: ScalperParams, now: Any) -> s
     return None
 
 
+def _mark_invalidation_cut(
+    ts: dict[str, Any],
+    *,
+    now: Any,
+    price: float,
+    side: str,
+) -> None:
+    ts["lastSlAt"] = now
+    if price > 0:
+        ts["lastCutPrice"] = float(price)
+        ts["lastCutSide"] = str(side or "LONG").upper()
+
+
+def _below_cut_block(ts: dict[str, Any], price: float | None, *, is_long_entry: bool) -> str | None:
+    cut = ts.get("lastCutPrice")
+    if cut is None or price is None:
+        return None
+    try:
+        cut_f = float(cut)
+        px = float(price)
+    except (TypeError, ValueError):
+        return None
+    if cut_f <= 0 or px <= 0:
+        return None
+    if is_long_entry and px + 1e-9 < cut_f:
+        return f"price={px:.4g} < last cut {cut_f:.4g}"
+    if (not is_long_entry) and px > cut_f + 1e-9:
+        return f"price={px:.4g} > last cut {cut_f:.4g}"
+    return None
+
+
 def _trend_block_long(ts: dict[str, Any], params: ScalperParams) -> str | None:
     if params.trend_lookback_ticks <= 0:
         return None
@@ -90,6 +121,29 @@ def _trend_block_long(ts: dict[str, Any], params: ScalperParams) -> str | None:
     if trend <= -float(params.trend_block_long_bps):
         return f"downtrend {trend:.1f}bps"
     return None
+
+
+def _adverse_move_bps(entry: float, price: float, side: str) -> float:
+    """Positive when price moved against the position, in basis points of entry."""
+    if entry <= 0 or price <= 0:
+        return 0.0
+    is_long = str(side or "LONG").upper() in ("LONG", "BUY")
+    if is_long:
+        return (entry - price) / entry * 10_000.0
+    return (price - entry) / entry * 10_000.0
+
+
+def _is_invalidation_exit(
+    *,
+    entry: float,
+    price: float,
+    side: str,
+    params: ScalperParams,
+) -> bool:
+    threshold = float(params.invalidate_below_entry_bps)
+    if threshold <= 0 or entry <= 0 or price <= 0:
+        return False
+    return _adverse_move_bps(entry, price, side) + 1e-9 >= threshold
 
 
 def _exit_guard_reason(
@@ -102,15 +156,21 @@ def _exit_guard_reason(
     broker_commission_rate: float | None = None,
     tax_pct: float | None = None,
 ) -> str | None:
-    """Block delta-reversal exit until min hold + min move + break-even floor."""
+    """Block delta-reversal exit until min hold + min move + break-even floor.
+
+    Invalidation (adverse move ≥ invalidateBelowEntryBps) skips the BE floor and
+    the favorable-move gate so a dead long can recycle capital. minHold still applies.
+    """
     if price is None or float(price) <= 0:
         return "no_price"
     entry = float(pos.avg_entry_price or 0)
     side = str(getattr(pos, "side", "") or "LONG")
-    if entry > 0:
+    px = float(price)
+    invalidating = _is_invalidation_exit(entry=entry, price=px, side=side, params=params)
+    if entry > 0 and not invalidating:
         tp_block = block_exit_below_break_even(
             entry=entry,
-            price=float(price),
+            price=px,
             side=side,
             broker_commission_rate=broker_commission_rate,
         )
@@ -124,14 +184,14 @@ def _exit_guard_reason(
     }
     risk_like = {
         "min_hold_seconds": float(params.min_hold_sec),
-        "min_tp_move_bps": float(params.min_exit_move_bps),
+        "min_tp_move_bps": 0.0 if invalidating else float(params.min_exit_move_bps),
     }
     return should_skip_take_profit(
         pos_dict,
-        current_price=float(price),
+        current_price=px,
         risk_params=risk_like,
         now=now,
-        require_favorable_move=True,
+        require_favorable_move=not invalidating,
     )
 
 
@@ -229,6 +289,8 @@ def _in_position_scan_copy(
         wait.append(f"разворот delta ≤ −{thr:.0f}%")
     else:
         wait.append(f"разворот delta ≥ +{thr:.0f}%")
+    if float(params.invalidate_below_entry_bps) > 0:
+        wait.append(f"инвалидация ≥ {params.invalidate_below_entry_bps:.0f} bps против входа")
 
     now_bits: list[str] = []
     if price is not None and float(price) > 0:
@@ -246,9 +308,18 @@ def _in_position_scan_copy(
     extra: list[str] = []
     px = float(price or 0)
     be = levels["be"]
-    if be is not None and px > 0:
+    entry = float(levels["entry"] or 0)
+    side = str(getattr(pos, "side", "") or "LONG")
+    inv = float(params.invalidate_below_entry_bps)
+    adverse = _adverse_move_bps(entry, px, side) if entry > 0 and px > 0 else 0.0
+    invalidating = inv > 0 and adverse + 1e-9 >= inv
+    if invalidating:
+        extra.append(f"инвалидация: {adverse:.0f} bps против входа ≥ {inv:.0f}")
+    elif be is not None and px > 0:
         if is_long and px + 1e-9 < be:
             extra.append("стратегическую продажу не делаем — ниже безубытка")
+            if inv > 0:
+                extra.append(f"инвалидация с ≥ {inv:.0f} bps против входа")
         elif (not is_long) and px > be + 1e-9:
             extra.append("стратегическое закрытие short не делаем — выше безубытка")
         else:
@@ -346,16 +417,47 @@ class ScalperPlugin(StrategyPlugin):
                             metrics=metrics,
                         )
                     else:
-                        exits.append(make_exit_signal(ticker=t, reason="scalper_delta_reversal", price=price))
-                        self._record_scan(
-                            t, code="EXIT_SIGNAL",
-                            message=(
+                        entry_px = float(pos.avg_entry_price or 0)
+                        px = float(price or 0)
+                        invalidating = _is_invalidation_exit(
+                            entry=entry_px,
+                            price=px,
+                            side=str(pos.side or "LONG"),
+                            params=params,
+                        )
+                        reason = (
+                            "scalper_delta_invalidation"
+                            if invalidating
+                            else "scalper_delta_reversal"
+                        )
+                        if invalidating:
+                            _mark_invalidation_cut(
+                                ts, now=ctx.now, price=px, side=str(pos.side or "LONG"),
+                            )
+                        exits.append(make_exit_signal(ticker=t, reason=reason, price=price))
+                        adverse = _adverse_move_bps(entry_px, px, str(pos.side or "LONG"))
+                        if invalidating:
+                            msg = (
+                                f"Инвалидация: delta {flow.delta_pct:.1f}% и "
+                                f"{adverse:.0f} bps против входа "
+                                f"(≥ {params.invalidate_below_entry_bps:.0f})"
+                            )
+                        else:
+                            msg = (
                                 f"Выход: delta {flow.delta_pct:.1f}% "
                                 f"{'≤' if delta_reversal_long else '≥'} "
                                 f"{'-' if delta_reversal_long else ''}{params.delta_threshold_pct}%"
-                            ),
+                            )
+                        self._record_scan(
+                            t, code="EXIT_SIGNAL",
+                            message=msg,
                             price=price,
-                            metrics=_flow_metrics(flow, entryPrice=float(pos.avg_entry_price or 0)),
+                            metrics=_flow_metrics(
+                                flow,
+                                entryPrice=entry_px,
+                                adverseBps=round(adverse, 1),
+                                invalidateBelowEntryBps=params.invalidate_below_entry_bps,
+                            ),
                         )
                 else:
                     message, metrics = _in_position_scan_copy(
@@ -405,7 +507,7 @@ class ScalperPlugin(StrategyPlugin):
                 self._record_scan(
                     t,
                     code="SL_COOLDOWN",
-                    message=f"Вход после SL заблокирован: {sl_block}",
+                    message=f"Вход после стопа/инвалидации заблокирован: {sl_block}",
                     price=price,
                     metrics={
                         **_flow_metrics(flow),
@@ -465,6 +567,16 @@ class ScalperPlugin(StrategyPlugin):
                         message=f"LONG заблокирован: {trend_block}",
                         price=price,
                         metrics={**metrics, "blockReason": trend_block},
+                    )
+                    continue
+                cut_block = _below_cut_block(ts, price, is_long_entry=True)
+                if cut_block:
+                    self._record_scan(
+                        t,
+                        code="BELOW_CUT",
+                        message=f"LONG заблокирован: цена ниже последней инвалидации ({cut_block})",
+                        price=price,
+                        metrics={**metrics, "blockReason": cut_block},
                     )
                     continue
                 entries.append(make_entry_signal(

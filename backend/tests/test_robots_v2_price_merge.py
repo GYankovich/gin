@@ -9,7 +9,7 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots_v2.engine.market_data import merge_ws_and_rest_prices
+from app.modules.robots_v2.engine.market_data import merge_ws_and_rest_prices, strategy_tape_prices
 
 
 def test_rest_does_not_clobber_live_ws_on_scalper_tick():
@@ -46,3 +46,18 @@ def test_missing_ws_mark_is_gap_filled_from_rest():
     )
     assert trade["OZON"] == 95.0
     assert gap == {"OZON": 95.0}
+
+
+def test_strategy_tape_prices_prefer_ws_over_stale_snapshot():
+    """PLZL 2026-09-01: poll REST 1020 vs tape ~1001 must not pass BE."""
+    tape = strategy_tape_prices(
+        {"PLZL": 1020.0, "SBER": 310.0},
+        {"PLZL": 1001.0},
+    )
+    assert tape["PLZL"] == 1001.0
+    assert tape["SBER"] == 310.0
+
+
+def test_strategy_tape_prices_falls_back_to_rest():
+    tape = strategy_tape_prices({"PLZL": 1002.6}, None)
+    assert tape["PLZL"] == 1002.6

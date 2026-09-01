@@ -1,7 +1,7 @@
 #///EPIC Modules.ITEM Module.TOPIC BackendAppModulesAnalyticsSchemas [1]
 #/// Исходный модуль `backend/app/modules/analytics/schemas.py` — автоматическая разметка для Obsidian Source Scanner.
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import List, Optional
 from datetime import datetime
 
@@ -126,7 +126,33 @@ class AnalyticsRangeRequest(BaseModel):
     to_date: datetime
 
 
-class AnalyticsOperationsRequest(AnalyticsRangeRequest):
+class AnalyticsHistoryPageRequest(BaseModel):
+    """Paginated history list: optional date bounds (both or neither), limit/offset."""
+
+    account_id: int
+    from_date: Optional[datetime] = None
+    to_date: Optional[datetime] = None
+    limit: int = Field(default=50, ge=1, le=200)
+    offset: int = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def validate_optional_date_range(self) -> "AnalyticsHistoryPageRequest":
+        if (self.from_date is None) ^ (self.to_date is None):
+            raise ValueError("from_date and to_date must both be set or both omitted")
+        if (
+            self.from_date is not None
+            and self.to_date is not None
+            and self.from_date > self.to_date
+        ):
+            raise ValueError("from_date must be <= to_date")
+        return self
+
+
+class AnalyticsSnapshotsRequest(AnalyticsHistoryPageRequest):
+    """POST /analytics/snapshots — paginated snapshot history."""
+
+
+class AnalyticsOperationsRequest(AnalyticsHistoryPageRequest):
     operation_type: Optional[str] = None
 
 
@@ -157,11 +183,23 @@ class AnalyticsOperationsItem(BaseModel):
     type_text: Optional[str] = None
 
 
+class AnalyticsSnapshotsResponse(BaseModel):
+    account_id: int
+    from_date: Optional[datetime] = None
+    to_date: Optional[datetime] = None
+    count: int
+    limit: int
+    offset: int
+    history: List[PortfolioSnapshotSummary]
+
+
 class AnalyticsOperationsResponse(BaseModel):
     account_id: int
-    from_date: datetime
-    to_date: datetime
-    total: int
+    from_date: Optional[datetime] = None
+    to_date: Optional[datetime] = None
+    count: int
+    limit: int
+    offset: int
     items: List[AnalyticsOperationsItem]
 
 
@@ -219,11 +257,18 @@ class OperationalMetrics(BaseModel):
     track_fees_share_of_avg_portfolio_percent: Optional[float] = None
 
 
+class ImoexBenchmarkPoint(BaseModel):
+    date: datetime
+    close: float
+    return_percent: float
+
+
 class BenchmarkMetrics(BaseModel):
     portfolio_return_percent: Optional[float] = None
     imoex_return_percent: Optional[float] = None
     relative_return_percent: Optional[float] = None
     benchmark_unavailable: bool = False
+    imoex_series: List[ImoexBenchmarkPoint] = []
 
 
 class RiskRecoveryMetrics(BaseModel):

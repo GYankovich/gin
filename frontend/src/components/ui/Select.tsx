@@ -7,6 +7,8 @@ import { createPortal } from 'react-dom'
 export interface SelectOption {
     value: string | number
     label: string
+    /** Optional trailing meta (e.g. platform tag). */
+    tag?: string
     icon?: React.ReactNode
     disabled?: boolean
 }
@@ -69,7 +71,13 @@ export function Select({
     const selected = options.find(o => String(o.value) === String(value))
 
     const filtered = search
-        ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+        ? options.filter(o => {
+            const q = search.toLowerCase()
+            return (
+                o.label.toLowerCase().includes(q)
+                || (o.tag ? o.tag.toLowerCase().includes(q) : false)
+            )
+        })
         : options
 
     const handleToggle = () => {
@@ -142,7 +150,10 @@ export function Select({
                 {selected ? (
                     <span className="gin-select__value">
                         {selected.icon && <span className="gin-select__icon">{selected.icon}</span>}
-                        {selected.label}
+                        <span className="gin-select__value-text">{selected.label}</span>
+                        {selected.tag ? (
+                            <span className="dashboard-settings-row__tag">{selected.tag}</span>
+                        ) : null}
                     </span>
                 ) : (
                     <span className="gin-select__placeholder">{placeholder}</span>
@@ -185,7 +196,10 @@ export function Select({
                                     onClick={() => handleSelect(opt)}
                                 >
                                     {opt.icon && <span className="gin-select__icon">{opt.icon}</span>}
-                                    {opt.label}
+                                    <span className="gin-select__option-label">{opt.label}</span>
+                                    {opt.tag ? (
+                                        <span className="dashboard-settings-row__tag">{opt.tag}</span>
+                                    ) : null}
                                 </div>
                             ))}
                         </div>

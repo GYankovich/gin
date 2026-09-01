@@ -19,6 +19,10 @@ interface DataTableProps<T> {
     onRowClick?: (row: T) => void
     emptyText?: string
     maxHeight?: number | string
+    /** Fired on the scroll container (desktop wrap / mobile list). */
+    onScroll?: (event: React.UIEvent<HTMLDivElement>) => void
+    /** Rendered inside the scrollport after rows (e.g. load-more skeleton). */
+    footer?: React.ReactNode
     mobilePrimary?: (row: T) => React.ReactNode
     mobileSecondary?: (row: T) => React.ReactNode
     mobileDetails?: (row: T) => React.ReactNode
@@ -55,6 +59,8 @@ export function DataTable<T extends Record<string, any>>({
     onRowClick,
     emptyText = 'Нет данных',
     maxHeight,
+    onScroll,
+    footer,
     mobilePrimary,
     mobileSecondary,
     mobileDetails,
@@ -110,7 +116,11 @@ export function DataTable<T extends Record<string, any>>({
             )
         }
         return (
-            <div className="mobile-data-table-list" style={maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}>
+            <div
+                className="mobile-data-table-list"
+                style={maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}
+                onScroll={onScroll}
+            >
                 {sorted.map(row => {
                     const key = row[keyField]
                     const expanded = expandedKey === key
@@ -135,6 +145,7 @@ export function DataTable<T extends Record<string, any>>({
                         </div>
                     )
                 })}
+                {footer}
             </div>
         )
     }
@@ -143,6 +154,7 @@ export function DataTable<T extends Record<string, any>>({
         <div
             className="data-table-wrap"
             style={maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}
+            onScroll={onScroll}
         >
             <table className="data-table">
                 <thead>
@@ -180,6 +192,7 @@ export function DataTable<T extends Record<string, any>>({
                     ))}
                 </tbody>
             </table>
+            {footer}
         </div>
     )
 }

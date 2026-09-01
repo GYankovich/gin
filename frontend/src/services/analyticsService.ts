@@ -10,6 +10,10 @@ import type {
     AccountStatisticsResponse,
     PortfolioStatisticsExtendedResponse,
     AnalyticsChartSeriesResponse,
+    AnalyticsSnapshotsRequest,
+    AnalyticsSnapshotsResponse,
+    AnalyticsOperationsRequest,
+    AnalyticsOperationsResponse,
 } from '@/types/api'
 import type { RobotMetricsResponse, UserRobotsTradingOverview } from '@/types/robot'
 
@@ -57,13 +61,32 @@ export const analyticsService = {
         return data.positions ?? []
     },
 
-    async getSnapshotsByPeriod(payload: { account_id: number; from_date: string; to_date: string }): Promise<{ history: any[] }> {
-        const { data } = await api.post('/analytics/snapshots', payload)
+    async getSnapshotsByPeriod(payload: AnalyticsSnapshotsRequest): Promise<AnalyticsSnapshotsResponse> {
+        const body: Record<string, unknown> = {
+            account_id: payload.account_id,
+            limit: payload.limit ?? 50,
+            offset: payload.offset ?? 0,
+        }
+        if (payload.from_date != null && payload.to_date != null) {
+            body.from_date = payload.from_date
+            body.to_date = payload.to_date
+        }
+        const { data } = await api.post<AnalyticsSnapshotsResponse>('/analytics/snapshots', body)
         return data
     },
 
-    async getOperationsByPeriod(payload: { account_id: number; from_date: string; to_date: string; operation_type?: string }): Promise<{ items: any[]; total: number }> {
-        const { data } = await api.post('/analytics/operations', payload)
+    async getOperationsByPeriod(payload: AnalyticsOperationsRequest): Promise<AnalyticsOperationsResponse> {
+        const body: Record<string, unknown> = {
+            account_id: payload.account_id,
+            limit: payload.limit ?? 50,
+            offset: payload.offset ?? 0,
+        }
+        if (payload.from_date != null && payload.to_date != null) {
+            body.from_date = payload.from_date
+            body.to_date = payload.to_date
+        }
+        if (payload.operation_type != null) body.operation_type = payload.operation_type
+        const { data } = await api.post<AnalyticsOperationsResponse>('/analytics/operations', body)
         return data
     },
 

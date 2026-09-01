@@ -73,6 +73,16 @@ class ScalperParams(BaseModel):
         ge=0,
         description="Мин. движение цены в сторону профита (bps) для выхода по delta-reversal",
     )
+    invalidate_below_entry_bps: float = Field(
+        default=180.0,
+        alias="invalidateBelowEntryBps",
+        ge=0,
+        le=500,
+        description=(
+            "Разворот дельты ниже входа на ≥ N bps — резать даже ниже безубытка "
+            "(0 = выкл, ждать SL / пол безубытка)"
+        ),
+    )
     min_flow_ticks: int = Field(
         default=3,
         alias="minFlowTicks",

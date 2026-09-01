@@ -20,9 +20,13 @@ from app.modules.robots_v2.engine.audit import (
 )
 from app.modules.robots_v2.engine.event_bus import event_bus
 from app.modules.robots_v2.engine.execution import ExecutionService, attach_ticker_warnings
+from app.modules.robots_v2.engine.market_data import strategy_tape_prices
 from app.modules.robots_v2.engine.paper_ledger import PaperLedger
 from app.modules.robots_v2.risk.engine import RiskEngine
-from app.modules.robots_v2.strategy.helpers import block_exit_below_break_even
+from app.modules.robots_v2.strategy.helpers import (
+    allow_strategy_exit_below_break_even,
+    block_exit_below_break_even,
+)
 from app.modules.robots_v2.strategy.runtime import strategy_runtime
 from app.modules.robots_v2.strategy.schemas import OrderFlowSnapshot, StrategyContext
 
@@ -77,6 +81,7 @@ async def run_trading_cycle(
 
     decisions: list[dict[str, Any]] = []
     fills: list[dict[str, Any]] = []
+    tape_prices = strategy_tape_prices(prices, mark_prices)
 
     exec_svc = execution or ExecutionService(
         mode="paper",
@@ -277,6 +282,7 @@ async def run_trading_cycle(
                     config.strategy.archetype,
                     result.ticker,
                     at=clock,
+                    price=result.price,
                 )
         elif result.status == "resting":
             _alog(
@@ -298,7 +304,7 @@ async def run_trading_cycle(
         cycle_id=cycle_id,
         config=config.strategy,
         universe=universe,
-        last_price=prices,
+        last_price=tape_prices,
         candles=candle_history,
         atr={},
         open_positions=list(positions_dict.values()),
@@ -337,7 +343,7 @@ async def run_trading_cycle(
         ticker = str(signal.secid or "").upper()
         audit_signals.append(signal_row_from_eval(
             signal,
-            prices=prices,
+            prices=tape_prices,
             positions=ledger.positions,
             order_flow=order_flow,
         ))
@@ -353,14 +359,14 @@ async def run_trading_cycle(
             pos = ledger.positions.get(ticker)
             if pos:
                 await _stage("execution", detail=ticker)
-                px = prices.get(ticker, pos.avg_entry_price)
+                px = tape_prices.get(ticker, pos.avg_entry_price)
                 tp_block = block_exit_below_break_even(
                     entry=float(pos.avg_entry_price),
                     price=float(px),
                     side="long" if pos.is_long else "short",
                     broker_commission_rate=config.risk.broker_commission_pct / 100.0,
                 )
-                if tp_block:
+                if tp_block and not allow_strategy_exit_below_break_even(signal.reason):
                     blocked = {
                         "code": "EXIT_BELOW_BREAK_EVEN",
                         "message": tp_block,
@@ -396,6 +402,14 @@ async def run_trading_cycle(
                     })
                     positions_dict = ledger.positions_dict(prices)
                     equity = ledger.mark_equity(prices)
+                    if str(signal.reason or "") == "scalper_delta_invalidation":
+                        strategy_runtime.notify_stop_loss(
+                            session_id,
+                            config.strategy.archetype,
+                            ticker,
+                            at=clock,
+                            price=result.price or px,
+                        )
                 else:
                     _alog(f"EXIT_STRATEGY rejected {ticker}: {result.reason}")
             continue

@@ -234,7 +234,12 @@ def test_scalper_delta_reversal_blocked_below_break_even():
         config=StrategyConfig(
             archetype="scalper",
             timeframe="1m",
-            params={"deltaThresholdPct": 5, "minHoldSec": 30, "minExitMoveBps": 5},
+            params={
+                "deltaThresholdPct": 5,
+                "minHoldSec": 30,
+                "minExitMoveBps": 5,
+                "invalidateBelowEntryBps": 0,
+            },
         ),
         open_positions=[pos],
         universe=["ROSN"],
@@ -270,7 +275,12 @@ def test_scalper_delta_reversal_blocked_when_price_below_entry():
         config=StrategyConfig(
             archetype="scalper",
             timeframe="1m",
-            params={"deltaThresholdPct": 5, "minHoldSec": 30, "minExitMoveBps": 10},
+            params={
+                "deltaThresholdPct": 5,
+                "minHoldSec": 30,
+                "minExitMoveBps": 10,
+                "invalidateBelowEntryBps": 0,
+            },
         ),
         open_positions=[pos],
         universe=["PLZL"],
@@ -287,6 +297,126 @@ def test_scalper_delta_reversal_blocked_when_price_below_entry():
     blocked = next(r for r in scan if r.get("code") == "EXIT_BLOCKED")
     assert "Ждём" in str(blocked.get("message") or "")
     assert "безубыт" in str(blocked.get("message") or "").lower()
+
+
+def test_scalper_invalidation_exits_below_break_even_after_adverse_move():
+    from datetime import timedelta
+
+    plugin = create_plugin("scalper")
+    opened = datetime.now(timezone.utc) - timedelta(seconds=120)
+    pos = Position(
+        side="LONG",
+        quantity=10,
+        avg_entry_price=100.0,
+        secid="SBER",
+        current_price=99.0,
+        opened_at=opened,
+    )
+    ctx = _ctx(
+        config=StrategyConfig(
+            archetype="scalper",
+            timeframe="1m",
+            params={
+                "deltaThresholdPct": 5,
+                "minHoldSec": 90,
+                "minExitMoveBps": 80,
+                "invalidateBelowEntryBps": 80,
+            },
+        ),
+        open_positions=[pos],
+        universe=["SBER"],
+        last_price={"SBER": 99.0},
+        triggered_by="price_tick",
+        broker_commission_rate=0.0005,
+        order_flow={
+            "SBER": OrderFlowSnapshot(buyVolume=1000, sellVolume=9000, deltaPct=-10, windowSec=30),
+        },
+    )
+    signals = plugin.evaluate(ctx)
+    assert any(s.side == "CLOSE" and s.reason == "scalper_delta_invalidation" for s in signals)
+
+
+def test_scalper_invalidation_still_respects_min_hold():
+    from datetime import timedelta
+
+    plugin = create_plugin("scalper")
+    opened = datetime.now(timezone.utc) - timedelta(seconds=10)
+    pos = Position(
+        side="LONG",
+        quantity=10,
+        avg_entry_price=100.0,
+        secid="SBER",
+        current_price=99.0,
+        opened_at=opened,
+    )
+    ctx = _ctx(
+        config=StrategyConfig(
+            archetype="scalper",
+            timeframe="1m",
+            params={
+                "deltaThresholdPct": 5,
+                "minHoldSec": 90,
+                "minExitMoveBps": 80,
+                "invalidateBelowEntryBps": 80,
+            },
+        ),
+        open_positions=[pos],
+        last_price={"SBER": 99.0},
+        triggered_by="price_tick",
+        order_flow={
+            "SBER": OrderFlowSnapshot(buyVolume=1000, sellVolume=9000, deltaPct=-10, windowSec=30),
+        },
+    )
+    signals = plugin.evaluate(ctx)
+    assert not any(s.side == "CLOSE" for s in signals)
+    row = next(r for r in (plugin.last_scan or []) if r.get("code") == "EXIT_BLOCKED")
+    assert "удержание" in str(row.get("message") or "").lower()
+
+
+def test_scalper_small_dip_below_be_does_not_invalidate():
+    from datetime import timedelta
+
+    plugin = create_plugin("scalper")
+    opened = datetime.now(timezone.utc) - timedelta(seconds=120)
+    pos = Position(
+        side="LONG",
+        quantity=10,
+        avg_entry_price=100.0,
+        secid="SBER",
+        current_price=99.50,
+        opened_at=opened,
+    )
+    ctx = _ctx(
+        config=StrategyConfig(
+            archetype="scalper",
+            timeframe="1m",
+            params={
+                "deltaThresholdPct": 5,
+                "minHoldSec": 90,
+                "minExitMoveBps": 80,
+                "invalidateBelowEntryBps": 80,
+            },
+        ),
+        open_positions=[pos],
+        last_price={"SBER": 99.50},
+        triggered_by="price_tick",
+        broker_commission_rate=0.0005,
+        order_flow={
+            "SBER": OrderFlowSnapshot(buyVolume=1000, sellVolume=9000, deltaPct=-10, windowSec=30),
+        },
+    )
+    signals = plugin.evaluate(ctx)
+    assert not any(s.side == "CLOSE" for s in signals)
+    row = next(r for r in (plugin.last_scan or []) if r.get("code") == "EXIT_BLOCKED")
+    assert "безубыт" in str(row.get("message") or "").lower()
+
+
+def test_allow_strategy_exit_below_break_even_only_invalidation():
+    from app.modules.robots_v2.strategy.helpers import allow_strategy_exit_below_break_even
+
+    assert allow_strategy_exit_below_break_even("scalper_delta_invalidation") is True
+    assert allow_strategy_exit_below_break_even("scalper_delta_reversal") is False
+    assert allow_strategy_exit_below_break_even("take_profit") is False
 
 
 def test_scalper_in_position_explains_wait_and_readings():
@@ -462,6 +592,115 @@ def test_scalper_blocks_entry_after_stop_loss_cooldown():
     assert plugin.evaluate(ctx) == []
     scan = plugin.last_scan or []
     assert any(row.get("code") == "SL_COOLDOWN" for row in scan)
+
+
+def _scalper_buy_flow() -> OrderFlowSnapshot:
+    return OrderFlowSnapshot(
+        buyVolume=5000,
+        sellVolume=1000,
+        deltaPct=50,
+        windowSec=30,
+        tickCount=5,
+        hasRealTrades=True,
+        flowSource="trades",
+    )
+
+
+def test_scalper_invalidation_sets_sl_cooldown_on_same_plugin():
+    from datetime import timedelta
+
+    plugin = create_plugin("scalper")
+    now = datetime.now(timezone.utc)
+    opened = now - timedelta(seconds=120)
+    pos = Position(
+        side="LONG",
+        quantity=10,
+        avg_entry_price=100.0,
+        secid="SMLT",
+        current_price=98.0,
+        opened_at=opened,
+    )
+    close_ctx = _ctx(
+        config=StrategyConfig(
+            archetype="scalper",
+            timeframe="1m",
+            params={
+                "deltaThresholdPct": 5,
+                "minHoldSec": 90,
+                "minExitMoveBps": 80,
+                "invalidateBelowEntryBps": 80,
+                "stopLossCooldownSec": 300,
+            },
+        ),
+        universe=["SMLT"],
+        open_positions=[pos],
+        last_price={"SMLT": 98.0},
+        triggered_by="price_tick",
+        now=now,
+        broker_commission_rate=0.0005,
+        order_flow={
+            "SMLT": OrderFlowSnapshot(buyVolume=1000, sellVolume=9000, deltaPct=-12, windowSec=30),
+        },
+    )
+    signals = plugin.evaluate(close_ctx)
+    assert any(s.side == "CLOSE" and s.reason == "scalper_delta_invalidation" for s in signals)
+
+    entry_ctx = _ctx(
+        config=close_ctx.config,
+        universe=["SMLT"],
+        last_price={"SMLT": 99.5},
+        triggered_by="price_tick",
+        now=now + timedelta(seconds=60),
+        order_flow={"SMLT": _scalper_buy_flow()},
+    )
+    assert plugin.evaluate(entry_ctx) == []
+    assert any(row.get("code") == "SL_COOLDOWN" for row in (plugin.last_scan or []))
+
+
+def test_scalper_blocks_long_below_last_invalidation_price():
+    from datetime import timedelta
+
+    plugin = create_plugin("scalper")
+    now = datetime.now(timezone.utc)
+    plugin.ticker_state("SMLT")["lastCutPrice"] = 371.4
+    plugin.ticker_state("SMLT")["lastSlAt"] = now - timedelta(seconds=700)
+    ctx = _ctx(
+        config=StrategyConfig(
+            archetype="scalper",
+            timeframe="1m",
+            params={"deltaThresholdPct": 5, "stopLossCooldownSec": 300},
+        ),
+        universe=["SMLT"],
+        last_price={"SMLT": 368.0},
+        triggered_by="price_tick",
+        now=now,
+        order_flow={"SMLT": _scalper_buy_flow()},
+    )
+    assert plugin.evaluate(ctx) == []
+    assert any(row.get("code") == "BELOW_CUT" for row in (plugin.last_scan or []))
+
+
+def test_scalper_allows_long_after_reclaiming_cut_price():
+    from datetime import timedelta
+
+    plugin = create_plugin("scalper")
+    now = datetime.now(timezone.utc)
+    plugin.ticker_state("SMLT")["lastCutPrice"] = 371.4
+    plugin.ticker_state("SMLT")["lastSlAt"] = now - timedelta(seconds=700)
+    ctx = _ctx(
+        config=StrategyConfig(
+            archetype="scalper",
+            timeframe="1m",
+            params={"deltaThresholdPct": 5, "stopLossCooldownSec": 300},
+        ),
+        universe=["SMLT"],
+        last_price={"SMLT": 372.0},
+        triggered_by="price_tick",
+        now=now,
+        order_flow={"SMLT": _scalper_buy_flow()},
+    )
+    signals = plugin.evaluate(ctx)
+    assert any(s.side == "BUY" and s.reason == "scalper_delta_cross" for s in signals)
 
 
 def test_scalper_blocks_long_in_downtrend():

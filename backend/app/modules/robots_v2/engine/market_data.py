@@ -142,7 +142,9 @@ def merge_ws_and_rest_prices(
     overwriting WS is what let VKCO strategy-exits see 129.7 while the tape
     was ~122 — below break-even, but the guard used the stale print.
 
-    On poll cycles REST still overwrites (SL/TP vs a phantom WS spike).
+    On poll cycles REST still overwrites SL/TP marks (vs a phantom WS spike).
+    Strategy / break-even must still use :func:`strategy_tape_prices` so a
+    delayed snapshot (PLZL 1020 vs tape ~1001) cannot pass the BE guard.
     ``gap_fill``: tickers missing from ``last_prices`` so the monitor is not
     frozen on a delayed snapshot.
     """
@@ -169,6 +171,29 @@ def merge_ws_and_rest_prices(
         if t not in last_prices and px is not None and float(px) > 0
     }
     return trade, gap_fill
+
+
+def strategy_tape_prices(
+    rest_prices: dict[str, float],
+    mark_prices: dict[str, float] | None,
+) -> dict[str, float]:
+    """Live tape wins over a delayed REST snapshot for strategy exits / BE.
+
+    Poll cycles keep REST in ``rest_prices`` for SL/TP. ``mark_prices`` is the
+    WS last-trade map. Using REST here is what let scalper reversal sell PLZL
+    as if last were 1020 while the fill printed ~1000.
+    """
+    out = {str(t).upper(): float(px) for t, px in rest_prices.items() if px and float(px) > 0}
+    for t, px in (mark_prices or {}).items():
+        if px is None:
+            continue
+        try:
+            val = float(px)
+        except (TypeError, ValueError):
+            continue
+        if val > 0:
+            out[str(t).upper()] = val
+    return out
 
 
 def poll_interval_seconds(raw: str) -> int:

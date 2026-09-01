@@ -24,18 +24,19 @@ export function formatPortfolioMoneySigned(val: unknown, currency = 'RUB'): stri
 }
 
 export function formatPortfolioAccountLabel(account: AccountSummary): string {
-    const name = account.name?.trim() || account.account_id
-    const type = account.type?.trim()
-    // const idPart = `#${account.id}`
-    // const meta = [account.type, account.status].filter(Boolean).join(' · ')
-    // const value =
-    //     account.total_value != null && Number(account.total_value) > 0
-    //         ? formatPortfolioMoney(account.total_value, account.currency)
-    //         : account.last_snapshot_date
-    //           ? null
-    //           : 'нет снимков'
-    // return [idPart, name, meta, value].filter(Boolean).join(' — ')
-    return [name, type].filter(Boolean).join(' — ')
+    return account.name?.trim() || account.account_id
+}
+
+/** Short platform tag for account type (matches dashboard settings row). */
+export function formatPortfolioAccountPlatformTag(type: string | null | undefined): string {
+    const raw = String(type || '').trim()
+    const t = raw.toLowerCase().replace(/^account_type_/, '')
+    if (/tinkoff|t-bank|tbank|broker/.test(t)) return 'T-BANK'
+    if (/bybit|unified|contract|spot/.test(t)) return 'BYBIT'
+    if (/sber/.test(t)) return 'SBER'
+    if (/binance/.test(t)) return 'BINANCE'
+    if (!raw) return 'ACC'
+    return raw.replace(/_/g, ' ').slice(0, 12).toUpperCase()
 }
 
 /** Match Live/broker account_id to portfolio_accounts row from analytics summary. */

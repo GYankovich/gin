@@ -42,6 +42,14 @@ def make_entry_signal(
     )
 
 
+# Strategy CLOSE reasons that may sell below break-even (failed-trade recycle).
+EXITS_ALLOW_BELOW_BREAK_EVEN = frozenset({"scalper_delta_invalidation"})
+
+
+def allow_strategy_exit_below_break_even(reason: str | None) -> bool:
+    return (reason or "") in EXITS_ALLOW_BELOW_BREAK_EVEN
+
+
 def block_exit_below_break_even(
     *,
     entry: float,

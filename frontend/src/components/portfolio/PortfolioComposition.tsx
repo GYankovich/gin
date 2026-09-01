@@ -62,7 +62,7 @@ export function PortfolioComposition({
     open,
     onOpenChange,
     defaultOpen = true,
-    className = 'portfolio-collapse portfolio-composition-collapse',
+    className = 'dashboard-accounts-collapse portfolio-composition-collapse',
     emptyText = 'Нет позиций',
     toolbar,
     hint,
@@ -71,76 +71,74 @@ export function PortfolioComposition({
         formatPortfolioMoney(val, currency, maxFractionDigits)
     const moneySigned = (val: unknown) => formatPortfolioMoneySigned(val, currency)
 
-    const columns: Column<PortfolioCompositionRow>[] = useMemo(
-        () => [
-            {
-                key: 'ticker',
-                header: 'Актив',
-                sortable: true,
-                width: '180px',
-                render: r => fullAssetLabel(r),
+    const columns: Column<PortfolioCompositionRow>[] = useMemo(() => [
+        {
+            key: 'ticker',
+            header: 'Актив',
+            sortable: true,
+            width: '180px',
+            render: (r) => shortAssetLabel(r),
+        },
+        {
+            key: 'type_name',
+            header: 'Тип',
+            sortable: true,
+            width: '140px',
+            render: (r) => {
+                const label = String(r.type_name || '').trim()
+                if (label) return label
+                return String(r.instrument_type || '—')
             },
-            {
-                key: 'type_name',
-                header: 'Тип',
-                sortable: true,
-                width: '140px',
-                render: r => {
-                    const label = String(r.type_name || '').trim()
-                    if (label) return label
-                    return String(r.instrument_type || '—')
-                },
+        },
+        {
+            key: 'quantity',
+            header: 'Кол-во',
+            sortable: true,
+            align: 'right',
+            render: (r) => Number(r.quantity ?? 0).toLocaleString('ru-RU'),
+        },
+        {
+            key: 'avg_price',
+            header: 'Средняя',
+            sortable: true,
+            align: 'right',
+            render: (r) => (
+                <span className="portfolio-muted-num">{money(r.avg_price)}</span>
+            ),
+        },
+        {
+            key: 'current_price',
+            header: 'Текущая',
+            align: 'right',
+            render: (r) => money(r.current_price),
+        },
+        {
+            key: 'expected_yield',
+            header: 'P&L',
+            sortable: true,
+            align: 'right',
+            render: (r) => {
+                const v = Number(r.expected_yield ?? 0)
+                return (
+                    <span className={v >= 0 ? 'color-up' : 'color-down'}>
+                        {moneySigned(v)}
+                    </span>
+                )
             },
-            {
-                key: 'quantity',
-                header: 'Кол-во',
-                sortable: true,
-                align: 'right',
-                render: r => Number(r.quantity ?? 0).toLocaleString('ru-RU'),
-            },
-            {
-                key: 'avg_price',
-                header: 'Средняя',
-                sortable: true,
-                align: 'right',
-                render: r => money(r.avg_price),
-            },
-            {
-                key: 'current_price',
-                header: 'Текущая',
-                align: 'right',
-                render: r => money(r.current_price),
-            },
-            {
-                key: 'expected_yield',
-                header: 'P&L',
-                sortable: true,
-                align: 'right',
-                render: r => {
-                    const v = Number(r.expected_yield ?? 0)
-                    return (
-                        <span className={v >= 0 ? 'color-up' : 'color-down'}>
-                            {moneySigned(v)}
-                        </span>
-                    )
-                },
-            },
-            {
-                key: 'total_value',
-                header: 'Стоимость',
-                sortable: true,
-                align: 'right',
-                render: r => money(r.total_value),
-            },
-        ],
-        [currency],
-    )
+        },
+        {
+            key: 'total_value',
+            header: 'Стоимость',
+            sortable: true,
+            align: 'right',
+            render: (r) => money(r.total_value),
+        },
+    ], [currency])
 
     const tableData = useMemo(
         () =>
             positions.map((row, index) => ({
                 ...row,
-                // Stable DataTable row id (FIGI column removed from UI).
                 figi: String(row.figi || row.ticker || row.ticker_name || `row-${index}`),
             })),
         [positions],
@@ -149,10 +147,14 @@ export function PortfolioComposition({
     return (
         <CollapsibleSection
             className={className}
-            title="Состав портфеля "
+            title={
+                <span className="dashboard-collapse__label">
+                    Состав портфеля
+                </span>
+            }
             hint={hint}
             badge={
-                <span className="portfolio-collapse__count">
+                <span className="dashboard-accounts-collapse__count">
                     {positions.length}
                 </span>
             }

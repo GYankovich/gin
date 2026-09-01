@@ -92,11 +92,18 @@ class StrategyPlugin(ABC):
         if ticker:
             self._state.per_ticker.pop(ticker, None)
 
-    def on_stop_loss(self, ticker: str, *, at: datetime | None = None) -> None:
-        """Called after a stop-loss fill — plugins may pause re-entry on this ticker."""
+    def on_stop_loss(self, ticker: str, *, at: datetime | None = None, price: float | None = None) -> None:
+        """Called after a stop-loss / invalidation fill — plugins may pause re-entry on this ticker."""
         t = ticker.upper()
         ts = self.ticker_state(t)
         ts["lastSlAt"] = at or datetime.now(timezone.utc)
+        if price is not None:
+            try:
+                px = float(price)
+            except (TypeError, ValueError):
+                px = 0.0
+            if px > 0:
+                ts["lastCutPrice"] = px
 
     def _in_universe(self, ctx: StrategyContext, ticker: str) -> bool:
         u = {t.upper() for t in ctx.universe}

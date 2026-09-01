@@ -11,6 +11,7 @@ const TRADE_REASON_LABELS: Record<string, string> = {
     grid_tp: 'Сетка: тейк-профит',
     scalper_delta_cross: 'Скальп: дельта',
     scalper_delta_reversal: 'Скальп: разворот дельты',
+    scalper_delta_invalidation: 'Скальп: инвалидация (ниже входа)',
     stop_loss: 'Стоп-лосс',
     take_profit: 'Тейк-профит',
     eod_flatten: 'EOD flatten',
