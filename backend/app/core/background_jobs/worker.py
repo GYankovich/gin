@@ -20,6 +20,7 @@ from app.core.background_jobs.repository import (
 )
 from app.core.background_jobs.worker_lease import (
     WorkerLeaseConflictError,
+    WorkerLeaseLostError,
     release_worker_lease,
     touch_worker_lease,
     try_acquire_worker_lease,
@@ -86,9 +87,18 @@ class LaneWorkerPool:
         self.concurrency = max(1, int(concurrency))
         self.force_lease = bool(force_lease)
         self._running = False
+        self._lease_lost = False
         self._tasks: List[asyncio.Task] = []
         self._lease_worker_id: Optional[UUID] = None
         self._lease_hb_task: Optional[asyncio.Task] = None
+
+    @property
+    def is_running(self) -> bool:
+        return self._running
+
+    @property
+    def lease_lost(self) -> bool:
+        return self._lease_lost
 
     async def _lease_heartbeat_loop(self) -> None:
         interval = float(settings.WORKER_LEASE_HEARTBEAT_SECONDS)
@@ -104,6 +114,7 @@ class LaneWorkerPool:
                         self.lane,
                         self._lease_worker_id,
                     )
+                    self._lease_lost = True
                     self._running = False
                     for task in self._tasks:
                         task.cancel()
@@ -157,6 +168,7 @@ class LaneWorkerPool:
             return
 
         self._acquire_lease_or_raise()
+        self._lease_lost = False
         self._running = True
         self._lease_hb_task = asyncio.create_task(
             self._lease_heartbeat_loop(),
@@ -206,6 +218,12 @@ class LaneWorkerPool:
         self._tasks.clear()
         self._release_lease()
         logger.info("Lane worker pool stopped lane=%s", self.lane)
+
+    async def wait_while_running(self, *, poll_seconds: float = 1.0) -> None:
+        """Block until the pool stops (lease lost or stop())."""
+        interval = max(0.05, float(poll_seconds))
+        while self._running:
+            await asyncio.sleep(interval)
 
     async def _maybe_defer_for_rest(self) -> bool:
         """True если нужно подождать — REST-запросы в процессе (embedded)."""
@@ -397,15 +415,18 @@ async def run_standalone_lane_worker(lane: str, *, force_lease: bool = False) ->
     global _embedded_job_semaphore
     _embedded_job_semaphore = None
     pool = LaneWorkerPool(lane, _lane_concurrency(lane), force_lease=force_lease)
+    lease_lost = False
     try:
         await pool.start()
+        try:
+            await pool.wait_while_running()
+        except asyncio.CancelledError:
+            pass
+        lease_lost = pool.lease_lost
     except WorkerLeaseConflictError as exc:
         logger.error("%s", exc)
         raise
-    try:
-        while True:
-            await asyncio.sleep(3600)
-    except asyncio.CancelledError:
-        pass
     finally:
         await pool.stop()
+    if lease_lost:
+        raise WorkerLeaseLostError(lane=lane)

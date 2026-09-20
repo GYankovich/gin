@@ -3807,8 +3807,8 @@ select:focus:not(:focus-visible) {
     flex-shrink: 0;
 }
 
-/* Robots V2: make the action cluster behave like a “tab” pill group (wrap, align right). */
-[data-page='robots-v2'] .dashboard-hero__actions {
+/* Robots: make the action cluster behave like a “tab” pill group (wrap, align right). */
+[data-page='robots'] .dashboard-hero__actions {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
@@ -3836,7 +3836,7 @@ select:focus:not(:focus-visible) {
 }
 
 /* ===== DASHBOARD — node mockup ===== */
-[data-page='dashboard'] .dashboard-hero--node, [data-page='portfolio'] .dashboard-hero--node {
+[data-page='dashboard'] .dashboard-hero--node, [data-page='portfolio'] .dashboard-hero--node, [data-page='robots'] .dashboard-hero--node {
     min-height: 0;
     margin: calc(var(--navbar-h) + var(--space-2) - 50px) 0 var(--space-6);
     padding: var(--space-2) 0 var(--space-1);
@@ -3848,12 +3848,15 @@ select:focus:not(:focus-visible) {
 }
 [data-page='dashboard'] .dashboard-hero--node .dashboard-hero__bg,
 [data-page='portfolio'] .dashboard-hero--node .dashboard-hero__bg,
+[data-page='robots'] .dashboard-hero--node .dashboard-hero__bg,
 [data-page='dashboard'] .dashboard-hero--node .dashboard-hero__veil,
-[data-page='portfolio'] .dashboard-hero--node .dashboard-hero__veil {
+[data-page='portfolio'] .dashboard-hero--node .dashboard-hero__veil,
+[data-page='robots'] .dashboard-hero--node .dashboard-hero__veil {
     display: none;
 }
 [data-page='dashboard'] .dashboard-hero--node .dashboard-hero__title,
-[data-page='portfolio'] .dashboard-hero--node .dashboard-hero__title {
+[data-page='portfolio'] .dashboard-hero--node .dashboard-hero__title,
+[data-page='robots'] .dashboard-hero--node .dashboard-hero__title {
     font-style: italic;
     letter-spacing: 0.14em;
     padding-inline-start: var(--space-4);
@@ -3863,27 +3866,29 @@ select:focus:not(:focus-visible) {
 }
 [data-page='dashboard'] .dashboard-hero--node .dashboard-hero__title-glitch::before,
 [data-page='portfolio'] .dashboard-hero--node .dashboard-hero__title-glitch::before,
+[data-page='robots'] .dashboard-hero--node .dashboard-hero__title-glitch::before,
 [data-page='dashboard'] .dashboard-hero--node .dashboard-hero__title-glitch::after,
-[data-page='portfolio'] .dashboard-hero--node .dashboard-hero__title-glitch::after {
+[data-page='portfolio'] .dashboard-hero--node .dashboard-hero__title-glitch::after,
+[data-page='robots'] .dashboard-hero--node .dashboard-hero__title-glitch::after {
     display: none;
 }
-[data-page='dashboard'].page::after, [data-page='portfolio'].page::after {
+[data-page='dashboard'].page::after, [data-page='portfolio'].page::after, [data-page='robots'].page::after {
     display: none;
 }
-[data-page='dashboard'].page::before, [data-page='portfolio'].page::before {
+[data-page='dashboard'].page::before, [data-page='portfolio'].page::before, [data-page='robots'].page::before {
     background-image:
         linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
         linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
 }
-[data-page='dashboard'] .dashboard-hero--node .dashboard-hero__content, [data-page='portfolio'] .dashboard-hero--node .dashboard-hero__content {
+[data-page='dashboard'] .dashboard-hero--node .dashboard-hero__content, [data-page='portfolio'] .dashboard-hero--node .dashboard-hero__content, [data-page='robots'] .dashboard-hero--node .dashboard-hero__content {
     position: relative;
     padding-right: 0;
     gap: var(--space-3);
 }
-[data-page='dashboard'] .dashboard-hero--node .dashboard-hero__top, [data-page='portfolio'] .dashboard-hero--node .dashboard-hero__top {
+[data-page='dashboard'] .dashboard-hero--node .dashboard-hero__top, [data-page='portfolio'] .dashboard-hero--node .dashboard-hero__top, [data-page='robots'] .dashboard-hero--node .dashboard-hero__top {
     align-items: flex-start;
 }
-[data-page='dashboard'] .dashboard-hero--node .dashboard-hero__actions, [data-page='portfolio'] .dashboard-hero--node .dashboard-hero__actions {
+[data-page='dashboard'] .dashboard-hero--node .dashboard-hero__actions, [data-page='portfolio'] .dashboard-hero--node .dashboard-hero__actions, [data-page='robots'] .dashboard-hero--node .dashboard-hero__actions {
     position: static;
     top: auto;
     transform: none;
@@ -4713,11 +4718,11 @@ select:focus:not(:focus-visible) {
 [data-page='dashboard'] .dashboard-accounts-skel-row:last-child {
     border-bottom: 0;
 }
-[data-theme='light'] [data-page='dashboard'] .dashboard-hero--node .dashboard-hero__title, [data-theme='light'] [data-page='portfolio'] .dashboard-hero--node .dashboard-hero__title {
+[data-theme='light'] [data-page='dashboard'] .dashboard-hero--node .dashboard-hero__title, [data-theme='light'] [data-page='portfolio'] .dashboard-hero--node .dashboard-hero__title, [data-theme='light'] [data-page='robots'] .dashboard-hero--node .dashboard-hero__title {
     color: var(--text-primary);
     text-shadow: none;
 }
-[data-theme='light'] [data-page='dashboard'].page::before, [data-theme='light'] [data-page='portfolio'].page::before {
+[data-theme='light'] [data-page='dashboard'].page::before, [data-theme='light'] [data-page='portfolio'].page::before, [data-theme='light'] [data-page='robots'].page::before {
     background-image:
         linear-gradient(rgba(26, 26, 26, 0.045) 1px, transparent 1px),
         linear-gradient(90deg, rgba(26, 26, 26, 0.045) 1px, transparent 1px);
@@ -11248,28 +11253,16 @@ input.gin-select__trigger:focus {
     100% { background-position: -200% 0; }
 }
 
-/* ===== Robots v2 — dashboard-aligned chrome ===== */
-[data-page='robots-v2'].page::before,
-[data-page='robots-v2'].page::after {
-    display: none;
-}
-
-.robots-v2-fleet-hero.dashboard-hero {
-    align-items: center;
-    min-height: 0;
-    padding: var(--space-6);
-    margin-bottom: var(--space-5);
-}
-
-[data-page='robots-v2'] .dashboard-assets-card,
-[data-page='robots-v2'] .dashboard-totals-card,
-[data-page='robots-v2'] .dashboard-account-card,
-[data-page='robots-v2'] .portfolio-toolbar {
+/* ===== Robots — dashboard-aligned chrome ===== */
+[data-page='robots'] .dashboard-assets-card,
+[data-page='robots'] .dashboard-totals-card,
+[data-page='robots'] .dashboard-account-card,
+[data-page='robots'] .portfolio-toolbar {
     animation: none;
     height: auto;
 }
 
-[data-page='robots-v2'] .card:hover {
+[data-page='robots'] .card:hover {
     border-color: color-mix(in srgb, var(--neon-cyan) 22%, var(--border-subtle));
 }
 
@@ -12202,7 +12195,7 @@ input.gin-select__trigger:focus {
 }
 
 @media (max-width: 720px) {
-    [data-page='robots-v2'] .dashboard-layout {
+    [data-page='robots'] .dashboard-layout {
         gap: var(--space-3);
     }
 

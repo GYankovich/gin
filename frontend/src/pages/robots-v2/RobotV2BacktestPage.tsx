@@ -325,8 +325,9 @@ export default function RobotV2BacktestPage() {
     const phaseLabel = status?.phase_label || status?.run_phase || (isActive ? 'Запуск…' : '')
 
     return (
-        <div className="page" data-page="robots-v2">
+        <div className="page" data-page="robots">
             <PageHero
+                className="dashboard-hero--node"
                 eyebrow="BACKTEST NODE"
                 title={robot ? `БЭКТЕСТ #${robotId}` : `БЭКТЕСТ #${robotId}`}
                 subtitle={
@@ -347,7 +348,7 @@ export default function RobotV2BacktestPage() {
                             variant="ghost"
                             size="sm"
                             className="dashboard-hero__cfg"
-                            onClick={() => navigate('/robots-v2')}
+                            onClick={() => navigate('/robots')}
                         >
                             Флот
                         </Button>
@@ -356,7 +357,7 @@ export default function RobotV2BacktestPage() {
                             variant="ghost"
                             size="sm"
                             className="dashboard-hero__cfg"
-                            onClick={() => navigate(`/robots-v2/${robotId}/monitor`)}
+                            onClick={() => navigate(`/robots/${robotId}/monitor`)}
                         >
                             <FontAwesomeIcon icon={faTowerBroadcast} />
                             Лайв
@@ -366,7 +367,7 @@ export default function RobotV2BacktestPage() {
                             variant="ghost"
                             size="sm"
                             className="dashboard-hero__cfg"
-                            onClick={() => navigate(`/robots-v2/edit/${robotId}`)}
+                            onClick={() => navigate(`/robots/edit/${robotId}`)}
                         >
                             Правка
                         </Button>

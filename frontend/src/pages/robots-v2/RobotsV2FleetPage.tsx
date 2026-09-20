@@ -182,7 +182,7 @@ export default function RobotsV2FleetPage() {
             const cloned = await robotV2Service.clone(robot.id)
             toast.show(`Создана копия #${cloned.id}`, 'success')
             await load()
-            navigate(`/robots-v2/edit/${cloned.id}`)
+            navigate(`/robots/edit/${cloned.id}`)
         } catch (e) {
             toast.show(fmtErr(e), 'error')
         } finally {
@@ -226,7 +226,7 @@ export default function RobotsV2FleetPage() {
         const createdAt = robot.createdAt || robot.created_at
         const isPortfolio = robot.type === 1
         const openRobot = () => navigate(
-            isPortfolio ? `/robots-v2/edit/${robot.id}` : `/robots-v2/${robot.id}/monitor`,
+            isPortfolio ? `/robots/edit/${robot.id}` : `/robots/${robot.id}/monitor`,
         )
 
         return (
@@ -344,7 +344,7 @@ export default function RobotsV2FleetPage() {
                                 className="robots-v2-fleet-card__action"
                                 onClick={event => {
                                 event.stopPropagation()
-                                navigate(`/robots-v2/${robot.id}/backtest`)
+                                navigate(`/robots/${robot.id}/backtest`)
                             }}>
                                 Бэктест
                             </Button>
@@ -355,7 +355,7 @@ export default function RobotsV2FleetPage() {
                                 className="robots-v2-fleet-card__action"
                                 onClick={event => {
                                 event.stopPropagation()
-                                navigate(`/robots-v2/${robot.id}/logs`)
+                                navigate(`/robots/${robot.id}/logs`)
                             }}>
                                 Логи
                             </Button>
@@ -398,7 +398,7 @@ export default function RobotsV2FleetPage() {
                             )}
                             <MobileDockDropdown.Item
                                 icon={<FontAwesomeIcon icon={faPencil} className="mobile-dock__dropdown-icon" />}
-                                onClick={() => navigate(`/robots-v2/edit/${robot.id}`)}
+                                onClick={() => navigate(`/robots/edit/${robot.id}`)}
                             >
                                 Правка
                             </MobileDockDropdown.Item>
@@ -420,10 +420,11 @@ export default function RobotsV2FleetPage() {
 
     if (loading && robots.length === 0 && !error) {
         return (
-            <div className="page" data-page="robots-v2">
+            <div className="page" data-page="robots">
                 <PageHero
-                    title="РОБОТЫ V2"
-                    className="robots-v2-fleet-hero"
+                    className="dashboard-hero--node"
+                    eyebrow="ROBOT NODE"
+                    title="РОБОТЫ"
                 />
                 <FleetSkeleton />
             </div>
@@ -431,10 +432,11 @@ export default function RobotsV2FleetPage() {
     }
 
     return (
-        <div className="page" data-page="robots-v2">
+        <div className="page" data-page="robots">
             <PageHero
-                title="РОБОТЫ V2"
-                className="robots-v2-fleet-hero"
+                className="dashboard-hero--node"
+                eyebrow="ROBOT NODE"
+                title="РОБОТЫ"
             />
 
             <div className="dashboard-layout">
@@ -460,7 +462,7 @@ export default function RobotsV2FleetPage() {
                                 <button
                                     type="button"
                                     className="settings-tokens__add"
-                                    onClick={() => navigate('/robots-v2/new?kind=portfolio')}
+                                    onClick={() => navigate('/robots/new?kind=portfolio')}
                                     aria-label="Создать опросник портфеля"
                                 >
                                     <FontAwesomeIcon icon={faPlus} className="settings-tokens__add-icon" />
@@ -487,7 +489,7 @@ export default function RobotsV2FleetPage() {
                                 <button
                                     type="button"
                                     className="settings-tokens__add"
-                                    onClick={() => navigate('/robots-v2/new?kind=trading')}
+                                    onClick={() => navigate('/robots/new?kind=trading')}
                                     aria-label="Создать торгового робота"
                                 >
                                     <FontAwesomeIcon icon={faPlus} className="settings-tokens__add-icon" />

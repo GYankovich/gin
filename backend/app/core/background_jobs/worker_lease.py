@@ -29,6 +29,15 @@ class WorkerLeaseConflictError(RuntimeError):
         )
 
 
+class WorkerLeaseLostError(RuntimeError):
+    """Standalone worker lost its DB lease and must exit so the supervisor can restart it."""
+
+    def __init__(self, *, lane: str, worker_id: Any = None):
+        self.lane = lane
+        self.worker_id = worker_id
+        super().__init__(f"Worker lane={lane!r} lost lease worker_id={worker_id}")
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -192,6 +201,7 @@ def release_worker_lease(db: Session, *, lane: str, worker_id: UUID) -> bool:
 
 __all__ = [
     "WorkerLeaseConflictError",
+    "WorkerLeaseLostError",
     "get_active_worker_lease",
     "release_worker_lease",
     "touch_worker_lease",

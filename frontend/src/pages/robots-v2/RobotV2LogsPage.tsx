@@ -179,8 +179,9 @@ export default function RobotV2LogsPage() {
         : 0
 
     return (
-        <div className="page" data-page="robots-v2">
+        <div className="page" data-page="robots">
             <PageHero
+                className="dashboard-hero--node"
                 eyebrow="AUDIT NODE"
                 title={`ЛОГИ #${robotId}`}
                 subtitle="Поток сессии · audit DB (исполнения, заявки, циклы)"
@@ -191,7 +192,7 @@ export default function RobotV2LogsPage() {
                             variant="ghost"
                             size="sm"
                             className="dashboard-hero__cfg"
-                            onClick={() => navigate('/robots-v2')}
+                            onClick={() => navigate('/robots')}
                         >
                             Флот
                         </Button>
@@ -200,7 +201,7 @@ export default function RobotV2LogsPage() {
                             variant="ghost"
                             size="sm"
                             className="dashboard-hero__cfg"
-                            onClick={() => navigate(`/robots-v2/${robotId}/monitor`)}
+                            onClick={() => navigate(`/robots/${robotId}/monitor`)}
                         >
                             <FontAwesomeIcon icon={faTowerBroadcast} />
                             Лайв
@@ -210,7 +211,7 @@ export default function RobotV2LogsPage() {
                             variant="ghost"
                             size="sm"
                             className="dashboard-hero__cfg"
-                            onClick={() => navigate(`/robots-v2/${robotId}/backtest`)}
+                            onClick={() => navigate(`/robots/${robotId}/backtest`)}
                         >
                             Бэктест
                         </Button>

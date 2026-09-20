@@ -220,6 +220,8 @@ def run_all(skip_migrate: bool = False, kill_ports: bool = False):
     worker_next_restart_at = {"Heavy worker": 0.0, "Portfolio worker": 0.0}
     worker_restart_count = {"Heavy worker": 0, "Portfolio worker": 0}
 
+    from app.core.background_jobs.supervisor import plan_worker_heal
+
     def spawn_worker(label: str) -> subprocess.Popen:
         lane = "heavy" if label == "Heavy worker" else "portfolio"
         args = ["worker", "--lane", lane]
@@ -249,18 +251,24 @@ def run_all(skip_migrate: bool = False, kill_ports: bool = False):
                 if rc is None:
                     alive_any = True
                     continue
-                if label not in stopped:
+                newly_exited = label not in stopped
+                if newly_exited:
                     stopped.add(label)
                     print(f"\n[WARN] {label} exited: pid={p.pid} exit_code={rc}")
                 if label in worker_labels:
                     now = time.time()
-                    if rc == 2:
-                        worker_force_on_restart[label] = True
-                        worker_next_restart_at[label] = max(
-                            worker_next_restart_at[label],
-                            now + worker_conflict_backoff_sec
-                        )
-                    if now >= worker_next_restart_at[label]:
+                    nxt, force, should_spawn = plan_worker_heal(
+                        exit_code=int(rc),
+                        newly_exited=newly_exited,
+                        now=now,
+                        next_restart_at=worker_next_restart_at[label],
+                        force_lease=worker_force_on_restart[label],
+                        conflict_backoff_sec=worker_conflict_backoff_sec,
+                        restart_backoff_sec=worker_restart_backoff_sec,
+                    )
+                    worker_next_restart_at[label] = nxt
+                    worker_force_on_restart[label] = force
+                    if should_spawn:
                         try:
                             new_p = spawn_worker(label)
                             procs[idx] = (label, new_p)
@@ -339,7 +347,8 @@ def run_worker(lane: str, *, force_lease: bool = False):
     """Standalone lane worker process."""
     from app.core.logging_config import setup_logging
     from app.core.background_jobs.worker import LANE_HEAVY, LANE_PORTFOLIO, run_standalone_lane_worker
-    from app.core.background_jobs.worker_lease import WorkerLeaseConflictError
+    from app.core.background_jobs.worker_lease import WorkerLeaseConflictError, WorkerLeaseLostError
+    from app.core.background_jobs.supervisor import WORKER_EXIT_LEASE_LOST
 
     setup_logging()
     allowed = {LANE_PORTFOLIO, LANE_HEAVY}
@@ -358,6 +367,9 @@ def run_worker(lane: str, *, force_lease: bool = False):
         print("Уже крутится другой worker этой lane на этой БД.")
         print("Остановите его или: python backend/run.py worker --lane", lane, "--force-lease")
         sys.exit(2)
+    except WorkerLeaseLostError as exc:
+        print(f"\n[ERR] {exc}")
+        sys.exit(WORKER_EXIT_LEASE_LOST)
     except KeyboardInterrupt:
         print("\n[STOP] Worker stopped")
 

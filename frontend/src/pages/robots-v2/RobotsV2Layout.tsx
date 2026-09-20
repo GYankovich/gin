@@ -7,7 +7,7 @@ import { RobotIllustration } from '@/components/ui/RobotIllustration'
 import { robotV2Service } from '@/services/robotV2Service'
 import { isRobotsV2DisabledError, ROBOTS_V2_DISABLED_MESSAGE } from '@/pages/robots-v2/robotsV2ModuleGuard'
 
-/** Guards /robots-v2/* when the v2 API module is disabled on backend. */
+/** Guards /robots/* when the v2 API module is disabled on backend. */
 export default function RobotsV2Layout() {
     const [checking, setChecking] = useState(true)
     const [disabled, setDisabled] = useState(false)
@@ -35,8 +35,8 @@ export default function RobotsV2Layout() {
 
     if (checking) {
         return (
-            <div className="page" data-page="robots-v2">
-                <PageHero eyebrow="ROBOT NODE" title="РОБОТЫ V2" subtitle="Проверка модуля…" />
+            <div className="page" data-page="robots">
+                <PageHero className="dashboard-hero--node" eyebrow="ROBOT NODE" title="РОБОТЫ" subtitle="Проверка модуля…" />
                 <div className="dashboard-layout">
                     <Card className="dashboard-totals-card">
                         <Skeleton height="88px" />
@@ -48,8 +48,8 @@ export default function RobotsV2Layout() {
 
     if (disabled) {
         return (
-            <div className="page" data-page="robots-v2">
-                <PageHero eyebrow="ROBOT NODE" title="РОБОТЫ V2" subtitle="Модуль недоступен" />
+            <div className="page" data-page="robots">
+                <PageHero className="dashboard-hero--node" eyebrow="ROBOT NODE" title="РОБОТЫ" subtitle="Модуль недоступен" />
                 <div className="dashboard-layout">
                     <Card className="dashboard-totals-card dashboard-error-card">
                         <div className="dashboard-error-card__robot" aria-hidden>

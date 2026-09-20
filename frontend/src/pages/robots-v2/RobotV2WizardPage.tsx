@@ -356,10 +356,10 @@ export default function RobotV2WizardPage() {
                     toast.show(`Робот #${robot.id} сохранён, но не запущен: ${fmtErr(e)}`, 'error')
                     return
                 }
-                navigate(`/robots-v2/${robot.id}/monitor`)
+                navigate(`/robots/${robot.id}/monitor`)
             } else {
                 toast.show(editId ? 'Робот сохранён' : 'Робот создан', 'success')
-                navigate('/robots-v2')
+                navigate('/robots')
             }
         } catch (e) {
             toast.show(fmtErr(e), 'error')
@@ -394,7 +394,7 @@ export default function RobotV2WizardPage() {
             })
             clearDraftLocal(PORTFOLIO_DRAFT_STORAGE_KEY)
             toast.show(editId ? 'Опросник сохранён' : 'Опросник создан', 'success')
-            navigate('/robots-v2')
+            navigate('/robots')
         } catch (e) {
             toast.show(fmtErr(e), 'error')
         } finally {
@@ -409,8 +409,9 @@ export default function RobotV2WizardPage() {
 
     if (editId && editLoading) {
         return (
-            <div className="page" data-page="robots-v2">
+            <div className="page" data-page="robots">
                 <PageHero
+                    className="dashboard-hero--node"
                     eyebrow="SETUP NODE"
                     title={`ПРАВКА #${editId}`}
                     subtitle="Загружаем конфигурацию робота…"
@@ -428,8 +429,9 @@ export default function RobotV2WizardPage() {
     }
 
     return (
-        <div className="page" data-page="robots-v2">
+        <div className="page" data-page="robots">
             <PageHero
+                className="dashboard-hero--node"
                 eyebrow="SETUP NODE"
                 title={editId ? `ПРАВКА #${editId}` : kind === 'portfolio' ? 'НОВЫЙ ОПРОСНИК' : 'НОВЫЙ РОБОТ'}
                 subtitle={
@@ -443,7 +445,7 @@ export default function RobotV2WizardPage() {
                         variant="ghost"
                         size="sm"
                         className="dashboard-hero__cfg"
-                        onClick={() => navigate('/robots-v2')}
+                        onClick={() => navigate('/robots')}
                     >
                         Флот
                     </Button>

@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from 'react'
 
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 
 import { useAuthStore } from '@/stores/authStore'
 
@@ -62,6 +62,18 @@ function PageFallback() {
 
 
 
+function RedirectRobotsV2() {
+
+    const { pathname, search } = useLocation()
+
+    const next = pathname.replace(/^\/robots-v2/, '/robots')
+
+    return <Navigate to={`${next}${search}`} replace />
+
+}
+
+
+
 export function App() {
 
     return (
@@ -82,11 +94,9 @@ export function App() {
 
                         <Route path="portfolio" element={<PortfolioPage />} />
 
-                        <Route path="robots" element={<Navigate to="/robots-v2" replace />} />
+                        <Route path="robots/settings" element={<Navigate to="/robots" replace />} />
 
-                        <Route path="robots/settings" element={<Navigate to="/robots-v2" replace />} />
-
-                        <Route path="robots-v2" element={<RobotsV2Layout />}>
+                        <Route path="robots" element={<RobotsV2Layout />}>
 
                             <Route index element={<RobotsV2FleetPage />} />
 
@@ -102,15 +112,17 @@ export function App() {
 
                         </Route>
 
+                        <Route path="robots-v2/*" element={<RedirectRobotsV2 />} />
+
                         <Route path="analytics" element={<AnalyticsPage />} />
 
                         <Route path="settings" element={<SettingsPage />} />
 
-                        <Route path="testing" element={<Navigate to="/robots-v2" replace />} />
+                        <Route path="testing" element={<Navigate to="/robots" replace />} />
 
-                        <Route path="testing-v2" element={<Navigate to="/robots-v2" replace />} />
+                        <Route path="testing-v2" element={<Navigate to="/robots" replace />} />
 
-                        <Route path="live" element={<Navigate to="/robots-v2" replace />} />
+                        <Route path="live" element={<Navigate to="/robots" replace />} />
 
                     </Route>
 

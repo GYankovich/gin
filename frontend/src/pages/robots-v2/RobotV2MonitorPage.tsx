@@ -859,8 +859,9 @@ export default function RobotV2MonitorPage() {
     const archetype = String((robot?.config?.strategy as Record<string, unknown> | undefined)?.archetype || '')
 
     return (
-        <div className="page" data-page="robots-v2">
+        <div className="page" data-page="robots">
             <PageHero
+                className="dashboard-hero--node"
                 eyebrow="LIVE NODE"
                 title={title}
                 subtitle={
@@ -878,7 +879,7 @@ export default function RobotV2MonitorPage() {
                             variant="ghost"
                             size="sm"
                             className="dashboard-hero__cfg"
-                            onClick={() => navigate('/robots-v2')}
+                            onClick={() => navigate('/robots')}
                         >
                             Флот
                         </Button>
@@ -887,7 +888,7 @@ export default function RobotV2MonitorPage() {
                             variant="ghost"
                             size="sm"
                             className="dashboard-hero__cfg"
-                            onClick={() => navigate(`/robots-v2/edit/${robotId}`)}
+                            onClick={() => navigate(`/robots/edit/${robotId}`)}
                         >
                             Правка
                         </Button>
@@ -896,7 +897,7 @@ export default function RobotV2MonitorPage() {
                             variant="ghost"
                             size="sm"
                             className="dashboard-hero__cfg"
-                            onClick={() => navigate(`/robots-v2/${robotId}/logs`)}
+                            onClick={() => navigate(`/robots/${robotId}/logs`)}
                         >
                             Логи
                         </Button>
@@ -905,7 +906,7 @@ export default function RobotV2MonitorPage() {
                             variant="ghost"
                             size="sm"
                             className="dashboard-hero__cfg"
-                            onClick={() => navigate(`/robots-v2/${robotId}/backtest`)}
+                            onClick={() => navigate(`/robots/${robotId}/backtest`)}
                         >
                             Бэктест
                         </Button>
