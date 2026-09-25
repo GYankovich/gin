@@ -1,90 +1,28 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import {
-    faClone,
-    faEllipsisVertical,
-    faPause,
-    faPencil,
-    faPlay,
-    faPlus,
-    faStop,
-    faTrashCan,
-} from '@fortawesome/free-solid-svg-icons'
+import { faPlus, faClipboardList, faRobot } from '@fortawesome/free-solid-svg-icons'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
-import { MobileDockDropdown } from '@/components/ui/MobileDockDropdown'
 import { PageHero } from '@/components/ui/PageHero'
 import { RobotIllustration } from '@/components/ui/RobotIllustration'
 import { useToast } from '@/components/ui/Toast'
+import { FleetRobotCard } from '@/pages/robots-v2/components/FleetRobotCard'
+import { RobotConfirmModal } from '@/pages/robots-v2/components/RobotConfirmModal'
+import { fmtErr } from '@/pages/robots-v2/formatters'
 import { robotV2Service } from '@/services/robotV2Service'
 import type { RobotV2 } from '@/types/robotV2'
 
-function isSessionRunning(state: string | null | undefined): boolean {
-    return String(state || '').toUpperCase() === 'RUNNING'
-}
-
-function fleetStatusBadge(
-    robot: RobotV2,
-    sessionState: string | null | undefined,
-): { label: string; variant: 'up' | 'neutral' | 'down' | 'warn' } {
-    const statusName = robot.statusName || robot.status_name
-    if (robot.type === 1) {
-        if (robot.status === 1) return { label: statusName || 'Включен', variant: 'up' }
-        if (robot.status === 2) return { label: statusName || 'Выключен', variant: 'neutral' }
-        return { label: statusName || 'Удален', variant: 'down' }
-    }
-    if (isSessionRunning(sessionState)) return { label: 'В работе', variant: 'up' }
-    if (robot.status === 1) return { label: statusName || 'Включен', variant: 'warn' }
-    if (robot.status === 2) return { label: statusName || 'Выключен', variant: 'neutral' }
-    return { label: statusName || '—', variant: 'down' }
-}
-
-function fmtErr(e: unknown): string {
-    const err = e as { response?: { data?: { detail?: unknown } }; message?: string }
-    const d = err?.response?.data?.detail
-    if (typeof d === 'string') return d
-    if (Array.isArray(d)) return d.map((x: { msg?: string }) => x.msg ?? JSON.stringify(x)).join('; ')
-    return err?.message || 'Ошибка'
-}
-
-function archetypeOf(robot: RobotV2): string {
-    const strategy = (robot.config?.strategy || {}) as Record<string, unknown>
-    return String(strategy.archetype || '—')
-}
+type ConfirmAction =
+    | { kind: 'delete'; robot: RobotV2 }
+    | { kind: 'hardStop'; robot: RobotV2 }
+    | null
 
 function modeOf(robot: RobotV2): string {
     const core = (robot.config?.core || {}) as Record<string, unknown>
     return String(core.mode || 'paper')
-}
-
-function formatLastStarted(iso: string): string {
-    const t = new Date(iso).getTime()
-    if (Number.isNaN(t)) return iso
-    return new Date(t).toLocaleString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    })
-}
-
-function formatDate(iso: string | null | undefined): string {
-    if (!iso) return '—'
-    const date = new Date(iso)
-    if (Number.isNaN(date.getTime())) return iso
-    return date.toLocaleDateString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-    })
-}
-
-function sessionStateOf(robot: RobotV2): string | null {
-    return (robot.sessionState ?? robot.session_state ?? null) as string | null
 }
 
 function FleetSkeleton() {
@@ -111,6 +49,7 @@ export default function RobotsV2FleetPage() {
     const [busyId, setBusyId] = useState<number | null>(null)
     const [statusMenuId, setStatusMenuId] = useState<number | null>(null)
     const [actionsMenuId, setActionsMenuId] = useState<number | null>(null)
+    const [confirm, setConfirm] = useState<ConfirmAction>(null)
 
     const load = useCallback(async () => {
         setLoading(true)
@@ -152,15 +91,7 @@ export default function RobotsV2FleetPage() {
         }
     }
 
-    const onStop = async (robot: RobotV2, stopMode: 'soft' | 'hard' = 'soft') => {
-        if (stopMode === 'hard') {
-            const mode = modeOf(robot)
-            const msg =
-                mode === 'live'
-                    ? `Жёсткая остановка «${robot.name}» закроет все позиции. Продолжить?`
-                    : `Жёсткая остановка «${robot.name}»?`
-            if (!window.confirm(msg)) return
-        }
+    const runStop = async (robot: RobotV2, stopMode: 'soft' | 'hard') => {
         setBusyId(robot.id)
         try {
             await robotV2Service.stop(robot.id, stopMode)
@@ -174,6 +105,14 @@ export default function RobotsV2FleetPage() {
         } finally {
             setBusyId(null)
         }
+    }
+
+    const onStop = (robot: RobotV2, stopMode: 'soft' | 'hard' = 'soft') => {
+        if (stopMode === 'hard') {
+            setConfirm({ kind: 'hardStop', robot })
+            return
+        }
+        void runStop(robot, 'soft')
     }
 
     const onClone = async (robot: RobotV2) => {
@@ -204,8 +143,7 @@ export default function RobotsV2FleetPage() {
         }
     }
 
-    const onDelete = async (robot: RobotV2) => {
-        if (!window.confirm(`Удалить робота «${robot.name}»?`)) return
+    const runDelete = async (robot: RobotV2) => {
         setBusyId(robot.id)
         try {
             await robotV2Service.delete(robot.id)
@@ -218,205 +156,67 @@ export default function RobotsV2FleetPage() {
         }
     }
 
-    const renderRobotCard = (robot: RobotV2) => {
-        const badge = fleetStatusBadge(robot, sessionStateOf(robot))
-        const mode = modeOf(robot)
-        const arch = archetypeOf(robot)
-        const lastStarted = robot.lastStarted || robot.last_started
-        const createdAt = robot.createdAt || robot.created_at
-        const isPortfolio = robot.type === 1
-        const openRobot = () => navigate(
-            isPortfolio ? `/robots/edit/${robot.id}` : `/robots/${robot.id}/monitor`,
-        )
-
-        return (
-            <Card
-                key={robot.id}
-                className="dashboard-account-card dashboard-account-card--link robots-v2-fleet-card"
-                onClick={openRobot}
-            >
-                <div className="dashboard-account-card__head">
-                    <h3 className="dashboard-account-card__title">
-                        <span className="dashboard-account-card__name">
-                            <span className="dashboard-account-card__name-text">{robot.name}</span>
-                        </span>
-                        <span className="dashboard-account-card__meta-primary mono">
-                            #{robot.id}{isPortfolio ? '' : ` · ${arch} · ${mode}`}
-                        </span>
-                    </h3>
-                    <MobileDockDropdown
-                        open={statusMenuId === robot.id}
-                        onOpenChange={open => {
-                            setStatusMenuId(open ? robot.id : null)
-                            if (open) setActionsMenuId(null)
-                        }}
-                        placement="below"
-                        portaled
-                        className="robots-v2-status-menu"
-                    >
-                        <MobileDockDropdown.Trigger
-                            className={`robots-v2-status-trigger robots-v2-status-trigger--${badge.variant}`}
-                            aria-label={`Управление статусом ${robot.name}`}
-                            disabled={busyId === robot.id}
-                            onClick={event => event.stopPropagation()}
-                        >
-                            <span className="robots-v2-status-trigger__label">{badge.label}</span>
-                            <svg
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
-                                className="robots-v2-status-trigger__chevron"
-                                aria-hidden="true"
-                            >
-                                <path
-                                    d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
-                                    clipRule="evenodd"
-                                    fillRule="evenodd"
-                                />
-                            </svg>
-                        </MobileDockDropdown.Trigger>
-                        <MobileDockDropdown.Panel>
-                            {robot.type === 1 ? (
-                                <MobileDockDropdown.Item
-                                    variant={robot.status === 1 ? 'danger' : 'default'}
-                                    icon={(
-                                        <FontAwesomeIcon
-                                            icon={robot.status === 1 ? faStop : faPlay}
-                                            className="mobile-dock__dropdown-icon"
-                                        />
-                                    )}
-                                    disabled={busyId === robot.id}
-                                    onClick={() => void onTogglePortfolio(robot)}
-                                >
-                                    {robot.status === 1 ? 'Остановить' : 'Запустить'}
-                                </MobileDockDropdown.Item>
-                            ) : isSessionRunning(sessionStateOf(robot)) ? (
-                                <>
-                                    <MobileDockDropdown.Item
-                                        variant="alert"
-                                        icon={<FontAwesomeIcon icon={faPause} className="mobile-dock__dropdown-icon" />}
-                                        disabled={busyId === robot.id}
-                                        onClick={() => void onStop(robot, 'soft')}
-                                    >
-                                        Пауза
-                                    </MobileDockDropdown.Item>
-                                    <MobileDockDropdown.Item
-                                        variant="danger"
-                                        icon={<FontAwesomeIcon icon={faStop} className="mobile-dock__dropdown-icon" />}
-                                        disabled={busyId === robot.id}
-                                        onClick={() => void onStop(robot, 'hard')}
-                                    >
-                                        Остановить
-                                    </MobileDockDropdown.Item>
-                                </>
-                            ) : (
-                                <MobileDockDropdown.Item
-                                    icon={<FontAwesomeIcon icon={faPlay} className="mobile-dock__dropdown-icon" />}
-                                    disabled={busyId === robot.id}
-                                    onClick={() => void onStart(robot)}
-                                >
-                                    Запустить
-                                </MobileDockDropdown.Item>
-                            )}
-                        </MobileDockDropdown.Panel>
-                    </MobileDockDropdown>
-                    <div className="dashboard-account-card__meta-sync">
-                        <div className="dashboard-account-card__meta mono">
-                            <span className="dashboard-account-card__meta-opened">
-                                <span>Создан {formatDate(createdAt)}</span>
-                                <span className="robots-v2-fleet-card__activity">
-                                    {lastStarted
-                                        ? `${isPortfolio ? 'Синхронизация' : 'Последний запуск'} ${formatLastStarted(lastStarted)}`
-                                        : isPortfolio
-                                          ? 'Синхронизаций ещё не было'
-                                          : 'Запусков ещё не было'}
-                                </span>
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                <div className="robots-v2-fleet-card__actions">
-                    {robot.type === 2 ? (
-                        <>
-                            <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="robots-v2-fleet-card__action"
-                                onClick={event => {
-                                event.stopPropagation()
-                                navigate(`/robots/${robot.id}/backtest`)
-                            }}>
-                                Бэктест
-                            </Button>
-                            <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="robots-v2-fleet-card__action"
-                                onClick={event => {
-                                event.stopPropagation()
-                                navigate(`/robots/${robot.id}/logs`)
-                            }}>
-                                Логи
-                            </Button>
-                        </>
-                    ) : null}
-                    <MobileDockDropdown
-                        open={actionsMenuId === robot.id}
-                        onOpenChange={open => {
-                            setActionsMenuId(open ? robot.id : null)
-                            if (open) setStatusMenuId(null)
-                        }}
-                        placement="below"
-                        portaled
-                        className="robots-v2-more-menu"
-                    >
-                        <MobileDockDropdown.Trigger
-                            asChild
-                            aria-label={`Дополнительные действия ${robot.name}`}
-                        >
-                            <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="robots-v2-more-trigger"
-                                disabled={busyId === robot.id}
-                                onClick={event => event.stopPropagation()}
-                            >
-                                <FontAwesomeIcon icon={faEllipsisVertical} />
-                            </Button>
-                        </MobileDockDropdown.Trigger>
-                        <MobileDockDropdown.Panel>
-                            {robot.type === 2 && (
-                                <MobileDockDropdown.Item
-                                    icon={<FontAwesomeIcon icon={faClone} className="mobile-dock__dropdown-icon" />}
-                                    disabled={busyId === robot.id}
-                                    onClick={() => void onClone(robot)}
-                                >
-                                    Клонировать
-                                </MobileDockDropdown.Item>
-                            )}
-                            <MobileDockDropdown.Item
-                                icon={<FontAwesomeIcon icon={faPencil} className="mobile-dock__dropdown-icon" />}
-                                onClick={() => navigate(`/robots/edit/${robot.id}`)}
-                            >
-                                Правка
-                            </MobileDockDropdown.Item>
-                            <MobileDockDropdown.Divider />
-                            <MobileDockDropdown.Item
-                                variant="danger"
-                                icon={<FontAwesomeIcon icon={faTrashCan} className="mobile-dock__dropdown-icon" />}
-                                disabled={busyId === robot.id}
-                                onClick={() => void onDelete(robot)}
-                            >
-                                Удалить
-                            </MobileDockDropdown.Item>
-                        </MobileDockDropdown.Panel>
-                    </MobileDockDropdown>
-                </div>
-            </Card>
-        )
+    const onDelete = (robot: RobotV2) => {
+        setConfirm({ kind: 'delete', robot })
     }
+
+    const onConfirmAction = async () => {
+        if (!confirm) return
+        const action = confirm
+        if (action.kind === 'delete') {
+            await runDelete(action.robot)
+        } else {
+            await runStop(action.robot, 'hard')
+        }
+        setConfirm(null)
+    }
+
+    const renderRobotCard = (robot: RobotV2) => (
+        <FleetRobotCard
+            key={robot.id}
+            robot={robot}
+            busy={busyId === robot.id}
+            statusMenuOpen={statusMenuId === robot.id}
+            actionsMenuOpen={actionsMenuId === robot.id}
+            onStatusMenuOpenChange={open => setStatusMenuId(open ? robot.id : null)}
+            onActionsMenuOpenChange={open => setActionsMenuId(open ? robot.id : null)}
+            onStart={r => void onStart(r)}
+            onStop={onStop}
+            onTogglePortfolio={r => void onTogglePortfolio(r)}
+            onClone={r => void onClone(r)}
+            onDelete={onDelete}
+        />
+    )
+
+    const heroActions = (
+        <>
+            <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="dashboard-hero__cfg"
+                onClick={() => navigate('/robots/new?kind=portfolio')}
+            >
+                <FontAwesomeIcon icon={faPlus} />
+                Опросник
+            </Button>
+            <Button
+                type="button"
+                size="sm"
+                onClick={() => navigate('/robots/new?kind=trading')}
+            >
+                <FontAwesomeIcon icon={faPlus} />
+                Создать робота
+            </Button>
+        </>
+    )
+
+    const hardStopMessage =
+        confirm?.kind === 'hardStop'
+            ? modeOf(confirm.robot) === 'live'
+                ? `Жёсткая остановка «${confirm.robot.name}» закроет все позиции. Продолжить?`
+                : `Жёсткая остановка «${confirm.robot.name}»?`
+            : ''
 
     if (loading && robots.length === 0 && !error) {
         return (
@@ -425,6 +225,8 @@ export default function RobotsV2FleetPage() {
                     className="dashboard-hero--node"
                     eyebrow="ROBOT NODE"
                     title="РОБОТЫ"
+                    subtitle="Флот торговых роботов и опросников портфеля"
+                    actions={heroActions}
                 />
                 <FleetSkeleton />
             </div>
@@ -437,6 +239,8 @@ export default function RobotsV2FleetPage() {
                 className="dashboard-hero--node"
                 eyebrow="ROBOT NODE"
                 title="РОБОТЫ"
+                subtitle="Флот торговых роботов и опросников портфеля"
+                actions={heroActions}
             />
 
             <div className="dashboard-layout">
@@ -455,9 +259,14 @@ export default function RobotsV2FleetPage() {
                 {!loading && !error && (
                     <div className="robots-v2-fleet-groups">
                         <CollapsibleSection
-                            className="portfolio-collapse settings-tokens-collapse robots-v2-fleet-collapse"
-                            title="Опросники портфеля"
-                            badge={<span className="portfolio-collapse__count">{portfolioRobots.length}</span>}
+                            className="robots-v2-fleet-collapse"
+                            title={(
+                                <span className="dashboard-collapse__label">
+                                    <FontAwesomeIcon icon={faClipboardList} className="dashboard-icon" />
+                                    Опросники портфеля
+                                </span>
+                            )}
+                            badge={<span className="robots-v2-fleet-collapse__count">{portfolioRobots.length}</span>}
                             headerEnd={(
                                 <button
                                     type="button"
@@ -475,16 +284,19 @@ export default function RobotsV2FleetPage() {
                                     {portfolioRobots.map(renderRobotCard)}
                                 </div>
                             ) : (
-                                <div className="robots-v2-group-empty">
-                                    <span>Нет опросников портфеля</span>
-                                </div>
+                                <p className="dashboard-empty">Нет опросников портфеля</p>
                             )}
                         </CollapsibleSection>
 
                         <CollapsibleSection
-                            className="portfolio-collapse settings-tokens-collapse robots-v2-fleet-collapse"
-                            title="Торговые роботы"
-                            badge={<span className="portfolio-collapse__count">{tradingRobots.length}</span>}
+                            className="robots-v2-fleet-collapse"
+                            title={(
+                                <span className="dashboard-collapse__label">
+                                    <FontAwesomeIcon icon={faRobot} className="dashboard-icon" />
+                                    Торговые роботы
+                                </span>
+                            )}
+                            badge={<span className="robots-v2-fleet-collapse__count">{tradingRobots.length}</span>}
                             headerEnd={(
                                 <button
                                     type="button"
@@ -502,14 +314,35 @@ export default function RobotsV2FleetPage() {
                                     {tradingRobots.map(renderRobotCard)}
                                 </div>
                             ) : (
-                                <div className="robots-v2-group-empty">
-                                    <span>Нет торговых роботов</span>
-                                </div>
+                                <p className="dashboard-empty">Нет торговых роботов</p>
                             )}
                         </CollapsibleSection>
                     </div>
                 )}
             </div>
+
+            <RobotConfirmModal
+                open={confirm?.kind === 'delete'}
+                onClose={() => setConfirm(null)}
+                onConfirm={() => void onConfirmAction()}
+                title="Удалить робота?"
+                message={
+                    confirm?.kind === 'delete'
+                        ? `Удалить робота «${confirm.robot.name}»? Это действие нельзя отменить.`
+                        : ''
+                }
+                confirmLabel="Удалить"
+                loading={busyId != null && confirm?.kind === 'delete'}
+            />
+            <RobotConfirmModal
+                open={confirm?.kind === 'hardStop'}
+                onClose={() => setConfirm(null)}
+                onConfirm={() => void onConfirmAction()}
+                title="Жёсткая остановка"
+                message={hardStopMessage}
+                confirmLabel="Остановить"
+                loading={busyId != null && confirm?.kind === 'hardStop'}
+            />
         </div>
     )
 }

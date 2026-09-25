@@ -1,0 +1,39 @@
+---
+description: CollapsibleSection toggle title order — icon then label
+globs: frontend/**/*.{tsx,jsx}
+alwaysApply: false
+---
+
+# Collapsible toggle: icon → title
+
+For `CollapsibleSection` (and the same pattern on `dashboard-panel-title` headers), the title content order is fixed:
+
+1. **Icon** (SVG with `className="dashboard-icon"`, or FA icon sized like it)
+2. **Title text**
+
+Wrap both in `dashboard-collapse__label` when using the dashboard/portfolio collapse look.
+
+```tsx
+// ✅ GOOD
+title={(
+  <span className="dashboard-collapse__label">
+    <IconWallet />
+    Счета
+  </span>
+)}
+
+// ❌ BAD — text without leading icon
+title="Счета"
+
+// ❌ BAD — text before icon
+title={(
+  <span className="dashboard-collapse__label">
+    Счета
+    <IconWallet />
+  </span>
+)}
+```
+
+- Chevron stays outside the label (handled by `CollapsibleSection`).
+- Badge/count stays in the `badge` prop, not inside the label before the icon.
+- Do not put the section title icon in `headerEnd` (that slot is for actions).

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faPlus } from '@fortawesome/free-solid-svg-icons'
+import { faPlus, faKey } from '@fortawesome/free-solid-svg-icons'
 import { Card } from '@/components/ui/Card'
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
 import { PageHero } from '@/components/ui/PageHero'
@@ -60,7 +60,12 @@ export default function SettingsPage() {
                 <CollapsibleSection
                     id="tokens"
                     className="portfolio-collapse settings-tokens-collapse"
-                    title="API токены "
+                    title={(
+                        <span className="dashboard-collapse__label">
+                            <FontAwesomeIcon icon={faKey} className="dashboard-icon" />
+                            API токены
+                        </span>
+                    )}
                     badge={
                         <span className="portfolio-collapse__count">{tokenCount}</span>
                     }

@@ -87,6 +87,111 @@ class Settings(BaseSettings):
     # Опционально: токен только для загрузки рыночных данных в общую БД (бэктест). Иначе используется токен пользователя.
     TINVEST_MARKET_DATA_TOKEN: Optional[str] = None
 
+    # ---- OsEngine market-data facade (ingest → DB cache, lease GC) ----
+    OSENGINE_ENABLED: bool = Field(
+        default=False,
+        description="Включить OsEngineFacade как источник market data (history/live ingest)",
+    )
+    OSENGINE_DATA_ROOT: Optional[str] = Field(
+        default=None,
+        description="Путь к папке Data OsEngine (после MCP download / ручной OsData)",
+    )
+    OSENGINE_CACHE_TTL_HOURS: float = Field(
+        default=24.0,
+        ge=0.25,
+        le=720.0,
+        description="TTL lease после завершения бэктеста перед GC незакрытых строк кэша",
+    )
+    OSENGINE_CACHE_TTL_FAIL_HOURS: float = Field(
+        default=2.0,
+        ge=0.1,
+        le=168.0,
+        description="TTL lease после fail/cancel бэктеста",
+    )
+    OSENGINE_MARKET_KEY: str = Field(
+        default="osengine",
+        description="Значение market/source в candles_cache и lease-таблицах",
+    )
+    OSENGINE_CANDLE_TZ: str = Field(
+        default="Europe/Moscow",
+        description="Таймзона времени в файлах OsEngine (обычно MSK); при импорте → UTC",
+    )
+    OSENGINE_INGEST_TOKEN: Optional[str] = Field(
+        default=None,
+        description="Shared secret for OsEngine live ingest (header X-OsEngine-Token)",
+    )
+    OSENGINE_CACHE_GC_INTERVAL_SECONDS: float = Field(
+        default=1800.0,
+        ge=60.0,
+        le=86400.0,
+        description="Опциональный safety-net интервал фонового GC (если OSENGINE_CACHE_GC_ENABLED)",
+    )
+    OSENGINE_CACHE_GC_ENABLED: bool = Field(
+        default=False,
+        description=(
+            "Фоновый interval-GC. По умолчанию выкл: GC дергается при старте OsEngine-бэктеста. "
+            "Включите только как safety-net без прогонов."
+        ),
+    )
+    OSENGINE_CACHE_GC_ON_BACKTEST_START: bool = Field(
+        default=True,
+        description="Перед ensure свечей OsEngine-бэктеста: expire leases + purge unreferenced cache",
+    )
+    OSENGINE_MCP_URL: Optional[str] = Field(
+        default=None,
+        description="OsEngine MCP JSON-RPC endpoint, e.g. http://localhost:6500/api/v1/mcp (use localhost, not 127.0.0.1 — HttpListener rejects Host:127.0.0.1)",
+    )
+    OSENGINE_MCP_API_KEY: Optional[str] = Field(
+        default=None,
+        description="X-Api-Key for OsEngine MCP (default in OsEngine: osengine-mcp-default-key)",
+    )
+    OSENGINE_MCP_SOURCE: str = Field(
+        default="TInvest",
+        description="OsData ServerType for gap downloads (TInvest, Finam, …)",
+    )
+    OSENGINE_MCP_SOURCE_NAME: str = Field(
+        default="TInvest",
+        description="OsData source_name — prefix of active server instance in OsEngine",
+    )
+    OSENGINE_MCP_SET_NAME: str = Field(
+        default="GinHistory",
+        description="Reusable OsData set name for GIN backtest gap fills (Set_ prefix added by OsEngine)",
+    )
+    OSENGINE_MCP_POLL_INTERVAL_SECONDS: float = Field(
+        default=2.0,
+        ge=0.5,
+        le=60.0,
+        description="Poll interval while waiting for OsData load",
+    )
+    OSENGINE_MCP_TIMEOUT_SECONDS: float = Field(
+        default=600.0,
+        ge=10.0,
+        le=7200.0,
+        description="Max wait for OsData gap download before importing whatever is on disk",
+    )
+    OSENGINE_AUTO_START: bool = Field(
+        default=True,
+        description="При старте API: поднять OsEngine.exe (если OSENGINE_ENABLED и exe найден)",
+    )
+    OSENGINE_EXE_PATH: Optional[str] = Field(
+        default=None,
+        description="Путь к OsEngine.exe; иначе выводится из OSENGINE_DATA_ROOT (родитель Data/)",
+    )
+    OSENGINE_WORKDIR: Optional[str] = Field(
+        default=None,
+        description="cwd для OsEngine (должен содержать QuikSharp.dll); по умолчанию папка exe",
+    )
+    OSENGINE_STARTUP_TIMEOUT_SECONDS: float = Field(
+        default=90.0,
+        ge=5.0,
+        le=600.0,
+        description="Сколько ждать готовности MCP после автозапуска OsEngine",
+    )
+    OSENGINE_STOP_ON_SHUTDOWN: bool = Field(
+        default=True,
+        description="Остановить только тот процесс OsEngine, который поднял GIN (чужой не трогаем)",
+    )
+
     # ---- Corporate actions (MOEX CCI + per-ticker dividends fallback) ----
     # Минимум часов между проходами fallback …/securities/{SECID}/dividends.json (CCI недоступен).
     CORP_ACTIONS_SECURITIES_DIVIDENDS_MIN_INTERVAL_HOURS: float = Field(
@@ -164,6 +269,43 @@ class Settings(BaseSettings):
     BACKTEST_LOG_DIR: Optional[str] = Field(
         default=None,
         description="Корень файловых логов history-backtest (по умолчанию <repo>/logs/backtest)"
+    )
+    # ---- GIN Compute (v2 backtest queue) — see docs/ARCH-05 ----
+    COMPUTE_MAX_USER_RUNNING: int = Field(
+        default=1,
+        ge=1,
+        le=16,
+        description="Макс. RUNNING v2 backtest-прогонов на user",
+    )
+    COMPUTE_MAX_USER_QUEUED: int = Field(
+        default=10,
+        ge=1,
+        le=200,
+        description="Макс. QUEUED v2 backtest-прогонов на user",
+    )
+    COMPUTE_MAX_SPAN_DAYS: int = Field(
+        default=366,
+        ge=1,
+        le=3660,
+        description="Макс. длина периода одного прогона (дней)",
+    )
+    COMPUTE_RUN_TIMEOUT_SEC: int = Field(
+        default=7200,
+        ge=60,
+        le=86400,
+        description="Soft timeout прогона (для будущих stale-sweeps)",
+    )
+    COMPUTE_JOB_PRIORITY_INTERACTIVE: int = Field(
+        default=10,
+        ge=0,
+        le=100,
+        description="background_jobs.priority для UI single-run (выше = раньше claim)",
+    )
+    COMPUTE_JOB_PRIORITY_BATCH: int = Field(
+        default=0,
+        ge=0,
+        le=100,
+        description="background_jobs.priority для optimization batch",
     )
     WORKER_DEFER_WHILE_REST_BUSY: bool = Field(
         default=True,

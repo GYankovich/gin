@@ -936,7 +936,7 @@
     /* History zone: stack toolbar controls on mobile */
     [data-page='portfolio'] .portfolio-history-zone.card > .portfolio-history-zone__toolbar,
     [data-page='portfolio'] .portfolio-history-zone.card > .portfolio-history-zone__panels {
-        padding-inline: var(--space-3);
+        padding-inline: var(--space-4);
     }
     [data-page='portfolio'] .portfolio-history-zone.card > .portfolio-history-zone__toolbar {
         padding-top: var(--space-3);
@@ -946,16 +946,33 @@
         align-items: stretch;
         gap: var(--space-2);
         padding-bottom: var(--space-2);
-        margin-bottom: var(--space-2);
+        margin-bottom: 0;
     }
     [data-page='portfolio'] .portfolio-history-zone__lead {
-        flex-direction: column;
-        align-items: stretch;
+        flex-direction: row;
+        align-items: center;
         gap: var(--space-2);
         width: 100%;
     }
     [data-page='portfolio'] .portfolio-history-zone__title {
+        width: auto;
+    }
+    [data-page='portfolio'] .portfolio-history-zone__controls {
+        flex-direction: column;
+        align-items: stretch;
+        margin-left: 0;
         width: 100%;
+        gap: var(--space-2);
+    }
+    [data-page='portfolio'] .portfolio-history-tabs.segmented-control {
+        width: 100%;
+    }
+    [data-page='portfolio'] .portfolio-history-tabs .segmented-control__item {
+        flex: 1 1 0;
+        min-width: 0;
+        padding-inline: 6px;
+        text-align: center;
+        font-size: var(--text-xs);
     }
     [data-page='portfolio'] .portfolio-history-period {
         justify-content: flex-start;
@@ -981,19 +998,9 @@
         font-size: var(--text-xs);
     }
     [data-page='portfolio'] .portfolio-history-sync-btn {
-        width: 36px;
-        height: 36px;
+        width: auto;
+        height: auto;
         flex-shrink: 0;
-    }
-    [data-page='portfolio'] .portfolio-history-tabs.segmented-control {
-        width: 100%;
-    }
-    [data-page='portfolio'] .portfolio-history-tabs .segmented-control__item {
-        flex: 1 1 0;
-        min-width: 0;
-        padding-inline: 6px;
-        text-align: center;
-        font-size: 10px;
     }
     [data-page='portfolio'] .portfolio-history-zone {
         min-width: 0;
@@ -1077,10 +1084,6 @@
         gap: var(--space-3);
     }
     [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-history-zone) {
-        padding: var(--space-3);
-    }
-    [data-page='portfolio'] .dashboard-assets-collapse .collapsible-section__toggle,
-    [data-page='portfolio'] .dashboard-accounts-collapse .collapsible-section__toggle {
         padding: var(--space-3);
     }
     [data-page='portfolio'] .portfolio-composition-collapse .mobile-data-row__primary {
@@ -1623,8 +1626,14 @@
     }
     [data-page='dashboard'] .dashboard-accounts-collapse .collapsible-section__toggle,
     [data-page='dashboard'] .dashboard-accounts-collapse .collapsible-section__body,
+    [data-page='portfolio'] .dashboard-accounts-collapse .collapsible-section__toggle,
+    [data-page='portfolio'] .dashboard-accounts-collapse .collapsible-section__body,
     [data-page='dashboard'] .dashboard-assets-collapse .collapsible-section__toggle,
-[data-page='dashboard'] .dashboard-assets-collapse .collapsible-section__body, [data-page='portfolio'] .dashboard-assets-collapse .collapsible-section__body {
+    [data-page='dashboard'] .dashboard-assets-collapse .collapsible-section__body,
+    [data-page='portfolio'] .dashboard-assets-collapse .collapsible-section__toggle,
+    [data-page='portfolio'] .dashboard-assets-collapse .collapsible-section__body,
+    .robots-v2-fleet-collapse .collapsible-section__toggle,
+    .robots-v2-fleet-collapse .collapsible-section__body {
         padding-left: var(--space-4);
         padding-right: var(--space-4);
     }

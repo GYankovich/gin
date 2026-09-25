@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-import { PageHero } from '@/components/ui/PageHero'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { FormLabelTooltip } from '@/components/ui/FormLabelTooltip'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
@@ -13,6 +12,9 @@ import { api } from '@/services/api'
 import { robotV2Service } from '@/services/robotV2Service'
 import { brokerFromTokenType, brokerLabelFromToken } from '@/modules/robots/config/tokenBroker'
 import { useToast } from '@/components/ui/Toast'
+import { RobotConfirmModal } from '@/pages/robots-v2/components/RobotConfirmModal'
+import { RobotPageChrome } from '@/pages/robots-v2/components/RobotPageChrome'
+import { fmtErr } from '@/pages/robots-v2/formatters'
 import {
     ARCHETYPE_CARDS,
     PORTFOLIO_DRAFT_STORAGE_KEY,
@@ -106,14 +108,6 @@ function mergeArchetypeCards(apiItems: StrategyArchetypeInfo[]): Array<{
     return ordered.length ? ordered : ARCHETYPE_CARDS
 }
 
-function fmtErr(e: unknown): string {
-    const err = e as { response?: { data?: { detail?: unknown } }; message?: string }
-    const d = err?.response?.data?.detail
-    if (typeof d === 'string') return d
-    if (Array.isArray(d)) return d.map((x: { msg?: string }) => x.msg ?? JSON.stringify(x)).join('; ')
-    return err?.message || 'Ошибка'
-}
-
 export default function RobotV2WizardPage() {
     const navigate = useNavigate()
     const { id: editIdParam } = useParams()
@@ -125,6 +119,7 @@ export default function RobotV2WizardPage() {
     const [kind, setKind] = useState<'trading' | 'portfolio'>(kindFromUrl)
     const [step, setStep] = useState(0)
     const [draft, setDraft] = useState<RobotV2WizardDraft>(defaultWizardDraft)
+    const [pendingLocalDraft, setPendingLocalDraft] = useState<RobotV2WizardDraft | null>(null)
     const [tokens, setTokens] = useState<ApiToken[]>([])
     const [saving, setSaving] = useState(false)
     const [editLoading, setEditLoading] = useState(Boolean(editId))
@@ -190,23 +185,19 @@ export default function RobotV2WizardPage() {
         }
         const local = loadDraftLocal(storageKey)
         if (local && !search.get('fresh')) {
-            const ok = window.confirm('Есть несохранённый черновик. Восстановить?')
-            if (ok) setDraft(local)
-            else {
-                clearDraftLocal(storageKey)
-                setDraft(defaultWizardDraft())
-            }
+            setPendingLocalDraft(local)
+            setDraft(defaultWizardDraft())
         } else {
             setDraft(defaultWizardDraft())
         }
     }, [editId, kindFromUrl]) // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
-        if (editId) return
+        if (editId || pendingLocalDraft) return
         const key = kind === 'portfolio' ? PORTFOLIO_DRAFT_STORAGE_KEY : undefined
         const t = window.setTimeout(() => saveDraftLocal(draft, key), 500)
         return () => window.clearTimeout(t)
-    }, [draft, editId, kind])
+    }, [draft, editId, kind, pendingLocalDraft])
 
     const selectedBroker = useMemo(() => {
         if (!draft.tokenId) return null
@@ -410,11 +401,12 @@ export default function RobotV2WizardPage() {
     if (editId && editLoading) {
         return (
             <div className="page" data-page="robots">
-                <PageHero
-                    className="dashboard-hero--node"
+                <RobotPageChrome
                     eyebrow="SETUP NODE"
                     title={`ПРАВКА #${editId}`}
                     subtitle="Загружаем конфигурацию робота…"
+                    robotId={editId}
+                    active="edit"
                 />
                 <div className="dashboard-layout">
                     <Card className="dashboard-totals-card robots-v2-wizard-card" aria-busy="true">
@@ -428,10 +420,11 @@ export default function RobotV2WizardPage() {
         )
     }
 
+    const storageKey = kind === 'portfolio' ? PORTFOLIO_DRAFT_STORAGE_KEY : undefined
+
     return (
         <div className="page" data-page="robots">
-            <PageHero
-                className="dashboard-hero--node"
+            <RobotPageChrome
                 eyebrow="SETUP NODE"
                 title={editId ? `ПРАВКА #${editId}` : kind === 'portfolio' ? 'НОВЫЙ ОПРОСНИК' : 'НОВЫЙ РОБОТ'}
                 subtitle={
@@ -439,17 +432,9 @@ export default function RobotV2WizardPage() {
                         ? 'Мастер · основное → синхронизация портфеля'
                         : 'Мастер · основное → стратегия → активы → риск'
                 }
-                actions={
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="dashboard-hero__cfg"
-                        onClick={() => navigate('/robots')}
-                    >
-                        Флот
-                    </Button>
-                }
+                robotId={editId}
+                active={editId ? 'edit' : 'wizard'}
+                fleetOnly={!editId}
             />
 
             <div className="dashboard-layout">
@@ -1149,6 +1134,24 @@ export default function RobotV2WizardPage() {
                     </aside>
                 </div>
             </div>
+
+            <RobotConfirmModal
+                open={pendingLocalDraft != null}
+                onClose={() => {
+                    clearDraftLocal(storageKey)
+                    setPendingLocalDraft(null)
+                    setDraft(defaultWizardDraft())
+                }}
+                onConfirm={() => {
+                    if (pendingLocalDraft) setDraft(pendingLocalDraft)
+                    setPendingLocalDraft(null)
+                }}
+                title="Восстановить черновик?"
+                message="Есть несохранённый черновик. Восстановить его и продолжить настройку?"
+                confirmLabel="Восстановить"
+                confirmVariant="primary"
+                cancelLabel="Начать заново"
+            />
         </div>
     )
 }

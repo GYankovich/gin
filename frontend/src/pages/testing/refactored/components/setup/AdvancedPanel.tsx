@@ -44,7 +44,12 @@ export function AdvancedPanel({
         <CollapsibleSection
             id="testing-setup-advanced"
             className="testing-setup-collapsible__section testing-setup-collapsible__section--advanced testing-advanced-panel"
-            title="Дополнительно"
+            title={(
+                <span className="dashboard-collapse__label">
+                    <IconAdvanced />
+                    Дополнительно
+                </span>
+            )}
             badge={<span className="badge badge--neutral testing-advanced-panel__badge">Опционально</span>}
             hint="Создание робота, кеш MOEX"
             defaultOpen={false}
@@ -66,5 +71,14 @@ export function AdvancedPanel({
                 )}
             </div>
         </CollapsibleSection>
+    )
+}
+
+function IconAdvanced() {
+    return (
+        <svg className="dashboard-icon" viewBox="0 0 24 24" aria-hidden>
+            <circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" strokeWidth="1.7" />
+            <path fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" d="M12 8.2v4.2l2.6 2.6" />
+        </svg>
     )
 }

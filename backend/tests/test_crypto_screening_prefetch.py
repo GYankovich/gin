@@ -21,6 +21,19 @@ def test_phase_label_crypto_prefetch():
     assert phase_label_ru("prefetching_crypto_market") == "Кэш ByBit (D1 + funding)"
 
 
+def test_phase_label_osengine_prefetch():
+    from app.modules.robots.backtest_progress import _normalize_progress_phase, compute_progress_percent
+
+    assert phase_label_ru("prefetching_osengine_candles") == "OsEngine: загрузка истории"
+    assert _normalize_progress_phase("prefetching_osengine_candles") == "prefetching_candles"
+    pct = compute_progress_percent(
+        "prefetching_osengine_candles",
+        phase_units_done=150,
+        phase_units_total=200,
+    )
+    assert 50 < pct < 70
+
+
 def test_schedule_crypto_screening_prefetch_enqueues_job():
     db = MagicMock()
     db.get_bind.return_value = MagicMock()

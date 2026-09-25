@@ -1,31 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faTowerBroadcast } from '@fortawesome/free-solid-svg-icons'
-import { LineSeries } from 'lightweight-charts'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
-import { Chart } from '@/components/ui/Chart'
-import { PageHero } from '@/components/ui/PageHero'
+import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { StatTile } from '@/components/ui/StatTile'
 import { useToast } from '@/components/ui/Toast'
+import { BacktestHistoryCard } from '@/pages/robots-v2/components/BacktestHistoryCard'
+import { BacktestResultsPanel } from '@/pages/robots-v2/components/BacktestResultsPanel'
+import { RobotPageChrome } from '@/pages/robots-v2/components/RobotPageChrome'
+import { RobotStageCard } from '@/pages/robots-v2/components/RobotStageCard'
+import { fmtErr, sessionStateLabel } from '@/pages/robots-v2/formatters'
+import { formatBacktestPhaseUnits } from '@/pages/testing/refactored/runner/formatRunStatus'
 import { robotV2Service } from '@/services/robotV2Service'
 import type { RobotV2 } from '@/types/robotV2'
 import type { RobotBacktestRunDetails, RobotHistoryBacktestResult } from '@/types/robot'
 import type { IChartApi, ISeriesApi, Time } from '@/components/ui/Chart'
-import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
-import { tradeReasonLabel } from '@/pages/robots-v2/tradeReasonLabels'
-
-function fmtErr(e: unknown): string {
-    const err = e as { response?: { data?: { detail?: unknown } }; message?: string }
-    const d = err?.response?.data?.detail
-    if (typeof d === 'string') return d
-    if (Array.isArray(d)) return d.map((x: { msg?: string }) => x.msg ?? JSON.stringify(x)).join('; ')
-    return err?.message || 'Ошибка'
-}
 
 function isoDateUtc(d: Date): string {
     return d.toISOString().slice(0, 10)
@@ -39,15 +30,6 @@ function daysAgoUtc(n: number): string {
 
 function todayUtc(): string {
     return isoDateUtc(new Date())
-}
-
-function fmtMoney(v: number): string {
-    return v.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
-}
-
-function fmtPct(v: number | null | undefined): string {
-    if (v == null || !Number.isFinite(v)) return '—'
-    return `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`
 }
 
 function archetypeOf(robot: RobotV2 | null): string {
@@ -98,7 +80,7 @@ const PRESETS: Array<{ id: string; label: string; days: number }> = [
 export default function RobotV2BacktestPage() {
     const { id } = useParams()
     const robotId = Number(id)
-    const navigate = useNavigate()
+    const [searchParams, setSearchParams] = useSearchParams()
     const toast = useToast()
 
     const [robot, setRobot] = useState<RobotV2 | null>(null)
@@ -135,6 +117,8 @@ export default function RobotV2BacktestPage() {
 
     const chartRef = useRef<IChartApi | null>(null)
     const seriesRef = useRef<ISeriesApi<'Line'> | null>(null)
+    const resultAnchorRef = useRef<HTMLDivElement | null>(null)
+    const openedFromQueryRef = useRef<number | null>(null)
 
     const loadRobot = useCallback(async () => {
         if (!Number.isFinite(robotId)) return
@@ -260,9 +244,12 @@ export default function RobotV2BacktestPage() {
             if (wrap.status === 202) {
                 const rid = wrap.data.run_id
                 setRunId(rid)
+                syncRunQuery(rid)
                 toast.show(`Прогон #${rid} запущен`, 'success')
             } else {
-                setRunId(wrap.data.run_id ?? null)
+                const rid = wrap.data.run_id ?? null
+                setRunId(rid)
+                syncRunQuery(rid)
                 setStatus(wrap.data)
                 setRunning(false)
             }
@@ -305,18 +292,60 @@ export default function RobotV2BacktestPage() {
         }
     }
 
-    const openHistoryRun = async (id: number) => {
-        try {
-            const details = await robotV2Service.getBacktestRunDetails(id)
-            setRunId(id)
-            setStatus(details)
-            const st = String(details.status || '').toUpperCase()
-            setRunning(st === 'RUNNING' || st === 'QUEUED')
-            setError(st === 'FAILED' ? (details.error_message || 'Ошибка прогона') : null)
-        } catch (e) {
-            toast.show(fmtErr(e), 'error')
+    const syncRunQuery = useCallback(
+        (id: number | null) => {
+            const next = new URLSearchParams(searchParams)
+            if (id != null && Number.isFinite(id) && id > 0) {
+                next.set('run', String(id))
+            } else {
+                next.delete('run')
+            }
+            setSearchParams(next, { replace: true })
+        },
+        [searchParams, setSearchParams],
+    )
+
+    const openHistoryRun = useCallback(
+        async (id: number, opts?: { scroll?: boolean }) => {
+            try {
+                const details = await robotV2Service.getBacktestRunDetails(id)
+                setRunId(id)
+                setStatus(details)
+                syncRunQuery(id)
+                const fromIso = String(details.requested_from || '').slice(0, 10)
+                const toIso = String(details.requested_to || '').slice(0, 10)
+                if (fromIso) setFromDate(fromIso)
+                if (toIso) setToDate(toIso)
+                const cap = Number(details.initial_capital)
+                if (Number.isFinite(cap) && cap > 0) setCapital(cap)
+                const st = String(details.status || '').toUpperCase()
+                setRunning(st === 'RUNNING' || st === 'QUEUED')
+                setError(st === 'FAILED' ? (details.error_message || 'Ошибка прогона') : null)
+                if (opts?.scroll !== false) {
+                    window.requestAnimationFrame(() => {
+                        resultAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    })
+                }
+            } catch (e) {
+                toast.show(fmtErr(e), 'error')
+            }
+        },
+        [syncRunQuery, toast],
+    )
+
+    useEffect(() => {
+        const raw = searchParams.get('run')
+        if (!raw) return
+        const qid = Number(raw)
+        if (!Number.isFinite(qid) || qid <= 0) return
+        if (openedFromQueryRef.current === qid) return
+        if (runId === qid && status) {
+            openedFromQueryRef.current = qid
+            return
         }
-    }
+        openedFromQueryRef.current = qid
+        void openHistoryRun(qid, { scroll: false })
+    }, [searchParams, openHistoryRun, runId, status])
 
     const ret = payload.total_return_percent ?? status?.total_return_percent ?? null
     const dd = payload.max_drawdown_percent ?? status?.max_drawdown_percent ?? null
@@ -326,52 +355,44 @@ export default function RobotV2BacktestPage() {
 
     return (
         <div className="page" data-page="robots">
-            <PageHero
-                className="dashboard-hero--node"
+            <RobotPageChrome
                 eyebrow="BACKTEST NODE"
                 title={robot ? `БЭКТЕСТ #${robotId}` : `БЭКТЕСТ #${robotId}`}
+                robotId={robotId}
+                active="backtest"
                 subtitle={
                     <p className="dashboard-hero__sub robots-v2-hero-sub">
                         Исторические свечи · {robot?.name || '…'} · {archetype || '—'}
                         {status ? (
                             <>
                                 {' '}
-                                <Badge variant={statusVariant(runStatus)}>{runStatus || '—'}</Badge>
+                                <Badge variant={statusVariant(runStatus)}>{sessionStateLabel(runStatus) || runStatus || '—'}</Badge>
                             </>
                         ) : null}
                     </p>
                 }
                 actions={
-                    <>
+                    isActive ? (
                         <Button
                             type="button"
-                            variant="ghost"
+                            variant="danger"
                             size="sm"
-                            className="dashboard-hero__cfg"
-                            onClick={() => navigate('/robots')}
+                            loading={cancelling}
+                            onClick={() => void onCancel()}
                         >
-                            Флот
+                            Отменить
                         </Button>
+                    ) : (
                         <Button
                             type="button"
-                            variant="ghost"
                             size="sm"
-                            className="dashboard-hero__cfg"
-                            onClick={() => navigate(`/robots/${robotId}/monitor`)}
+                            loading={running}
+                            disabled={scalperBlocked || !robot}
+                            onClick={() => void onRun()}
                         >
-                            <FontAwesomeIcon icon={faTowerBroadcast} />
-                            Лайв
+                            Запустить бэктест
                         </Button>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="dashboard-hero__cfg"
-                            onClick={() => navigate(`/robots/edit/${robotId}`)}
-                        >
-                            Правка
-                        </Button>
-                    </>
+                    )
                 }
             />
 
@@ -391,7 +412,10 @@ export default function RobotV2BacktestPage() {
                             <SegmentedControl
                                 className="portfolio-period-control"
                                 aria-label="Период бэктеста"
-                                options={PRESETS.map(p => ({ value: p.id, label: p.label }))}
+                                options={[
+                                    ...PRESETS.map(p => ({ value: p.id, label: p.label })),
+                                    { value: 'custom', label: 'Свой' },
+                                ]}
                                 value={PRESETS.find(p => spanDays === p.days)?.id ?? 'custom'}
                                 onChange={id => {
                                     const preset = PRESETS.find(p => p.id === id)
@@ -401,27 +425,16 @@ export default function RobotV2BacktestPage() {
                                 }}
                             />
                             <div className="robots-v2-inline robots-v2-backtest-dates">
-                                <label className="robots-v2-field">
-                                    <span>С</span>
-                                    <input
-                                        type="date"
-                                        className="robots-v2-input"
-                                        value={fromDate}
-                                        max={toDate}
-                                        onChange={e => setFromDate(e.target.value)}
-                                    />
-                                </label>
-                                <label className="robots-v2-field">
-                                    <span>По</span>
-                                    <input
-                                        type="date"
-                                        className="robots-v2-input"
-                                        value={toDate}
-                                        min={fromDate}
-                                        max={todayUtc()}
-                                        onChange={e => setToDate(e.target.value)}
-                                    />
-                                </label>
+                                <DateRangePicker
+                                    variant="fields"
+                                    fromValue={fromDate ? `${fromDate}T00:00` : ''}
+                                    toValue={toDate ? `${toDate}T00:00` : ''}
+                                    onFromChange={v => setFromDate(v ? v.slice(0, 10) : '')}
+                                    onToChange={v => setToDate(v ? v.slice(0, 10) : '')}
+                                    fromLabel="С"
+                                    toLabel="По"
+                                    showLabel={false}
+                                />
                                 <label className="robots-v2-field">
                                     <span>Капитал</span>
                                     <input
@@ -440,52 +453,28 @@ export default function RobotV2BacktestPage() {
                                 {spanDays > 180 ? ' Длинный период на мелком ТФ может занять несколько минут.' : ''}
                             </small>
                         </div>
-                        <div className="robots-v2-toolbar__actions">
-                            {isActive ? (
-                                <Button
-                                    type="button"
-                                    variant="danger"
-                                    size="sm"
-                                    loading={cancelling}
-                                    onClick={() => void onCancel()}
-                                >
-                                    Отменить
-                                </Button>
-                            ) : (
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    loading={running}
-                                    disabled={scalperBlocked || !robot}
-                                    onClick={() => void onRun()}
-                                >
-                                    Запустить бэктест
-                                </Button>
-                            )}
-                        </div>
                     </Card>
                 )}
 
+                <div ref={resultAnchorRef} />
+
                 {isActive && (
-                    <Card className="dashboard-totals-card robots-v2-stage-card">
-                        <div className="dashboard-totals-card__head robots-v2-stage-card__head">
-                            <h3 className="dashboard-panel-title">{phaseLabel || 'Прогон'}</h3>
-                            <span className="robots-v2-hint">{progress.toFixed(0)}%</span>
-                        </div>
-                        <div className="robots-v2-stage-progress" aria-label="Прогресс бэктеста">
-                            <div
-                                className="robots-v2-stage-progress__bar"
-                                style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
-                            />
-                        </div>
-                        <div className="robots-v2-stage-meta">
-                            {status?.phase_units_total ? (
+                    <RobotStageCard
+                        title={phaseLabel || 'Прогон'}
+                        progress={progress}
+                        ariaLabel="Прогресс бэктеста"
+                        meta={
+                            status?.phase_units_total ? (
                                 <span className="robots-v2-hint">
-                                    {status.phase_units_done ?? 0} / {status.phase_units_total}
+                                    {formatBacktestPhaseUnits(
+                                        status.run_phase,
+                                        status.phase_units_done ?? 0,
+                                        status.phase_units_total,
+                                    )}
                                 </span>
-                            ) : null}
-                        </div>
-                    </Card>
+                            ) : null
+                        }
+                    />
                 )}
 
                 {error && (
@@ -495,388 +484,35 @@ export default function RobotV2BacktestPage() {
                 )}
 
                 {runStatus === 'SUCCESS' && (
-                    <>
-                        <Card className="dashboard-totals-card">
-                            <div className="dashboard-totals-card__head">
-                                <h3 className="dashboard-panel-title">Результат</h3>
-                            </div>
-                            <div className="portfolio-stats-grid dashboard-summary-grid">
-                                <StatTile label="Капитал" value={fmtMoney(payload.initial_capital ?? capital)} />
-                                <StatTile
-                                    label="Equity"
-                                    value={fmtMoney(finalEq ?? 0)}
-                                    valueClassName={
-                                        (finalEq ?? 0) >= (payload.initial_capital ?? capital) ? 'color-up' : 'color-down'
-                                    }
-                                />
-                                <StatTile
-                                    label="Доходность"
-                                    value={fmtPct(ret)}
-                                    valueClassName={(ret ?? 0) >= 0 ? 'color-up' : 'color-down'}
-                                />
-                                <StatTile
-                                    label="Max DD"
-                                    value={dd == null ? '—' : `${dd.toFixed(2)}%`}
-                                    valueClassName="color-down"
-                                />
-                                <StatTile label="Сделки" value={trades.length} />
-                            </div>
-                            {payload.stages && payload.stages.length > 0 && (
-                                <p className="robots-v2-hint robots-v2-universe-caption">
-                                    {payload.stages.join(' · ')}
-                                </p>
-                            )}
-                        </Card>
-
-                        <Card className="dashboard-assets-card robots-v2-monitor-chart">
-                            <div className="dashboard-assets-card__head">
-                                <h3 className="dashboard-panel-title">График equity</h3>
-                            </div>
-                            {chartPoints.length === 0 ? (
-                                <p className="robots-v2-hint">Нет точек equity за выбранный период</p>
-                            ) : (
-                                <Chart
-                                    height={280}
-                                    onReady={chart => {
-                                        if (!chart) {
-                                            chartRef.current = null
-                                            seriesRef.current = null
-                                            return
-                                        }
-                                        chartRef.current = chart
-                                        const series = chart.addSeries(LineSeries, {
-                                            color: '#3dd68c',
-                                            lineWidth: 2,
-                                        })
-                                        seriesRef.current = series
-                                        if (chartPoints.length) series.setData(chartPoints)
-                                    }}
-                                />
-                            )}
-                        </Card>
-
-                        <Card className="dashboard-assets-card">
-                            <div className="dashboard-assets-card__head">
-                                <h3 className="dashboard-panel-title">Сделки</h3>
-                                <span className="robots-v2-hint">{trades.length}</span>
-                            </div>
-                            {trades.length === 0 ? (
-                                <p className="robots-v2-hint">Сделок не было — проверьте период, расписание и сигналы стратегии</p>
-                            ) : (
-                                <div className="robots-v2-scan-table-wrap">
-                                    <table className="robots-v2-table robots-v2-scan-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Время</th>
-                                                <th>Тикер</th>
-                                                <th>Сторона</th>
-                                                <th>Причина</th>
-                                                <th>Цена</th>
-                                                <th>Кол-во</th>
-                                                <th>Комиссия</th>
-                                                <th>PnL</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {trades.map(t => {
-                                                const pnl = t.pnl_net
-                                                const tone =
-                                                    pnl == null ? 'neutral' : pnl >= 0 ? 'up' : 'down'
-                                                return (
-                                                    <tr key={t.id}>
-                                                        <td className="mono">
-                                                            {t.bar_time ? t.bar_time.replace('T', ' ').slice(0, 19) : '—'}
-                                                        </td>
-                                                        <td>{t.figi}</td>
-                                                        <td>{t.side}</td>
-                                                        <td className="robots-v2-scan-reason">{tradeReasonLabel(t.reason || t.kind)}</td>
-                                                        <td className="mono">{fmtMoney(t.price)}</td>
-                                                        <td className="mono">{t.quantity}</td>
-                                                        <td className="mono">{fmtMoney(t.commission)}</td>
-                                                        <td className={`mono robots-v2-pnl--${tone}`}>
-                                                            {pnl == null ? '—' : fmtMoney(pnl)}
-                                                        </td>
-                                                    </tr>
-                                                )
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </Card>
-
-                        <CollapsibleSection
-                            title="Сигналы"
-                            badge={
-                                runSignals.length > 0 ? (
-                                    <span className="robots-v2-hint">{runSignals.length}</span>
-                                ) : undefined
-                            }
-                            className="dashboard-assets-card"
-                        >
-                            {runSignals.length === 0 ? (
-                                <p className="robots-v2-hint">Нет сигналов за период</p>
-                            ) : (
-                                <div className="robots-v2-scan-table-wrap">
-                                    <table className="robots-v2-table robots-v2-scan-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Время</th>
-                                                <th>Тикер</th>
-                                                <th>Сигнал</th>
-                                                <th>Цена</th>
-                                                <th>Исполнен</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {runSignals.map((s, i) => (
-                                                <tr key={String(s.id ?? i)}>
-                                                    <td className="mono">
-                                                        {s.signal_time
-                                                            ? new Date(String(s.signal_time)).toLocaleString('ru-RU')
-                                                            : s.created_at
-                                                                ? new Date(String(s.created_at)).toLocaleString('ru-RU')
-                                                                : '—'}
-                                                    </td>
-                                                    <td>{String(s.figi ?? s.ticker ?? '—')}</td>
-                                                    <td>{String(s.signal_type ?? s.kind ?? '—')}</td>
-                                                    <td className="mono">
-                                                        {s.price != null ? fmtMoney(Number(s.price)) : '—'}
-                                                    </td>
-                                                    <td>{s.was_executed ? 'Да' : 'Нет'}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </CollapsibleSection>
-
-                        <CollapsibleSection
-                            title="Ордера"
-                            badge={
-                                runOrders.length > 0 ? (
-                                    <span className="robots-v2-hint">{runOrders.length}</span>
-                                ) : undefined
-                            }
-                            className="dashboard-assets-card"
-                        >
-                            {runOrders.length === 0 ? (
-                                <p className="robots-v2-hint">Нет ордеров за период</p>
-                            ) : (
-                                <div className="robots-v2-scan-table-wrap">
-                                    <table className="robots-v2-table robots-v2-scan-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Время</th>
-                                                <th>Тикер</th>
-                                                <th>Сторона</th>
-                                                <th>Статус</th>
-                                                <th>Кол-во</th>
-                                                <th>Цена</th>
-                                                <th>PnL</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {runOrders.map((o, i) => (
-                                                <tr key={String(o.id ?? i)}>
-                                                    <td className="mono">
-                                                        {o.signal_time
-                                                            ? new Date(String(o.signal_time)).toLocaleString('ru-RU')
-                                                            : o.submitted_at
-                                                                ? new Date(String(o.submitted_at)).toLocaleString('ru-RU')
-                                                                : '—'}
-                                                    </td>
-                                                    <td>{String(o.figi ?? o.ticker ?? '—')}</td>
-                                                    <td>{String(o.side ?? '—').toUpperCase()}</td>
-                                                    <td>{String(o.status ?? '—')}</td>
-                                                    <td className="mono">{Number(o.quantity ?? 0).toFixed(2)}</td>
-                                                    <td className="mono">
-                                                        {o.executed_price != null
-                                                            ? fmtMoney(Number(o.executed_price))
-                                                            : o.price != null
-                                                                ? fmtMoney(Number(o.price))
-                                                                : '—'}
-                                                    </td>
-                                                    <td className="mono">
-                                                        {o.pnl_net != null ? fmtMoney(Number(o.pnl_net)) : '—'}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </CollapsibleSection>
-
-                        <CollapsibleSection
-                            title="Дневная сводка"
-                            badge={
-                                dailySummary.length > 0 ? (
-                                    <span className="robots-v2-hint">{dailySummary.length}</span>
-                                ) : undefined
-                            }
-                            className="dashboard-assets-card"
-                        >
-                            {dailySummary.length === 0 ? (
-                                <p className="robots-v2-hint">Нет дневной разбивки</p>
-                            ) : (
-                                <div className="robots-v2-scan-table-wrap">
-                                    <table className="robots-v2-table robots-v2-scan-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Дата</th>
-                                                <th>Сигналы</th>
-                                                <th>Исполнено</th>
-                                                <th>Сделки</th>
-                                                <th>Accept</th>
-                                                <th>Reject</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {dailySummary.map((row, i) => (
-                                                <tr key={String(row.date ?? i)}>
-                                                    <td className="mono">{String(row.date ?? '—')}</td>
-                                                    <td className="mono">{String(row.signals_total ?? '—')}</td>
-                                                    <td className="mono">{String(row.signals_executed ?? '—')}</td>
-                                                    <td className="mono">{String(row.trades_total ?? '—')}</td>
-                                                    <td className="mono">{String(row.candidates_accept ?? '—')}</td>
-                                                    <td className="mono">{String(row.candidates_reject ?? '—')}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </CollapsibleSection>
-                    </>
+                    <BacktestResultsPanel
+                        runId={runId}
+                        capital={capital}
+                        initialCapital={Number(payload.initial_capital ?? capital)}
+                        finalEquity={finalEq}
+                        totalReturnPercent={ret}
+                        maxDrawdownPercent={dd}
+                        stages={payload.stages}
+                        trades={trades as unknown as Array<Record<string, unknown>>}
+                        chartPoints={chartPoints}
+                        signals={runSignals as unknown as Array<Record<string, unknown>>}
+                        orders={runOrders as unknown as Array<Record<string, unknown>>}
+                        dailySummary={dailySummary as unknown as Array<Record<string, unknown>>}
+                        chartRef={chartRef}
+                        seriesRef={seriesRef}
+                    />
                 )}
 
-                <Card className="dashboard-assets-card">
-                    <div className="dashboard-assets-card__head">
-                        <h3 className="dashboard-panel-title">История прогонов</h3>
-                        <div className="robots-v2-chip-row">
-                            <Button type="button" size="sm" variant="ghost" onClick={() => void loadHistory()}>
-                                Refresh
-                            </Button>
-                            <Button
-                                type="button"
-                                size="sm"
-                                disabled={selectedIds.length !== 2}
-                                onClick={() => void onCompare()}
-                            >
-                                Сравнить
-                            </Button>
-                        </div>
-                    </div>
-                    {history.length === 0 ? (
-                        <p className="robots-v2-hint">Сохранённых прогонов пока нет</p>
-                    ) : (
-                        <div className="robots-v2-scan-table-wrap">
-                            <table className="robots-v2-table robots-v2-scan-table">
-                                <thead>
-                                    <tr>
-                                        <th />
-                                        <th>#</th>
-                                        <th>Статус</th>
-                                        <th>Период</th>
-                                        <th>Капитал</th>
-                                        <th>Доходность</th>
-                                        <th>Max DD</th>
-                                        <th>Сделки</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {history.map(row => {
-                                        const on = selectedIds.includes(row.run_id)
-                                        const retH = row.total_return_percent
-                                        return (
-                                            <tr key={row.run_id}>
-                                                <td>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={on}
-                                                        onChange={() => toggleSelect(row.run_id)}
-                                                    />
-                                                </td>
-                                                <td>
-                                                    <button
-                                                        type="button"
-                                                        className="robots-v2-chip"
-                                                        onClick={() => void openHistoryRun(row.run_id)}
-                                                    >
-                                                        {row.run_id}
-                                                    </button>
-                                                </td>
-                                                <td>
-                                                    <Badge variant={statusVariant(row.status)}>{row.status}</Badge>
-                                                </td>
-                                                <td className="mono">
-                                                    {String(row.requested_from).slice(0, 10)} → {String(row.requested_to).slice(0, 10)}
-                                                </td>
-                                                <td className="mono">{fmtMoney(row.initial_capital)}</td>
-                                                <td className={`mono ${(retH ?? 0) >= 0 ? 'robots-v2-pnl--up' : 'robots-v2-pnl--down'}`}>
-                                                    {fmtPct(retH)}
-                                                </td>
-                                                <td className="mono">
-                                                    {row.max_drawdown_percent == null ? '—' : `${row.max_drawdown_percent.toFixed(2)}%`}
-                                                </td>
-                                                <td className="mono">{row.trades_total}</td>
-                                            </tr>
-                                        )
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                    {compare && (
-                        <div className="robots-v2-form" style={{ marginTop: 'var(--space-3)' }}>
-                            <p className="robots-v2-hint">
-                                Сравнение #{compare.base_run_id} → #{compare.compare_run_id} (разница = compare − base)
-                            </p>
-                            <div className="portfolio-stats-grid dashboard-summary-grid">
-                                {Object.entries(compare.metrics_diff).map(([key, delta]) => (
-                                    <StatTile
-                                        key={key}
-                                        label={key.replace(/_/g, ' ')}
-                                        value={
-                                            delta == null
-                                                ? '—'
-                                                : key.includes('percent')
-                                                    ? fmtPct(delta)
-                                                    : fmtMoney(delta)
-                                        }
-                                        valueClassName={(delta ?? 0) >= 0 ? 'color-up' : 'color-down'}
-                                    />
-                                ))}
-                            </div>
-                            {Object.keys(compare.config_diff).length > 0 ? (
-                                <div className="robots-v2-scan-table-wrap" style={{ marginTop: 'var(--space-2)' }}>
-                                    <table className="robots-v2-table robots-v2-scan-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Параметр</th>
-                                                <th>#{compare.base_run_id}</th>
-                                                <th>#{compare.compare_run_id}</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {Object.entries(compare.config_diff).map(([path, pair]) => (
-                                                <tr key={path}>
-                                                    <td className="robots-v2-scan-reason">{path}</td>
-                                                    <td className="mono">{JSON.stringify(pair.base)}</td>
-                                                    <td className="mono">{JSON.stringify(pair.compare)}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ) : (
-                                <p className="robots-v2-hint">Конфиги совпадают — отличаются период/капитал или случайность исполнения</p>
-                            )}
-                        </div>
-                    )}
-                </Card>
+                <BacktestHistoryCard
+                    history={history}
+                    selectedIds={selectedIds}
+                    activeRunId={runId}
+                    compare={compare}
+                    onRefresh={() => void loadHistory()}
+                    onCompare={() => void onCompare()}
+                    onToggleSelect={toggleSelect}
+                    onOpenRun={id => void openHistoryRun(id)}
+                    statusVariant={statusVariant}
+                />
             </div>
         </div>
     )

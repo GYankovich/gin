@@ -35,10 +35,11 @@ PHASE_ORDER: Tuple[str, ...] = (
 
 PHASE_LABELS_RU: Dict[str, str] = {
     "fetching_market_data": "Подготовка",
-    "prefetching_market_snapshots": "Снимки MOEX",
+    "prefetching_market_snapshots": "OsEngine: снимки вселенной",
     "prefetching_crypto_market": "Кэш ByBit (D1 + funding)",
     "scoring": "Отбор бумаг",
     "prefetching_candles": "Кэш свечей MOEX",
+    "prefetching_osengine_candles": "OsEngine: загрузка истории",
     "loading_candles": "Загрузка свечей",
     "simulating": "Симуляция",
     "persisting": "Сохранение",
@@ -53,6 +54,7 @@ _PHASE_PRIOR_SEC: Dict[str, float] = {
     "prefetching_crypto_market": 120.0,
     "scoring": 5.0,
     "prefetching_candles": 10.0,
+    "prefetching_osengine_candles": 180.0,
     "loading_candles": 6.0,
     "simulating": 12.0,
     "persisting": 6.0,
@@ -105,10 +107,12 @@ def begin_backtest_phase(run_id: int, phase: str) -> None:
 
 
 def _normalize_progress_phase(phase: str) -> str:
-    """Map crypto prefetch to the same progress slot as MOEX market snapshots."""
+    """Map alternate prefetch labels onto shared progress weight slots."""
     p = str(phase or "").strip().lower()
     if p == "prefetching_crypto_market":
         return "prefetching_market_snapshots"
+    if p == "prefetching_osengine_candles":
+        return "prefetching_candles"
     return p
 
 
@@ -215,7 +219,13 @@ def compute_eta_seconds(
         conf = "medium" if units_done >= 3 else "low"
         return int(max(0.0, eta_phase + tail)), conf
 
-    prior = sum(_PHASE_PRIOR_SEC.get(p, 5.0) for p in PHASE_ORDER[_phase_index(phase) :])
+    prior = 0.0
+    for p in PHASE_ORDER[_phase_index(phase) :]:
+        # Prefer prior for the raw run_phase when it has a dedicated estimate (OsEngine).
+        if p == _normalize_progress_phase(phase) and str(run_phase or "").strip().lower() in _PHASE_PRIOR_SEC:
+            prior += float(_PHASE_PRIOR_SEC[str(run_phase or "").strip().lower()])
+        else:
+            prior += float(_PHASE_PRIOR_SEC.get(p, 5.0))
     if trade_dates_total:
         prior *= max(1.0, float(trade_dates_total) / 10.0)
     return int(max(30.0, prior)), "low"

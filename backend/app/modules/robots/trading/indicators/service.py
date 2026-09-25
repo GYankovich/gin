@@ -290,15 +290,17 @@ class IndicatorService:
             db_before = md_repo.count_candles_in_range(
                 db, schema, figi, interval, from_date, to_date
             )
-            stages = await md_service.ensure_candles_cover_window(
-                db=db,
-                figi=figi,
-                interval=interval,
-                from_dt=from_date,
-                to_dt=to_date,
-                token=broker.auth_token,
-                data_source="tinvest"
-            )
+            # TEMP: T-Invest history sync disabled — only read what is already in DB / OsEngine cache.
+            stages = []
+            # stages = await md_service.ensure_candles_cover_window(
+            #     db=db,
+            #     figi=figi,
+            #     interval=interval,
+            #     from_dt=from_date,
+            #     to_dt=to_date,
+            #     token=broker.auth_token,
+            #     data_source="tinvest"
+            # )
             db_after = md_repo.count_candles_in_range(
                 db, schema, figi, interval, from_date, to_date
             )

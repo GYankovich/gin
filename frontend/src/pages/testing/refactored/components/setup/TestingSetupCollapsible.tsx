@@ -16,12 +16,28 @@ export function TestingSetupCollapsible({ market, extended }: TestingSetupCollap
             <CollapsibleSection
                 id="testing-setup-extended"
                 className="testing-setup-collapsible__section testing-setup-collapsible__section--extended"
-                title="Расширенные параметры"
+                title={(
+                    <span className="dashboard-collapse__label">
+                        <IconExtended />
+                        Расширенные параметры
+                    </span>
+                )}
                 hint={market === 'moex' ? 'MOEX: пересбор universe' : 'Crypto: модель комиссий'}
                 defaultOpen={defaultOpen}
             >
                 {extended}
             </CollapsibleSection>
         </div>
+    )
+}
+
+function IconExtended() {
+    return (
+        <svg className="dashboard-icon" viewBox="0 0 24 24" aria-hidden>
+            <path fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" d="M5 4v16M12 4v16M19 4v16" />
+            <circle cx="5" cy="9" r="2.1" fill="var(--bg-card)" stroke="currentColor" strokeWidth="1.7" />
+            <circle cx="12" cy="15" r="2.1" fill="var(--bg-card)" stroke="currentColor" strokeWidth="1.7" />
+            <circle cx="19" cy="11" r="2.1" fill="var(--bg-card)" stroke="currentColor" strokeWidth="1.7" />
+        </svg>
     )
 }

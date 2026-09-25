@@ -180,7 +180,7 @@ def _parse_json(raw: Any) -> Any:
 def fetch_db_run(db: Session, run_id: int, *, user_id: int) -> dict[str, Any] | None:
     row = db.execute(
         text("""
-            SELECT id, robot_id, status, requested_from, requested_to, started_at, finished_at,
+            SELECT id, robot_id, user_id, status, requested_from, requested_to, started_at, finished_at,
                    initial_capital, progress_percent, run_phase, error_message, cancel_requested,
                    config_snapshot, metrics_summary
             FROM backtest_runs
@@ -192,6 +192,54 @@ def fetch_db_run(db: Session, run_id: int, *, user_id: int) -> dict[str, Any] | 
     if row is None:
         return None
     return _row_to_dict(row)
+
+
+def fetch_db_run_by_id(db: Session, run_id: int) -> dict[str, Any] | None:
+    """Worker-side load (no user filter)."""
+    row = db.execute(
+        text("""
+            SELECT id, robot_id, user_id, status, requested_from, requested_to, started_at, finished_at,
+                   initial_capital, progress_percent, run_phase, error_message, cancel_requested,
+                   config_snapshot, metrics_summary
+            FROM backtest_runs
+            WHERE id = :rid
+            LIMIT 1
+        """),
+        {"rid": run_id},
+    ).mappings().first()
+    if row is None:
+        return None
+    return _row_to_dict(row)
+
+
+def is_cancel_requested(db: Session, run_id: int) -> bool:
+    val = db.execute(
+        text("SELECT cancel_requested FROM backtest_runs WHERE id = :rid LIMIT 1"),
+        {"rid": run_id},
+    ).scalar()
+    return bool(val)
+
+
+def count_v2_runs_by_status(db: Session, *, user_id: int, statuses: tuple[str, ...]) -> int:
+    if not statuses:
+        return 0
+    placeholders = ", ".join(f":s{i}" for i in range(len(statuses)))
+    params: dict[str, Any] = {"uid": user_id}
+    for i, st in enumerate(statuses):
+        params[f"s{i}"] = st
+    n = db.execute(
+        text(f"""
+            SELECT COUNT(*) FROM backtest_runs
+            WHERE user_id = :uid
+              AND UPPER(status) IN ({placeholders})
+              AND (
+                config_snapshot->>'engine_version' = 'v2'
+                OR COALESCE(execution_model->>'engine_version','') = 'v2'
+              )
+        """),
+        params,
+    ).scalar()
+    return int(n or 0)
 
 
 def list_db_runs(
@@ -231,7 +279,7 @@ def _row_to_dict(row: Any) -> dict[str, Any]:
     summary = _parse_json(row.get("metrics_summary")) or {}
     config = _parse_json(row.get("config_snapshot")) or {}
     payload = summary if isinstance(summary, dict) else {}
-    return {
+    out = {
         "run_id": int(row["id"]),
         "robot_id": row.get("robot_id"),
         "status": row.get("status") or "UNKNOWN",
@@ -256,6 +304,9 @@ def _row_to_dict(row: Any) -> dict[str, Any]:
         "portfolio_snapshots": [],
         "daily_summary": payload.get("daily_summary") or [],
     }
+    if "user_id" in row and row.get("user_id") is not None:
+        out["user_id"] = int(row["user_id"])
+    return out
 
 
 def nested_config_diff(base: dict[str, Any], compare: dict[str, Any]) -> dict[str, Any]:

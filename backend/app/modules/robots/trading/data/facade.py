@@ -16,11 +16,13 @@ from app.modules.robots.trading.data.providers.db_cache import (
     query_candles_cache_rows,
     query_candles_cache_rows_bulk,
 )
-from app.modules.robots.trading.data.providers.moex_snapshots import ensure_daily_snapshot_history
+# TEMP: MOEX ISS snapshots disabled — see ensure_snapshot_day → osengine.snapshots
+# from app.modules.robots.trading.data.providers.moex_snapshots import ensure_daily_snapshot_history
 from app.modules.robots.trading.data.providers.moex_backtest import (
     DEFAULT_PREFETCH_BATCH_SIZE,
-    ensure_candles_moex_backtest,
-    gap_fill_ticker_moex,
+    # TEMP disabled MOEX history:
+    # ensure_candles_moex_backtest,
+    # gap_fill_ticker_moex,
 )
 from app.modules.robots.trading.data.stats import CandlePrefetchStats, GapFillResult
 from app.modules.robots.trading.intervals import ResolvedInterval
@@ -116,7 +118,10 @@ class BacktestMoexMarketDataFacade:
         is_cancelled: Optional[Callable[[], bool]] = None,
         progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> CandlePrefetchStats:
-        return await ensure_candles_moex_backtest(
+        # TEMP: история только OsEngine (MOEX ISS ensure отключён).
+        from app.modules.robots.trading.backtest.candle_prefetch import prefetch_candles_for_backtest
+
+        return await prefetch_candles_for_backtest(
             db,
             board=board,
             tickers=tickers,
@@ -128,7 +133,21 @@ class BacktestMoexMarketDataFacade:
             batch_size=batch_size,
             is_cancelled=is_cancelled,
             progress_callback=progress_callback,
+            source="osengine",
         )
+        # return await ensure_candles_moex_backtest(
+        #     db,
+        #     board=board,
+        #     tickers=tickers,
+        #     resolved=resolved,
+        #     from_date=from_date,
+        #     till_date=till_date,
+        #     user_id=user_id,
+        #     run_id=run_id,
+        #     batch_size=batch_size,
+        #     is_cancelled=is_cancelled,
+        #     progress_callback=progress_callback,
+        # )
 
     async def gap_fill_ticker(
         self,
@@ -142,16 +161,37 @@ class BacktestMoexMarketDataFacade:
         to_day: date,
         user_id: Optional[int] = None,
     ) -> GapFillResult:
-        return await gap_fill_ticker_moex(
-            db,
-            board=board,
-            ticker=ticker,
-            interval_code=interval_code,
-            interval_code_num=interval_code_num,
-            from_day=from_day,
-            to_day=to_day,
-            user_id=user_id,
-        )
+        # TEMP: gap-fill только через OsEngine (MOEX ISS отключён).
+        from app.modules.osengine import build_candle_ensure_request, get_osengine_facade
+
+        result = GapFillResult(attempted=True)
+        try:
+            facade = get_osengine_facade()
+            req = build_candle_ensure_request(
+                run_id=0,
+                tickers=[ticker],
+                interval=interval_code,
+                from_date=from_day,
+                till_date=to_day,
+                board=board or "TQBR",
+            )
+            stats = await facade.ensure_candles_for_backtest(db, req)
+            result.success = stats.errors == 0
+            result.row_count = int(stats.fetched_candles or 0)
+        except Exception as exc:
+            logger.warning("osengine gap_fill failed ticker=%s: %s", ticker, exc)
+            result.success = False
+        return result
+        # return await gap_fill_ticker_moex(
+        #     db,
+        #     board=board,
+        #     ticker=ticker,
+        #     interval_code=interval_code,
+        #     interval_code_num=interval_code_num,
+        #     from_day=from_day,
+        #     to_day=to_day,
+        #     user_id=user_id,
+        # )
 
     def read_candles_cache_rows(
         self,
@@ -208,13 +248,23 @@ class BacktestMoexMarketDataFacade:
         user_id: Optional[int] = None,
         run_id: Optional[int] = None,
     ) -> Optional[int]:
-        return await ensure_daily_snapshot_history(
+        # TEMP: снимки вселенной из OsEngine D1 (не MOEX ISS).
+        from app.modules.osengine.snapshots import ensure_daily_snapshot_from_osengine
+
+        return await ensure_daily_snapshot_from_osengine(
             db,
             day=day,
             board=board,
             user_id=user_id,
             run_id=run_id,
         )
+        # return await ensure_daily_snapshot_history(
+        #     db,
+        #     day=day,
+        #     board=board,
+        #     user_id=user_id,
+        #     run_id=run_id,
+        # )
 
 
 def get_market_data_facade() -> BacktestMoexMarketDataFacade:

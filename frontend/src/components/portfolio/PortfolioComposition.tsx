@@ -94,14 +94,14 @@ export function PortfolioComposition({
             key: 'quantity',
             header: 'Кол-во',
             sortable: true,
-            align: 'right',
+            align: 'center',
             render: (r) => Number(r.quantity ?? 0).toLocaleString('ru-RU'),
         },
         {
             key: 'avg_price',
             header: 'Средняя',
             sortable: true,
-            align: 'right',
+            align: 'center',
             render: (r) => (
                 <span className="portfolio-muted-num">{money(r.avg_price)}</span>
             ),
@@ -109,14 +109,14 @@ export function PortfolioComposition({
         {
             key: 'current_price',
             header: 'Текущая',
-            align: 'right',
+            align: 'center',
             render: (r) => money(r.current_price),
         },
         {
             key: 'expected_yield',
             header: 'P&L',
             sortable: true,
-            align: 'right',
+            align: 'center',
             render: (r) => {
                 const v = Number(r.expected_yield ?? 0)
                 return (
@@ -130,8 +130,10 @@ export function PortfolioComposition({
             key: 'total_value',
             header: 'Стоимость',
             sortable: true,
-            align: 'right',
-            render: (r) => money(r.total_value),
+            align: 'center',
+            render: (r) => (
+                <span className="portfolio-table__sum mono">{money(r.total_value)}</span>
+            ),
         },
     ], [currency])
 
@@ -149,6 +151,7 @@ export function PortfolioComposition({
             className={className}
             title={
                 <span className="dashboard-collapse__label">
+                    <IconComposition />
                     Состав портфеля
                 </span>
             }
@@ -222,5 +225,14 @@ export function PortfolioComposition({
                 />
             )}
         </CollapsibleSection>
+    )
+}
+
+function IconComposition() {
+    return (
+        <svg className="dashboard-icon" viewBox="0 0 24 24" aria-hidden>
+            <path fill="none" stroke="currentColor" strokeWidth="1.7" d="M12 3.6a8.4 8.4 0 1 1-8.4 8.4" />
+            <path fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" d="M12 3.6V12h8.4" />
+        </svg>
     )
 }

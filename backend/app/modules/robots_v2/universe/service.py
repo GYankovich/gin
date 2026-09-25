@@ -470,6 +470,7 @@ class UniverseService:
             db, ctx, universe, instrument_type, preset, custom, screener.filter_mode, excluded,
             on_progress=on_progress,
             as_of=as_of,
+            robot_id=robot_id,
         )
         if assets or custom or not preset or preset == "custom":
             return assets, rejected
@@ -480,6 +481,7 @@ class UniverseService:
                 db, ctx, universe, instrument_type, fallback_preset, None, screener.filter_mode, excluded,
                 on_progress=on_progress,
                 as_of=as_of,
+                robot_id=robot_id,
             )
             if fb_assets:
                 return fb_assets, rejected + fb_rejected
@@ -498,6 +500,7 @@ class UniverseService:
         *,
         on_progress: UniverseProgressFn | None = None,
         as_of: date | None = None,
+        robot_id: int | None = None,
     ) -> tuple[list[dict[str, Any]], list[RejectedInstrument]]:
         raw_filters = presets.resolve_moex_dms_filters(preset=preset, custom_filters=custom)  # type: ignore[arg-type]
         dms_filters, price_filters = _split_v4_price_filters(raw_filters)
@@ -505,18 +508,30 @@ class UniverseService:
         mode = "ANY" if filter_mode == "any" else "ALL"
         if as_of is not None:
             from app.modules.robots_v2.universe.board_as_of import (
+                ensure_osengine_d1_for_screener,
                 list_moex_board_tickers_as_of,
                 list_moex_symbols_from_cache,
             )
+            market_key = (settings.OSENGINE_MARKET_KEY or "osengine").strip() or "osengine"
+            lookback_days = 14
             if on_progress:
                 on_progress("screener_filters", 0, 0, board)
-            hist_tickers = await list_moex_board_tickers_as_of(board, as_of)
+            hist_tickers = await list_moex_board_tickers_as_of(board, as_of, db=db)
             if not hist_tickers:
-                hist_tickers = list_moex_symbols_from_cache(db, as_of=as_of, market="moex")
+                hist_tickers = list_moex_symbols_from_cache(db, as_of=as_of, market=market_key)
+            # Pull OsEngine D1 into candles_cache before point-in-time scoring.
+            hist_tickers = await ensure_osengine_d1_for_screener(
+                db,
+                hist_tickers,
+                as_of=as_of,
+                board=board,
+                lookback_days=lookback_days,
+                run_id=int(robot_id or 0),
+            )
             rows = [{"ticker": t, "last_price": 0.0, "value_today": 0.0, "volume24h": 0.0, "atr": 0.0} for t in hist_tickers]
             rejected: list[RejectedInstrument] = []
             rows, hist_rejected = _apply_point_in_time_screen(
-                db, rows, as_of=as_of, market="moex", lookback_days=14,
+                db, rows, as_of=as_of, market=market_key, lookback_days=lookback_days,
             )
             rejected.extend(hist_rejected)
             if price_filters or preset:

@@ -19,7 +19,11 @@ class RobotV2BacktestRequest(BaseModel):
     initial_capital: float | None = Field(default=None, ge=10)
     robot_id: int | None = Field(default=None, alias="robotId")
     token_id: int | None = Field(default=None, alias="tokenId")
-    async_execution: bool = Field(default=True, alias="asyncExecution")
+    async_execution: bool = Field(
+        default=True,
+        alias="asyncExecution",
+        description="Deprecated: v2 always enqueues to heavy lane (ARCH-05). Ignored.",
+    )
 
     @model_validator(mode="after")
     def _normalize_dates(self) -> RobotV2BacktestRequest:

@@ -78,7 +78,12 @@ class PaperLedger:
         return out
 
     def open_positions_list(self, prices: dict[str, float]) -> list[dict[str, Any]]:
-        return [p.to_dict(prices.get(t, p.avg_entry_price)) for t, p in self.positions.items()]
+        rows = [
+            p.to_dict(prices.get(t, p.avg_entry_price))
+            for t, p in self.positions.items()
+        ]
+        rows.sort(key=lambda r: str(r.get("ticker") or r.get("secid") or r.get("figi") or "").upper())
+        return rows
 
     def apply_fill(
         self,

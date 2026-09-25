@@ -792,14 +792,16 @@ export default function PortfolioPage() {
             key: 'total_value',
             header: 'Стоимость',
             sortable: true,
-            align: 'right',
-            render: r => money(r.total_value),
+            align: 'center',
+            render: r => (
+                <span className="portfolio-table__sum mono">{money(r.total_value)}</span>
+            ),
         },
         {
             key: 'daily_yield',
             header: 'Дневной доход',
             sortable: true,
-            align: 'right',
+            align: 'center',
             render: r => (
                 <span className={r.daily_yield >= 0 ? 'color-up' : 'color-down'}>
                     {moneySigned(r.daily_yield)}
@@ -829,19 +831,19 @@ export default function PortfolioPage() {
         {
             key: 'quantity',
             header: 'Кол-во',
-            align: 'right',
+            align: 'center',
             render: r => Number(r.quantity || 0).toLocaleString('ru-RU'),
         },
         {
             key: 'price',
             header: 'Цена',
-            align: 'right',
+            align: 'center',
             render: r => Number(r.price || 0).toLocaleString('ru-RU', { maximumFractionDigits: 4 }),
         },
         {
             key: 'payment',
             header: 'Сумма',
-            align: 'right',
+            align: 'center',
             render: r => {
                 const v = Number(r.payment || 0)
                 return (
@@ -1516,15 +1518,19 @@ export default function PortfolioPage() {
                 <Card className="dashboard-totals-card portfolio-history-zone">
                     <div className="portfolio-history-zone__toolbar">
                         <div className="portfolio-history-zone__lead">
-                            <h3 className="dashboard-panel-title portfolio-history-zone__title">
-                                <IconHistory />
-                                История
-                                <span className="portfolio-history-tab-panel__count mono">
+                            <h3 className="portfolio-history-zone__title">
+                                <span className="dashboard-collapse__label">
+                                    <IconHistory />
+                                    История
+                                </span>
+                                <span className="portfolio-history-zone__count">
                                     {historyTab === 'snapshots'
                                         ? historyCountText(snapshotsCount)
                                         : historyCountText(operationsCount)}
                                 </span>
                             </h3>
+                        </div>
+                        <div className="portfolio-history-zone__controls">
                             <SegmentedControl
                                 className="portfolio-history-tabs"
                                 aria-label="Раздел истории"
@@ -1532,30 +1538,30 @@ export default function PortfolioPage() {
                                 value={historyTab}
                                 onChange={(v) => setHistoryTab(v as HistoryTab)}
                             />
-                        </div>
-                        <div className="portfolio-history-period" aria-label="Период истории">
-                            <div className="portfolio-history-period__row">
-                                <DateRangePicker
-                                    variant="fields"
-                                    fromValue={historyFrom ? `${historyFrom}T00:00` : ''}
-                                    toValue={historyTo ? `${historyTo}T00:00` : ''}
-                                    onFromChange={(v) => setHistoryFrom(v ? v.slice(0, 10) : null)}
-                                    onToChange={(v) => setHistoryTo(v ? v.slice(0, 10) : null)}
-                                    showLabel={false}
-                                />
-                                {historyTab === 'operations' ? (
-                                    <Tooltip text="Синхронизировать операции">
-                                        <button
-                                            type="button"
-                                            className={`portfolio-history-sync-btn${opsSyncing ? ' portfolio-history-sync-btn--loading' : ''}`}
-                                            aria-label="Синхронизировать операции"
-                                            disabled={opsSyncing}
-                                            onClick={() => void handleSyncOperations()}
-                                        >
-                                            <IconSync />
-                                        </button>
-                                    </Tooltip>
-                                ) : null}
+                            <div className="portfolio-history-period" aria-label="Период истории">
+                                <div className="portfolio-history-period__row">
+                                    <DateRangePicker
+                                        variant="fields"
+                                        fromValue={historyFrom ? `${historyFrom}T00:00` : ''}
+                                        toValue={historyTo ? `${historyTo}T00:00` : ''}
+                                        onFromChange={(v) => setHistoryFrom(v ? v.slice(0, 10) : null)}
+                                        onToChange={(v) => setHistoryTo(v ? v.slice(0, 10) : null)}
+                                        showLabel={false}
+                                    />
+                                    {historyTab === 'operations' ? (
+                                        <Tooltip text="Синхронизировать операции">
+                                            <button
+                                                type="button"
+                                                className={`portfolio-history-sync-btn${opsSyncing ? ' portfolio-history-sync-btn--loading' : ''}`}
+                                                aria-label="Синхронизировать операции"
+                                                disabled={opsSyncing}
+                                                onClick={() => void handleSyncOperations()}
+                                            >
+                                                <IconSync />
+                                            </button>
+                                        </Tooltip>
+                                    ) : null}
+                                </div>
                             </div>
                         </div>
                     </div>

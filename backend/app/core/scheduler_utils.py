@@ -15,6 +15,7 @@ _SCHEDULER_START_OFFSETS: dict[str, float] = {
     "dms": 8.0,
     "candle_load": 12.0,
     "corporate_actions": 18.0,
+    "osengine_cache_gc": 22.0,
 }
 
 

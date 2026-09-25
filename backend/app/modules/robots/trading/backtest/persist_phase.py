@@ -309,6 +309,9 @@ def execute_backtest_persist_phase(
                 }, ensure_ascii=False),
             },
         )
+        from app.modules.osengine.lifecycle import release_osengine_leases_for_run
+
+        release_osengine_leases_for_run(db, run_id=run_id, success=True)
     else:
         cancel_phase = "cancelled_simulation" if bool(getattr(res, "cancelled", False)) else "cancelled"
         try:
@@ -335,6 +338,9 @@ def execute_backtest_persist_phase(
                     }, ensure_ascii=False),
                 },
             )
+            from app.modules.osengine.lifecycle import release_osengine_leases_for_run
+
+            release_osengine_leases_for_run(db, run_id=run_id, success=False)
         except Exception:
             db.rollback()
     if robot_pk is not None:

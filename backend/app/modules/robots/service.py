@@ -1248,13 +1248,21 @@ def _maybe_reconcile_stale_backtest_run(db: Session, run_id: int) -> Optional[st
                 f"дольше {_SCORING_STALE_MINUTES} мин (progress={progress:.1f}%) — "
                 "вероятно зависание MOEX/БД или перегрузка пула соединений"
             )
-    elif st in ("RUNNING", "FETCHING") and phase == "prefetching_candles":
+    elif st in ("RUNNING", "FETCHING") and phase in (
+        "prefetching_candles",
+        "prefetching_osengine_candles",
+    ):
         idle_sec = scoring_progress_idle_seconds(run_id)
         if idle_sec is not None and idle_sec >= _PREFETCH_CANDLES_STALE_MINUTES * 60:
+            label = (
+                "OsEngine: загрузка истории"
+                if phase == "prefetching_osengine_candles"
+                else "Кэш свечей MOEX"
+            )
             err_msg = (
-                f"prefetch-candles-timeout: фаза «Кэш свечей MOEX» без обновления прогресса "
+                f"prefetch-candles-timeout: фаза «{label}» без обновления прогресса "
                 f"дольше {_PREFETCH_CANDLES_STALE_MINUTES} мин (progress={progress:.1f}%) — "
-                "вероятно перегрузка MOEX или пул соединений"
+                "вероятно перегрузка источника данных или пул соединений"
             )
     elif st in ("RUNNING", "FETCHING") and phase == "prefetching_crypto_market":
         idle_sec = scoring_progress_idle_seconds(run_id)
@@ -1569,6 +1577,9 @@ def _mark_backtest_run_failed(
             }
         )
         fresh.commit()
+        from app.modules.osengine.lifecycle import release_osengine_leases_for_run
+
+        release_osengine_leases_for_run(fresh, run_id=run_id, success=False)
     except Exception:
         fresh.rollback()
         logger.warning(
@@ -1891,6 +1902,9 @@ def _mark_backtest_run_cancelled_in_db(
         db.commit()
     except Exception:
         db.rollback()
+    from app.modules.osengine.lifecycle import release_osengine_leases_for_run
+
+    release_osengine_leases_for_run(db, run_id=run_id, success=False)
 
 
 class RobotService:
@@ -4845,27 +4859,39 @@ class RobotService:
                 min_required_candles = int(p.get("min_required_candles") or 1)
                 moex_min_required = int(p.get("moex_min_required_candles") or 1)
 
+                from app.modules.robots.trading.data import get_market_data_facade
+                from app.modules.robots.trading.backtest.candle_prefetch import (
+                    prefetch_candles_for_backtest,
+                )
+
+                market_data = get_market_data_facade()
+                sg_cfg = config.get("signal_generation") if isinstance(config.get("signal_generation"), dict) else {}
+                prefetch_source = str(sg_cfg.get("data_source") or "").strip().lower() or None
+                candles_tickers_total = len(figis)
+                from app.modules.robots.trading.backtest.candle_prefetch import use_osengine_source
+
+                candles_phase = (
+                    "prefetching_osengine_candles"
+                    if use_osengine_source(prefetch_source)
+                    else "prefetching_candles"
+                )
                 try:
                     db.execute(
-                        text(
-                            f"UPDATE backtest_runs SET run_phase='prefetching_candles' WHERE id=:rid"
-                        ),
-                        {"rid": run_id}
+                        text("UPDATE backtest_runs SET run_phase=:phase WHERE id=:rid"),
+                        {"rid": run_id, "phase": candles_phase},
                     )
                     db.commit()
                 except Exception:
                     db.rollback()
 
-                from app.modules.robots.trading.data import get_market_data_facade
-
-                market_data = get_market_data_facade()
-                candles_tickers_total = len(figis)
+                # OsEngine: units = tickers*100 so MCP percent_load can move the bar within a ticker.
+                candles_units_scale = 100 if candles_phase == "prefetching_osengine_candles" else 1
                 self._flush_backtest_progress(
                     progress_bind,
                     run_id,
-                    "prefetching_candles",
+                    candles_phase,
                     phase_units_done=0,
-                    phase_units_total=max(1, candles_tickers_total),
+                    phase_units_total=max(1, candles_tickers_total) * candles_units_scale,
                     trade_dates_total=td_total,
                     trade_dates_remaining=0,
                     started_at=run_started_at
@@ -4951,7 +4977,7 @@ class RobotService:
                         if funding_stats.cancelled:
                             pipeline_user_cancelled = True
                 elif resolved_moex_iv is not None:
-                    prefetch_stats = await market_data.ensure_candles(
+                    prefetch_stats = await prefetch_candles_for_backtest(
                         db,
                         board=board,
                         tickers=figis,
@@ -4964,15 +4990,17 @@ class RobotService:
                         progress_callback=lambda done, total: self._flush_backtest_progress(
                             progress_bind,
                             run_id,
-                            "prefetching_candles",
+                            candles_phase,
                             phase_units_done=done,
                             phase_units_total=max(1, total),
                             trade_dates_total=td_total,
                             started_at=run_started_at
-                        )
+                        ),
+                        source=prefetch_source,
                     )
                     stage_logs.append(
-                        f"candles: MOEX prefetch interval={resolved_moex_iv.cache_label} "
+                        f"candles: prefetch source={prefetch_source or 'moex'} "
+                        f"interval={resolved_moex_iv.cache_label} "
                         f"{prefetch_stats.summary()}"
                     )
                     if prefetch_stats.cancelled:

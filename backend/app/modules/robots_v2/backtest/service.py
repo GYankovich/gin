@@ -1,15 +1,19 @@
-"""Backtest orchestration: candle load, universe resolve, async worker."""
+"""Backtest orchestration: candle load, universe resolve, queue worker."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 from datetime import datetime, time, timedelta, timezone
+from time import monotonic
 from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.background_jobs.repository import enqueue_background_job
+from app.core.background_jobs.worker import LANE_HEAVY
+from app.core.config import settings
 from app.core.database import get_db_context
 from app.modules.robots.trading.intervals import resolve_strategy_interval
 from app.modules.robots.trading.runtime.orchestrator import get_trading_orchestrator
@@ -18,10 +22,12 @@ from app.modules.robots_v2.backtest.persist import (
     compare_runs,
     create_db_run,
     fetch_db_run,
+    is_cancel_requested,
     list_db_runs,
     persist_result_payload,
     update_db_run,
 )
+from app.modules.robots_v2.backtest.quotas import assert_can_enqueue_backtest
 from app.modules.robots_v2.backtest.schemas import (
     RobotV2BacktestCompareResponse,
     RobotV2BacktestDetailsResponse,
@@ -30,6 +36,7 @@ from app.modules.robots_v2.backtest.schemas import (
     RobotV2BacktestStatusResponse,
 )
 from app.modules.robots_v2.backtest.store import BacktestRunRecord, backtest_run_store
+from app.modules.robots_v2.backtest.worker_handler import JOB_TYPE_BACKTEST_RUN
 from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
 from app.modules.robots_v2.universe.service import universe_service
 
@@ -87,8 +94,8 @@ def _record_to_status(rec: BacktestRunRecord) -> dict[str, Any]:
 class BacktestService:
     def __init__(self) -> None:
         self._host = BacktestHost()
-        self._tasks: dict[int, asyncio.Task] = {}
         self._cancel_flags: dict[int, bool] = {}
+        self._cancel_db_checked_at: dict[int, float] = {}
 
     async def start(
         self,
@@ -97,8 +104,9 @@ class BacktestService:
         request: RobotV2BacktestRequest,
         *,
         robot_config: dict[str, Any] | None = None,
+        priority: str = "interactive",
     ) -> tuple[BacktestRunRecord, bool]:
-        """Returns (record, async_enqueued)."""
+        """Enqueue a v2 backtest (always async). Returns (record, async_enqueued=True)."""
         raw_config = dict(request.config or robot_config or {})
         try:
             config = TradingRobotConfigV4.model_validate(raw_config)
@@ -110,6 +118,13 @@ class BacktestService:
                 status_code=422,
                 detail="Scalper requires tick/order-flow data and cannot run on bar-close backtest",
             )
+
+        assert_can_enqueue_backtest(
+            db,
+            user_id=user_id,
+            from_date=request.from_date,
+            to_date=request.to_date,
+        )
 
         capital = float(request.initial_capital or config.risk.capital)
         config.risk.capital = capital
@@ -124,51 +139,92 @@ class BacktestService:
             initial_capital=capital,
             config_snapshot=snap,
         )
+        if db_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Не удалось создать запись прогона в БД",
+            )
 
-        rec = await backtest_run_store.create(
+        job_priority = (
+            int(settings.COMPUTE_JOB_PRIORITY_BATCH)
+            if priority == "batch"
+            else int(settings.COMPUTE_JOB_PRIORITY_INTERACTIVE)
+        )
+        payload = {
+            "run_id": int(db_id),
+            "user_id": int(user_id),
+            "token_id": request.token_id,
+            "priority": priority,
+            "robot_id": request.robot_id,
+        }
+        job_id = enqueue_background_job(
+            db,
+            lane=LANE_HEAVY,
+            job_type=JOB_TYPE_BACKTEST_RUN,
+            payload=payload,
+            idempotency_key=f"backtest_run:{db_id}",
+            priority=job_priority,
+        )
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        if job_id is None:
+            logger.warning("backtest_run job already active for run_id=%s", db_id)
+
+        rec = BacktestRunRecord(
+            run_id=int(db_id),
             user_id=user_id,
             robot_id=request.robot_id,
+            status="QUEUED",
             requested_from=request.from_date,
             requested_to=request.to_date,
+            started_at=datetime.now(timezone.utc),
             initial_capital=capital,
             config_snapshot=snap,
         )
-        if db_id is not None:
-            rebound = await backtest_run_store.rebind_id(rec.run_id, db_id)
-            if rebound is not None:
-                rec = rebound
-
-        if request.async_execution:
-            task = asyncio.create_task(self._execute(user_id, rec.run_id, config, request))
-            self._tasks[rec.run_id] = task
-            return rec, True
-
-        await self._execute(user_id, rec.run_id, config, request)
-        updated = await backtest_run_store.get(rec.run_id, user_id=user_id)
-        return updated or rec, False
+        await backtest_run_store.upsert(rec)
+        return rec, True
 
     async def get_status(
         self, run_id: int, *, user_id: int, db: Session | None = None,
     ) -> RobotV2BacktestStatusResponse:
-        rec = await backtest_run_store.get(run_id, user_id=user_id)
-        if rec is not None:
-            return RobotV2BacktestStatusResponse.model_validate(_record_to_status(rec))
+        # DB is source of truth across API / compute processes.
         if db is not None:
             row = fetch_db_run(db, run_id, user_id=user_id)
             if row is not None:
+                mem = await backtest_run_store.get(run_id, user_id=user_id)
+                if mem is not None and str(mem.status).upper() == "RUNNING":
+                    row = {
+                        **row,
+                        "progress_percent": mem.progress_percent or row.get("progress_percent"),
+                        "run_phase": mem.run_phase or row.get("run_phase"),
+                        "phase_label": mem.phase_label or row.get("phase_label"),
+                        "phase_units_done": mem.phase_units_done,
+                        "phase_units_total": mem.phase_units_total,
+                        "status": mem.status or row.get("status"),
+                    }
                 return RobotV2BacktestStatusResponse.model_validate(row)
+        rec = await backtest_run_store.get(run_id, user_id=user_id)
+        if rec is not None:
+            return RobotV2BacktestStatusResponse.model_validate(_record_to_status(rec))
         raise HTTPException(status_code=404, detail="Backtest run not found")
 
     async def get_details(
         self, run_id: int, *, user_id: int, db: Session | None = None,
     ) -> RobotV2BacktestDetailsResponse:
-        rec = await backtest_run_store.get(run_id, user_id=user_id)
-        if rec is not None:
-            return RobotV2BacktestDetailsResponse.model_validate(_record_to_status(rec))
         if db is not None:
             row = fetch_db_run(db, run_id, user_id=user_id)
             if row is not None:
+                mem = await backtest_run_store.get(run_id, user_id=user_id)
+                if mem is not None and mem.result_payload:
+                    merged = {**row, **_record_to_status(mem)}
+                    return RobotV2BacktestDetailsResponse.model_validate(merged)
                 return RobotV2BacktestDetailsResponse.model_validate(row)
+        rec = await backtest_run_store.get(run_id, user_id=user_id)
+        if rec is not None:
+            return RobotV2BacktestDetailsResponse.model_validate(_record_to_status(rec))
         raise HTTPException(status_code=404, detail="Backtest run not found")
 
     async def list_runs(
@@ -184,26 +240,51 @@ class BacktestService:
         other = fetch_db_run(db, compare_run_id, user_id=user_id)
         mem_base = await backtest_run_store.get(base_run_id, user_id=user_id)
         mem_other = await backtest_run_store.get(compare_run_id, user_id=user_id)
-        if mem_base is not None:
+        if mem_base is not None and mem_base.result_payload:
             base = {**_record_to_status(mem_base), "config_snapshot": mem_base.config_snapshot}
-        if mem_other is not None:
+        if mem_other is not None and mem_other.result_payload:
             other = {**_record_to_status(mem_other), "config_snapshot": mem_other.config_snapshot}
         if base is None or other is None:
             raise HTTPException(status_code=404, detail="One or both backtest runs were not found")
         return RobotV2BacktestCompareResponse.model_validate(compare_runs(base, other))
 
     async def cancel(self, run_id: int, *, user_id: int, db: Session | None = None) -> BacktestRunRecord:
-        rec = await backtest_run_store.request_cancel(run_id, user_id=user_id)
         self._cancel_flags[run_id] = True
-        if rec is None:
-            if db is not None and fetch_db_run(db, run_id, user_id=user_id) is not None:
-                update_db_run(db, run_id, cancel_requested=True)
-                rec = await backtest_run_store.get(run_id, user_id=user_id)
-            if rec is None:
-                raise HTTPException(status_code=404, detail="Backtest run not found")
+        rec = await backtest_run_store.request_cancel(run_id, user_id=user_id)
         if db is not None:
+            row = fetch_db_run(db, run_id, user_id=user_id)
+            if row is None:
+                raise HTTPException(status_code=404, detail="Backtest run not found")
             update_db_run(db, run_id, cancel_requested=True)
+            if rec is None:
+                rec = BacktestRunRecord(
+                    run_id=run_id,
+                    user_id=user_id,
+                    robot_id=row.get("robot_id"),
+                    status=str(row.get("status") or "QUEUED"),
+                    requested_from=row["requested_from"],
+                    requested_to=row["requested_to"],
+                    started_at=row["started_at"],
+                    initial_capital=float(row.get("initial_capital") or 0),
+                    cancel_requested=True,
+                    run_phase="cancel_pending",
+                    phase_label="Cancel requested",
+                )
+                await backtest_run_store.upsert(rec)
+            return rec
+        if rec is None:
+            raise HTTPException(status_code=404, detail="Backtest run not found")
         return rec
+
+    async def execute_run(
+        self,
+        user_id: int,
+        run_id: int,
+        config: TradingRobotConfigV4,
+        request: RobotV2BacktestRequest,
+    ) -> None:
+        """Public entry for the heavy-lane worker."""
+        await self._execute(user_id, run_id, config, request)
 
     async def _execute(
         self,
@@ -239,6 +320,9 @@ class BacktestService:
             interval_raw = v4_timeframe_to_interval_raw(config.strategy.timeframe)
             resolved = resolve_strategy_interval(interval_raw)
             market = "bybit" if config.core.instrument_type in ("perpetual", "coin_futures") else "moex"
+            cache_market = market
+            if market == "moex":
+                cache_market = (settings.OSENGINE_MARKET_KEY or "osengine").strip() or "osengine"
 
             from_dt = request.from_date.astimezone(timezone.utc)
             to_dt = request.to_date.astimezone(timezone.utc)
@@ -256,11 +340,13 @@ class BacktestService:
             load_from_dt = datetime.combine(load_from_date, time.min, tzinfo=timezone.utc)
 
             if market == "moex":
-                from app.modules.robots.trading.data.providers.moex_backtest import ensure_candles_moex_backtest
+                from app.modules.robots.trading.backtest.candle_prefetch import (
+                    prefetch_candles_for_backtest,
+                )
                 from app.modules.robots_v2.universe.token_context import board_for_instrument_type
 
                 board = board_for_instrument_type(config.core.instrument_type)
-                await ensure_candles_moex_backtest(
+                await prefetch_candles_for_backtest(
                     db,
                     board=board,
                     tickers=universe,
@@ -270,9 +356,9 @@ class BacktestService:
                     user_id=user_id,
                     run_id=run_id,
                     is_cancelled=lambda: self._is_cancelled(run_id),
+                    source="osengine",
                 )
             else:
-                # Bybit: prefetch klines into candles_cache when token credentials available
                 if request.token_id:
                     from app.modules.robots_v2.universe.token_context import load_token_context
 
@@ -317,7 +403,7 @@ class BacktestService:
                 interval_code_num=resolved.code_num,
                 from_dt=load_from_dt,
                 to_dt_exclusive=to_dt_exclusive,
-                market=market,
+                market=cache_market,
             )
 
             candles_by_ticker = {
@@ -325,16 +411,16 @@ class BacktestService:
                 for t, series in raw_candles.items()
             }
 
-            from time import monotonic
-
             progress_state = {"done": 0, "total": 1}
             sim_done = False
+            last_db_progress = 0.0
 
             def on_progress(done: int, total: int) -> None:
                 progress_state["done"] = done
                 progress_state["total"] = total
 
             async def pump_progress() -> None:
+                nonlocal last_db_progress
                 last_touch = 0.0
                 while True:
                     done = int(progress_state["done"])
@@ -351,6 +437,16 @@ class BacktestService:
                             run_phase="simulating",
                             phase_label="Simulating",
                         )
+                        if now_m - last_db_progress >= 1.0 or sim_done:
+                            last_db_progress = now_m
+                            update_db_run(
+                                db,
+                                run_id,
+                                progress_percent=pct,
+                                phase_units_done=done,
+                                phase_units_total=total,
+                                run_phase="simulating",
+                            )
                     if sim_done:
                         return
                     await asyncio.sleep(0.25)
@@ -480,7 +576,21 @@ class BacktestService:
         return tickers[: u.max_assets]
 
     def _is_cancelled(self, run_id: int) -> bool:
-        return self._cancel_flags.get(run_id, False)
+        if self._cancel_flags.get(run_id, False):
+            return True
+        now = monotonic()
+        last = self._cancel_db_checked_at.get(run_id, 0.0)
+        if now - last < 0.5:
+            return False
+        self._cancel_db_checked_at[run_id] = now
+        try:
+            with get_db_context() as db:
+                if is_cancel_requested(db, run_id):
+                    self._cancel_flags[run_id] = True
+                    return True
+        except Exception:
+            logger.debug("cancel check failed run_id=%s", run_id, exc_info=True)
+        return False
 
 
 backtest_service = BacktestService()

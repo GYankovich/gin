@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 
 type Props = {
+    /** Icon first, then label text — see `.cursor/rules/collapsible-toggle-icon.mdc`. */
     title: React.ReactNode
     hint?: string
     badge?: React.ReactNode

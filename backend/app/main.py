@@ -28,6 +28,26 @@ async def _stop_background_task(name: str, stop_coro) -> None:
 
 
 async def _start_api_background() -> None:
+    if settings.OSENGINE_ENABLED and settings.OSENGINE_AUTO_START:
+        try:
+            from app.modules.osengine.process import start_osengine_process
+
+            # Non-blocking: spawn OsEngine and continue API startup; MCP readiness
+            # is polled in a background task (waiting here froze lifespan when MCP
+            # was off / slow).
+            started = await start_osengine_process(wait_for_mcp=False)
+            if started:
+                system_log.info(
+                    "OsEngine auto-start: процесс запущен (или MCP уже был доступен); "
+                    "ожидание MCP — в фоне"
+                )
+            else:
+                system_log.warning(
+                    "OsEngine auto-start не удался — проверьте OSENGINE_EXE_PATH / DATA_ROOT"
+                )
+        except Exception as e:
+            system_log.error("Ошибка автозапуска OsEngine: %s", e)
+
     if settings.WORKER_EMBEDDED_ENABLED:
         try:
             from app.core.background_jobs.worker import start_embedded_lane_workers
@@ -52,6 +72,7 @@ async def _start_api_background() -> None:
         ("candle_load", "app.modules.market_data_v1.scheduler", "start_candle_load_scheduler"),
         ("corporate_actions", "app.modules.corporate_actions.scheduler", "start_corporate_actions_scheduler"),
         ("moex_securities", "app.modules.robots.moex_securities_updater.scheduler", "start_moex_securities_scheduler"),
+        ("osengine_cache_gc", "app.modules.osengine.scheduler", "start_osengine_cache_gc_scheduler"),
     ]
     for name, module_path, fn_name in schedulers:
         try:
@@ -77,6 +98,7 @@ async def _stop_api_background() -> None:
     from app.modules.market_data_v1.scheduler import stop_candle_load_scheduler
     from app.modules.corporate_actions.scheduler import stop_corporate_actions_scheduler
     from app.modules.robots.moex_securities_updater.scheduler import stop_moex_securities_scheduler
+    from app.modules.osengine.scheduler import stop_osengine_cache_gc_scheduler
     from app.core.background_jobs.worker import stop_embedded_lane_workers
 
     await _stop_background_task("portfolio", stop_portfolio_v2_scheduler())
@@ -84,8 +106,16 @@ async def _stop_api_background() -> None:
     await _stop_background_task("candle_load", stop_candle_load_scheduler())
     await _stop_background_task("corporate_actions", stop_corporate_actions_scheduler())
     await _stop_background_task("moex_securities", stop_moex_securities_scheduler())
+    await _stop_background_task("osengine_cache_gc", stop_osengine_cache_gc_scheduler())
     if settings.WORKER_EMBEDDED_ENABLED:
         await _stop_background_task("lane_workers", stop_embedded_lane_workers())
+
+    try:
+        from app.modules.osengine.process import stop_osengine_process
+
+        await stop_osengine_process()
+    except Exception as e:
+        system_log.error("Ошибка остановки OsEngine: %s", e)
 
     try:
         from app.modules.tinvest.http_client import close_shared_http_client
@@ -144,6 +174,7 @@ def _register_api_routers(app: FastAPI) -> None:
     from app.modules.dms.router import router as dms_router
     from app.modules.market_data_v1.router import router as market_data_v1_router
     from app.modules.bybit.router import router as bybit_router
+    from app.modules.osengine.router import router as osengine_router
 
     app.include_router(auth_router, prefix="/api", tags=["auth"])
     app.include_router(users_router, prefix="/api", tags=["users"])
@@ -160,6 +191,7 @@ def _register_api_routers(app: FastAPI) -> None:
     app.include_router(dms_router, prefix="/api", tags=["dms"])
     app.include_router(market_data_v1_router, prefix="/api")
     app.include_router(bybit_router, prefix="/api")
+    app.include_router(osengine_router, prefix="/api")
 
 
 def create_api_app() -> FastAPI:

@@ -382,7 +382,7 @@ class TradingSessionV2:
             equity=equity,
             cash=cash,
             open_positions=positions,
-            universe=list(self.universe),
+            universe=self._effective_universe_tickers(),
             last_cycle_at=self.last_cycle_at,
             last_prices_at=self.last_prices_at,
             ws_healthy=self.ws_healthy,
@@ -401,8 +401,8 @@ class TradingSessionV2:
             universe_refreshed_at=self._universe_refreshed_at,
         )
 
-    def _price_subscription_tickers(self) -> list[str]:
-        """Universe + open ledger positions (screener may drop held names)."""
+    def _effective_universe_tickers(self) -> list[str]:
+        """Screener pool + held names (adopted / dropped from screener), sorted for stable UI."""
         out: list[str] = []
         seen: set[str] = set()
         for t in list(self.universe) + list((self.ledger.positions if self.ledger else {}) or {}):
@@ -410,7 +410,12 @@ class TradingSessionV2:
             if tu and tu not in seen:
                 seen.add(tu)
                 out.append(tu)
+        out.sort()
         return out
+
+    def _price_subscription_tickers(self) -> list[str]:
+        """Universe + open ledger positions (screener may drop held names)."""
+        return self._effective_universe_tickers()
 
     async def _ensure_instrument_map(self, tickers: list[str]) -> None:
         """Resolve missing FIGI/symbols so reconcile can adopt held names."""
@@ -575,13 +580,13 @@ class TradingSessionV2:
             await event_bus.publish(self.robot_id, "universe", {
                 "reason": reason,
                 "keptPrevious": True,
-                "universe": list(self.universe),
+                "universe": self._effective_universe_tickers(),
                 "added": [],
                 "removed": [],
             })
             return {
                 "robotId": self.robot_id,
-                "universe": list(self.universe),
+                "universe": self._effective_universe_tickers(),
                 "added": [],
                 "removed": [],
                 "reason": reason,
@@ -623,7 +628,7 @@ class TradingSessionV2:
         self._status_message = None
         self._mark_universe_resolved()
         self._set_ticker_scan(build_session_skip_scan(
-            self.universe, self.last_prices,
+            self._effective_universe_tickers(), self.last_prices,
             code="UNIVERSE_REFRESH",
             message=f"Пул обновлён ({reason})",
             candle_history=self.candle_history,
@@ -637,7 +642,7 @@ class TradingSessionV2:
             "robotId": self.robot_id,
             "reason": reason,
             "keptPrevious": False,
-            "universe": list(self.universe),
+            "universe": self._effective_universe_tickers(),
             "added": added,
             "removed": removed,
             "refreshedAt": (
@@ -1697,7 +1702,7 @@ class TradingSessionV2:
                     equity=eq,
                 )
                 self._set_ticker_scan(build_session_skip_scan(
-                    self.universe, self.last_prices,
+                    self._effective_universe_tickers(), self.last_prices,
                     code="NO_PRICES",
                     message="Нет цен — стратегия не оценивалась",
                     candle_history=self.candle_history,
@@ -1728,7 +1733,7 @@ class TradingSessionV2:
                     equity=eq,
                 )
                 self._set_ticker_scan(build_session_skip_scan(
-                    self.universe, self.last_prices,
+                    self._effective_universe_tickers(), self.last_prices,
                     code="NO_PRICES",
                     message="Нет цен по universe — стратегия не оценивалась",
                     candle_history=self.candle_history,
@@ -1789,7 +1794,7 @@ class TradingSessionV2:
                             equity=eq,
                         )
                         self._set_ticker_scan(build_session_skip_scan(
-                            self.universe, prices,
+                            self._effective_universe_tickers(), prices,
                             code="RECONCILE_FAILED",
                             message="Сверка с брокером не удалась — стратегия не оценивалась",
                             candle_history=self.candle_history,
@@ -1894,7 +1899,7 @@ class TradingSessionV2:
                     equity=eq,
                 )
                 skip_scan = build_session_skip_scan(
-                    self.universe, prices,
+                    self._effective_universe_tickers(), prices,
                     code="EOD_HOLD",
                     message="EOD hold — новые входы приостановлены",
                     candle_history=self.candle_history,
@@ -1940,7 +1945,7 @@ class TradingSessionV2:
                     "allow": False,
                 }]
                 skip_scan = build_session_skip_scan(
-                    self.universe, prices,
+                    self._effective_universe_tickers(), prices,
                     code="OUTSIDE_SESSION",
                     message="Вне торговой сессии — стратегия не оценивалась",
                     candle_history=self.candle_history,

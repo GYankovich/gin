@@ -15,6 +15,7 @@ from starlette.concurrency import run_in_threadpool
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+import logging
 
 from app.core.config import settings
 from app.modules.market_data import repository as repo
@@ -22,6 +23,8 @@ from app.modules.market_data.candle_format import api_candle_to_db_tuple, db_row
 from app.modules.moex.http_gate import moex_http_acquire
 from app.modules.tinvest.methods.instruments import InstrumentsClient
 from app.modules.tinvest.token_service import token_service
+
+logger = logging.getLogger(__name__)
 
 CHUNK_DAYS = 365
 MOEX_HTTP_RETRIES = 3
@@ -289,19 +292,27 @@ async def sync_candles_for_range(
         data_source: str = "tinvest"
 ) -> int:
     """Подкачивает свечи за интервал [from_dt, to_dt], upsert в БД. Возвращает число сохранённых строк."""
-    schema = settings.DB_SCHEMA
-    source = (data_source or "tinvest").strip().lower()
-    if source == "moex":
-        if not ticker:
-            ticker = repo.get_instrument_ticker(db, schema, figi)
-        rows = await _fetch_moex_range_chunks(figi, ticker, from_dt, to_dt, interval)
-    else:
-        client = InstrumentsClient(token)
-        rows = await _fetch_range_chunks(client, figi, interval, from_dt, to_dt)
-    await run_in_threadpool(repo.upsert_instrument, db, schema, figi, ticker, name, None)
-    await run_in_threadpool(repo.upsert_candles_batch, db, schema, rows)
-    await run_in_threadpool(db.commit)
-    return len(rows)
+    # TEMP: внешняя история (T-Invest / MOEX) отключена — используйте OsEngineFacade / MCP.
+    logger.warning(
+        "TEMP: sync_candles_for_range skipped (osengine-only history) figi=%s interval=%s source=%s",
+        figi,
+        interval,
+        data_source,
+    )
+    return 0
+    # schema = settings.DB_SCHEMA
+    # source = (data_source or "tinvest").strip().lower()
+    # if source == "moex":
+    #     if not ticker:
+    #         ticker = repo.get_instrument_ticker(db, schema, figi)
+    #     rows = await _fetch_moex_range_chunks(figi, ticker, from_dt, to_dt, interval)
+    # else:
+    #     client = InstrumentsClient(token)
+    #     rows = await _fetch_range_chunks(client, figi, interval, from_dt, to_dt)
+    # await run_in_threadpool(repo.upsert_instrument, db, schema, figi, ticker, name, None)
+    # await run_in_threadpool(repo.upsert_candles_batch, db, schema, rows)
+    # await run_in_threadpool(db.commit)
+    # return len(rows)
 
 
 async def ensure_candles_cover_window(
@@ -315,56 +326,13 @@ async def ensure_candles_cover_window(
         ticker: Optional[str] = None
 ) -> List[str]:
     """Дозагружает недостающие хвосты относительно уже имеющихся данных в БД."""
-    schema = settings.DB_SCHEMA
-    from_u = _utc(from_dt)
-    to_u = _utc(to_dt)
-    stages: List[str] = [
-        "Проверяем свечи в базе...",
-    ]
-    bounds = await run_in_threadpool(repo.fetch_coverage_bounds, db, schema, figi, interval)
-    source = (data_source or "tinvest").strip().lower()
-    client = InstrumentsClient(token) if source != "moex" else None
-    if source == "moex" and not ticker:
-        ticker = await run_in_threadpool(repo.get_instrument_ticker, db, schema, figi)
-    total_rows = 0
-    if bounds is None:
-        stages.append("Свечи не найдены - запрашиваем...")
-        rows = await (
-            _fetch_moex_range_chunks(figi, ticker, from_u, to_u, interval)
-            if source == "moex"
-            else _fetch_range_chunks(client, figi, interval, from_u, to_u)
-        )
-        await run_in_threadpool(repo.upsert_instrument, db, schema, figi, None, None, None)
-        await run_in_threadpool(repo.upsert_candles_batch, db, schema, rows)
-        total_rows += len(rows)
-    else:
-        mn, mx = bounds
-        mn = _utc(mn)
-        mx = _utc(mx)
-        if from_u < mn:
-            stages.append("Недостаточно данных в начале диапазона - дозагружаем...")
-            rows = await (
-                _fetch_moex_range_chunks(figi, ticker, from_u, mn, interval)
-                if source == "moex"
-                else _fetch_range_chunks(client, figi, interval, from_u, mn)
-            )
-            await run_in_threadpool(repo.upsert_candles_batch, db, schema, rows)
-            total_rows += len(rows)
-        if to_u > mx:
-            stages.append("Недостаточно данных в конце диапазона - дозагружаем...")
-            rows = await (
-                _fetch_moex_range_chunks(figi, ticker, mx, to_u, interval)
-                if source == "moex"
-                else _fetch_range_chunks(client, figi, interval, mx, to_u)
-            )
-            await run_in_threadpool(repo.upsert_candles_batch, db, schema, rows)
-            total_rows += len(rows)
-    await run_in_threadpool(db.commit)
-    if total_rows > 0:
-        stages.append(f"Свечи загружены: {total_rows}")
-    else:
-        stages.append("Свечи уже есть в базе.")
-    return stages
+    # TEMP: внешняя догрузка отключена — история только через OsEngine.
+    logger.warning(
+        "TEMP: ensure_candles_cover_window skipped (osengine-only history) figi=%s interval=%s",
+        figi,
+        interval,
+    )
+    return ["TEMP: osengine-only history — T-Invest/MOEX sync skipped"]
 
 
 async def sync_history_years(

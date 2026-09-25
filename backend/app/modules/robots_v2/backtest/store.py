@@ -107,5 +107,10 @@ class BacktestRunStore:
                 rec.phase_label = "Cancel requested"
             return rec
 
+    async def upsert(self, rec: BacktestRunRecord) -> BacktestRunRecord:
+        async with self._lock:
+            self._runs[rec.run_id] = rec
+            return rec
+
 
 backtest_run_store = BacktestRunStore()
