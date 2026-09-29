@@ -11,6 +11,7 @@ from app.core.background_jobs.handlers import execute_job_handler
 from app.core.background_jobs.repository import (
     claim_next_background_job,
     complete_background_job,
+    count_lane_jobs_by_status,
     fail_background_job,
     fail_orphaned_live_session_jobs,
     fail_stale_background_jobs,
@@ -279,6 +280,8 @@ class LaneWorkerPool:
         poll = float(settings.WORKER_POLL_INTERVAL_SECONDS)
         stale_sweep_every = 30.0
         loops_since_sweep = 0
+        depth_interval = float(getattr(settings, "WORKER_QUEUE_DEPTH_LOG_INTERVAL_SEC", 60.0) or 60.0)
+        last_depth_log_at = 0.0
 
         while self._running:
             try:
@@ -289,6 +292,25 @@ class LaneWorkerPool:
                 if loops_since_sweep >= int(stale_sweep_every / max(poll, 0.1)):
                     loops_since_sweep = 0
                     self._sweep_stale_jobs()
+
+                now_mono = asyncio.get_running_loop().time()
+                if now_mono - last_depth_log_at >= depth_interval:
+                    last_depth_log_at = now_mono
+                    db_depth = SessionLocal()
+                    try:
+                        depths = count_lane_jobs_by_status(db_depth, lane=self.lane)
+                        logger.info(
+                            "event=QUEUE_DEPTH lane=%s queued=%s running=%s",
+                            self.lane,
+                            depths.get("queued", 0),
+                            depths.get("running", 0),
+                        )
+                        db_depth.rollback()
+                    except Exception as exc:
+                        db_depth.rollback()
+                        logger.debug("lane=%s queue depth log failed: %s", self.lane, exc)
+                    finally:
+                        db_depth.close()
 
                 if await self._maybe_defer_for_rest():
                     continue

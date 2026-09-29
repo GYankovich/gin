@@ -131,7 +131,13 @@ class TradingSessionV2:
         self._last_reconcile_at: float = 0.0
         self._reconcile_ok = True
         self._reconcile_fail_streak = 0
-        self._reconcile_fail_halt_after = 3
+        try:
+            from app.core.config import settings as _settings
+            self._reconcile_fail_halt_after = max(
+                1, int(getattr(_settings, "ROBOTS_V2_RECONCILE_FAIL_HALT_AFTER", 3) or 3),
+            )
+        except Exception:
+            self._reconcile_fail_halt_after = 3
         self._bootstrap_ready = False
         self._mode = "paper"
         self._equity_curve: deque[dict[str, Any]] = deque(maxlen=EQUITY_CURVE_MAX_POINTS)
@@ -170,6 +176,13 @@ class TradingSessionV2:
         if streak >= halt_after and self.risk is not None:
             self.risk.halt("RECONCILE_FAILED")
             self._write_log(f"HALT session — {streak} consecutive reconcile failures")
+            logger.warning(
+                "event=RECONCILE_HALT robot_id=%s streak=%s halt_after=%s error=%s",
+                self.robot_id,
+                streak,
+                halt_after,
+                err[:200],
+            )
             return True
         return False
 

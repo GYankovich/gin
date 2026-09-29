@@ -78,6 +78,24 @@ class Settings(BaseSettings):
         default=False,
         description="Enable greenfield robots v2 API (/api/v2/robots/*)",
     )
+    ROBOTS_V2_RECONCILE_FAIL_HALT_AFTER: int = Field(
+        default=3,
+        ge=1,
+        le=50,
+        description="Live: halt session after N consecutive broker reconcile failures",
+    )
+    ROBOTS_V2_CANCEL_RESTING_RETRIES: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Live: attempts to cancel a resting LIMIT before keeping local tracking",
+    )
+    ROBOTS_V2_CANCEL_RESTING_RETRY_DELAY_SEC: float = Field(
+        default=0.5,
+        ge=0.05,
+        le=10.0,
+        description="Base delay (sec) between cancel_resting retries; doubles each attempt",
+    )
     ROBOTS_V2_AUTO_RESUME: bool = Field(
         default=True,
         description="After API restart, resume robots v2 sessions with sessionDesired=running",
@@ -236,6 +254,12 @@ class Settings(BaseSettings):
         description="Запускать lane workers внутри uvicorn (dev/single-process)"
     )
     WORKER_POLL_INTERVAL_SECONDS: float = Field(default=1.0, ge=0.2, le=30.0)
+    WORKER_QUEUE_DEPTH_LOG_INTERVAL_SEC: float = Field(
+        default=60.0,
+        ge=5.0,
+        le=3600.0,
+        description="How often lane workers log queued/running job counts (0-ish min 5s)",
+    )
     BACKGROUND_JOB_STALE_SECONDS: int = Field(default=7200, ge=60, le=86400)
     PORTFOLIO_SYNC_QUEUED_STALE_SECONDS: int = Field(
         default=600,

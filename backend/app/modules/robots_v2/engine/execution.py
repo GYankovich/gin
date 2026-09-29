@@ -861,7 +861,7 @@ class ExecutionService:
         """Cancel broker resting LIMIT (if live) and drop local tracking.
 
         Returns True when local tracking is cleared. On live broker cancel failure
-        keeps the resting map entry so we do not orphan an unmanaged LIMIT.
+        after retries, keeps the resting map entry so we do not orphan an unmanaged LIMIT.
         """
         t = ticker.upper()
         ro = self._resting.get(t)
@@ -872,16 +872,48 @@ class ExecutionService:
             self._resting_submitted_at.pop(t, None)
             self._log(f"CANCEL RESTING (local) {t}")
             return True
+
         try:
-            await self.broker.cancel_order(self.account_id, ro.broker_order_id)
-            self._resting.pop(t, None)
-            self._resting_submitted_at.pop(t, None)
-            self._log(f"CANCEL RESTING {t} orderId={ro.broker_order_id}")
-            return True
-        except Exception as exc:
-            logger.exception("cancel_resting failed robot=%s ticker=%s", self.robot_id, t)
-            self._log(f"CANCEL RESTING ERROR {t}: {exc} — keep local tracking")
-            return False
+            from app.core.config import settings as _settings
+            retries = max(1, int(getattr(_settings, "ROBOTS_V2_CANCEL_RESTING_RETRIES", 3) or 3))
+            delay = float(getattr(_settings, "ROBOTS_V2_CANCEL_RESTING_RETRY_DELAY_SEC", 0.5) or 0.5)
+        except Exception:
+            retries = 3
+            delay = 0.5
+        delay = max(0.05, delay)
+        order_id = ro.broker_order_id
+        last_exc: Exception | None = None
+        for attempt in range(1, retries + 1):
+            try:
+                await self.broker.cancel_order(self.account_id, order_id)
+                self._resting.pop(t, None)
+                self._resting_submitted_at.pop(t, None)
+                self._log(
+                    f"CANCEL RESTING {t} orderId={order_id}"
+                    + (f" attempt={attempt}" if attempt > 1 else "")
+                )
+                return True
+            except Exception as exc:
+                last_exc = exc
+                logger.warning(
+                    "cancel_resting attempt=%s/%s failed robot=%s ticker=%s: %s",
+                    attempt,
+                    retries,
+                    self.robot_id,
+                    t,
+                    exc,
+                )
+                self._log(f"CANCEL RESTING ERROR {t} attempt={attempt}/{retries}: {exc}")
+                if attempt < retries:
+                    await asyncio.sleep(delay * (2 ** (attempt - 1)))
+        logger.exception(
+            "cancel_resting exhausted robot=%s ticker=%s last=%s",
+            self.robot_id,
+            t,
+            last_exc,
+        )
+        self._log(f"CANCEL RESTING FAILED {t} — keep local tracking")
+        return False
 
     async def _fill_resting(
         self,

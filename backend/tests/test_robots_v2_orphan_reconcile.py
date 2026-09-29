@@ -89,19 +89,75 @@ def test_cancel_resting_keeps_tracking_on_broker_failure():
         kind="exit_sl_tp",
         broker_order_id="broker-1",
     )
+    attempts: list[int] = []
 
     class _Broker:
         broker_type = "tinvest"
 
         async def cancel_order(self, account_id, order_id):
+            attempts.append(1)
             raise RuntimeError("broker down")
 
     exec_svc.broker = _Broker()  # type: ignore[assignment]
 
-    ok = asyncio.run(exec_svc.cancel_resting("SBER"))
+    async def _run():
+        from unittest.mock import patch
+        with patch("app.core.config.settings") as mock_settings:
+            mock_settings.ROBOTS_V2_CANCEL_RESTING_RETRIES = 3
+            mock_settings.ROBOTS_V2_CANCEL_RESTING_RETRY_DELAY_SEC = 0.01
+            return await exec_svc.cancel_resting("SBER")
+
+    ok = asyncio.run(_run())
     assert ok is False
+    assert len(attempts) == 3
     assert "SBER" in exec_svc._resting
     assert exec_svc._resting["SBER"].broker_order_id == "broker-1"
+
+
+def test_cancel_resting_retries_then_succeeds():
+    ledger = PaperLedger(cash=100_000, commission_rate=0.0)
+    exec_svc = ExecutionService(
+        mode="live",
+        robot_id=1,
+        ledger=ledger,
+        account_id="acc-1",
+        instrument_map={"SBER": "BBG004730N88"},
+    )
+    exec_svc._resting["SBER"] = RestingOrder(
+        intent_id="oid",
+        ticker="SBER",
+        side="SELL",
+        quantity=10,
+        limit_price=300.0,
+        reduce_only=True,
+        reason="take_profit",
+        kind="exit_sl_tp",
+        broker_order_id="broker-1",
+    )
+    attempts: list[int] = []
+
+    class _Broker:
+        broker_type = "tinvest"
+
+        async def cancel_order(self, account_id, order_id):
+            attempts.append(1)
+            if len(attempts) < 2:
+                raise RuntimeError("transient")
+            return None
+
+    exec_svc.broker = _Broker()  # type: ignore[assignment]
+
+    async def _run():
+        from unittest.mock import patch
+        with patch("app.core.config.settings") as mock_settings:
+            mock_settings.ROBOTS_V2_CANCEL_RESTING_RETRIES = 3
+            mock_settings.ROBOTS_V2_CANCEL_RESTING_RETRY_DELAY_SEC = 0.01
+            return await exec_svc.cancel_resting("SBER")
+
+    ok = asyncio.run(_run())
+    assert ok is True
+    assert len(attempts) == 2
+    assert "SBER" not in exec_svc._resting
 
 
 def test_cancel_resting_clears_on_success():
@@ -209,3 +265,41 @@ def test_reconcile_fail_streak_halts_risk():
     assert session._note_reconcile_outcome(True) is False
     assert session._reconcile_fail_streak == 0
     assert state.halt_session is True  # halt sticky until restart
+
+
+def test_session_reads_reconcile_halt_after_from_settings():
+    from unittest.mock import patch
+    from app.modules.robots_v2.engine.session import TradingSessionV2
+
+    with patch("app.core.config.settings") as mock_settings:
+        mock_settings.ROBOTS_V2_RECONCILE_FAIL_HALT_AFTER = 5
+        session = TradingSessionV2(
+            robot_id=100,
+            user_id=1,
+            token_id=None,
+            config={"configVersion": 4},
+            virtual_capital=100_000,
+            stop_mode="soft",
+        )
+    assert session._reconcile_fail_halt_after == 5
+
+
+def test_count_lane_jobs_by_status_shape():
+    from app.core.background_jobs.repository import count_lane_jobs_by_status
+
+    class _Row(dict):
+        pass
+
+    class _Result:
+        def mappings(self):
+            return self
+
+        def all(self):
+            return [_Row(status="queued", n=4), _Row(status="running", n=1)]
+
+    class _Db:
+        def execute(self, *args, **kwargs):
+            return _Result()
+
+    out = count_lane_jobs_by_status(_Db(), lane="heavy")  # type: ignore[arg-type]
+    assert out == {"queued": 4, "running": 1}

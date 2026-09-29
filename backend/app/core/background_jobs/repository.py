@@ -332,3 +332,23 @@ def fail_orphaned_live_session_jobs(db: Session, *, lane: Optional[str] = None) 
         params
     )
     return int(row.rowcount or 0)
+
+
+def count_lane_jobs_by_status(db: Session, *, lane: str) -> Dict[str, int]:
+    """Queued/running counts for a lane — for worker depth logs."""
+    rows = db.execute(
+        text("""
+            SELECT status, COUNT(*)::int AS n
+            FROM background_jobs
+            WHERE lane = :lane
+              AND status IN ('queued', 'running')
+            GROUP BY status
+        """),
+        {"lane": lane},
+    ).mappings().all()
+    out = {"queued": 0, "running": 0}
+    for row in rows:
+        st = str(row["status"] or "")
+        if st in out:
+            out[st] = int(row["n"] or 0)
+    return out
