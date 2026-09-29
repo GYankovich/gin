@@ -161,7 +161,7 @@ async def run_v2_backtest(
             status_code=status.HTTP_202_ACCEPTED,
             content=RobotV2BacktestAsyncAccepted(
                 run_id=rec.run_id,
-                message=f"Poll GET /api/v2/robots/backtest/runs/{rec.run_id}/status",
+                message=f"Poll GET /api/compute/v1/runs/{rec.run_id}/status",
             ).model_dump(),
         )
     details = await backtest_service.get_details(rec.run_id, user_id=current_user.id, db=db)

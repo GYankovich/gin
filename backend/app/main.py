@@ -192,6 +192,8 @@ def _register_api_routers(app: FastAPI) -> None:
     app.include_router(market_data_v1_router, prefix="/api")
     app.include_router(bybit_router, prefix="/api")
     app.include_router(osengine_router, prefix="/api")
+    from app.modules.compute.router import router as compute_router
+    app.include_router(compute_router, prefix="/api", tags=["compute-v1"])
 
 
 def create_api_app() -> FastAPI:

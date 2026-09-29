@@ -362,7 +362,7 @@ sequenceDiagram
 
 ### 7.3 Не тащить в первый PR
 
-- HTTP `/api/compute/v1` (фаза C)
+- HTTP `/api/compute/v1` (фаза C) — **есть** (`app.modules.compute`)
 - Отдельный Docker image / repo split (достаточно отдельного entrypoint + deploy)
 - Вынос OsEngine в market-data service
 - Redis вместо `background_jobs` (PG queue достаточно на старте)
@@ -418,9 +418,10 @@ gin-compute: python -m app.workers.compute LANE_HEAVY_CONCURRENCY=1..N
 
 | Контракт / идея | Сейчас |
 |-----------------|--------|
-| Start V2 | `BacktestService.start` → enqueue `backtest_run` (`priority` interactive/batch) |
+| Start V2 | `BacktestService.start` → enqueue `backtest_run` (`priority` interactive/batch); also `POST /api/compute/v1/runs` |
 | Persist / list / compare | `robots_v2/backtest/persist.py` |
 | Schemas UI | `robots_v2/backtest/schemas.py` |
+| Control API (C) | `modules/compute/` → `/api/compute/v1` |
 | Heavy lane | `core/background_jobs/worker.py` `LANE_HEAVY` + `app.workers.compute` |
 | Optimization enqueue | `recommendations/optimization_runner.py` → `BacktestService.start(priority=batch)` |
 | Prefetch / candle IO | `robots_v2/backtest/candle_prefetch.py` + `candle_io.py` (legacy shim в `robots/.../candle_prefetch.py`) |
@@ -437,4 +438,5 @@ gin-compute: python -m app.workers.compute LANE_HEAVY_CONCURRENCY=1..N
 | 0.3 | 2026-09-28 | Фаза A.2: optimization → `BacktestService.start(priority=batch)` + v4 param grid |
 | 0.4 | 2026-09-28 | Legacy history-backtest cut: candle IO → `robots_v2/backtest/`; removed `run_robot_history_backtest` + engine/persist stack |
 | 0.5 | 2026-09-29 | Phase B soft: `OSENGINE_AUTO_START` default false; compute worker starts OsEngine via `OSENGINE_AUTO_START_ON_COMPUTE` |
+| 0.6 | 2026-09-29 | Phase C: public `/api/compute/v1` (runs, batches, queue metrics); smoke script `scripts/smoke_arch05_compute.py` |
 
