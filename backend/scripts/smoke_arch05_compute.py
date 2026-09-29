@@ -132,22 +132,31 @@ def main() -> int:
         print("[SKIP] robot config is not v4 — cannot enqueue compute run")
         return 0
 
+    token_id = robot.get("tokenId") or robot.get("token_id")
+    try:
+        token_id = int(token_id) if token_id is not None else None
+    except (TypeError, ValueError):
+        token_id = None
+
     to_dt = datetime.now(timezone.utc)
     from_dt = to_dt - timedelta(days=7)
+    body: dict[str, Any] = {
+        "config": config,
+        "from_date": from_dt.strftime("%Y-%m-%dT00:00:00Z"),
+        "to_date": to_dt.strftime("%Y-%m-%dT23:59:59Z"),
+        "initial_capital": float((config.get("risk") or {}).get("capital") or 100000),
+        "robot_id": robot_id,
+        "priority": "interactive",
+        "labels": {"source": "smoke_arch05"},
+    }
+    if token_id:
+        body["token_id"] = token_id
     code, accepted = _req(
         "POST",
         f"{base}/api/compute/v1/runs",
         token=token,
         headers={"Idempotency-Key": f"smoke-{robot_id}-{int(time.time())}"},
-        body={
-            "config": config,
-            "from_date": from_dt.strftime("%Y-%m-%dT00:00:00Z"),
-            "to_date": to_dt.strftime("%Y-%m-%dT23:59:59Z"),
-            "initial_capital": float((config.get("risk") or {}).get("capital") or 100000),
-            "robot_id": robot_id,
-            "priority": "interactive",
-            "labels": {"source": "smoke_arch05"},
-        },
+        body=body,
     )
     if code != 202:
         print(f"[FAIL] create run → {code} {accepted}")
