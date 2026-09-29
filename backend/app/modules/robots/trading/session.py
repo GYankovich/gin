@@ -27,14 +27,14 @@ from app.modules.robots.trading.account_positions_book import (
     apply_trade_to_account_positions as apply_trade_to_book,
     signed_qty as book_signed_qty,
 )
-from app.modules.robots.trading.broker_position_sync import (
+from app.modules.trading_core.broker_position_sync import (
     broker_positions_missing_in_db,
     configured_leverage,
     extract_account_position_meta,
     is_fatal_broker_error,
     is_synthetic_broker_order_id,
 )
-from app.modules.robots.trading.account_health import (
+from app.modules.trading_core.account_health import (
     DEFAULT_LIQ_DISTANCE_HALT,
     DEFAULT_MM_RATE_HALT,
     DEFAULT_REFRESH_FAIL_HALT,
@@ -42,7 +42,7 @@ from app.modules.robots.trading.account_health import (
     evaluate_margin_halt,
     evaluate_refresh_fail_halt,
 )
-from app.modules.robots.trading.brokers.margin import resolve_margin_params
+from app.modules.trading_core.brokers.margin import resolve_margin_params
 from app.modules.robots.trading import queries as trading_queries
 from app.modules.robots.trading.grain_seed_orchestrator import (
     evaluate_grain_seed_orchestration,
@@ -54,10 +54,10 @@ from app.modules.robots.trading.brokers import (
     filter_allowed_instruments,
     normalize_broker_type,
 )
-from app.modules.robots.trading.brokers.routing import enforce_broker_for_token
-from app.modules.robots.trading.brokers.global_websocket import global_websocket_manager
+from app.modules.trading_core.brokers.routing import enforce_broker_for_token
+from app.modules.trading_core.brokers.global_websocket import global_websocket_manager
 from app.modules.robots.trading.indicators.service import indicator_service
-from app.modules.robots.trading.costs import resolve_robot_cost_rates, resolve_backtest_execution, TradingCosts
+from app.modules.trading_core.costs import resolve_robot_cost_rates, resolve_backtest_execution, TradingCosts
 from app.modules.robots.trading.contracts import ExecutionMode
 from app.modules.robots.live_events import (
     insert_session_log,
@@ -533,7 +533,7 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
 
         health = dict(self._margin_health or {})
         if health.get("min_liq_distance_pct") is None and self.account_position_meta:
-            from app.modules.robots.trading.account_health import min_liq_distance_pct as _min_liq
+            from app.modules.trading_core.account_health import min_liq_distance_pct as _min_liq
 
             rows = [
                 {
@@ -2369,7 +2369,7 @@ class TradingSession(TradePersistenceMixin, PriceParsingMixin):
 
     async def _resolve_stage5_figis(self) -> List[str]:
         """Stage5 universe = accepted today ∪ open positions (not full config.allowed_*)."""
-        from app.modules.robots.trading.brokers.routing import (
+        from app.modules.trading_core.brokers.routing import (
             filter_allowed_instruments,
             normalize_broker_type,
         )

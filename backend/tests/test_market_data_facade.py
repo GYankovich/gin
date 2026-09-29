@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.modules.robots.trading.data import (
+from app.modules.trading_core.data import (
     BacktestMoexMarketDataFacade,
     CandlePrefetchStats,
     get_market_data_facade,
@@ -55,7 +55,7 @@ def test_ensure_candles_delegates_to_provider():
     facade = BacktestMoexMarketDataFacade()
 
     with patch(
-        "app.modules.robots.trading.data.facade.ensure_candles_moex_backtest",
+        "app.modules.trading_core.data.osengine_prefetch.prefetch_candles_for_backtest",
         new_callable=AsyncMock,
         return_value=expected,
     ) as mock_ensure:
@@ -83,7 +83,7 @@ def test_read_candles_cache_rows_delegates_market_key():
     to_dt = datetime(2024, 1, 2, tzinfo=timezone.utc)
 
     with patch(
-        "app.modules.robots.trading.data.facade.query_candles_cache_rows",
+        "app.modules.trading_core.data.facade.query_candles_cache_rows",
         return_value=expected,
     ) as mock_query:
         got = facade.read_candles_cache_rows(
@@ -119,7 +119,7 @@ def test_read_candles_cache_rows_bulk_delegates():
     to_dt = datetime(2024, 1, 2, tzinfo=timezone.utc)
 
     with patch(
-        "app.modules.robots.trading.data.facade.query_candles_cache_rows_bulk",
+        "app.modules.trading_core.data.facade.query_candles_cache_rows_bulk",
         return_value=expected,
     ) as mock_bulk:
         got = facade.read_candles_cache_rows_bulk(

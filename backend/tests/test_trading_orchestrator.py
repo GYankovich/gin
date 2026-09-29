@@ -11,7 +11,7 @@ from app.modules.robots.trading.runtime import (
     build_allowed_symbols_by_date,
     get_trading_orchestrator,
 )
-from app.modules.robots.trading.backtest.types import BacktestResult
+from app.modules.trading_core.sim.types import BacktestResult
 
 
 def _one_candle():
@@ -51,7 +51,7 @@ def test_prefetch_crypto_candles_for_replay(monkeypatch):
     from datetime import date
     from unittest.mock import MagicMock
 
-    from app.modules.robots.trading.data.stats import CandlePrefetchStats
+    from app.modules.trading_core.data.stats import CandlePrefetchStats
     from app.modules.robots.trading.intervals import resolve_strategy_interval
 
     class _FakeOrch(TradingOrchestrator):
@@ -99,23 +99,22 @@ def test_prefetch_crypto_candles_for_replay_load_cached_candles(monkeypatch):
     from datetime import date
     from unittest.mock import MagicMock
 
-    from app.modules.robots.trading.data.stats import CandlePrefetchStats
+    from app.modules.trading_core.data.stats import CandlePrefetchStats
     from app.modules.robots.trading.intervals import resolve_strategy_interval
+    from app.modules.robots.trading.runtime.orchestrator import TradingOrchestrator
 
-    class _FakeOrch(TradingOrchestrator):
-        def load_candles_by_symbol_from_cache(self, db, **kwargs):
-            return {
-                "BTCUSDT": [
-                    {
-                        "time": "2024-06-01T10:00:00+00:00",
-                        "open": {"units": 100, "nano": 0},
-                        "high": {"units": 110, "nano": 0},
-                        "low": {"units": 90, "nano": 0},
-                        "close": {"units": 105, "nano": 0},
-                        "volume": 10,
-                    }
-                ]
+    cached = {
+        "BTCUSDT": [
+            {
+                "time": "2024-06-01T10:00:00+00:00",
+                "open": {"units": 100, "nano": 0},
+                "high": {"units": 110, "nano": 0},
+                "low": {"units": 90, "nano": 0},
+                "close": {"units": 105, "nano": 0},
+                "volume": 10,
             }
+        ]
+    }
 
     async def _fake_ensure(*args, **kwargs):
         return CandlePrefetchStats(total_tickers=1, fetched_tickers=1, fetched_candles=2)
@@ -124,10 +123,14 @@ def test_prefetch_crypto_candles_for_replay_load_cached_candles(monkeypatch):
         "app.modules.robots.trading.data.providers.bybit_market.ensure_candles_bybit_market",
         _fake_ensure,
     )
+    monkeypatch.setattr(
+        "app.modules.robots_v2.backtest.candle_io.load_candles_by_symbol_from_cache",
+        lambda *a, **k: cached,
+    )
     resolved = resolve_strategy_interval("CANDLE_INTERVAL_5_MIN")
 
     async def _run():
-        stats, candles = await _FakeOrch().prefetch_crypto_candles_for_replay(
+        stats, candles = await TradingOrchestrator().prefetch_crypto_candles_for_replay(
             MagicMock(),
             symbols=["BTCUSDT"],
             resolved=resolved,

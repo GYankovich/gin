@@ -10,8 +10,8 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
-import app.modules.robots.trading.backtest.backtest_narrative_log as narrative
-from app.modules.robots.trading.data.stats import CandlePrefetchStats
+import app.modules.trading_core.logging.backtest_narrative_log as narrative
+from app.modules.trading_core.data.stats import CandlePrefetchStats
 
 
 def test_narrative_step_sub_result(monkeypatch):

@@ -192,7 +192,7 @@ def build_live_execution_service(
 
 def execution_service_for_session(session: Any) -> LiveExecutionService:
     """Фабрика из TradingSession / BacktestTradingSession."""
-    from app.modules.robots.trading.brokers.routing import normalize_broker_type
+    from app.modules.trading_core.brokers.routing import normalize_broker_type
 
     broker_type = normalize_broker_type(
         (getattr(session, "config", None) or {}).get("broker_type")

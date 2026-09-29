@@ -11,6 +11,7 @@ import { BacktestHistoryCard } from '@/pages/robots-v2/components/BacktestHistor
 import { BacktestResultsPanel } from '@/pages/robots-v2/components/BacktestResultsPanel'
 import { RobotPageChrome } from '@/pages/robots-v2/components/RobotPageChrome'
 import { RobotStageCard } from '@/pages/robots-v2/components/RobotStageCard'
+import { RobotV2OptimizationCard } from '@/pages/robots-v2/components/RobotV2OptimizationCard'
 import { fmtErr, sessionStateLabel } from '@/pages/robots-v2/formatters'
 import { formatBacktestPhaseUnits } from '@/pages/testing/refactored/runner/formatRunStatus'
 import { robotV2Service } from '@/services/robotV2Service'
@@ -119,6 +120,11 @@ export default function RobotV2BacktestPage() {
     const seriesRef = useRef<ISeriesApi<'Line'> | null>(null)
     const resultAnchorRef = useRef<HTMLDivElement | null>(null)
     const openedFromQueryRef = useRef<number | null>(null)
+    const pollFailStreakRef = useRef(0)
+
+    const [historyLoading, setHistoryLoading] = useState(false)
+    const [historyError, setHistoryError] = useState<string | null>(null)
+    const [openingRun, setOpeningRun] = useState(false)
 
     const loadRobot = useCallback(async () => {
         if (!Number.isFinite(robotId)) return
@@ -136,13 +142,19 @@ export default function RobotV2BacktestPage() {
 
     const loadHistory = useCallback(async () => {
         if (!Number.isFinite(robotId)) return
+        setHistoryLoading(true)
         try {
             const data = await robotV2Service.listBacktestRuns({ robotId, limit: 30 })
             setHistory(data.items || [])
-        } catch {
-            /* history is best-effort until migration */
+            setHistoryError(null)
+        } catch (e) {
+            const msg = fmtErr(e)
+            setHistoryError(msg)
+            toast.show(`История прогонов: ${msg}`, 'error')
+        } finally {
+            setHistoryLoading(false)
         }
-    }, [robotId])
+    }, [robotId, toast])
 
     useEffect(() => {
         void loadRobot()
@@ -189,13 +201,20 @@ export default function RobotV2BacktestPage() {
             const details = await robotV2Service.getBacktestRunDetails(idToPoll)
             setStatus(details)
             setRunning(false)
+            pollFailStreakRef.current = 0
             if (phase === 'FAILED') {
                 setError(details.error_message || 'Прогон завершился с ошибкой')
+                toast.show(details.error_message || 'Прогон завершился с ошибкой', 'error')
+            } else if (phase === 'CANCELLED') {
+                setError(null)
+                toast.show('Прогон отменён', 'info')
+            } else {
+                setError(null)
             }
             void loadHistory()
         }
         return st
-    }, [loadHistory])
+    }, [loadHistory, toast])
 
     useEffect(() => {
         if (!runId || !isActive) return
@@ -204,10 +223,17 @@ export default function RobotV2BacktestPage() {
             while (!stopped) {
                 try {
                     const st = await poll(runId)
+                    pollFailStreakRef.current = 0
                     const phase = String(st.status || '').toUpperCase()
                     if (phase === 'SUCCESS' || phase === 'FAILED' || phase === 'CANCELLED') return
-                } catch {
-                    /* keep polling — status GET may time out while the worker holds CPU */
+                } catch (e) {
+                    pollFailStreakRef.current += 1
+                    if (pollFailStreakRef.current === 5) {
+                        toast.show(
+                            `Не удаётся получить статус прогона: ${fmtErr(e)}. Повторяем опрос…`,
+                            'error',
+                        )
+                    }
                 }
                 await new Promise(r => window.setTimeout(r, 1500))
             }
@@ -216,7 +242,7 @@ export default function RobotV2BacktestPage() {
         return () => {
             stopped = true
         }
-    }, [runId, isActive, poll])
+    }, [runId, isActive, poll, toast])
 
     const onRun = async () => {
         if (!robot) return
@@ -265,7 +291,14 @@ export default function RobotV2BacktestPage() {
         setCancelling(true)
         try {
             await robotV2Service.cancelBacktestRun(runId)
-            toast.show('Отмена запрошена', 'info')
+            toast.show('Отмена запрошена…', 'info')
+            for (let i = 0; i < 45; i++) {
+                const st = await poll(runId)
+                const phase = String(st.status || '').toUpperCase()
+                if (phase === 'CANCELLED' || phase === 'FAILED' || phase === 'SUCCESS') return
+                await new Promise(r => window.setTimeout(r, 1000))
+            }
+            toast.show('Отмена отправлена — статус обновится при следующем опросе', 'info')
         } catch (e) {
             toast.show(fmtErr(e), 'error')
         } finally {
@@ -307,6 +340,7 @@ export default function RobotV2BacktestPage() {
 
     const openHistoryRun = useCallback(
         async (id: number, opts?: { scroll?: boolean }) => {
+            setOpeningRun(true)
             try {
                 const details = await robotV2Service.getBacktestRunDetails(id)
                 setRunId(id)
@@ -328,6 +362,8 @@ export default function RobotV2BacktestPage() {
                 }
             } catch (e) {
                 toast.show(fmtErr(e), 'error')
+            } finally {
+                setOpeningRun(false)
             }
         },
         [syncRunQuery, toast],
@@ -458,9 +494,9 @@ export default function RobotV2BacktestPage() {
 
                 <div ref={resultAnchorRef} />
 
-                {isActive && (
+                {(isActive || openingRun) && (
                     <RobotStageCard
-                        title={phaseLabel || 'Прогон'}
+                        title={openingRun ? 'Загрузка прогона…' : (phaseLabel || 'Прогон')}
                         progress={progress}
                         ariaLabel="Прогресс бэктеста"
                         meta={
@@ -477,9 +513,17 @@ export default function RobotV2BacktestPage() {
                     />
                 )}
 
-                {error && (
+                {runStatus === 'CANCELLED' && !isActive && (
+                    <Card className="dashboard-totals-card">
+                        <p className="dashboard-empty">Прогон отменён</p>
+                    </Card>
+                )}
+
+                {(error || (runStatus === 'FAILED' && !isActive)) && (
                     <Card className="dashboard-totals-card dashboard-error-card">
-                        <p className="dashboard-empty">{error}</p>
+                        <p className="dashboard-empty">
+                            {error || status?.error_message || 'Прогон завершился с ошибкой'}
+                        </p>
                     </Card>
                 )}
 
@@ -502,8 +546,21 @@ export default function RobotV2BacktestPage() {
                     />
                 )}
 
+                {!loading && robot && Number.isFinite(robotId) && (
+                    <RobotV2OptimizationCard
+                        robotId={robotId}
+                        fromDate={fromDate}
+                        toDate={toDate}
+                        initialCapital={capital}
+                        disabled={scalperBlocked || isActive}
+                        onOpenRun={id => void openHistoryRun(id)}
+                    />
+                )}
+
                 <BacktestHistoryCard
                     history={history}
+                    historyLoading={historyLoading}
+                    historyError={historyError}
                     selectedIds={selectedIds}
                     activeRunId={runId}
                     compare={compare}

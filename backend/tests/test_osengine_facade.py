@@ -224,10 +224,10 @@ def test_facade_skips_gc_when_flag_off(monkeypatch):
 def test_prefetch_routes_to_osengine(monkeypatch):
     from datetime import date as date_cls
 
-    from app.modules.robots.trading.backtest import candle_prefetch
     from app.modules.robots.trading.intervals import resolve_strategy_interval
     from app.modules.osengine.stats import EnsureCandlesStats
     import app.modules.osengine as ose_mod
+    import app.modules.robots_v2.backtest.candle_prefetch as candle_prefetch
 
     calls = {}
 

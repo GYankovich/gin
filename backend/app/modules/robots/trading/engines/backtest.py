@@ -1,25 +1,9 @@
 """
-BacktestEngine — тонкий оркестратор бэктеста на единых контрактах.
+BacktestEngine — ARCH-03 experimental orchestrator on shared contracts.
 
-См. docs/BRD-ARCH-03-unified-engine-architecture.md §9.
-
-Этот движок **не подменяет** существующий `trading/backtest/engine.py`
-(монолитная функция `run_backtest_simulation`). Он живёт параллельно как новая
-точка входа: новые стратегии (`momentum_breakout`, `reversion_to_ma`) и новые
-интеграции запускаются через `BacktestEngine.run()`, в то время как
-исторический grain_seed-конвейер ещё некоторое время использует старую
-функцию для обратной совместимости. На этапе `engine-parity` тестов оба пути
-будут давать совпадающие метрики.
-
-`BacktestEngine.run()`:
-- получает universe через `DataProvider.list_universe`;
-- применяет `PipelineRunner.run` к снапшоту утра;
-- по каждому принятому тикеру тянет интрадей-свечи через `DataProvider`;
-- вызывает `Strategy.generate_signals`;
-- проверяет `RiskManager.pre_trade_check` и обрабатывает выходы через
-  `RiskManager.evaluate_exits`;
-- проводит сделки через `SimExecution`;
-- логирует через `RuntimeRecorder`.
+Production bar-replay lives in ``robots_v2.backtest`` (BacktestHost + paper cycle).
+Sim/logging helpers live in ``trading_core.sim`` / ``trading_core.logging``.
+The legacy monolith ``trading/backtest/engine.py`` was removed.
 """
 #///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingEnginesBacktest [1]
 #/// Исходный модуль `backend/app/modules/robots/trading/engines/backtest.py` — автоматическая разметка для Obsidian Source Scanner.

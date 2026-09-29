@@ -1,3 +1,5 @@
+"""Grid generation and scoring for parameter optimization (v4 + legacy snapshots)."""
+
 from __future__ import annotations
 
 import copy
@@ -5,7 +7,12 @@ import itertools
 from dataclasses import dataclass
 from typing import Any, Dict, List, Literal, Optional
 
-from .optimization_config import COMMON_RISK_PARAMS, MAX_COMBINATIONS, STRATEGY_PARAM_RANGES
+from .optimization_config import (
+    COMMON_RISK_PARAMS,
+    LEGACY_STRATEGY_PARAM_RANGES,
+    MAX_COMBINATIONS,
+    STRATEGY_PARAM_RANGES,
+)
 
 OptimizationGoalType = Literal["balanced", "max_return", "min_drawdown", "max_sharpe"]
 OptimizationMode = Literal["speed", "full"]
@@ -50,6 +57,24 @@ def _nested_set(data: Dict[str, Any], dotted: str, value: Any) -> None:
     cur[parts[-1]] = value
 
 
+def resolve_strategy_key(config: Dict[str, Any], strategy: str | None = None) -> str:
+    """Prefer v4 strategy.archetype; fall back to legacy strategy string."""
+    if strategy and str(strategy).strip():
+        raw = str(strategy).strip().lower()
+        # Ignore mistaken pass of whole strategy dict stringified
+        if raw not in ("{", "none", "null"):
+            if not raw.startswith("{"):
+                return raw
+    strat = config.get("strategy")
+    if isinstance(strat, dict):
+        arch = strat.get("archetype") or strat.get("name")
+        if arch:
+            return str(arch).strip().lower()
+    if isinstance(strat, str) and strat.strip():
+        return strat.strip().lower()
+    return ""
+
+
 def calculate_score(
     metrics: BacktestScoreInput,
     goal: OptimizationGoalType = "balanced",
@@ -89,16 +114,21 @@ def check_overfitting_warnings(ranked: List[Dict[str, Any]]) -> List[str]:
     trades = int(best.get("trades_total") or 0)
     if trades < 20:
         warnings.append("Мало сделок у лучшего варианта (< 20) — результат нестабилен")
-    sharpe = _to_float(best.get("sharpe"))
+    sharpe = _to_float(best.get("sharpe_ratio") if "sharpe_ratio" in best else best.get("sharpe"))
     if sharpe is not None and sharpe > 2.5:
         warnings.append("Sharpe > 2.5 — подозрительно высокий результат")
     return warnings
 
 
-def optimizable_params(config: Dict[str, Any], strategy: str) -> List[Dict[str, Any]]:
-    strategy = str(strategy or "").lower()
-    defs = list(COMMON_RISK_PARAMS)
-    defs.extend(STRATEGY_PARAM_RANGES.get(strategy, []))
+def optimizable_params(config: Dict[str, Any], strategy: str = "") -> List[Dict[str, Any]]:
+    strategy = resolve_strategy_key(config, strategy)
+    if strategy in STRATEGY_PARAM_RANGES:
+        defs = list(COMMON_RISK_PARAMS)
+        defs.extend(STRATEGY_PARAM_RANGES[strategy])
+    elif strategy in LEGACY_STRATEGY_PARAM_RANGES:
+        defs = list(LEGACY_STRATEGY_PARAM_RANGES[strategy])
+    else:
+        defs = list(COMMON_RISK_PARAMS)
     out: List[Dict[str, Any]] = []
     for spec in defs:
         field = str(spec["field"])
@@ -108,13 +138,7 @@ def optimizable_params(config: Dict[str, Any], strategy: str) -> List[Dict[str, 
         cur_f = _to_float(current)
         if cur_f is None:
             continue
-        out.append(
-            {
-                **spec,
-                "field": field,
-                "current": cur_f,
-            }
-        )
+        out.append({**spec, "field": field, "current": cur_f})
     return out
 
 
@@ -154,11 +178,26 @@ def _sample_combinations(combos: List[Dict[str, float]], limit: int) -> List[Dic
     return sampled[:limit]
 
 
+def _is_valid_v4_config(cfg: Dict[str, Any]) -> bool:
+    if int(cfg.get("configVersion") or 0) != 4:
+        return True  # legacy — do not validate here
+    try:
+        from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
+
+        TradingRobotConfigV4.model_validate(cfg)
+        return True
+    except Exception:
+        return False
+
+
 def generate_grid_configs(
     base_config: Dict[str, Any],
-    strategy: str,
+    strategy: str = "",
     mode: OptimizationMode = "speed",
 ) -> List[Dict[str, Any]]:
+    strategy = resolve_strategy_key(base_config, strategy)
+    if strategy == "scalper":
+        return []
     params = optimizable_params(base_config, strategy)
     if not params:
         return []
@@ -175,12 +214,19 @@ def generate_grid_configs(
     for combo in combos:
         cfg = copy.deepcopy(base_config)
         for field, val in combo.items():
+            # Keep ints as ints when field looks like a period/count
+            if field.endswith(("Period", "Lookback", "Depth", "Candles", "Days")) or field.endswith(
+                ("_period", "_lookback", "_depth", "_candles", "_days")
+            ):
+                val = int(round(val))
             _nested_set(cfg, field, val)
+        if not _is_valid_v4_config(cfg):
+            continue
         out.append(cfg)
     return out
 
 
-def param_summary_from_config(config: Dict[str, Any], strategy: str) -> Dict[str, Any]:
+def param_summary_from_config(config: Dict[str, Any], strategy: str = "") -> Dict[str, Any]:
     summary: Dict[str, Any] = {}
     for spec in optimizable_params(config, strategy):
         summary[spec["field"]] = _nested_get(config, spec["field"])
@@ -203,7 +249,7 @@ def rank_backtest_rows(
         )
         score = calculate_score(metrics, goal)
         snap = row[4] if isinstance(row[4], dict) else {}
-        strategy = str((snap or {}).get("strategy") or "")
+        strategy = resolve_strategy_key(snap or {})
         ranked.append(
             {
                 "run_id": run_id,

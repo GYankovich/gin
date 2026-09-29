@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Set
 from datetime import datetime, timezone
 from sqlalchemy import text
 
-from app.modules.robots.trading.brokers.base import BrokerFacade
+from app.modules.trading_core.brokers.base import BrokerFacade
 from app.modules.robots.trading.contracts import OrderIntent
 from app.modules.robots.trading.risk.manager import RiskManager
 from app.modules.robots.trading.symbol_guard import SymbolGuard, normalize_figi

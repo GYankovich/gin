@@ -65,9 +65,10 @@ def create_db_run(
     return None
 
 
-def update_db_run(db: Session, run_id: int, **fields: Any) -> None:
+def update_db_run(db: Session, run_id: int, **fields: Any) -> bool:
+    """Update backtest_runs row. Returns False if the write failed (swallowed)."""
     if not fields:
-        return
+        return True
     allowed = {
         "status", "run_phase", "progress_percent", "phase_units_done", "phase_units_total",
         "finished_at", "error_message", "cancel_requested",
@@ -80,16 +81,33 @@ def update_db_run(db: Session, run_id: int, **fields: Any) -> None:
         sets.append(f"{key} = :{key}")
         params[key] = value
     if not sets:
-        return
+        return True
     try:
         db.execute(text(f"UPDATE backtest_runs SET {', '.join(sets)} WHERE id = :rid"), params)
         db.commit()
+        return True
     except Exception as exc:
         logger.warning("v2 backtest DB update failed run_id=%s: %s", run_id, exc)
         try:
             db.rollback()
         except Exception:
             pass
+        return False
+
+
+_CRITICAL_RUN_FIELDS = frozenset({"status", "cancel_requested", "finished_at", "error_message"})
+
+
+def update_db_run_required(db: Session, run_id: int, **fields: Any) -> None:
+    """Like update_db_run but raises when terminal/cancel fields fail to persist."""
+    ok = update_db_run(db, run_id, **fields)
+    if ok:
+        return
+    critical = _CRITICAL_RUN_FIELDS.intersection(fields)
+    if critical:
+        raise RuntimeError(
+            f"failed to persist backtest run {run_id} fields={sorted(critical)}"
+        )
 
 
 def persist_result_payload(db: Session, run_id: int, payload: dict[str, Any]) -> None:

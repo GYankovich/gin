@@ -29,7 +29,12 @@ def test_validate_robot_config_payload_returns_422_on_error():
         service.validate_robot_config_payload(
             robot_type=2,
             broker_type="bybit",
-            config={"strategy": "momentum_breakout"},
+            config={
+                "universe_mode": "fixed",
+                "allowed_symbols": [],
+                "instruments": [],
+                "strategy": "momentum_breakout",
+            },
         )
     assert exc.value.status_code == 422
     assert "Некорректный config" in str(exc.value.detail)

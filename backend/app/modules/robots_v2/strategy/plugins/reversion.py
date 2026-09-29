@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.modules.robots.trading.contracts import Signal
+from app.modules.trading_core.contracts import Signal
 from app.modules.robots_v2.config.v4_schema import ReversionParams
 from app.modules.robots_v2.strategy.base import StrategyPlugin
 from app.modules.robots_v2.strategy.helpers import has_open_position, make_entry_signal, make_exit_signal

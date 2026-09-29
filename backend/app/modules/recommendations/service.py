@@ -7,7 +7,8 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from app.modules.analytics.service import analytics_service
-from app.modules.robots.service import robot_service
+from app.modules.robots_v2.service import robots_v2_service
+from app.modules.robots_v2.strategy.registry import list_archetypes
 from app.modules.robots.trading.strategies import get_strategy_info, list_strategies
 
 from . import queries
@@ -18,6 +19,7 @@ from .optimization_engine import (
     rank_backtest_rows,
     check_overfitting_warnings,
     param_summary_from_config,
+    resolve_strategy_key,
 )
 from .optimization_failure_hints import build_failure_insights
 from .optimization_runner import (
@@ -46,6 +48,18 @@ from .schemas import (
     RobotRecommendationsResponse,
     StrategyTipsResponse,
 )
+
+
+def _v2_strategy_key(config: Dict[str, Any]) -> str:
+    return resolve_strategy_key(config) or "momentum"
+
+
+def _v2_strategy_title(strategy: str) -> Optional[str]:
+    for info in list_archetypes():
+        if str(info.archetype) == strategy:
+            return str(info.archetype).replace("_", " ").title()
+    legacy = get_strategy_info(strategy)
+    return (legacy or {}).get("title")
 
 
 def _safe_float(v: Any) -> Optional[float]:
@@ -148,14 +162,14 @@ class RecommendationsService:
         schema: str,
         backtest_limit: int = 15,
     ) -> Optional[RobotRecommendationsResponse]:
-        robot = await robot_service.get_robot_by_id(db, robot_id, user_id)
+        robot_resp = robots_v2_service.get_robot(db, user_id, robot_id)
+        robot = robot_resp.model_dump(by_alias=True) if hasattr(robot_resp, "model_dump") else dict(robot_resp)
         if int(robot.get("type") or 0) != 2:
             return None
 
         config = dict(robot.get("config") or {})
-        strategy = str(config.get("strategy") or "grain_seed")
-        strategy_info = get_strategy_info(strategy) or {}
-        strategy_title = strategy_info.get("title")
+        strategy = _v2_strategy_key(config)
+        strategy_title = _v2_strategy_title(strategy)
 
         successful_rows = queries.fetch_successful_backtests(
             db, schema, robot_id, limit=backtest_limit
@@ -183,7 +197,13 @@ class RecommendationsService:
         live_metrics = (live_metrics_raw or {}).get("metrics")
 
         try:
-            live_snapshot = await robot_service.get_live_snapshot(db, robot_id, user_id)
+            live_status = await robots_v2_service.get_status(db, user_id, robot_id)
+            live_snapshot = {
+                "stream_health": (live_status or {}).get("health") or (live_status or {}).get("stream_health") or {},
+                "active_positions": (live_status or {}).get("positions")
+                or (live_status or {}).get("active_positions")
+                or [],
+            }
         except Exception:
             live_snapshot = {"stream_health": {}, "active_positions": []}
 
@@ -194,12 +214,18 @@ class RecommendationsService:
 
         risk_events_7d = queries.fetch_risk_events_count(db, schema, robot_id, days=7)
 
+        strategy_params = config.get("strategy")
+        if isinstance(strategy_params, dict):
+            strategy_params = dict(strategy_params.get("params") or {})
+        else:
+            strategy_params = dict(config.get("strategy_params") or {})
+
         ctx = AnalysisContext(
             robot_id=robot_id,
             strategy=strategy,
             strategy_title=strategy_title,
             config=config,
-            strategy_params=dict(config.get("strategy_params") or {}),
+            strategy_params=strategy_params,
             risk=dict(config.get("risk") or {}),
             robot_status=int(robot.get("status") or 0),
             live_metrics=live_metrics,
@@ -217,7 +243,7 @@ class RecommendationsService:
         stream = live_snapshot.get("stream_health") or {}
         live_summary = LiveSituationSummary(
             robot_status=int(robot.get("status") or 0),
-            stream_connected_hint=bool(stream.get("connected_hint")),
+            stream_connected_hint=bool(stream.get("connected_hint") or stream.get("ws_healthy")),
             last_event_at=stream.get("last_event_at"),
             open_positions=len(live_snapshot.get("active_positions") or []),
             signal_execution_rate_pct=exec_rate,
@@ -225,12 +251,15 @@ class RecommendationsService:
             metrics=live_metrics,
         )
 
+        universe = config.get("universe") if isinstance(config.get("universe"), dict) else {}
+        fixed_list = universe.get("fixedList") or universe.get("fixed_list") or []
+        strat_block = config.get("strategy") if isinstance(config.get("strategy"), dict) else {}
         config_summary = {
             "strategy": strategy,
-            "interval": ctx.strategy_params.get("interval"),
-            "candle_days": ctx.strategy_params.get("candle_days"),
-            "figis_count": len(config.get("allowed_figis") or config.get("figis") or []),
-            "broker_type": config.get("broker_type"),
+            "interval": strategy_params.get("interval") or strat_block.get("timeframe"),
+            "candle_days": strategy_params.get("candle_days"),
+            "figis_count": len(fixed_list or config.get("allowed_figis") or config.get("figis") or []),
+            "broker_type": config.get("broker_type") or config.get("brokerType"),
         }
 
         return RobotRecommendationsResponse(
@@ -273,12 +302,15 @@ class RecommendationsService:
         goal: OptimizationGoal = OptimizationGoal.BALANCED,
         limit: int = 50,
     ) -> Optional[OptimizationRankResponse]:
-        robot = await robot_service.get_robot_by_id(db, robot_id, user_id)
-        if int(robot.get("type") or 0) != 2:
+        try:
+            robot = robots_v2_service.get_robot(db, user_id, robot_id)
+        except Exception:
+            return None
+        if int(robot.type) != 2:
             return None
 
-        config = dict(robot.get("config") or {})
-        strategy = str(config.get("strategy") or "grain_seed")
+        config = dict(robot.config or {})
+        strategy = resolve_strategy_key(config)
 
         rows = queries.fetch_successful_backtests(db, schema, robot_id, limit=limit)
         ranked_raw = rank_backtest_rows(rows, goal=goal.value)
@@ -309,11 +341,11 @@ class RecommendationsService:
             robot_id=robot_id,
             limit=limit,
         )
-        failed_runs = _failed_run_items_from_rows(failed_rows, default_strategy=strategy)
+        failed_runs = _failed_run_items_from_rows(failed_rows, default_strategy=strategy or "momentum")
 
         return OptimizationRankResponse(
             robot_id=robot_id,
-            strategy=strategy,
+            strategy=strategy or "unknown",
             goal=goal,
             runs_analyzed=len(ranked),
             ranked=ranked,
@@ -350,12 +382,17 @@ class RecommendationsService:
         goal: OptimizationGoal = OptimizationGoal.BALANCED,
         mode: OptimizationMode = OptimizationMode.SPEED,
     ) -> Optional[OptimizationPlanResponse]:
-        robot = await robot_service.get_robot_by_id(db, robot_id, user_id)
-        if int(robot.get("type") or 0) != 2:
+        try:
+            robot = robots_v2_service.get_robot(db, user_id, robot_id)
+        except Exception:
+            return None
+        if int(robot.type) != 2:
             return None
 
-        config = dict(robot.get("config") or {})
-        strategy = str(config.get("strategy") or "grain_seed")
+        config = dict(robot.config or {})
+        if int(config.get("configVersion") or 0) != 4:
+            return None
+        strategy = resolve_strategy_key(config)
         variants = generate_grid_configs(config, strategy, mode=mode.value)
         candidates = [
             OptimizationPlanCandidate(
@@ -367,7 +404,7 @@ class RecommendationsService:
         ]
         return OptimizationPlanResponse(
             robot_id=robot_id,
-            strategy=strategy,
+            strategy=strategy or "unknown",
             goal=goal,
             mode=mode,
             total_candidates=len(candidates),

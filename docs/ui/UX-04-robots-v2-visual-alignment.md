@@ -73,9 +73,11 @@ Hero copy/title/actions use shared `[data-page='robots'] .dashboard-hero--node �
 
 ## Checklist
 
-- [ ] Dark + light `data-theme`
-- [ ] Subnav consistent on monitor / logs / backtest / edit
-- [ ] No `window.confirm` on fleet / wizard / hard stop
-- [ ] Tables use `DataTable` (mobilePrimary where dense)
-- [ ] User-facing statuses in RU (`sessionStateLabel`)
-- [ ] Mobile ≤767: collapses / DataTable mobile rows
+- [x] Dark + light `data-theme`
+- [x] Subnav consistent on monitor / logs / backtest / edit
+- [x] No `window.confirm` on fleet / wizard / hard stop
+- [x] Tables use `DataTable` (mobilePrimary where dense)
+- [x] User-facing statuses in RU (`sessionStateLabel`)
+- [x] Mobile ≤767: collapses / DataTable mobile rows
+
+**Signed off as-built:** 2026-09-29 (implementation under `frontend/src/pages/robots-v2/`).

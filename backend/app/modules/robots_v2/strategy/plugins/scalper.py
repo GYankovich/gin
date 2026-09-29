@@ -6,13 +6,13 @@ import re
 from datetime import timedelta
 from typing import Any
 
-from app.modules.robots.trading.contracts import Position, Signal
-from app.modules.robots.trading.costs import (
+from app.modules.trading_core.contracts import Position, Signal
+from app.modules.trading_core.costs import (
     calculate_break_even_price,
     calculate_stop_loss_price,
     calculate_take_profit_price,
 )
-from app.modules.robots.trading.risk.manager import should_skip_take_profit
+from app.modules.trading_core.risk.manager import should_skip_take_profit
 from app.modules.robots_v2.config.v4_schema import ScalperParams
 from app.modules.robots_v2.strategy.base import StrategyPlugin
 from app.modules.robots_v2.strategy.helpers import block_exit_below_break_even, has_open_position, make_entry_signal, make_exit_signal

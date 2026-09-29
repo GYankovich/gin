@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from unittest.mock import MagicMock
 
-from app.modules.robots.trading.data import get_market_data_facade
+from app.modules.trading_core.data import get_market_data_facade
 
 
 def test_ensure_snapshot_day_cache_hit():

@@ -1,8 +1,8 @@
 # ARCH-05: GIN Compute — отдельный сервис бэктестов и сетки параметров
 
-**Версия:** 0.2  
-**Дата:** 2026-09-24  
-**Статус:** Фаза A реализована в коде (enqueue + heavy worker); B/C — дальше  
+**Версия:** 0.4  
+**Дата:** 2026-09-28  
+**Статус:** A + A.2 + legacy history-backtest cut + Phase B soft (OsEngine on compute); shared trading core remains for live  
 **Связь:** `[ref: BRD-ARCH-02]`, `[ref: ARCH-01]`, текущий код V2 (`robots_v2/backtest/*`), recommendations (`optimize/*`)
 
 ---
@@ -365,8 +365,9 @@ sequenceDiagram
 - HTTP `/api/compute/v1` (фаза C)
 - Отдельный Docker image / repo split (достаточно отдельного entrypoint + deploy)
 - Вынос OsEngine в market-data service
-- Удаление legacy `history_backtest` кода (сначала перевести optimization)
 - Redis вместо `background_jobs` (PG queue достаточно на старте)
+
+> **0.4:** legacy `history_backtest` orchestration (`engine` / persist / `run_robot_history_backtest`) удалён. Shared live-стек (`BrokerEmulator`, `session_backtest`, grain_seed orchestration, `run_file_logger`) остаётся в `robots/trading`.
 
 ### 7.4 Acceptance первого PR
 
@@ -417,12 +418,13 @@ gin-compute: python -m app.workers.compute LANE_HEAVY_CONCURRENCY=1..N
 
 | Контракт / идея | Сейчас |
 |-----------------|--------|
-| Start V2 | `BacktestService.start` — task in-process |
+| Start V2 | `BacktestService.start` → enqueue `backtest_run` (`priority` interactive/batch) |
 | Persist / list / compare | `robots_v2/backtest/persist.py` |
 | Schemas UI | `robots_v2/backtest/schemas.py` |
-| Heavy lane | `core/background_jobs/worker.py` `LANE_HEAVY` |
-| Optimization enqueue | `recommendations/optimization_runner.py` → legacy `history_backtest` |
-| Prefetch | `robots/trading/backtest/candle_prefetch.py` → OsEngine |
+| Heavy lane | `core/background_jobs/worker.py` `LANE_HEAVY` + `app.workers.compute` |
+| Optimization enqueue | `recommendations/optimization_runner.py` → `BacktestService.start(priority=batch)` |
+| Prefetch / candle IO | `robots_v2/backtest/candle_prefetch.py` + `candle_io.py` (legacy shim в `robots/.../candle_prefetch.py`) |
+| Cancel | `robots_v2/backtest/cancel.py` (+ aliases на `service`) |
 
 ---
 
@@ -432,3 +434,7 @@ gin-compute: python -m app.workers.compute LANE_HEAVY_CONCURRENCY=1..N
 |-----|------|-------|
 | 0.1 | 2026-09-24 | Первый черновик: контракт, квоты, состав PR фазы A |
 | 0.2 | 2026-09-24 | Фаза A в коде: `backtest_run` job, enqueue-only start, `python -m app.workers.compute` |
+| 0.3 | 2026-09-28 | Фаза A.2: optimization → `BacktestService.start(priority=batch)` + v4 param grid |
+| 0.4 | 2026-09-28 | Legacy history-backtest cut: candle IO → `robots_v2/backtest/`; removed `run_robot_history_backtest` + engine/persist stack |
+| 0.5 | 2026-09-29 | Phase B soft: `OSENGINE_AUTO_START` default false; compute worker starts OsEngine via `OSENGINE_AUTO_START_ON_COMPUTE` |
+

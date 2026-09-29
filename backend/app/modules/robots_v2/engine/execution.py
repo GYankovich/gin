@@ -10,9 +10,9 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from app.modules.robots.trading.broker_position_sync import money_to_float
-from app.modules.robots.trading.brokers.base import BrokerFacade
-from app.modules.robots.trading.contracts import OrderIntent
+from app.modules.trading_core.broker_position_sync import money_to_float
+from app.modules.trading_core.brokers.base import BrokerFacade
+from app.modules.trading_core.contracts import OrderIntent
 from app.modules.robots_v2.engine.broker_factory import _looks_like_figi
 from app.modules.robots_v2.engine.event_bus import event_bus
 from app.modules.robots_v2.engine.paper_ledger import PaperLedger
@@ -703,6 +703,7 @@ class ExecutionService:
     def cancel_resting_local(self, ticker: str) -> None:
         t = ticker.upper()
         if self._resting.pop(t, None) is not None:
+            self._resting_submitted_at.pop(t, None)
             self._log(f"CANCEL RESTING (local) {t}")
 
     def poll_resting_fills_sync(
@@ -840,8 +841,8 @@ class ExecutionService:
             self._log(f"PAPER LIMIT RESTING {side} {ticker} qty={qty} @ {limit_price:.6g}")
             return self._resting_result(ro)
 
-        if str(intent.reason or "") == "stop_loss":
-            self.cancel_resting_local(ticker)
+        # Market supersedes any pending LIMIT on the same ticker (SL/TP/entry orphans).
+        self.cancel_resting_local(ticker)
         fill_price = self._apply_slippage(side, float(intent.price or mid))
         pnl = self.ledger.apply_fill(
             ticker=ticker, side=side, quantity=qty, price=fill_price, reduce_only=reduce_only,
@@ -856,21 +857,31 @@ class ExecutionService:
         )
         return result
 
-    async def cancel_resting(self, ticker: str) -> None:
-        """Cancel broker resting LIMIT (if live) and drop local tracking."""
+    async def cancel_resting(self, ticker: str) -> bool:
+        """Cancel broker resting LIMIT (if live) and drop local tracking.
+
+        Returns True when local tracking is cleared. On live broker cancel failure
+        keeps the resting map entry so we do not orphan an unmanaged LIMIT.
+        """
         t = ticker.upper()
-        ro = self._resting.pop(t, None)
+        ro = self._resting.get(t)
         if ro is None:
-            return
+            return True
         if self.mode != "live" or not self.broker or not self.account_id or not ro.broker_order_id:
+            self._resting.pop(t, None)
+            self._resting_submitted_at.pop(t, None)
             self._log(f"CANCEL RESTING (local) {t}")
-            return
+            return True
         try:
             await self.broker.cancel_order(self.account_id, ro.broker_order_id)
+            self._resting.pop(t, None)
+            self._resting_submitted_at.pop(t, None)
             self._log(f"CANCEL RESTING {t} orderId={ro.broker_order_id}")
+            return True
         except Exception as exc:
             logger.exception("cancel_resting failed robot=%s ticker=%s", self.robot_id, t)
-            self._log(f"CANCEL RESTING ERROR {t}: {exc}")
+            self._log(f"CANCEL RESTING ERROR {t}: {exc} — keep local tracking")
+            return False
 
     async def _fill_resting(
         self,
@@ -1069,8 +1080,8 @@ class ExecutionService:
         intent_kind: str,
     ) -> ExecutionResult:
         assert self.broker is not None and self.account_id
-        if str(intent.reason or "") == "stop_loss":
-            await self.cancel_resting(ticker)
+        # Market supersedes any pending LIMIT on the same ticker (avoid broker orphans).
+        await self.cancel_resting(ticker)
 
         if not self.guard.try_acquire(ticker):
             return ExecutionResult(
@@ -1136,12 +1147,16 @@ class ExecutionService:
                 "status": "submitted", "mode": "live", "orderId": order_id, "kind": intent.kind,
             })
             if not order_id:
-                pnl = self.ledger.apply_fill(
-                    ticker=ticker, side=side, quantity=qty, price=fill_price, reduce_only=reduce_only,
-                )
+                # Same invariant as FILL_CONFIRM_TIMEOUT: never invent a fill without a broker id.
+                self._log(f"LIVE NO_ORDER_ID {ticker} — ledger unchanged")
+                await event_bus.publish(self.robot_id, "order", {
+                    "ticker": ticker, "side": side, "qty": qty, "price": fill_price,
+                    "status": "submitted", "mode": "live", "orderId": None, "kind": intent.kind,
+                    "reason": "NO_ORDER_ID",
+                })
                 return ExecutionResult(
                     intent_id=intent_id, ticker=ticker, side=side, quantity=qty,
-                    price=fill_price, status="submitted", mode="live", pnl=pnl,
+                    price=fill_price, status="submitted", mode="live", pnl=0.0,
                     reason=intent.reason or "NO_ORDER_ID", meta={"raw": resp or {}}, kind=intent_kind,
                 )
 

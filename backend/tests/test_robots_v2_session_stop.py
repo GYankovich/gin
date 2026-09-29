@@ -93,3 +93,28 @@ def test_stop_joins_finished_task():
         assert session.state == SessionState.TERMINATED
 
     asyncio.run(scenario())
+
+
+def test_stop_timeout_retains_slot_blocks_second_start():
+    """ERROR + still-alive task must keep is_running True (blocks dual start)."""
+    from unittest.mock import MagicMock
+
+    from app.modules.robots_v2.engine.session_manager import SessionManager
+
+    cfg = _cfg()
+    mgr = SessionManager()
+    session = TradingSessionV2(
+        robot_id=97, user_id=1, token_id=1, config=cfg, virtual_capital=100_000,
+    )
+    session.state = SessionState.ERROR
+    session._status_message = "Остановка зависла — сессия ещё завершается"
+    stuck = MagicMock()
+    stuck.done.return_value = False
+    session._task = stuck
+    mgr._sessions[97] = session
+
+    assert mgr.is_running(97) is True
+
+    # After the task finally finishes, slot may be cleared / start allowed.
+    stuck.done.return_value = True
+    assert mgr.is_running(97) is False

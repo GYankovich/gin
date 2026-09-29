@@ -19,7 +19,6 @@ from app.modules.robots.crypto_universe import (
     apply_volatility_filters,
     resolve_crypto_universe_filters,
 )
-from app.modules.robots.trading.backtest.universe_reject_report import screening_row_to_reject_decision
 from app.modules.robots.trading.pipeline.historical_liquidity import (
     crypto_metrics_as_of_date,
     list_bybit_symbols_from_cache,
@@ -31,7 +30,7 @@ from app.modules.robots.trading.pipeline.universe_scoring import (
     SCORING_PROGRESS_SUBSTEPS,
     _scoring_heartbeat,
 )
-from app.modules.robots.trading.backtest.backtest_narrative_log import (
+from app.modules.trading_core.logging.backtest_narrative_log import (
     backtest_narrative,
     format_symbol_list,
     format_trade_date,
@@ -43,6 +42,30 @@ from app.modules.robots.trading.backtest.backtest_narrative_log import (
 from app.modules.robots.universe import resolve_crypto_symbols
 
 ProgressFlush = Callable[..., None]
+
+
+def screening_row_to_reject_decision(
+    row: ScreeningRow,
+    *,
+    trade_date: str,
+    stage: str = "crypto_universe",
+) -> Dict[str, Any]:
+    return {
+        "trade_date": trade_date,
+        "stage": stage,
+        "ticker": row.symbol,
+        "result": "REJECT",
+        "reason": row.reject_reason or "unknown",
+        "turnover24h": row.turnover24h,
+        "lastPrice": row.lastPrice,
+        "spreadPercent": row.spreadPercent,
+        "dailyRangePercent": row.dailyRangePercent,
+        "avg_funding_rate": row.avg_funding_rate,
+        "open_interest_usd": row.open_interest_usd,
+        "lsr": row.lsr,
+        "rvol": row.rvol,
+        "atr_percent": row.atr_percent,
+    }
 
 
 @dataclass

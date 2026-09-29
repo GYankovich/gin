@@ -22,7 +22,7 @@ from app.modules.robots.config.migration import (
     paper_selection_from_config,
 )
 from app.modules.robots.config.v2_schema import HISTORICAL_FILTER_TYPES
-from app.modules.robots.trading.intervals import resolve_strategy_interval
+from app.modules.trading_core.intervals import resolve_strategy_interval
 from app.modules.robots.universe import (
     UNIVERSE_MODE_FIXED,
     normalize_universe_mode,
@@ -265,7 +265,7 @@ async def rebuild_candidate_pool(
     ATR в v1 считается по D1 (как DMS); intraday MOEX свечи префетчатся для follow-up.
     """
     from app.modules.dms.service import dms_service
-    from app.modules.robots.trading.data import get_market_data_facade
+    from app.modules.trading_core.data import get_market_data_facade
 
     robot = await robot_service.get_robot_by_id(db, robot_id, user_id)
     config = ensure_config_v2(dict(robot.get("config") or {}))

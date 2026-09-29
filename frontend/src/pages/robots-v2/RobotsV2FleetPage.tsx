@@ -192,21 +192,25 @@ export default function RobotsV2FleetPage() {
         <>
             <Button
                 type="button"
+                variant="ghost"
                 size="sm"
-                variant="secondary"
                 className="dashboard-hero__cfg"
                 onClick={() => navigate('/robots/new?kind=portfolio')}
+                aria-label="Опросник"
             >
                 <FontAwesomeIcon icon={faPlus} />
-                Опросник
+                <span className="dashboard-hero__cfg-text">Опросник</span>
             </Button>
             <Button
                 type="button"
+                variant="ghost"
                 size="sm"
+                className="dashboard-hero__cfg"
                 onClick={() => navigate('/robots/new?kind=trading')}
+                aria-label="Создать робота"
             >
                 <FontAwesomeIcon icon={faPlus} />
-                Создать робота
+                <span className="dashboard-hero__cfg-text">Создать робота</span>
             </Button>
         </>
     )
@@ -220,12 +224,11 @@ export default function RobotsV2FleetPage() {
 
     if (loading && robots.length === 0 && !error) {
         return (
-            <div className="page" data-page="robots">
+            <div className="page" data-page="robots" data-robots-view="fleet">
                 <PageHero
                     className="dashboard-hero--node"
                     eyebrow="ROBOT NODE"
                     title="РОБОТЫ"
-                    subtitle="Флот торговых роботов и опросников портфеля"
                     actions={heroActions}
                 />
                 <FleetSkeleton />
@@ -234,12 +237,11 @@ export default function RobotsV2FleetPage() {
     }
 
     return (
-        <div className="page" data-page="robots">
+        <div className="page" data-page="robots" data-robots-view="fleet">
             <PageHero
                 className="dashboard-hero--node"
                 eyebrow="ROBOT NODE"
                 title="РОБОТЫ"
-                subtitle="Флот торговых роботов и опросников портфеля"
                 actions={heroActions}
             />
 

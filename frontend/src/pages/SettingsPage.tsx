@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPlus, faKey } from '@fortawesome/free-solid-svg-icons'
 import { Card } from '@/components/ui/Card'
@@ -20,6 +21,17 @@ export default function SettingsPage() {
     const { preference, setPreference } = useThemeStore()
     const [createOpen, setCreateOpen] = useState(false)
     const [tokenCount, setTokenCount] = useState(0)
+    const [tokensOpen, setTokensOpen] = useState(false)
+    const location = useLocation()
+
+    useEffect(() => {
+        const hash = location.hash.replace(/^#/, '').toLowerCase()
+        if (hash !== 'tokens') return
+        setTokensOpen(true)
+        window.requestAnimationFrame(() => {
+            document.getElementById('tokens')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        })
+    }, [location.pathname, location.hash])
 
     useEffect(() => {
         let cancelled = false
@@ -59,6 +71,8 @@ export default function SettingsPage() {
 
                 <CollapsibleSection
                     id="tokens"
+                    open={tokensOpen}
+                    onOpenChange={setTokensOpen}
                     className="portfolio-collapse settings-tokens-collapse"
                     title={(
                         <span className="dashboard-collapse__label">

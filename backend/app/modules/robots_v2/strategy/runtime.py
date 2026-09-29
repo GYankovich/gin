@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from app.modules.robots.trading.contracts import Position, Signal
+from app.modules.trading_core.contracts import Position, Signal
 from app.modules.robots_v2.config.v4_schema import StrategyArchetype, StrategyConfig
 from app.modules.robots_v2.strategy.base import StrategyPlugin
 from app.modules.robots_v2.strategy.registry import create_plugin, list_archetypes

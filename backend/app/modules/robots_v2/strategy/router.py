@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.core.config import settings
 from app.core.security import get_current_user
 from app.modules.auth.models import User
-from app.modules.robots.trading.contracts import Candle, Position, Signal
+from app.modules.trading_core.contracts import Candle, Position, Signal
 from app.modules.robots_v2.config.v4_schema import StrategyConfig
 from app.modules.robots_v2.strategy.registry import list_archetypes
 from app.modules.robots_v2.strategy.runtime import strategy_runtime

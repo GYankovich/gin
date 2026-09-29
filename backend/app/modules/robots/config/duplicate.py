@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.modules.robots.trading.brokers.routing import normalize_broker_type
+from app.modules.trading_core.brokers.routing import normalize_broker_type
 
 ALLOWED_COPY_SECTIONS = frozenset({"signal_generation", "risk", "costs", "schedule"})
 ALLOWED_RESET_SECTIONS = frozenset({
@@ -143,8 +143,9 @@ def apply_reset_sections(
         cfg.pop("instrument_map", None)
         cfg.pop("universe_refresh_minutes", None)
         if target_broker == "bybit":
-            cfg["universe_mode"] = "fixed"
-            cfg.setdefault("crypto_universe", {"enabled": False})
+            # Keep profile-shell default (auto + crypto_universe), not empty fixed.
+            cfg["universe_mode"] = "auto"
+            cfg.setdefault("crypto_universe", {"enabled": True})
         elif int(robot_type) == 2:
             cfg["universe_mode"] = "dms_pipeline"
             cfg["allowed_figis"] = []

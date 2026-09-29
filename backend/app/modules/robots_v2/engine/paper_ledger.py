@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from app.modules.robots.trading.contracts import Position
+from app.modules.trading_core.contracts import Position
 
 
 @dataclass

@@ -15,8 +15,12 @@ from app.core.background_jobs.repository import enqueue_background_job
 from app.core.background_jobs.worker import LANE_HEAVY
 from app.core.config import settings
 from app.core.database import get_db_context
-from app.modules.robots.trading.intervals import resolve_strategy_interval
-from app.modules.robots.trading.runtime.orchestrator import get_trading_orchestrator
+from app.modules.trading_core.intervals import resolve_strategy_interval
+from app.modules.robots_v2.backtest.candle_io import (
+    load_candles_by_symbol_from_cache,
+    prefetch_crypto_candles_for_replay,
+)
+from app.modules.robots_v2.backtest.candle_prefetch import prefetch_candles_for_backtest
 from app.modules.robots_v2.backtest.host import BacktestHost, dicts_to_candles
 from app.modules.robots_v2.backtest.persist import (
     compare_runs,
@@ -26,6 +30,7 @@ from app.modules.robots_v2.backtest.persist import (
     list_db_runs,
     persist_result_payload,
     update_db_run,
+    update_db_run_required,
 )
 from app.modules.robots_v2.backtest.quotas import assert_can_enqueue_backtest
 from app.modules.robots_v2.backtest.schemas import (
@@ -124,6 +129,7 @@ class BacktestService:
             user_id=user_id,
             from_date=request.from_date,
             to_date=request.to_date,
+            skip_user_limits=(priority == "batch"),
         )
 
         capital = float(request.initial_capital or config.risk.capital)
@@ -255,7 +261,7 @@ class BacktestService:
             row = fetch_db_run(db, run_id, user_id=user_id)
             if row is None:
                 raise HTTPException(status_code=404, detail="Backtest run not found")
-            update_db_run(db, run_id, cancel_requested=True)
+            update_db_run_required(db, run_id, cancel_requested=True)
             if rec is None:
                 rec = BacktestRunRecord(
                     run_id=run_id,
@@ -340,9 +346,6 @@ class BacktestService:
             load_from_dt = datetime.combine(load_from_date, time.min, tzinfo=timezone.utc)
 
             if market == "moex":
-                from app.modules.robots.trading.backtest.candle_prefetch import (
-                    prefetch_candles_for_backtest,
-                )
                 from app.modules.robots_v2.universe.token_context import board_for_instrument_type
 
                 board = board_for_instrument_type(config.core.instrument_type)
@@ -370,7 +373,7 @@ class BacktestService:
                     )
                     if ctx.api_key:
                         category = "inverse" if config.core.instrument_type == "coin_futures" else "linear"
-                        await get_trading_orchestrator().prefetch_crypto_candles_for_replay(
+                        await prefetch_crypto_candles_for_replay(
                             db,
                             symbols=universe,
                             resolved=resolved,
@@ -396,7 +399,7 @@ class BacktestService:
             to_dt_exclusive = datetime.combine(
                 till_date + timedelta(days=1), time.min, tzinfo=timezone.utc,
             )
-            raw_candles = get_trading_orchestrator().load_candles_by_symbol_from_cache(
+            raw_candles = load_candles_by_symbol_from_cache(
                 db,
                 symbols=universe,
                 interval_code=resolved.cache_label,
@@ -410,6 +413,12 @@ class BacktestService:
                 t: dicts_to_candles(series, ticker=t, interval=interval_raw)
                 for t, series in raw_candles.items()
             }
+            total_bars = sum(len(series) for series in candles_by_ticker.values())
+            if total_bars <= 0:
+                raise ValueError(
+                    "No candle data in cache for requested universe/range "
+                    f"(tickers={len(universe)}, market={cache_market})"
+                )
 
             progress_state = {"done": 0, "total": 1}
             sim_done = False
@@ -481,7 +490,7 @@ class BacktestService:
                     finished_at=finished,
                     progress_percent=100.0,
                 )
-                update_db_run(
+                update_db_run_required(
                     db, run_id,
                     status="CANCELLED",
                     run_phase="cancelled",
@@ -490,6 +499,11 @@ class BacktestService:
                     cancel_requested=True,
                 )
                 return
+
+            if result.history_stats.get("bars", 1) == 0 or (
+                result.stages and result.stages[0] == "No candle data in requested range"
+            ):
+                raise ValueError("No candle data in requested range after simulation host")
 
             payload = {
                 "initial_capital": result.initial_capital,
@@ -514,7 +528,7 @@ class BacktestService:
                 portfolio_snapshots=result.portfolio_snapshots,
                 orders=result.orders,
             )
-            update_db_run(
+            update_db_run_required(
                 db, run_id,
                 status="SUCCESS",
                 run_phase="completed",
@@ -533,7 +547,7 @@ class BacktestService:
                 finished_at=finished,
                 error_message=str(exc),
             )
-            update_db_run(
+            update_db_run_required(
                 db, run_id,
                 status="FAILED",
                 run_phase="failed",

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
-from app.modules.robots.trading.data.providers.db_cache import query_candles_cache_rows
+from app.modules.trading_core.data.providers.db_cache import query_candles_cache_rows
 
 
 class _FakeResult:
@@ -19,7 +19,13 @@ class _FakeResult:
 
 def test_query_candles_cache_rows_uses_market_and_instrument_id():
     db = MagicMock()
-    expected_rows = [{"candle_time": datetime(2024, 1, 1, tzinfo=timezone.utc), "close": 123.0}]
+    expected_rows = [
+        {
+            "instrument_id": "SBER",
+            "candle_time": datetime(2024, 1, 1, tzinfo=timezone.utc),
+            "close": 123.0,
+        }
+    ]
     db.execute.return_value = _FakeResult(expected_rows)
 
     out = query_candles_cache_rows(
@@ -37,5 +43,5 @@ def test_query_candles_cache_rows_uses_market_and_instrument_id():
     args, _ = db.execute.call_args
     params = args[1]
     assert params["market"] == "moex"
-    assert params["instrument_id"] == "SBER"
+    assert params["instrument_ids"] == ["SBER"]
     assert params["interval"] == "M5"

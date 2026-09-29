@@ -1553,7 +1553,9 @@
         margin-top: var(--space-3);
     }
     [data-page='dashboard'] .dashboard-hero__cfg.btn--ghost.btn--sm,
-[data-page='dashboard'] .dashboard-hero__cfg {
+[data-page='dashboard'] .dashboard-hero__cfg,
+    [data-page='robots'] .dashboard-hero__cfg.btn--ghost.btn--sm,
+    [data-page='robots'] .dashboard-hero__cfg {
         padding: 10px 12px !important;
     }
     /* Prefer icon-only when the label would crowd the title */
@@ -1636,6 +1638,142 @@
     .robots-v2-fleet-collapse .collapsible-section__body {
         padding-left: var(--space-4);
         padding-right: var(--space-4);
+    }
+
+    /* Fleet hero: same stacked rhythm as portfolio, actions wrap under the title */
+    [data-page='robots'][data-robots-view='fleet'] .dashboard-hero--node {
+        min-height: 0;
+        margin: 0 0 var(--space-4);
+        padding: 0;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .dashboard-hero--node .dashboard-hero__content {
+        flex-direction: column;
+        align-items: flex-start;
+        padding-right: 0;
+        padding-bottom: 0;
+        gap: var(--space-3);
+    }
+    [data-page='robots'][data-robots-view='fleet'] .dashboard-hero--node .dashboard-hero__actions {
+        position: static;
+        top: auto;
+        bottom: auto;
+        transform: none;
+        flex: 1 1 auto;
+        flex-shrink: 1;
+        max-width: 100%;
+        width: 100%;
+        min-width: 0;
+        align-self: stretch;
+        justify-content: flex-start;
+        margin-top: var(--space-3);
+    }
+    [data-page='robots'][data-robots-view='fleet'] .dashboard-hero--node .dashboard-hero__actions .btn {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 36px;
+        max-width: 100%;
+    }
+
+    /* Fleet cards: identity above controls, name ellipsizes, row cannot overflow */
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--space-3);
+        min-width: 0;
+        max-width: 100%;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__identity {
+        min-width: 0;
+        max-width: 100%;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__meta,
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__activity {
+        overflow-wrap: anywhere;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__controls {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        align-items: center;
+        min-width: 0;
+        max-width: 100%;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card .robots-v2-status-menu.mobile-dock__menu {
+        flex: 1 1 auto;
+        min-width: 0;
+        max-width: 100%;
+        padding: 0;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card .robots-v2-more-menu.mobile-dock__menu {
+        flex: 0 0 auto;
+        padding: 0;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-status-trigger {
+        min-height: 36px;
+        max-width: 100%;
+        min-width: 0;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-status-trigger__label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-more-trigger.btn--ghost.btn--sm {
+        min-width: 36px;
+        min-height: 36px;
+        width: 36px;
+        height: 36px;
+    }
+
+    /* Section title yields space; + stays a separate tap target next to count/chevron */
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__toggle {
+        min-width: 0;
+        gap: var(--space-2);
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__toggle-main {
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 0;
+        overflow: hidden;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__title-row {
+        display: flex;
+        align-items: center;
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__title {
+        min-width: 0;
+        overflow: hidden;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__title .dashboard-collapse__label {
+        display: inline-block;
+        max-width: 100%;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: bottom;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse__count,
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__chevron {
+        flex-shrink: 0;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__header-end {
+        flex: 0 0 auto;
+        margin-left: var(--space-2);
+        overflow: visible;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .settings-tokens__add {
+        position: relative;
+        z-index: 2;
+        flex-shrink: 0;
     }
 [data-page='dashboard'] .dashboard-accounts-collapse .collapsible-section__body, [data-page='portfolio'] .dashboard-accounts-collapse .collapsible-section__body {
         padding-bottom: var(--space-4);

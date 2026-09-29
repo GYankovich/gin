@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import asyncio
 
-from app.modules.robots.trading.backtest.metrics import BacktestMetricsCalculator
-from app.modules.robots.trading.backtest.types import BacktestResult
+from app.modules.trading_core.sim.metrics import BacktestMetricsCalculator
+from app.modules.trading_core.sim.types import BacktestResult
 from app.modules.robots.trading.brokers.sim_backtest import SimBacktestBrokerFacade
 from app.modules.robots.trading.costs import (
     resolve_backtest_sim_rates,

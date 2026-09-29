@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from app.modules.robots.trading.contracts import Position, Signal
+from app.modules.trading_core.contracts import Position, Signal
 
 
 def _ticker_from_position(pos: Position) -> str:
@@ -60,7 +60,7 @@ def block_exit_below_break_even(
     """Block strategy MARKET exits while price is still below break-even."""
     if entry <= 0 or price <= 0:
         return None
-    from app.modules.robots.trading.costs import calculate_break_even_price
+    from app.modules.trading_core.costs import calculate_break_even_price
 
     is_long = str(side or "long").lower() in ("long", "buy")
     floor_px = calculate_break_even_price(

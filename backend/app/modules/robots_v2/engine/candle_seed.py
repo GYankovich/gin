@@ -10,9 +10,9 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
-from app.modules.robots.trading.contracts import Candle
-from app.modules.robots.trading.data.providers.db_cache import query_candles_cache_rows_bulk
-from app.modules.robots.trading.intervals import (
+from app.modules.trading_core.contracts import Candle
+from app.modules.trading_core.data.providers.db_cache import query_candles_cache_rows_bulk
+from app.modules.trading_core.intervals import (
     normalize_interval,
     resolve_strategy_interval,
 )

@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
-from app.modules.robots.trading.brokers.base import BrokerFacade
+from app.modules.trading_core.brokers.base import BrokerFacade
 from app.modules.robots.trading.contracts import Fill, Order
 from app.modules.robots.trading.execution.base import Execution, ExecutionResult
 

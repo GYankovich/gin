@@ -41,6 +41,9 @@ def test_build_suggested_changes_volume_and_spread():
 
 
 def test_build_failure_insights_no_universe_without_top_rejects():
-    insights = build_failure_insights("Нет бумаг для бэктеста за выбранный период (processed=1)", {})
+    insights = build_failure_insights(
+        "Нет бумаг для бэктеста за выбранный период (processed=1)",
+        {"broker_type": "bybit"},
+    )
     assert insights["failure_category"] == "no_universe"
     assert len(insights["suggested_changes"]) >= 1

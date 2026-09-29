@@ -111,11 +111,11 @@ class TradingRobot(BaseRobot, TradePersistenceMixin):
             stage3 = Stage3Portfolio(account_id, broker, self._write_log_wrapper)
             portfolio = await stage3.get_portfolio()
 
-            from app.modules.robots.trading.broker_position_sync import (
+            from app.modules.trading_core.broker_position_sync import (
                 configured_leverage,
                 extract_account_position_meta,
             )
-            from app.modules.robots.trading.brokers.margin import resolve_margin_params
+            from app.modules.trading_core.brokers.margin import resolve_margin_params
 
             account_meta = extract_account_position_meta(portfolio.get("positions") or [])
             account_positions = {k: float(v.get("qty") or 0) for k, v in account_meta.items()}

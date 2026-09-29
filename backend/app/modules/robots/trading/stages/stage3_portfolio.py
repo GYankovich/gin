@@ -6,7 +6,7 @@ Stage 3: Получение портфеля и доступного балан�
 
 from typing import Dict, Optional
 
-from app.modules.robots.trading.brokers.base import BrokerFacade
+from app.modules.trading_core.brokers.base import BrokerFacade
 from app.core.logging_config import get_logger
 
 logger = get_logger(__name__)

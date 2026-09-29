@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.modules.robots.trading.contracts import Candle, Position, Signal
+from app.modules.trading_core.contracts import Candle, Position, Signal
 from app.modules.robots_v2.config.v4_schema import StrategyArchetype, StrategyConfig, TradingMode
 
 TriggeredBy = Literal["poll", "bar_close", "price_tick"]

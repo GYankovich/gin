@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from app.modules.robots.trading.brokers.base import BrokerFacade
+from app.modules.trading_core.brokers.base import BrokerFacade
 from app.modules.robots_v2.engine.broker_positions import (
     fetch_broker_positions_snapshot,
     map_broker_meta_to_positions,

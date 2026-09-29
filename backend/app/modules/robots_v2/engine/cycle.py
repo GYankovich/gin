@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from app.modules.robots.trading.contracts import Candle, OrderIntent
+from app.modules.trading_core.contracts import Candle, OrderIntent
 from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
 from app.modules.robots_v2.engine.audit import (
     AuditCycleBundle,
@@ -22,6 +22,7 @@ from app.modules.robots_v2.engine.event_bus import event_bus
 from app.modules.robots_v2.engine.execution import ExecutionService, attach_ticker_warnings
 from app.modules.robots_v2.engine.market_data import strategy_tape_prices
 from app.modules.robots_v2.engine.paper_ledger import PaperLedger
+from app.modules.robots_v2.engine.resting_orphans import select_orphan_resting_tickers
 from app.modules.robots_v2.risk.engine import RiskEngine
 from app.modules.robots_v2.strategy.helpers import (
     allow_strategy_exit_below_break_even,
@@ -159,8 +160,8 @@ async def run_trading_cycle(
         pos = next((p for p in open_list if str(p.get("ticker") or p.get("figi") or "").upper() == ticker.upper()), None)
         if pos is None:
             continue
-        from app.modules.robots.trading.risk.manager import decide_take_profit_order
-        from app.modules.robots.trading.costs import calculate_take_profit_price
+        from app.modules.trading_core.risk.manager import decide_take_profit_order
+        from app.modules.trading_core.costs import calculate_take_profit_price
 
         entry = float(pos.get("entry_price") or 0)
         px = float(prices.get(ticker.upper()) or pos.get("current_price") or 0)
@@ -184,6 +185,21 @@ async def run_trading_cycle(
         if armed is None:
             _alog(f"CANCEL premature TP resting {ticker} mark={px:.4g} tp={tp:.4g}")
             await exec_svc.cancel_resting(ticker)
+
+    # Exit LIMITs with no open position are orphans (filled elsewhere / closed).
+    held_tickers = {
+        str(p.get("ticker") or p.get("figi") or "").upper()
+        for p in open_list
+        if str(p.get("ticker") or p.get("figi") or "").strip()
+    }
+    for orphan_t in select_orphan_resting_tickers(
+        getattr(exec_svc, "_resting", {}) or {},
+        held_tickers=held_tickers,
+        wanted_entries=set(),
+        scope="exit",
+    ):
+        _alog(f"CANCEL orphan exit resting {orphan_t} (no position)")
+        await exec_svc.cancel_resting(orphan_t)
 
     for intent in exit_intents:
         ticker_u = str(intent.figi or "").upper()
@@ -483,6 +499,34 @@ async def run_trading_cycle(
             decisions.append(rejected)
             audit_decisions.append(decision_row_from_dict(rejected, stage="execution"))
             _alog(f"ENTRY rejected {ticker}: {result.reason}")
+
+    # Entry LIMITs whose signal is gone (or entries paused) are orphans.
+    wanted_entries: set[tuple[str, str]] = set()
+    if risk.session_state.accept_new_entries:
+        for signal in signals:
+            side = str(signal.side or "").upper()
+            if side not in ("BUY", "SELL"):
+                continue
+            ticker = str(signal.secid or "").upper()
+            if not ticker:
+                continue
+            pos = ledger.positions.get(ticker)
+            is_reduce = (
+                (side == "SELL" and pos is not None and pos.is_long)
+                or (side == "BUY" and pos is not None and not pos.is_long)
+            )
+            if is_reduce:
+                continue
+            wanted_entries.add((ticker, side))
+    held_now = {str(t).upper() for t in ledger.positions}
+    for orphan_t in select_orphan_resting_tickers(
+        getattr(exec_svc, "_resting", {}) or {},
+        held_tickers=held_now,
+        wanted_entries=wanted_entries,
+        scope="entry",
+    ):
+        _alog(f"CANCEL orphan entry resting {orphan_t} (no matching signal)")
+        await exec_svc.cancel_resting(orphan_t)
 
     await _stage("metrics")
     ui_prices = mark_prices or prices

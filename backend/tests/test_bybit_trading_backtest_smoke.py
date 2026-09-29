@@ -15,7 +15,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.modules.robots.config.profiles import dump_robot_config, validate_robot_config
-from app.modules.robots.trading.backtest.types import BacktestResult
+from app.modules.trading_core.sim.types import BacktestResult
 from app.modules.robots.trading.brokers.sim_backtest import SimBacktestBrokerFacade
 from app.modules.robots.trading.runtime.orchestrator import (
     TradingOrchestrator,

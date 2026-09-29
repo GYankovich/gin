@@ -6,12 +6,13 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from app.modules.robots.trading.contracts import Candle, OrderIntent
-from app.modules.robots.trading.costs import calculate_take_profit_price
-from app.modules.robots.trading.risk.manager import decide_take_profit_order
+from app.modules.trading_core.contracts import Candle, OrderIntent
+from app.modules.trading_core.costs import calculate_take_profit_price
+from app.modules.trading_core.risk.manager import decide_take_profit_order
 from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
 from app.modules.robots_v2.engine.execution import ExecutionService
 from app.modules.robots_v2.engine.paper_ledger import PaperLedger
+from app.modules.robots_v2.engine.resting_orphans import select_orphan_resting_tickers
 from app.modules.robots_v2.risk.engine import RiskEngine
 from app.modules.robots_v2.strategy.helpers import (
     allow_strategy_exit_below_break_even,
@@ -119,6 +120,19 @@ def run_paper_cycle_sync(
         )
         if armed is None:
             exec_svc.cancel_resting_local(ticker)
+
+    held_tickers = {
+        str(p.get("ticker") or p.get("figi") or "").upper()
+        for p in open_list
+        if str(p.get("ticker") or p.get("figi") or "").strip()
+    }
+    for orphan_t in select_orphan_resting_tickers(
+        getattr(exec_svc, "_resting", {}) or {},
+        held_tickers=held_tickers,
+        wanted_entries=set(),
+        scope="exit",
+    ):
+        exec_svc.cancel_resting_local(orphan_t)
 
     for intent in exit_intents:
         ticker_u = str(intent.figi or "").upper()
@@ -289,6 +303,32 @@ def run_paper_cycle_sync(
             })
             positions_dict = ledger.positions_dict(prices)
             equity = ledger.mark_equity(prices)
+
+    wanted_entries: set[tuple[str, str]] = set()
+    if risk.session_state.accept_new_entries:
+        for signal in signals:
+            side = str(signal.side or "").upper()
+            if side not in ("BUY", "SELL"):
+                continue
+            ticker = str(signal.secid or "").upper()
+            if not ticker:
+                continue
+            pos = ledger.positions.get(ticker)
+            is_reduce = (
+                (side == "SELL" and pos is not None and pos.is_long)
+                or (side == "BUY" and pos is not None and not pos.is_long)
+            )
+            if is_reduce:
+                continue
+            wanted_entries.add((ticker, side))
+    held_now = {str(t).upper() for t in ledger.positions}
+    for orphan_t in select_orphan_resting_tickers(
+        getattr(exec_svc, "_resting", {}) or {},
+        held_tickers=held_now,
+        wanted_entries=wanted_entries,
+        scope="entry",
+    ):
+        exec_svc.cancel_resting_local(orphan_t)
 
     return {
         "fills": fills,

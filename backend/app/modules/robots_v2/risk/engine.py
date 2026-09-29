@@ -7,8 +7,8 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from app.modules.robots.trading.contracts import OrderIntent, Position, Signal
-from app.modules.robots.trading.risk.manager import RiskDecision, RiskManager
+from app.modules.trading_core.contracts import OrderIntent, Position, Signal
+from app.modules.trading_core.risk.manager import RiskDecision, RiskManager
 from app.modules.robots_v2.config.v4_schema import RiskConfig
 from app.modules.robots_v2.risk.adapter import risk_params_dict_from_v4, risk_params_from_v4
 

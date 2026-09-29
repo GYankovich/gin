@@ -1,4 +1,4 @@
-"""OpenAPI oneOf for robot config profiles (R8.7)."""
+"""OpenAPI: robots_v2 is the sole robots HTTP surface (v1 router unmounted)."""
 
 from __future__ import annotations
 
@@ -12,26 +12,27 @@ os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
 
-def test_openapi_robot_validate_config_has_config_profile_oneof():
+def test_openapi_robots_v2_paths_present():
     from app.main import app
 
     openapi = app.openapi()
-    schema = openapi["components"]["schemas"]["RobotValidateConfigResponse"]
-    normalized = schema["properties"]["normalized_config"]
-    assert "oneOf" in normalized or "anyOf" in normalized
-    discriminator = normalized.get("discriminator") or {}
-    assert discriminator.get("propertyName") == "schema_profile"
-    mapping = discriminator.get("mapping") or {}
-    assert "type2_tinvest" in mapping
-    assert "type2_bybit" in mapping
-    assert "type1_tinvest" in mapping
-    assert "type1_bybit" in mapping
+    paths = openapi.get("paths") or {}
+    assert "/api/v2/robots/create" in paths
+    assert "/api/v2/robots/module" in paths
+    # Legacy v1 HTTP validate-config schema is gone with the unmounted router
+    schemas = (openapi.get("components") or {}).get("schemas") or {}
+    assert "RobotValidateConfigResponse" not in schemas
 
 
-def test_openapi_exports_profile_schema_components():
+def test_openapi_exports_v2_robot_schemas():
     from app.main import app
 
     openapi = app.openapi()
     components = openapi["components"]["schemas"]
-    for key in ("Type1TinvestConfig", "Type1BybitConfig", "Type2TinvestConfig", "Type2BybitConfig"):
+    for key in (
+        "RobotV2CreateRequest",
+        "RobotV2Response",
+        "RobotV2ValidateRequest",
+        "RobotV2BacktestRequest",
+    ):
         assert key in components

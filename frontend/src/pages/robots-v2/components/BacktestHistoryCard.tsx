@@ -30,6 +30,8 @@ type CompareState = {
 
 type BacktestHistoryCardProps = {
     history: BacktestHistoryRow[]
+    historyLoading?: boolean
+    historyError?: string | null
     selectedIds: number[]
     activeRunId: number | null
     compare: CompareState | null
@@ -44,6 +46,8 @@ type HistoryTableRow = BacktestHistoryRow & { id: number }
 
 export function BacktestHistoryCard({
     history,
+    historyLoading = false,
+    historyError = null,
     selectedIds,
     activeRunId,
     compare,
@@ -167,7 +171,13 @@ export function BacktestHistoryCard({
             <div className="dashboard-assets-card__head">
                 <h3 className="dashboard-panel-title">История прогонов</h3>
                 <div className="robots-v2-chip-row">
-                    <Button type="button" size="sm" variant="ghost" onClick={onRefresh}>
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        loading={historyLoading}
+                        onClick={onRefresh}
+                    >
                         Обновить
                     </Button>
                     <Button
@@ -180,6 +190,11 @@ export function BacktestHistoryCard({
                     </Button>
                 </div>
             </div>
+            {historyError ? (
+                <p className="dashboard-empty robots-v2-hint" style={{ marginBottom: 'var(--space-2)' }}>
+                    {historyError}
+                </p>
+            ) : null}
             <DataTable
                 columns={columns}
                 data={rows}

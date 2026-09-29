@@ -41,4 +41,5 @@ def test_run_db_read_with_retry_reraises_second_failure():
     db = _FakeSession([err, err])
     with pytest.raises(OperationalError):
         run_db_read_with_retry(db, db.pop)
-    assert db.rollbacks == 1
+    # rollback on each failed attempt (including the terminal one)
+    assert db.rollbacks == 2

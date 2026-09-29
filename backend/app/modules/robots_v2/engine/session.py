@@ -11,7 +11,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from app.core.database import SessionLocal
-from app.modules.robots.trading.contracts import Candle
+from app.modules.trading_core.contracts import Candle
 from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
 from app.modules.robots_v2.engine.broker_factory import (
     create_broker_from_token,
@@ -130,6 +130,8 @@ class TradingSessionV2:
         self._pos_pub_mono: float = 0.0
         self._last_reconcile_at: float = 0.0
         self._reconcile_ok = True
+        self._reconcile_fail_streak = 0
+        self._reconcile_fail_halt_after = 3
         self._bootstrap_ready = False
         self._mode = "paper"
         self._equity_curve: deque[dict[str, Any]] = deque(maxlen=EQUITY_CURVE_MAX_POINTS)
@@ -153,6 +155,23 @@ class TradingSessionV2:
         self._universe_refreshed_at: datetime | None = None
         self._last_universe_rejected: list[Any] = []
         self._universe_progress_last_at: float = 0.0
+
+    def _note_reconcile_outcome(self, ok: bool, *, error: str | None = None) -> bool:
+        """Update reconcile streak. Returns True when session should halt."""
+        self._reconcile_ok = bool(ok)
+        if ok:
+            self._reconcile_fail_streak = 0
+            return False
+        self._reconcile_fail_streak += 1
+        streak = self._reconcile_fail_streak
+        halt_after = self._reconcile_fail_halt_after
+        err = str(error or "reconcile failed")
+        self._write_log(f"RECONCILE FAILED ({streak}/{halt_after}): {err}")
+        if streak >= halt_after and self.risk is not None:
+            self.risk.halt("RECONCILE_FAILED")
+            self._write_log(f"HALT session — {streak} consecutive reconcile failures")
+            return True
+        return False
 
     def _universe_progress(self, phase: str, current: int, total: int, ticker: str) -> None:
         """Throttled bootstrap progress while MOEX screener / ATR cache warms up."""
@@ -314,8 +333,20 @@ class TradingSessionV2:
                 await asyncio.wait_for(task, timeout=STOP_CANCEL_JOIN_SEC)
             except (asyncio.TimeoutError, asyncio.CancelledError):
                 if not task.done():
-                    from app.modules.robots_v2.engine.session_manager import session_manager
-                    session_manager.on_session_ended(self.robot_id)
+                    # Keep the session slot occupied so a second start cannot spawn a dual live task.
+                    self.state = SessionState.ERROR
+                    self._status_message = "Остановка зависла — сессия ещё завершается"
+                    self._write_log(
+                        "STOP cancel join timeout — retaining session slot until task ends"
+                    )
+
+                    def _cleanup(_t: asyncio.Future) -> None:
+                        from app.modules.robots_v2.engine.session_manager import session_manager
+
+                        session_manager.on_session_ended(self.robot_id)
+
+                    task.add_done_callback(_cleanup)
+                    return
         if self.state == SessionState.STOPPING:
             self.state = SessionState.TERMINATED
             self._status_message = None
@@ -1060,6 +1091,7 @@ class TradingSessionV2:
                     )
                 self._last_reconcile_at = asyncio.get_running_loop().time()
                 self._reconcile_ok = True
+                self._reconcile_fail_streak = 0
 
             self.risk.begin_session(session_equity)
 
@@ -1131,7 +1163,7 @@ class TradingSessionV2:
                 self._write_log(f"HARD_STOP flatten positions={len(self.ledger.positions)}")
                 for t, pos in list(self.ledger.positions.items()):
                     px = self.last_prices.get(t, pos.avg_entry_price)
-                    from app.modules.robots.trading.contracts import OrderIntent
+                    from app.modules.trading_core.contracts import OrderIntent
                     intent = OrderIntent(
                         kind="flatten",
                         figi=t,
@@ -1170,6 +1202,8 @@ class TradingSessionV2:
             stop_reason = "hard_stop" if self.stop_mode == "hard" else "soft_stop"
             if self.state == SessionState.ERROR:
                 stop_reason = "error"
+            elif self.risk and self.risk.session_state.halt_session:
+                stop_reason = self.risk.session_state.halt_reason or "halt"
             elif self._stop_event.is_set() and self.state != SessionState.ERROR:
                 self.state = SessionState.TERMINATED
             try:
@@ -1769,14 +1803,22 @@ class TradingSessionV2:
                         extra_tickers=extra or None,
                     )
                     self._last_reconcile_at = now_mono
-                    self._reconcile_ok = rec.ok
+                    halted = self._note_reconcile_outcome(rec.ok, error=rec.error)
                     if not rec.ok:
-                        self._write_log(f"RECONCILE FAILED: {rec.error}")
                         await event_bus.publish(self.robot_id, "health", {
                             "level": "error",
                             "message": f"reconcile failed: {rec.error}",
                             "code": "RECONCILE_FAILED",
+                            "streak": self._reconcile_fail_streak,
                         })
+                        if halted:
+                            await event_bus.publish(self.robot_id, "health", {
+                                "level": "error",
+                                "message": (
+                                    f"halt after {self._reconcile_fail_streak} reconcile failures"
+                                ),
+                                "code": "RECONCILE_HALT",
+                            })
                         self.last_cycle_at = now
                         self.last_decisions = [{
                             "code": "RECONCILE_FAILED",
@@ -2027,11 +2069,17 @@ class TradingSessionV2:
                     extra_tickers=set(self.ledger.positions.keys()) if self.ledger else None,
                 )
                 self._last_reconcile_at = asyncio.get_running_loop().time()
-                self._reconcile_ok = rec.ok
+                halted = self._note_reconcile_outcome(rec.ok, error=rec.error)
                 if rec.ok:
                     eq = self.ledger.mark_equity(prices)
-                elif rec.error:
-                    self._write_log(f"WARN post-cycle reconcile: {rec.error}")
+                elif halted:
+                    await event_bus.publish(self.robot_id, "health", {
+                        "level": "error",
+                        "message": (
+                            f"halt after {self._reconcile_fail_streak} reconcile failures"
+                        ),
+                        "code": "RECONCILE_HALT",
+                    })
             self._equity_curve.append({
                 "time": now.isoformat(),
                 "equity": round(eq, 2),

@@ -15,7 +15,7 @@ from app.core.background_jobs.worker import LANE_PORTFOLIO
 from app.core.database import SessionLocal, try_dispose_pool_on_connectivity_error
 from app.core.logging_config import get_logger
 from app.core.scheduler_utils import scheduler_startup_delay
-from app.modules.robots.trading.brokers.routing import enforce_broker_for_token
+from app.modules.trading_core.brokers.routing import enforce_broker_for_token
 from app.modules.robots_v2.portfolio.queries import build_get_active_portfolio_v2_robots_query
 
 system_log = get_logger("robots_v2.portfolio.scheduler")

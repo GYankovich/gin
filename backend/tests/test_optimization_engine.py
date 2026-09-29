@@ -44,22 +44,51 @@ def test_overfitting_warnings():
 
 def test_generate_grid_configs_speed_mode():
     base = {
-        "strategy": "reversion_to_ma",
-        "risk": {
-            "stop_loss_percent": 2.0,
-            "take_profit_percent": 3.0,
-            "max_position_percent": 10.0,
-            "max_daily_loss": 5.0,
+        "configVersion": 4,
+        "core": {
+            "goal": "moderate",
+            "instrumentType": "stock",
+            "mode": "paper",
+            "advancedMode": False,
+            "schedule": {
+                "weekdays": [True, True, True, True, True, False, False],
+                "timeFrom": "10:00",
+                "timeTo": "18:40",
+                "pollInterval": "5m",
+            },
         },
-        "strategy_params": {
-            "ma_period": 20,
-            "deviation_pct": 2.0,
-            "rsi_period": 14,
-            "max_hold_candles": 10,
+        "strategy": {
+            "archetype": "momentum",
+            "timeframe": "1h",
+            "params": {
+                "maPeriod": 40,
+                "volumeMultiplier": 2.0,
+                "breakoutLookback": 20,
+            },
+        },
+        "universe": {
+            "mode": "fixed",
+            "fixedList": ["SBER", "GAZP"],
+            "excluded": [],
+            "maxAssets": 10,
+            "exitOnDrop": False,
+        },
+        "risk": {
+            "capital": 100_000,
+            "maxPositionSharePct": 25,
+            "stopLossPct": 3,
+            "takeProfitPct": 6,
+            "maxDailyLoss": 5000,
+            "maxDrawdownPct": 50,
+            "maxConcurrentPositions": 3,
+            "brokerCommissionPct": 0.05,
+            "taxPct": 13,
+            "slippagePct": 0.5,
+            "stopMode": "soft",
         },
     }
-    params = optimizable_params(base, "reversion_to_ma")
+    params = optimizable_params(base, "momentum")
     assert len(params) >= 4
-    variants = generate_grid_configs(base, "reversion_to_ma", mode="speed")
+    variants = generate_grid_configs(base, "momentum", mode="speed")
     assert 1 <= len(variants) <= 20
-    assert variants[0]["risk"]["stop_loss_percent"] is not None
+    assert variants[0]["risk"]["stopLossPct"] is not None

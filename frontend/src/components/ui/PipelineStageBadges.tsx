@@ -1,5 +1,13 @@
 import React from 'react'
-import type { PipelineStageStatusView, PipelineStageVisualStatus } from '@/pages/robots/pipelineStageStatus'
+
+export type PipelineStageVisualStatus = 'ok' | 'pending' | 'stale' | 'error' | 'disabled'
+
+export type PipelineStageStatusView = {
+    id: string
+    label: string
+    detail?: string
+    status: PipelineStageVisualStatus
+}
 
 const ICON: Record<PipelineStageVisualStatus, string> = {
     ok: '✅',

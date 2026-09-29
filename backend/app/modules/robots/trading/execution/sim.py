@@ -15,9 +15,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from app.modules.robots.trading.backtest.broker_emulator import BrokerEmulator
+from app.modules.trading_core.sim.broker_emulator import BrokerEmulator
 from app.modules.robots.trading.contracts import Fill, Order
-from app.modules.robots.trading.costs import TradingCosts
+from app.modules.trading_core.costs import TradingCosts
 from app.modules.robots.trading.execution.base import Execution, ExecutionResult
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -63,6 +64,67 @@ def test_app_rest_errors_channel_layout(tmp_path: Path, monkeypatch):
         assert f"msg-{channel}" in expected.read_text(encoding="utf-8")
         handler.close()
         logger.removeHandler(handler)
+
+
+def test_channel_cleanup_removes_empty_date_dirs(tmp_path: Path):
+    import app.core.logging_config as lc
+
+    fmt = logging.Formatter("%(message)s")
+    handler = _ChannelSlotFileHandler(tmp_path, "app", logging.DEBUG, fmt, backup_count=1)
+    day, h_start, h_end = lc._slot_now()
+
+    old_day = tmp_path / "2020-01-01"
+    old_app = old_day / "app"
+    old_app.mkdir(parents=True)
+    old_file = old_app / "00-04.log"
+    old_file.write_text("old", encoding="utf-8")
+    os.utime(old_file, (1, 1))
+    (old_day / "rest").mkdir()
+
+    kept_day = tmp_path / "2020-01-02"
+    kept_rest = kept_day / "rest" / "00-04.log"
+    kept_rest.parent.mkdir(parents=True)
+    kept_rest.write_text("keep", encoding="utf-8")
+    os.utime(kept_rest, (2, 2))
+    (kept_day / "app").mkdir()
+
+    handler._cleanup_old()
+
+    assert not old_day.exists()
+    assert not (kept_day / "app").exists()
+    assert kept_rest.exists()
+    current = tmp_path / day / "app" / f"{h_start:02d}-{h_end:02d}.log"
+    assert current.exists()
+    handler.close()
+
+
+def test_robot_cleanup_removes_empty_date_dirs(tmp_path: Path):
+    import app.core.logging_config as lc
+
+    fmt = logging.Formatter("%(message)s")
+    handler = _RobotSlotFileHandler(
+        tmp_path, "trading_robot", "13", logging.DEBUG, fmt, backup_count=1
+    )
+    day, h_start, h_end = lc._slot_now()
+
+    old_day = tmp_path / "2020-01-01"
+    old_file = old_day / "robots" / "trading_robot" / "id_13_00-04.log"
+    old_file.parent.mkdir(parents=True)
+    old_file.write_text("old", encoding="utf-8")
+    os.utime(old_file, (1, 1))
+
+    handler._cleanup_old()
+
+    assert not old_day.exists()
+    current = (
+        tmp_path
+        / day
+        / "robots"
+        / "trading_robot"
+        / f"id_13_{h_start:02d}-{h_end:02d}.log"
+    )
+    assert current.exists()
+    handler.close()
 
 
 def test_api_logger_writes_external_api_logs():

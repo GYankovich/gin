@@ -10,7 +10,7 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots.trading.contracts import Signal
+from app.modules.trading_core.contracts import Signal
 from app.modules.robots_v2.config.v4_schema import RiskConfig
 from app.modules.robots_v2.engine.paper_ledger import PaperLedger
 from app.modules.robots_v2.risk.adapter import enrich_positions_with_exit_prices, risk_params_from_v4
@@ -56,9 +56,27 @@ def test_enrich_positions_includes_break_even():
 def test_risk_engine_rebind_capital_from_account():
     engine = RiskEngine(_risk_config())
     assert engine.manager.params.max_position_rub == 100_000 * 0.10
+    # Equity above wizard capital is capped by allocatedCapital/wizard budget.
     engine.rebind_capital(250_000)
-    assert engine.config.capital == 250_000
-    assert engine.manager.params.max_position_rub == 25_000
+    assert engine.config.capital == 100_000
+    assert engine.manager.params.max_position_rub == 10_000
+
+    engine_uncapped = RiskEngine(
+        RiskConfig.model_validate({
+            "capital": 100_000,
+            "allocatedCapital": 500_000,
+            "maxPositionSharePct": 10,
+            "stopLossPct": 2,
+            "takeProfitPct": 4,
+            "maxDailyLoss": 5000,
+            "maxConcurrentPositions": 3,
+            "brokerCommissionPct": 0.05,
+            "taxPct": 13,
+        })
+    )
+    engine_uncapped.rebind_capital(250_000)
+    assert engine_uncapped.config.capital == 250_000
+    assert engine_uncapped.manager.params.max_position_rub == 25_000
 
 
 def test_risk_engine_denies_when_entries_paused():

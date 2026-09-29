@@ -208,6 +208,9 @@ class _FakeBybitWs:
     async def subscribe_klines(self, *, symbols, interval):
         self.subscribed.append((list(symbols), str(interval)))
 
+    async def subscribe_public_trades(self, *, symbols):
+        self.subscribed.append((list(symbols), "publicTrade"))
+
     async def recv_json(self, timeout_seconds: float = 1.0):
         _ = timeout_seconds
         await asyncio.sleep(0)

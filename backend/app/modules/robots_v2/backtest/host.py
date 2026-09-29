@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Any, Callable
 
-from app.modules.robots.trading.contracts import Candle, OrderIntent
+from app.modules.trading_core.contracts import Candle, OrderIntent
 from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
 from app.modules.robots_v2.engine.cycle_sync import run_paper_cycle_sync
 from app.modules.robots_v2.engine.execution import ExecutionService

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional, Set
 
+from app.modules.trading_core.symbols import normalize_figi
+
 _BROKER_ORDER_ACTIVE = frozenset({
     "EXECUTION_REPORT_STATUS_NEW",
     "EXECUTION_REPORT_STATUS_PARTIALLYFILL",
@@ -18,10 +20,6 @@ _BROKER_ORDER_ACTIVE = frozenset({
     "New",
     "PartiallyFilled",
 })
-
-
-def normalize_figi(figi: Any) -> str:
-    return str(figi or "").upper().strip()
 
 
 class SymbolGuard:

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from typing import Any, Dict, List, TYPE_CHECKING
 
 from app.modules.robots.trading.contracts import ExecutionMode, OrderIntent
@@ -41,8 +42,13 @@ async def run_single_trading_cycle(host: "TradingSession", cycle_count: int) -> 
     await host.refresh_config()
     await host._refresh_account_positions()
     health_ok = True
-    if hasattr(host, "_check_live_account_health"):
-        health_ok = await host._check_live_account_health()
+    check_health = getattr(host, "_check_live_account_health", None)
+    if callable(check_health):
+        maybe = check_health()
+        if inspect.isawaitable(maybe):
+            health_ok = bool(await maybe)
+        elif maybe is not None:
+            health_ok = bool(maybe)
 
     if host.strategy_name == "grain_seed":
         await host._update_portfolio()

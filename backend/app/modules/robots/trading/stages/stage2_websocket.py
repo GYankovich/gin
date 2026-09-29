@@ -8,7 +8,7 @@ Stage 2: Подключение к WebSocket и получение цен
 import asyncio
 from typing import Dict, List, Optional
 
-from app.modules.robots.trading.brokers.base import BrokerFacade
+from app.modules.trading_core.brokers.base import BrokerFacade
 from app.modules.robots.common.mixins import PriceParsingMixin
 from app.core.logging_config import get_logger
 

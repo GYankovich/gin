@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from app.modules.robots.trading.contracts import ExecutionMode
 
 if TYPE_CHECKING:
-    from app.modules.robots.trading.brokers.sim_backtest import SimBacktestBrokerFacade
+    from app.modules.trading_core.brokers.sim_backtest import SimBacktestBrokerFacade
     from app.modules.robots.trading.session import TradingSession
 
 

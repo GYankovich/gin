@@ -1,8 +1,13 @@
 # ADR: Robots Greenfield (v2)
 
-**Статус:** accepted  
+**Статус:** accepted (cutover complete — 2026-09-29)  
 **Дата:** 2026-08-12  
 **Спека:** [robots_greenfield_spec.md](./robots_greenfield_spec.md)
+
+> **As-built (2026-09-29):** v2 — единственный пользовательский контур.
+> UI `/robots` → `/api/v2/robots/*`. Routes `/testing`, `/live`, `/robots-v2/*` redirect to `/robots`.
+> Legacy `/api/robots/*` unmounted. History-backtest monolith removed; prod backtest = `robots_v2.backtest`.
+> Sections below describing a long-lived parallel v1 contour are historical context only.
 
 Документ фиксирует продуктовые и архитектурные решения для параллельного контура v2. Отменяет или уточняет отдельные пункты greenfield-спеки там, где указано явно.
 
@@ -10,7 +15,8 @@
 
 ## ADR-01 — Параллельный контур v2
 
-**Решение:** новый API и UI живут параллельно v1 до полной замены.
+**Решение (историческое):** новый API и UI живут параллельно v1 до полной замены.  
+**Факт:** замена завершена; см. as-built note выше.
 
 | Аспект | v1 (as-is) | v2 (greenfield) |
 |--------|------------|-----------------|

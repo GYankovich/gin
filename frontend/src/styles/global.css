@@ -3898,7 +3898,9 @@ select:focus:not(:focus-visible) {
     align-self: center;
 }
 [data-page='dashboard'] .dashboard-hero__cfg.btn--ghost.btn--sm,
-[data-page='dashboard'] .dashboard-hero__cfg {
+[data-page='dashboard'] .dashboard-hero__cfg,
+[data-page='robots'] .dashboard-hero__cfg.btn--ghost.btn--sm,
+[data-page='robots'] .dashboard-hero__cfg {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -3912,7 +3914,8 @@ select:focus:not(:focus-visible) {
     backdrop-filter: none;
     box-shadow: none;
 }
-[data-page='dashboard'] .dashboard-hero__cfg-text {
+[data-page='dashboard'] .dashboard-hero__cfg-text,
+[data-page='robots'] .dashboard-hero__cfg-text {
     white-space: nowrap;
 }
 /* Icon-only when hero row is tight */
@@ -3927,7 +3930,9 @@ select:focus:not(:focus-visible) {
     }
 }
 [data-page='dashboard'] .dashboard-hero__cfg.btn--ghost.btn--sm:hover,
-[data-page='dashboard'] .dashboard-hero__cfg:hover {
+[data-page='dashboard'] .dashboard-hero__cfg:hover,
+[data-page='robots'] .dashboard-hero__cfg.btn--ghost.btn--sm:hover,
+[data-page='robots'] .dashboard-hero__cfg:hover {
     background: var(--bg-card-hover) !important;
     border-color: color-mix(in srgb, var(--text-primary) 22%, var(--border-medium)) !important;
     color: var(--text-primary) !important;
@@ -4971,7 +4976,8 @@ select:focus:not(:focus-visible) {
 [data-theme='light'] [data-page='dashboard'] .dashboard-dist-bar-fill, [data-theme='light'] [data-page='portfolio'] .dashboard-dist-bar-fill {
     box-shadow: none;
 }
-[data-theme='light'] [data-page='dashboard'] .dashboard-hero__cfg {
+[data-theme='light'] [data-page='dashboard'] .dashboard-hero__cfg,
+[data-theme='light'] [data-page='robots'] .dashboard-hero__cfg {
     background: var(--bg-card) !important;
     border-color: var(--border-medium) !important;
     box-shadow: var(--shadow-sm) !important;
@@ -12850,8 +12856,13 @@ input.gin-select__trigger:focus {
 }
 
 .dashboard-hero__actions .robots-v2-chrome-nav--active {
-    color: var(--neon-cyan);
+    border-color: color-mix(in srgb, var(--neon-cyan) 45%, var(--border-medium)) !important;
+    color: var(--neon-cyan) !important;
     box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--neon-cyan) 70%, transparent);
+}
+.dashboard-hero__actions .robots-v2-chrome-nav--active:hover {
+    border-color: color-mix(in srgb, var(--neon-cyan) 55%, var(--border-medium)) !important;
+    color: var(--neon-cyan) !important;
 }
 
 .robots-v2-backtest-dates {

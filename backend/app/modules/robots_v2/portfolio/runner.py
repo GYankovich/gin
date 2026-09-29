@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.modules.robots.trading.brokers.routing import enforce_broker_for_token
+from app.modules.trading_core.brokers.routing import enforce_broker_for_token
 from app.modules.robots.portfolio_updater.robot import PortfolioUpdaterRobot
 from app.modules.robots_v2.portfolio.queries import (
     build_find_portfolio_v2_by_token_query,

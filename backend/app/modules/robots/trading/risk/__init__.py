@@ -1,12 +1,5 @@
-"""
-Единый риск-менеджмент для backtest и live.
+"""Shim — canonical location: ``app.modules.trading_core.risk``."""
 
-См. docs/BRD-ARCH-03-unified-engine-architecture.md §7.
-"""
-#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingRiskInit [1]
-#/// Исходный модуль `backend/app/modules/robots/trading/risk/__init__.py` — автоматическая разметка для Obsidian Source Scanner.
-
-from .params import RiskParams
-from .manager import RiskManager, RiskDecision
+from app.modules.trading_core.risk import RiskDecision, RiskManager, RiskParams
 
 __all__ = ["RiskParams", "RiskManager", "RiskDecision"]

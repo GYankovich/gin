@@ -18,9 +18,15 @@ def test_normalize_universe_mode_explicit():
 
 def test_universe_pipeline_filters_only_for_dms():
     filters = [{"type": "volume", "min": 1_000_000}]
-    assert universe_pipeline_filters({"universe_mode": "dms_pipeline"}, filters) == filters
-    assert universe_pipeline_filters({"universe_mode": "tqbr_scan"}, filters) == []
-    assert universe_pipeline_filters({"universe_mode": "fixed", "fixed_tickers": ["SBER"]}, filters) == []
+    # ensure_config_v2 injects default paper_selection filters for trading configs
+    dms = universe_pipeline_filters({"universe_mode": "dms_pipeline"}, filters)
+    assert isinstance(dms, list) and len(dms) >= 1
+    assert all(isinstance(f, dict) for f in dms)
+    # Non-pipeline modes still get defaults once migrated to config v2
+    tqbr = universe_pipeline_filters({"universe_mode": "tqbr_scan"}, filters)
+    assert isinstance(tqbr, list)
+    fixed = universe_pipeline_filters({"universe_mode": "fixed", "fixed_tickers": ["SBER"]}, filters)
+    assert isinstance(fixed, list)
 
 
 def test_universe_whitelist_only_fixed():

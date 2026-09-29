@@ -16,7 +16,7 @@ from app.modules.robots.config.v2_schema import (
     SignalGenerationConfig,
     TradingRobotConfigV2,
 )
-from app.modules.robots.trading.intervals import DEFAULT_MOEX_ANALYSIS_INTERVAL
+from app.modules.trading_core.intervals import DEFAULT_MOEX_ANALYSIS_INTERVAL
 
 CONFIG_VERSION_V3 = 3
 

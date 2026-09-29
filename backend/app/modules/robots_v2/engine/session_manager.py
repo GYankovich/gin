@@ -20,7 +20,15 @@ class SessionManager:
 
     def is_running(self, robot_id: int) -> bool:
         s = self._sessions.get(robot_id)
-        return s is not None and s.state in (SessionState.BOOTSTRAP, SessionState.RUNNING, SessionState.STOPPING)
+        if s is None:
+            return False
+        if s.state in (SessionState.BOOTSTRAP, SessionState.RUNNING, SessionState.STOPPING):
+            return True
+        # ERROR while the asyncio task is still alive (stop-timeout) must block a second start.
+        task = getattr(s, "_task", None)
+        if s.state == SessionState.ERROR and task is not None and not task.done():
+            return True
+        return False
 
     async def start(
         self,

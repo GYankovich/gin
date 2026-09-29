@@ -12,13 +12,13 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy.orm import Session
 
-from app.modules.robots.trading.backtest.types import (
+from app.modules.trading_core.sim.types import (
     BacktestResult,
     bar_in_trading_session as _bar_in_trading_session,
     candle_time_iso as _candle_time_iso,
     session_time_from_risk as _session_time_from_risk,
 )
-from app.modules.robots.trading.brokers.sim_backtest import (
+from app.modules.trading_core.brokers.sim_backtest import (
     SimBacktestBrokerFacade,
     _close_price,
 )
@@ -166,7 +166,7 @@ class BacktestTradingSession(TradingSession):
             self._funding_by_symbol = {}
             return
         from datetime import time as time_cls, timedelta
-        from app.modules.robots.trading.data.providers.bybit_market import load_funding_history_from_cache
+        from app.modules.trading_core.data.providers.bybit_market import load_funding_history_from_cache
 
         bybit_cfg = self.config.get("bybit") if isinstance(self.config.get("bybit"), dict) else {}
         category = str(bybit_cfg.get("instrument_category") or "linear").strip().lower()

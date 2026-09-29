@@ -11,7 +11,7 @@ from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 from app.core.config import settings
 from app.core.logging_config import get_logger
 from app.core.database import SessionLocal
-from app.modules.robots.trading.brokers.base import BrokerFacade
+from app.modules.trading_core.brokers.base import BrokerFacade
 from app.modules.robots.trading.cache import get_candles_cache
 from app.modules.market_data import repository as md_repo
 from app.modules.market_data import service as md_service
@@ -99,8 +99,8 @@ class IndicatorService:
             return [], empty_stats
         try:
             # Prefer DB candles_cache when present, then fill gaps via broker REST.
-            from app.modules.robots.trading.data.providers.db_cache import query_candles_cache_rows
-            from app.modules.robots.trading.intervals import resolve_strategy_interval
+            from app.modules.trading_core.data.providers.db_cache import query_candles_cache_rows
+            from app.modules.trading_core.intervals import resolve_strategy_interval
 
             resolved = resolve_strategy_interval(interval)
             # code_num is minutes for intraday (5, 15, 60…); day/week use MOEX special codes.

@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.modules.robots.trading.brokers.routing import resolve_broker_from_token
+from app.modules.trading_core.brokers.routing import resolve_broker_from_token
 
 Market = Literal["moex", "crypto"]
 

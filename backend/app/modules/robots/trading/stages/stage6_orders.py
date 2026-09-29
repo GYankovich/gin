@@ -10,10 +10,10 @@ Prod-вход: `execution.service.LiveExecutionService` (BRD-ARCH-04 этап 4)
 from typing import Any, Dict, List, Optional, Callable
 from datetime import datetime, timezone, timedelta
 
-from app.modules.robots.trading.brokers.base import BrokerFacade
+from app.modules.trading_core.brokers.base import BrokerFacade
 from app.modules.robots.common.mixins import PriceParsingMixin
 from app.modules.robots.trading.contracts import OrderIntent
-from app.modules.robots.trading.costs import TradingCosts
+from app.modules.trading_core.costs import TradingCosts
 from app.modules.robots.trading.account_positions_book import (
     signed_qty,
 )
@@ -460,7 +460,7 @@ class Stage6Orders(PriceParsingMixin):
             except Exception as e:
                 error_msg = str(e)
                 self._write_log(f"      ❌ Ошибка выставления заявки: {error_msg}")
-                from app.modules.robots.trading.broker_position_sync import is_fatal_broker_error
+                from app.modules.trading_core.broker_position_sync import is_fatal_broker_error
 
                 fatal = is_fatal_broker_error(e)
                 trades.append({

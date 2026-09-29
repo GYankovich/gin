@@ -170,8 +170,15 @@ class Settings(BaseSettings):
         description="Max wait for OsData gap download before importing whatever is on disk",
     )
     OSENGINE_AUTO_START: bool = Field(
+        default=False,
+        description=(
+            "При старте API: поднять OsEngine.exe (если OSENGINE_ENABLED). "
+            "ARCH-05 B: по умолчанию false — OsEngine поднимает compute worker."
+        ),
+    )
+    OSENGINE_AUTO_START_ON_COMPUTE: bool = Field(
         default=True,
-        description="При старте API: поднять OsEngine.exe (если OSENGINE_ENABLED и exe найден)",
+        description="При старте gin-compute worker: поднять OsEngine если OSENGINE_ENABLED",
     )
     OSENGINE_EXE_PATH: Optional[str] = Field(
         default=None,
@@ -306,6 +313,12 @@ class Settings(BaseSettings):
         ge=0,
         le=100,
         description="background_jobs.priority для optimization batch",
+    )
+    COMPUTE_BATCH_MAX_ITEMS: int = Field(
+        default=50,
+        ge=1,
+        le=200,
+        description="Макс. вариантов в одном optimization batch",
     )
     WORKER_DEFER_WHILE_REST_BUSY: bool = Field(
         default=True,

@@ -15,6 +15,23 @@ import asyncio
 import sys
 
 
+async def _maybe_start_osengine() -> None:
+    from app.core.config import settings
+
+    if not settings.OSENGINE_ENABLED or not settings.OSENGINE_AUTO_START_ON_COMPUTE:
+        return
+    try:
+        from app.modules.osengine.process import start_osengine_process
+
+        started = await start_osengine_process(wait_for_mcp=False)
+        if started:
+            print("[INFO] OsEngine auto-started for compute worker")
+        else:
+            print("[WARN] OsEngine auto-start skipped or failed (see logs)")
+    except Exception as exc:
+        print(f"[WARN] OsEngine auto-start error: {exc}")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="GIN Compute heavy-lane worker")
     parser.add_argument(
@@ -34,8 +51,13 @@ def main(argv: list[str] | None = None) -> None:
     if args.force_lease:
         print("[WARN] --force-lease: will steal existing lease if present")
     print("Press Ctrl+C to stop\n")
+
+    async def _run() -> None:
+        await _maybe_start_osengine()
+        await run_standalone_lane_worker(LANE_HEAVY, force_lease=args.force_lease)
+
     try:
-        asyncio.run(run_standalone_lane_worker(LANE_HEAVY, force_lease=args.force_lease))
+        asyncio.run(_run())
     except WorkerLeaseConflictError as exc:
         print(f"\n[ERR] {exc}")
         print("Уже крутится другой heavy worker. Остановите его или добавьте --force-lease")

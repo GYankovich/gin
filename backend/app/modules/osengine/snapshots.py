@@ -223,7 +223,7 @@ async def ensure_daily_snapshot_from_osengine(
     run_id: Optional[int] = None,
 ) -> Optional[int]:
     """DB-first snapshot; gaps filled via OsEngine Day candles (MCP → Data/ → cache)."""
-    from app.modules.robots.service import is_history_backtest_cancelled
+    from app.modules.trading_core.cancel import is_backtest_cancelled
 
     board_u = (board or "TQBR").strip().upper() or "TQBR"
     min_rows_for_reuse = 1
@@ -249,7 +249,7 @@ async def ensure_daily_snapshot_from_osengine(
     existing_id = int(existing[0]) if existing else None
     existing_rows = int(existing[1] or 0) if existing else 0
 
-    if run_id is not None and is_history_backtest_cancelled(run_id):
+    if run_id is not None and is_backtest_cancelled(run_id):
         return None
     if existing_id and existing_rows >= min_rows_for_reuse:
         if run_id is not None:
@@ -328,7 +328,7 @@ async def ensure_daily_snapshot_from_osengine(
             board_u,
         )
 
-    if run_id is not None and is_history_backtest_cancelled(run_id):
+    if run_id is not None and is_backtest_cancelled(run_id):
         return None
 
     rows = _rows_from_day_candles(db, day=day, board=board_u, tickers=tickers)

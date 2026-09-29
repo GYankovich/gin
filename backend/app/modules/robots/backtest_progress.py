@@ -99,7 +99,7 @@ def begin_backtest_phase(run_id: int, phase: str) -> None:
     with _LOCK:
         _RUNTIME[int(run_id)] = _Runtime(phase=str(phase), phase_started_mono=time.monotonic())
     try:
-        from app.modules.robots.trading.backtest.run_file_logger import log_backtest_run_phase
+        from app.modules.trading_core.logging.run_file_logger import log_backtest_run_phase
 
         log_backtest_run_phase(int(run_id), str(phase))
     except Exception:
@@ -339,7 +339,7 @@ def persist_backtest_progress(
     with _LOCK:
         _LAST_PROGRESS_TOUCH[int(run_id)] = time.monotonic()
     try:
-        from app.modules.robots.trading.backtest.run_file_logger import log_backtest_run_phase
+        from app.modules.trading_core.logging.run_file_logger import log_backtest_run_phase
 
         log_backtest_run_phase(
             int(run_id),

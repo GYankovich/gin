@@ -44,6 +44,27 @@ def _slot_now() -> tuple:
     return now.strftime("%Y-%m-%d"), slot_start, slot_end
 
 
+def _prune_empty_log_dirs(log_root: Path) -> None:
+    """Удаляет пустые каталоги под log_root, включая папки дней YYYY-MM-DD.
+
+    Сначала снимаются самые глубокие пустые папки, затем родители,
+    которые опустели после них. Сам log_root не удаляется.
+    """
+    try:
+        if not log_root.is_dir():
+            return
+        directories = [path for path in log_root.rglob("*") if path.is_dir()]
+    except OSError:
+        return
+    directories.sort(key=lambda path: len(path.parts), reverse=True)
+    for directory in directories:
+        try:
+            if directory.is_dir() and not any(directory.iterdir()):
+                directory.rmdir()
+        except OSError:
+            pass
+
+
 class _ChannelSlotFileHandler(BaseRotatingHandler):
     """
     Канал приложения:
@@ -104,6 +125,7 @@ class _ChannelSlotFileHandler(BaseRotatingHandler):
                 oldest.unlink()
             except OSError:
                 pass
+        _prune_empty_log_dirs(self._log_root)
 
 
 # Backward-compatible alias (tests / old imports).
@@ -183,6 +205,7 @@ class _RobotSlotFileHandler(BaseRotatingHandler):
                 oldest.unlink()
             except OSError:
                 pass
+        _prune_empty_log_dirs(self._log_root)
 
 
 def _clear_existing_handlers() -> None:
@@ -271,6 +294,7 @@ def setup_logging() -> None:
     _sql_engine = logging.getLogger("sqlalchemy.engine")
     _sql_engine.setLevel(logging.WARNING)
     _sql_engine.propagate = False
+    _prune_empty_log_dirs(_LOG_ROOT)
     logging.info("Logging configured (date/channel folders, 4h slots)")
 
 

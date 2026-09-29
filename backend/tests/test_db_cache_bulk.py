@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
-from app.modules.robots.trading.data.providers.db_cache import (
+from app.modules.trading_core.data.providers.db_cache import (
     query_candles_cache_rows,
     query_candles_cache_rows_bulk,
 )
@@ -97,7 +97,7 @@ def test_load_candles_by_symbol_from_cache_uses_bulk():
     facade.read_candles_cache_rows_bulk.return_value = bulk
 
     with __import__("unittest.mock", fromlist=["patch"]).patch(
-        "app.modules.robots.trading.data.get_market_data_facade",
+        "app.modules.trading_core.data.get_market_data_facade",
         return_value=facade,
     ):
         out = TradingOrchestrator().load_candles_by_symbol_from_cache(

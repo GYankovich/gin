@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from app.modules.robots.trading.contracts import Candle
+from app.modules.trading_core.contracts import Candle
 
 
 def last_close(candles: list[Candle]) -> Optional[float]:

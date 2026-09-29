@@ -589,7 +589,7 @@ def _bulk_load_volatility_from_candles_cache(
     """symbol → (rvol, atr_percent) from bybit D1 candles_cache when enough bars exist."""
     if not symbols:
         return {}
-    from app.modules.robots.trading.data.providers.db_cache import query_candles_cache_rows_bulk
+    from app.modules.trading_core.data.providers.db_cache import query_candles_cache_rows_bulk
 
     now_utc = now or datetime.now(timezone.utc)
     # Inclusive of today's D1 bar if present; exclusive end = tomorrow UTC midnight.
@@ -666,7 +666,7 @@ def _persist_volatility_klines(
 ) -> int:
     if not rows:
         return 0
-    from app.modules.robots.trading.data.providers.bybit_market import _upsert_bybit_candles
+    from app.modules.trading_core.data.providers.bybit_market import _upsert_bybit_candles
 
     try:
         return int(

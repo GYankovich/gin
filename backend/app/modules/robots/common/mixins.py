@@ -149,7 +149,7 @@ class TradePersistenceMixin:
             is_broker_import = oid.startswith("broker_import:")
 
             if is_broker_import:
-                from app.modules.robots.trading.broker_position_sync import (
+                from app.modules.trading_core.broker_position_sync import (
                     legacy_broker_import_order_ids,
                 )
 

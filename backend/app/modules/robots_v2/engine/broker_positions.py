@@ -11,8 +11,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.modules.robots.trading.broker_position_sync import extract_account_position_meta, money_to_float
-from app.modules.robots.trading.brokers.base import BrokerFacade
+from app.modules.trading_core.broker_position_sync import extract_account_position_meta, money_to_float
+from app.modules.trading_core.brokers.base import BrokerFacade
 from app.modules.robots_v2.engine.paper_ledger import PaperPosition
 
 logger = logging.getLogger(__name__)

@@ -199,6 +199,31 @@ def test_live_fill_timeout_does_not_mutate_ledger():
     assert "SOLUSDT" not in ledger.positions
 
 
+def test_live_no_order_id_does_not_mutate_ledger():
+    ledger = PaperLedger(cash=100_000, commission_rate=0.0)
+    exec_svc = ExecutionService(
+        mode="live", robot_id=1, ledger=ledger, account_id="acc",
+        fill_poll_interval_sec=0.01, fill_timeout_sec=0.05,
+    )
+
+    class _Broker:
+        broker_type = "bybit"
+
+        async def post_market_order(self, *args, **kwargs):
+            return {"retCode": 0, "result": {}}  # no order id
+
+    exec_svc.broker = _Broker()  # type: ignore[assignment]
+    intent = OrderIntent(kind="entry", figi="BTCUSDT", side="BUY", quantity=1, price=50.0)
+
+    async def _run():
+        return await exec_svc.execute_intent(intent, last_price=50.0)
+
+    result = asyncio.run(_run())
+    assert result.status == "submitted"
+    assert result.reason == "NO_ORDER_ID"
+    assert "BTCUSDT" not in ledger.positions
+
+
 def test_reconcile_overwrites_shadow_ledger():
     from app.modules.robots_v2.engine.reconcile import reconcile_from_broker
 

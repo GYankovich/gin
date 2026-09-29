@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from app.modules.robots.trading.broker_position_sync import money_to_float
+from app.modules.trading_core.broker_position_sync import money_to_float
 
 _ACTIVE_STATUSES = frozenset({
     "EXECUTION_REPORT_STATUS_NEW",

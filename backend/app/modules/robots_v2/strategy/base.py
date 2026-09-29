@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import Any
 
-from app.modules.robots.trading.contracts import Position, Signal
+from app.modules.trading_core.contracts import Position, Signal
 from app.modules.robots_v2.config.v4_schema import StrategyArchetype
 from app.modules.robots_v2.strategy.schemas import (
     DataRequirement,

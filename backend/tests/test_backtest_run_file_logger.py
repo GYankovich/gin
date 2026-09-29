@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.modules.robots.trading.backtest import run_file_logger as rfl
+from app.modules.trading_core.logging import run_file_logger as rfl
 
 
 def test_backtest_run_dir_uses_dd_mm_yyyy(tmp_path, monkeypatch):

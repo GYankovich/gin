@@ -9,8 +9,8 @@ from typing import Any
 from sqlalchemy import text
 
 from app.core.database import SessionLocal
-from app.modules.robots.trading.brokers.base import BrokerFacade
-from app.modules.robots.trading.brokers.factory import create_broker_facade
+from app.modules.trading_core.brokers.base import BrokerFacade
+from app.modules.trading_core.brokers.factory import create_broker_facade
 from app.modules.robots_v2.universe.token_context import TokenContext
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ def create_broker_from_token(
         return None
     context_ref = str(robot_id) if robot_id is not None else str(ctx.token_id)
     if ctx.broker == "bybit":
-        from app.modules.robots.trading.brokers.bybit import ByBitBrokerFacade
+        from app.modules.trading_core.brokers.bybit import ByBitBrokerFacade
 
         category = "inverse" if instrument_type == "coin_futures" else "linear"
         return ByBitBrokerFacade(

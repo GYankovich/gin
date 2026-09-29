@@ -23,7 +23,7 @@ from typing import AsyncIterator, Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.modules.robots.trading.brokers.base import BrokerFacade
+from app.modules.trading_core.brokers.base import BrokerFacade
 from app.modules.robots.trading.contracts import Candle, MarketSnapshot, SnapshotRow
 from app.modules.robots.trading.data_provider.base import DataProvider
 

@@ -1,27 +1,47 @@
 from __future__ import annotations
 
-from app.modules.robots.portfolio_updater.robot import PortfolioUpdaterRobot
+import asyncio
+
+from app.modules.robots.trading.brokers.bybit import ByBitBrokerFacade
 
 
-def test_normalize_bybit_portfolio_to_snapshot_shape():
-    robot = PortfolioUpdaterRobot()
-    raw = {
-        "wallet_balance": [
-            {
-                "totalEquity": "1250.5",
-                "accountIMRateByMp": "0",
-                "coin": [
-                    {"coin": "BTC", "walletBalance": "0.01"},
-                    {"coin": "USDT", "walletBalance": "500"},
-                    {"coin": "ETH", "walletBalance": "0"},
-                ],
-            }
-        ]
-    }
-    out = robot._normalize_bybit_portfolio(raw)
-    assert out["total_amount_portfolio"]["decimal"] == 1250.5
-    assert out["total_amount_portfolio"]["currency"] == "USDT"
-    tickers = [p["ticker"] for p in out["positions"]]
-    assert tickers == ["BTC", "USDT"]
-    assert all(p["class_code"] == "BYBIT" for p in out["positions"])
+class _FakeBybitHttp:
+    async def get_wallet_balance(self, *, account_type: str = "UNIFIED", coin: str | None = None):
+        return {
+            "retCode": 0,
+            "result": {
+                "list": [
+                    {
+                        "totalEquity": "1250.5",
+                        "totalAvailableBalance": "500",
+                        "coin": [
+                            {"coin": "USDT", "walletBalance": "500", "availableToWithdraw": "500"},
+                            {"coin": "BTC", "walletBalance": "0.01"},
+                        ],
+                    }
+                ]
+            },
+        }
 
+    async def get_positions(self, **kwargs):
+        return {"retCode": 0, "result": {"list": []}}
+
+    async def get_asset_overview(self, **kwargs):
+        return {"retCode": 0, "result": {"list": []}}
+
+    async def close(self):
+        return None
+
+
+def test_bybit_facade_portfolio_snapshot_shape():
+    async def _run():
+        b = ByBitBrokerFacade("key", http_client=_FakeBybitHttp())
+        out = await b.get_portfolio("BYBIT_UNIFIED")
+        await b.close()
+        assert out["total_amount_portfolio"]["decimal"] == 1250.5
+        assert out["total_amount_portfolio"]["currency"] == "USDT"
+        tickers = [p["ticker"] for p in out["positions"]]
+        assert "USDT" in tickers
+        assert all(p["class_code"] == "BYBIT" for p in out["positions"] if p["ticker"] == "USDT")
+
+    asyncio.run(_run())

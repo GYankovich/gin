@@ -9,7 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.modules.robots.trading.data.providers.db_cache import query_candles_cache_rows
+from app.modules.trading_core.data.providers.db_cache import query_candles_cache_rows
 
 
 def volume_lookback_days(config: Dict[str, Any], default: int = 14) -> int:
@@ -70,7 +70,7 @@ def point_in_time_metrics(
     market: str = "moex",
 ) -> dict[str, dict[str, float]]:
     """Last close and mean daily turnover using only candles strictly before as_of_date."""
-    from app.modules.robots.trading.data.providers.db_cache import query_candles_cache_rows_bulk
+    from app.modules.trading_core.data.providers.db_cache import query_candles_cache_rows_bulk
 
     ids = [str(t).upper() for t in tickers if t]
     if not ids:

@@ -1,17 +1,18 @@
+"""Async optimization batches over v2 backtest_run jobs (ARCH-05 A.2)."""
+
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timezone
-import json
 from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core.background_jobs.repository import enqueue_background_job
-from app.core.background_jobs.worker import LANE_HEAVY
-from app.modules.robots import schemas as robot_schemas
+from app.modules.robots_v2.backtest.quotas import assert_can_start_optimization_batch
+from app.modules.robots_v2.backtest.schemas import RobotV2BacktestRequest
+from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
 
 from . import optimization_batch_queries as batch_q
 from .optimization_engine import (
@@ -20,6 +21,7 @@ from .optimization_engine import (
     check_overfitting_warnings,
     generate_grid_configs,
     param_summary_from_config,
+    resolve_strategy_key,
 )
 from .optimization_failure_hints import build_failure_insights
 from .schemas import OptimizationGoal, OptimizationMode
@@ -33,18 +35,22 @@ def _coerce_utc(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-def _resolve_token_id(robot: Dict[str, Any]) -> Optional[int]:
-    tok = robot.get("token") if isinstance(robot.get("token"), dict) else {}
-    if tok.get("id") is not None:
-        return int(tok["id"])
-    if robot.get("token_id") is not None:
-        return int(robot["token_id"])
-    return None
+def _load_v2_trading_robot(db: Session, robot_id: int, user_id: int):
+    from app.modules.robots_v2.service import robots_v2_service
+
+    try:
+        robot = robots_v2_service.get_robot(db, user_id, robot_id)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return None
+        raise
+    if int(robot.type) != 2:
+        return None
+    return robot
 
 
 async def _enqueue_variant_backtest(
     db: Session,
-    schema: str,
     *,
     user_id: int,
     robot_id: int,
@@ -54,54 +60,37 @@ async def _enqueue_variant_backtest(
     initial_capital: float,
     token_id: Optional[int],
 ) -> int:
-    from app.modules.robots.service import robot_service
+    from app.modules.robots_v2.backtest.service import backtest_service
 
-    request = robot_schemas.RobotHistoryBacktestRequest(
-        robot_id=robot_id,
+    try:
+        TradingRobotConfigV4.model_validate(variant_config)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid v4 variant config: {exc}",
+        ) from exc
+
+    request = RobotV2BacktestRequest(
+        config=variant_config,
         from_date=requested_from,
         to_date=requested_to,
         initial_capital=initial_capital,
+        robot_id=robot_id,
         token_id=token_id,
-        config=variant_config,
         async_execution=True,
     )
-    out = await robot_service.run_robot_history_backtest(db, user_id, request)
-    if not isinstance(out, dict) or not out.get("__async_enqueue__"):
+    rec, enqueued = await backtest_service.start(
+        db,
+        user_id,
+        request,
+        priority="batch",
+    )
+    if not enqueued:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Не удалось поставить вариант бэктеста в очередь",
         )
-    run_id = int(out["run_id"])
-    job_id = enqueue_background_job(
-        db,
-        lane=LANE_HEAVY,
-        job_type="history_backtest",
-        payload={
-            "run_id": run_id,
-            "user_id": user_id,
-            "body": request.model_dump(mode="json"),
-        },
-        idempotency_key=f"history_backtest:{run_id}",
-    )
-    if job_id is None:
-        db.execute(
-            text(f"""
-                UPDATE backtest_runs
-                SET status = 'FAILED',
-                    finished_at = CURRENT_TIMESTAMP,
-                    error_message = :err
-                WHERE id = :rid AND status = 'QUEUED'
-            """),
-            {
-                "rid": run_id,
-                "err": "enqueue-failed: optimization batch variant",
-            },
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Очередь heavy занята (run_id={run_id})",
-        )
-    return run_id
+    return int(rec.run_id)
 
 
 def _sync_items_from_runs(
@@ -239,11 +228,23 @@ async def start_optimization_batch(
     requested_to: datetime,
     initial_capital: float,
 ) -> Dict[str, Any]:
-    from app.modules.robots.service import robot_service
-
-    robot = await robot_service.get_robot_by_id(db, robot_id, user_id)
-    if int(robot.get("type") or 0) != 2:
+    robot = _load_v2_trading_robot(db, robot_id, user_id)
+    if robot is None:
         return {}
+
+    config = dict(robot.config or {})
+    if int(config.get("configVersion") or 0) != 4:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Оптимизация требует configVersion 4 (robots v2)",
+        )
+
+    strategy = resolve_strategy_key(config)
+    if strategy == "scalper":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Scalper нельзя оптимизировать на барном бэктесте",
+        )
 
     if batch_q.has_active_batch(db, schema, robot_id):
         raise HTTPException(
@@ -251,8 +252,6 @@ async def start_optimization_batch(
             detail="У робота уже есть активная оптимизация. Дождитесь завершения или отмените.",
         )
 
-    config = dict(robot.get("config") or {})
-    strategy = str(config.get("strategy") or "grain_seed")
     variants = generate_grid_configs(config, strategy, mode=mode.value)
     if not variants:
         raise HTTPException(
@@ -262,7 +261,13 @@ async def start_optimization_batch(
 
     requested_from = _coerce_utc(requested_from)
     requested_to = _coerce_utc(requested_to)
-    token_id = _resolve_token_id(robot)
+    assert_can_start_optimization_batch(
+        from_date=requested_from,
+        to_date=requested_to,
+        variants_count=len(variants),
+    )
+
+    token_id = int(robot.token_id) if robot.token_id else None
 
     batch_id = batch_q.insert_batch(
         db,
@@ -284,7 +289,6 @@ async def start_optimization_batch(
         try:
             run_id = await _enqueue_variant_backtest(
                 db,
-                schema,
                 user_id=user_id,
                 robot_id=robot_id,
                 variant_config=variant,
@@ -414,7 +418,7 @@ async def cancel_optimization_batch(
     batch_id: int,
     user_id: int,
 ) -> Optional[Dict[str, Any]]:
-    from app.modules.robots.service import robot_service
+    from app.modules.robots_v2.backtest.service import backtest_service
 
     header = batch_q.fetch_batch_header(db, schema, batch_id, user_id)
     if not header:
@@ -424,7 +428,7 @@ async def cancel_optimization_batch(
     cancelled = 0
     for run_id in run_ids:
         try:
-            await robot_service.request_backtest_cancel(db=db, run_id=run_id, user_id=user_id)
+            await backtest_service.cancel(run_id, user_id=user_id, db=db)
             cancelled += 1
         except Exception:
             logger.warning("cancel batch run_id=%s failed", run_id, exc_info=True)

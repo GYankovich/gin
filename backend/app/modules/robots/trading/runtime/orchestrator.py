@@ -13,12 +13,12 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.modules.robots.trading.backtest.types import BacktestResult, candle_time_iso
-from app.modules.robots.trading.brokers.sim_backtest import SimBacktestBrokerFacade
+from app.modules.trading_core.sim.types import BacktestResult, candle_time_iso
+from app.modules.trading_core.brokers.sim_backtest import SimBacktestBrokerFacade
 from app.modules.robots.trading.contracts import ExecutionMode
-from app.modules.robots.trading.costs import resolve_backtest_fee_model, resolve_backtest_sim_rates
-from app.modules.robots.trading.data.stats import CandlePrefetchStats, FundingPrefetchStats
-from app.modules.robots.trading.intervals import ResolvedInterval
+from app.modules.trading_core.costs import resolve_backtest_fee_model, resolve_backtest_sim_rates
+from app.modules.trading_core.data.stats import CandlePrefetchStats, FundingPrefetchStats
+from app.modules.trading_core.intervals import ResolvedInterval
 from app.modules.robots.trading.session_factory import create_trading_session
 
 logger = logging.getLogger(__name__)
@@ -91,7 +91,7 @@ class TradingOrchestrator:
 
         Scheduler обязан вызывать orchestrator, а не напрямую session_factory.
         """
-        from app.modules.robots.trading.brokers.routing import enforce_broker_for_token
+        from app.modules.trading_core.brokers.routing import enforce_broker_for_token
 
         cfg = dict(config or {})
         broker_type = enforce_broker_for_token(
@@ -135,29 +135,18 @@ class TradingOrchestrator:
         market: str = "bybit",
         batch_size: int = 200,
     ) -> Dict[str, List[Dict[str, Any]]]:
-        from app.modules.robots.trading.data import get_market_data_facade
+        from app.modules.robots_v2.backtest.candle_io import load_candles_by_symbol_from_cache as _load
 
-        market_data = get_market_data_facade()
-        normalized = [str(raw or "").strip().upper() for raw in symbols if str(raw or "").strip()]
-        if not normalized:
-            return {}
-
-        bulk_rows = market_data.read_candles_cache_rows_bulk(
+        return _load(
             db,
-            market=market,
-            instrument_ids=normalized,
+            symbols=symbols,
             interval_code=interval_code,
             interval_code_num=interval_code_num,
             from_dt=from_dt,
             to_dt_exclusive=to_dt_exclusive,
+            market=market,
             batch_size=batch_size,
         )
-        out: Dict[str, List[Dict[str, Any]]] = {}
-        for symbol in normalized:
-            rows = bulk_rows.get(symbol) or []
-            if rows:
-                out[symbol] = [_cache_row_to_candle_dict(r) for r in rows]
-        return out
 
     async def prefetch_crypto_candles_for_replay(
         self,
@@ -177,14 +166,9 @@ class TradingOrchestrator:
         progress_callback: Optional[Callable[[int, int], None]] = None,
         load_cached_candles: bool = False,
     ) -> tuple[CandlePrefetchStats, Dict[str, List[Dict[str, Any]]]]:
-        """
-        ByBit historical kline prefetch (market=bybit) → candles_cache.
+        from app.modules.robots_v2.backtest.candle_io import prefetch_crypto_candles_for_replay as _prefetch
 
-        По умолчанию свечи в память не грузит (один bulk SELECT на фазе loading_candles).
-        """
-        from app.modules.robots.trading.data.providers.bybit_market import ensure_candles_bybit_market
-
-        stats = await ensure_candles_bybit_market(
+        return await _prefetch(
             db,
             symbols=symbols,
             resolved=resolved,
@@ -198,22 +182,8 @@ class TradingOrchestrator:
             api_secret=api_secret,
             is_cancelled=is_cancelled,
             progress_callback=progress_callback,
+            load_cached_candles=load_cached_candles,
         )
-        if not load_cached_candles:
-            return stats, {}
-
-        from_dt = datetime.combine(from_date, time.min, tzinfo=timezone.utc)
-        to_dt_exclusive = datetime.combine(till_date + timedelta(days=1), time.min, tzinfo=timezone.utc)
-        candles_by_symbol = self.load_candles_by_symbol_from_cache(
-            db,
-            symbols=list(symbols),
-            interval_code=resolved.cache_label,
-            interval_code_num=resolved.code_num,
-            from_dt=from_dt,
-            to_dt_exclusive=to_dt_exclusive,
-        )
-        return stats, candles_by_symbol
-
     async def prefetch_crypto_funding_for_replay(
         self,
         db: Session,
@@ -231,7 +201,7 @@ class TradingOrchestrator:
         progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> FundingPrefetchStats:
         """ByBit funding history prefetch → bybit_funding_history for replay."""
-        from app.modules.robots.trading.data.providers.bybit_market import ensure_funding_bybit_market
+        from app.modules.trading_core.data.providers.bybit_market import ensure_funding_bybit_market
 
         return await ensure_funding_bybit_market(
             db,

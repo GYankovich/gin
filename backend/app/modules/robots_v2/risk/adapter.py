@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.modules.robots.trading.risk.params import RiskParams
+from app.modules.trading_core.risk.params import RiskParams
 from app.modules.robots_v2.config.v4_schema import RiskConfig
 
 
@@ -47,7 +47,7 @@ def enrich_positions_with_exit_prices(
     risk: RiskConfig,
 ) -> list[dict[str, Any]]:
     """Add break_even / stop_loss / take_profit prices to open position rows for UI."""
-    from app.modules.robots.trading.costs import (
+    from app.modules.trading_core.costs import (
         calculate_break_even_price,
         calculate_stop_loss_price,
         calculate_take_profit_price,

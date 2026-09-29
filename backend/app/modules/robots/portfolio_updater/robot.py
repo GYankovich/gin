@@ -10,8 +10,8 @@ from sqlalchemy import text
 
 from app.modules.robots.base.base_robot import BaseRobot
 from app.modules.robots.common.utils import safe_str
-from app.modules.robots.trading.brokers.factory import create_broker_facade
-from app.modules.robots.trading.brokers.routing import normalize_broker_type
+from app.modules.trading_core.brokers.factory import create_broker_facade
+from app.modules.trading_core.brokers.routing import normalize_broker_type
 from app.modules.bybit.http_client import BybitApiError
 from app.modules.tinvest.utils import parse_api_timestamp
 from app.modules.tinvest.service import TInvestService
