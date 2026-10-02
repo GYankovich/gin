@@ -304,6 +304,10 @@ export interface RobotHistoryBacktestResult {
     final_equity: number
     total_return_percent: number
     max_drawdown_percent: number | null
+    win_rate_percent?: number | null
+    sharpe_ratio?: number | null
+    sortino_ratio?: number | null
+    calmar_ratio?: number | null
     trades: RobotHistoryBacktestTrade[]
     equity_curve: { time: string; equity: number }[]
     stages?: string[]

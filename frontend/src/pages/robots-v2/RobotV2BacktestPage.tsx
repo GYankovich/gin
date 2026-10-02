@@ -386,6 +386,10 @@ export default function RobotV2BacktestPage() {
     const ret = payload.total_return_percent ?? status?.total_return_percent ?? null
     const dd = payload.max_drawdown_percent ?? status?.max_drawdown_percent ?? null
     const finalEq = payload.final_equity ?? status?.final_equity ?? null
+    const winRate = payload.win_rate_percent ?? null
+    const sharpe = payload.sharpe_ratio ?? null
+    const sortino = payload.sortino_ratio ?? null
+    const calmar = payload.calmar_ratio ?? null
     const progress = Number(status?.progress_percent ?? 0)
     const phaseLabel = status?.phase_label || status?.run_phase || (isActive ? 'Запуск…' : '')
 
@@ -535,6 +539,10 @@ export default function RobotV2BacktestPage() {
                         finalEquity={finalEq}
                         totalReturnPercent={ret}
                         maxDrawdownPercent={dd}
+                        winRatePercent={winRate}
+                        sharpeRatio={sharpe}
+                        sortinoRatio={sortino}
+                        calmarRatio={calmar}
                         stages={payload.stages}
                         trades={trades as unknown as Array<Record<string, unknown>>}
                         chartPoints={chartPoints}

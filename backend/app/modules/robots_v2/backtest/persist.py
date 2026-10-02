@@ -133,7 +133,7 @@ def persist_result_payload(
     *,
     orders: list[dict[str, Any]] | None = None,
     portfolio_snapshots: list[dict[str, Any]] | None = None,
-) -> None:
+) -> dict[str, Any]:
     trades = payload.get("trades") or []
     pnls = [float(t["pnl_net"]) for t in trades if t.get("pnl_net") is not None]
     wins = sum(1 for p in pnls if p > 0)
@@ -222,6 +222,12 @@ def persist_result_payload(
             pass
 
     _persist_child_tables(db, run_id, trades=trades, orders=order_rows, snapshots=snap_rows)
+    return {
+        "sharpe_ratio": summary["sharpe_ratio"],
+        "sortino_ratio": summary["sortino_ratio"],
+        "calmar_ratio": summary["calmar_ratio"],
+        "win_rate_percent": summary["win_rate_percent"],
+    }
 
 
 def _parse_dt(raw: Any) -> datetime | None:
@@ -618,6 +624,9 @@ def compare_runs(base: dict[str, Any], compare: dict[str, Any]) -> dict[str, Any
             "final_equity": p.get("final_equity"),
             "trades_total": row.get("trades_total") or len(p.get("trades") or []),
             "win_rate_percent": p.get("win_rate_percent"),
+            "sharpe_ratio": p.get("sharpe_ratio"),
+            "sortino_ratio": p.get("sortino_ratio"),
+            "calmar_ratio": p.get("calmar_ratio"),
             "initial_capital": row.get("initial_capital"),
         }
 

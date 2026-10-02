@@ -26,6 +26,11 @@ type SignalRow = Record<string, unknown>
 type OrderRow = Record<string, unknown>
 type DailyRow = Record<string, unknown>
 
+function fmtRatio(v: number | null | undefined): string {
+    if (v == null || !Number.isFinite(v)) return '—'
+    return v.toFixed(2)
+}
+
 type BacktestResultsPanelProps = {
     runId: number | null
     capital: number
@@ -33,6 +38,10 @@ type BacktestResultsPanelProps = {
     finalEquity: number | null
     totalReturnPercent: number | null
     maxDrawdownPercent: number | null
+    winRatePercent?: number | null
+    sharpeRatio?: number | null
+    sortinoRatio?: number | null
+    calmarRatio?: number | null
     stages?: string[]
     trades: TradeRow[]
     chartPoints: Array<{ time: Time; value: number }>
@@ -57,6 +66,10 @@ export function BacktestResultsPanel({
     finalEquity,
     totalReturnPercent,
     maxDrawdownPercent,
+    winRatePercent,
+    sharpeRatio,
+    sortinoRatio,
+    calmarRatio,
     stages,
     trades,
     chartPoints,
@@ -297,6 +310,15 @@ export function BacktestResultsPanel({
                         value={maxDrawdownPercent == null ? '—' : `${maxDrawdownPercent.toFixed(2)}%`}
                         valueClassName="color-down"
                     />
+                    <StatTile
+                        label="Win rate"
+                        value={
+                            winRatePercent == null ? '—' : `${winRatePercent.toFixed(1)}%`
+                        }
+                    />
+                    <StatTile label="Sharpe" value={fmtRatio(sharpeRatio)} />
+                    <StatTile label="Sortino" value={fmtRatio(sortinoRatio)} />
+                    <StatTile label="Calmar" value={fmtRatio(calmarRatio)} />
                     <StatTile label="Сделки" value={trades.length} />
                 </div>
                 {stages && stages.length > 0 && (

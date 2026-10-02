@@ -228,7 +228,9 @@ export function BacktestHistoryCard({
                                         ? '—'
                                         : key.includes('percent')
                                             ? fmtPct(delta)
-                                            : fmtMoney(delta)
+                                            : key.includes('ratio') || key === 'trades_total'
+                                                ? Number(delta).toFixed(key === 'trades_total' ? 0 : 2)
+                                                : fmtMoney(delta)
                                 }
                                 valueClassName={(delta ?? 0) >= 0 ? 'color-up' : 'color-down'}
                             />

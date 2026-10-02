@@ -604,13 +604,15 @@ class BacktestService:
                 finished_at=finished,
                 progress_percent=100,
             )
-            persist_result_payload(
+            risk_metrics = persist_result_payload(
                 db,
                 run_id,
                 payload,
                 orders=result.orders,
                 portfolio_snapshots=result.portfolio_snapshots,
             )
+            payload.update(risk_metrics)
+            await backtest_run_store.update(run_id, result_payload=payload)
         except Exception as exc:
             logger.exception("v2 backtest run_id=%s failed", run_id)
             finished = datetime.now(timezone.utc)
