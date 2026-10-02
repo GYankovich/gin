@@ -99,8 +99,8 @@ export function FleetRobotCard({
     const arch = archetypeOf(robot)
     const mode = modeOf(robot)
     const metaBits = isPortfolio
-        ? [`#${robot.id}`]
-        : [`#${robot.id}`, arch, mode].filter(Boolean)
+        ? []
+        : [arch, mode].filter(Boolean)
 
     const openRobot = () => navigate(
         isPortfolio ? `/robots/edit/${robot.id}` : `/robots/${robot.id}/monitor`,
@@ -112,8 +112,13 @@ export function FleetRobotCard({
             onClick={openRobot}
         >
             <div className="robots-v2-fleet-card__identity">
-                <h3 className="robots-v2-fleet-card__name">{robot.name}</h3>
-                <p className="robots-v2-fleet-card__meta mono">{metaBits.join(' · ')}</p>
+                <h3 className="robots-v2-fleet-card__name">
+                    <span className="robots-v2-fleet-card__name-text">{robot.name}</span>
+                    <span className="robots-v2-fleet-card__id mono">#{robot.id}</span>
+                </h3>
+                {metaBits.length > 0 ? (
+                    <p className="robots-v2-fleet-card__meta mono">{metaBits.join(' · ')}</p>
+                ) : null}
                 <p className="robots-v2-fleet-card__activity">{activityLine(robot, isPortfolio)}</p>
             </div>
 

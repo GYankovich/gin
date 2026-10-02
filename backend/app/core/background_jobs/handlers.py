@@ -1,4 +1,12 @@
-"""Job type handlers executed by lane workers."""
+"""Job type handlers executed by lane workers.
+
+Registered job types (heavy / light lanes):
+  - portfolio_sync
+  - corporate_actions_dividend_etl
+  - backtest_run  (robots v2 BacktestHost; used by UI + optimization)
+
+Legacy ``history_backtest`` was removed (ARCH-05). Stale queue rows fail as unknown job type.
+"""
 
 from __future__ import annotations
 

@@ -2,7 +2,8 @@
 TradingOrchestrator — единая точка запуска live/backtest replay (BRD-ARCH-04 §4.4).
 
 Фаза simulating history-backtest идёт только через `run_backtest_replay`.
-Legacy: `engine.run_backtest_simulation`, `unified_runner` — не для prod.
+Prod backtest path: robots_v2 BacktestHost.
+
 """
 
 from __future__ import annotations
@@ -292,11 +293,7 @@ class TradingOrchestrator:
         cancel_check_sync: Optional[Callable[[], bool]] = None,
         progress_callback_sync: Optional[Callable[[int, int], None]] = None,
     ) -> BacktestResult:
-        """
-        Синхронный/лёгкий бэктест без robot row (market API, smoke).
-
-        Не использует `engine.run_backtest_simulation`.
-        """
+        """Синхронный/лёгкий бэктест без robot row (market API, smoke)."""
         sp = dict(strategy_params or {})
         sp["figis"] = list(candles_by_figi.keys())
         config = dict(robot_config or {})

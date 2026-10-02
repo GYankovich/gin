@@ -164,6 +164,32 @@ class PaperLedger:
             self.positions[t] = PaperPosition(ticker=t, side="SHORT", quantity=qty, avg_entry_price=price)
         return 0.0
 
+    def apply_funding_charge(
+        self,
+        ticker: str,
+        funding_rate: float,
+        *,
+        mark_price: float,
+    ) -> float:
+        """
+        Apply ByBit-style funding to an open position.
+
+        Long pays when rate > 0: cash adjustment = -notional * rate.
+        Short receives when rate > 0. Returns cash adjustment (negative = paid).
+        """
+        t = str(ticker or "").upper()
+        pos = self.positions.get(t)
+        if pos is None or pos.quantity <= 0:
+            return 0.0
+        px = float(mark_price)
+        if px <= 0:
+            return 0.0
+        notional = float(pos.quantity) * px
+        direction = -1.0 if pos.is_long else 1.0
+        adjustment = notional * float(funding_rate) * direction
+        self.cash += adjustment
+        return adjustment
+
     def replace_state(
         self,
         *,

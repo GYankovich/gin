@@ -71,19 +71,18 @@ def find_latest_job_for_robot(
 
 
 def find_background_job_for_backtest_run(db: Session, run_id: int) -> Optional[Dict[str, Any]]:
-    """Latest background_jobs row for a backtest run_id (v2 or legacy key)."""
+    """Latest background_jobs row for a backtest run_id."""
     ik_v2 = f"backtest_run:{int(run_id)}"
-    ik_legacy = f"history_backtest:{int(run_id)}"
     row = db.execute(
         text(f"""
             SELECT id, lane, job_type, status, created_at, started_at, finished_at, error, message
             FROM background_jobs
-            WHERE idempotency_key IN (:ik_v2, :ik_legacy)
+            WHERE idempotency_key = :ik_v2
                OR payload->>'run_id' = :rid
             ORDER BY created_at DESC
             LIMIT 1
         """),
-        {"ik_v2": ik_v2, "ik_legacy": ik_legacy, "rid": str(int(run_id))}
+        {"ik_v2": ik_v2, "rid": str(int(run_id))}
     ).mappings().first()
     return dict(row) if row else None
 

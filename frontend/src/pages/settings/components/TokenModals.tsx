@@ -117,7 +117,6 @@ export function CreateTokenModal({ open, onClose, onCreated }: Props) {
             onClose={onClose}
             title="Добавить токен"
             width="520px"
-            className="dashboard-modal"
         >
             <div className="form-group">
                 <label className="form-label">Тип брокера</label>
@@ -215,7 +214,6 @@ export function DeleteTokenModal({ token, open, loading, onClose, onConfirm }: D
       onClose={onClose}
       title="Удалить токен?"
       width="520px"
-      className="dashboard-modal"
     >
       <p className="settings-delete-copy">
         Удалить токен <strong>{token.name || 'API key'}</strong>? Роботы, использующие этот ключ, перестанут работать.

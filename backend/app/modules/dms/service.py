@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 from datetime import date, datetime, timezone, timedelta, time
 from typing import Any, Callable, Dict, Optional, List
 import httpx
@@ -24,6 +25,8 @@ from app.modules.robots.universe import (
 SNAPSHOT_MAX_AGE_MINUTES = 45
 from app.modules.dms.models import CandleCache
 from app.modules.moex.http_gate import moex_http_acquire
+
+logger = logging.getLogger(__name__)
 
 
 class DmsService:
@@ -835,7 +838,14 @@ class DmsService:
             started_at = datetime.now(timezone.utc)
             async with moex_http_acquire():
                 async with httpx.AsyncClient(timeout=20, verify=False) as client:
-                    resp = await client.get(url, params=params)
+                    try:
+                        resp = await client.get(url, params=params)
+                    except httpx.TimeoutException as exc:
+                        db.commit()
+                        raise RuntimeError(f"MOEX ISS timeout: {exc.__class__.__name__}") from exc
+                    except httpx.HTTPError as exc:
+                        db.commit()
+                        raise RuntimeError(f"MOEX ISS network error: {exc}") from exc
             finished_at = datetime.now(timezone.utc)
             payload: Dict[str, Any] = {}
             try:
@@ -856,7 +866,7 @@ class DmsService:
             )
             if resp.status_code != 200:
                 db.commit()
-                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"MOEX API error {resp.status_code}")
+                raise RuntimeError(f"MOEX API error {resp.status_code}")
 
             sec = payload.get("securities", {})
             md = payload.get("marketdata", {})
@@ -1166,12 +1176,18 @@ class DmsService:
             db.commit()
             return {"snapshot_id": snapshot_id, "status": "SUCCESS", "securities_count": len(raw_rows), "message": None}
         except Exception as e:
+            from fastapi import HTTPException as _HTTPException
+
+            if isinstance(e, _HTTPException):
+                msg = str(getattr(e, "detail", None) or e) or f"HTTP {getattr(e, 'status_code', '?')}"
+            else:
+                msg = str(e) or e.__class__.__name__
             db.execute(
                 text(f"UPDATE market_snapshot SET status='ERROR', error_message=:msg WHERE id=:id"),
-                {"id": snapshot_id, "msg": str(e)},
+                {"id": snapshot_id, "msg": msg[:2000]},
             )
             db.commit()
-            return {"snapshot_id": snapshot_id, "status": "ERROR", "securities_count": 0, "message": str(e)}
+            return {"snapshot_id": snapshot_id, "status": "ERROR", "securities_count": 0, "message": msg}
 
     async def initialize_trading_day(
         self,
@@ -2005,9 +2021,23 @@ class DmsService:
             if on_progress:
                 on_progress("snapshot", 0, 0, board)
             created = await self.create_snapshot(db, board=board, ttl_minutes=0, is_manual=True, user_id=user_id)
-            if created.get("status") != "SUCCESS":
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=created.get("message") or "Не удалось получить snapshot")
-            snapshot_id = int(created["snapshot_id"])
+            if created.get("status") == "SUCCESS":
+                snapshot_id = int(created["snapshot_id"])
+            elif latest_snapshot_id is not None:
+                # Prefer stale SUCCESS over hard-fail when MOEX/ISS is flaky.
+                snapshot_id = int(latest_snapshot_id)
+                logger.warning(
+                    "preview_pipeline using stale snapshot_id=%s board=%s create_status=%s create_msg=%s",
+                    snapshot_id,
+                    board,
+                    created.get("status"),
+                    created.get("message"),
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=created.get("message") or "Не удалось получить snapshot",
+                )
         else:
             snapshot_id = int(latest_snapshot_id)
 

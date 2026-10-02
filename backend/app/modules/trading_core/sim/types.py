@@ -1,4 +1,4 @@
-"""Shared backtest types and bar/session helpers (session-based + legacy engine)."""
+"""Shared backtest types and bar/session helpers."""
 
 from __future__ import annotations
 
@@ -62,20 +62,10 @@ class BacktestResult:
     margin_summary: Dict[str, Any] = field(default_factory=dict)
 
 
-# Legacy aliases (engine.py, unified_runner)
-_candle_time_iso = candle_time_iso
-_bar_in_trading_session = bar_in_trading_session
-_session_time_from_risk = session_time_from_risk
-_iso_to_msk_time_of_day = iso_to_msk_time_of_day
-
 __all__ = [
     "BacktestResult",
     "bar_in_trading_session",
     "candle_time_iso",
     "iso_to_msk_time_of_day",
     "session_time_from_risk",
-    "_bar_in_trading_session",
-    "_candle_time_iso",
-    "_iso_to_msk_time_of_day",
-    "_session_time_from_risk",
 ]

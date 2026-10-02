@@ -1,4 +1,4 @@
-import { normalizeTinvestCandleInterval } from '@/pages/testing/tinvestCandleIntervals'
+import { normalizeTinvestCandleInterval } from '@/modules/robots/shared/tinvestCandleIntervals'
 import { parseFixedTickersInput } from '@/utils/universeMode'
 import type { RobotStrategyName, RobotStrategyParams } from '@/types/robot'
 import type { CryptoUniverseMode, UniverseMode } from '@/utils/universeMode'

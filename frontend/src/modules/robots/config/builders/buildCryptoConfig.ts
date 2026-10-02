@@ -1,7 +1,7 @@
-import { buildStrategyParamsPayload, type TradingRobotFormSnapshot } from '@/pages/testing/buildTradingRobotConfigV2'
+import { buildStrategyParamsPayload, type TradingRobotFormSnapshot } from '@/modules/robots/shared/buildTradingRobotConfigV2'
 import { CRYPTO_UNIVERSE_DEFAULTS } from '@/modules/robots/config/cryptoUniverseDefaults'
-import { normalizeFundingMode, type FundingSimulationMode } from '@/pages/testing/executionRiskDefaults'
-import { stripTradingHoursMsk, toRiskMskTime } from '@/pages/testing/strategyPresets'
+import { normalizeFundingMode, type FundingSimulationMode } from '@/modules/robots/shared/executionRiskDefaults'
+import { stripTradingHoursMsk, toRiskMskTime } from '@/modules/robots/shared/strategyHours'
 
 
 

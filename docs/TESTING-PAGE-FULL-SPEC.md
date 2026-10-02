@@ -1,10 +1,12 @@
 # Полное описание страницы `/testing`
 
-**Версия:** 1.0 (as-built)  
+> **DEPRECATED (2026-10-02):** UI `/testing` удалён (redirect → `/robots`). Конфиг и пресеты — `frontend/src/modules/robots/shared/*`. Prod backtest — `RobotV2BacktestPage` + `/api/v2/robots/backtest`. Актуальное as-built: [`backtest-module-as-built.pdf`](backtest-module-as-built.pdf).
+
+**Версия:** 1.0 (historical as-built)  
 **Дата:** 2026-06-19  
 **Аудитория:** разработчики, аналитики
 
-Документ описывает вкладку `/testing` «в мельчайших подробностях»: каждое поле UI, все уровни валидации, маппинг в JSON-конфиг и REST-запросы, поведение бэкенда.
+Документ описывает **историческую** вкладку `/testing`: поля UI, валидацию, маппинг в JSON и REST (legacy `history_backtest` — больше не используется).
 
 **См. также:** [TESTING-BACKTEST-REFERENCE.md](TESTING-BACKTEST-REFERENCE.md) — операционный справочник по фазам симуляции, метрикам и карте файлов.
 

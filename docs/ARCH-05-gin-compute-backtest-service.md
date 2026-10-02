@@ -1,8 +1,8 @@
 # ARCH-05: GIN Compute — отдельный сервис бэктестов и сетки параметров
 
-**Версия:** 0.4  
-**Дата:** 2026-09-28  
-**Статус:** A + A.2 + legacy history-backtest cut + Phase B soft (OsEngine on compute); shared trading core remains for live  
+**Версия:** 0.7  
+**Дата:** 2026-10-02  
+**Статус:** A + A.2 + B soft + C + **legacy cut complete** (history-backtest HTTP/job/engines gone); prod engine = V2 `BacktestHost` only  
 **Связь:** `[ref: BRD-ARCH-02]`, `[ref: ARCH-01]`, текущий код V2 (`robots_v2/backtest/*`), recommendations (`optimize/*`)
 
 ---
@@ -235,7 +235,7 @@ App `optimize/run` становится thin: validate plan → `POST /batches` 
 | `backtest_run` | `{ "run_id": int, "user_id": int, "priority": "interactive"\|"batch" }` | load run → prefetch → `BacktestHost` → persist |
 | `backtest_batch` | `{ "batch_id": int }` | optional orchestrator; v0.1 можно сразу N× `backtest_run` |
 
-**Deprecated:** `history_backtest` (legacy). Миграция optimization_runner → `backtest_run`.
+**Removed:** `history_backtest` job type and handlers (ARCH-05 cut complete). Stale queue rows fail as unknown job. Optimization uses `backtest_run` only.
 
 ---
 
@@ -367,7 +367,7 @@ sequenceDiagram
 - Вынос OsEngine в market-data service
 - Redis вместо `background_jobs` (PG queue достаточно на старте)
 
-> **0.4:** legacy `history_backtest` orchestration (`engine` / persist / `run_robot_history_backtest`) удалён. Shared live-стек (`BrokerEmulator`, `session_backtest`, grain_seed orchestration, `run_file_logger`) остаётся в `robots/trading`.
+> **0.4–0.7:** legacy `history_backtest` orchestration (`engine` / persist / `run_robot_history_backtest`), job handler, `trading/engines/*` + `trading/data_provider/*` удалены. Shared live-стек (`BrokerEmulator`, `session_backtest`, grain_seed orchestration, `run_file_logger`) остаётся в `robots/trading`. Опционально позже: Sharpe/Sortino/Calmar в V2 `metrics_summary` (сейчас return/DD/win_rate + child tables).
 
 ### 7.4 Acceptance первого PR
 
@@ -407,7 +407,7 @@ gin-compute: python -m app.workers.compute LANE_HEAVY_CONCURRENCY=1..N
 | Этап | Результат |
 |------|-----------|
 | **A** (этот PR) | V2 single-run только через queue + отдельный worker entrypoint + квоты minimal |
-| **A.2** | `optimization_runner` → `backtest_run` / batch rows; deprecate `history_backtest` job |
+| **A.2** | `optimization_runner` → `backtest_run` / batch rows; **cut** `history_backtest` job |
 | **B** | Prod: API без embedded worker; scale `gin-compute`; OsEngine только на compute |
 | **C** | Публичный `/api/compute/v1`; App — pure facade; метрики очереди (depth, wait time, success rate) |
 | **D** (опц.) | Market-data service; Redis queue |
@@ -439,4 +439,5 @@ gin-compute: python -m app.workers.compute LANE_HEAVY_CONCURRENCY=1..N
 | 0.4 | 2026-09-28 | Legacy history-backtest cut: candle IO → `robots_v2/backtest/`; removed `run_robot_history_backtest` + engine/persist stack |
 | 0.5 | 2026-09-29 | Phase B soft: `OSENGINE_AUTO_START` default false; compute worker starts OsEngine via `OSENGINE_AUTO_START_ON_COMPUTE` |
 | 0.6 | 2026-09-29 | Phase C: public `/api/compute/v1` (runs, batches, queue metrics); smoke script `scripts/smoke_arch05_compute.py` |
+| 0.7 | 2026-10-02 | Cut complete: removed `history_backtest` job/aliases, `trading/engines/*`, `trading/data_provider/*`, `/testing` UI; V2-only as-built |
 

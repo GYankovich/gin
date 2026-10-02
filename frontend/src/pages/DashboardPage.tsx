@@ -242,7 +242,7 @@ export default function DashboardPage() {
                 onClose={() => setSettingsOpen(false)}
                 title="Видимость счетов"
                 width="560px"
-                className="dashboard-modal"
+                flush
             >
                 <div className="dashboard-settings">
                     <div className="dashboard-settings-list">

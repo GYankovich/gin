@@ -63,16 +63,16 @@
 
 #### Что сделано
 - Проверено, что в `backend/app` нет прод-импортов и вызовов `unified_runner`/`run_unified_history_backtest`.
-- Legacy-модуль `backend/app/modules/robots/trading/engines/unified_runner.py` оставлен как deprecated (docstring + `DeprecationWarning`) для parity/экспериментов.
-- Прод-контур backtest/live остается на `TradingOrchestrator` + `TradingSession`/`BacktestTradingSession`.
+- Пакет `backend/app/modules/robots/trading/engines/*` (включая `BacktestEngine`, `unified_runner`) **удалён** (2026-10-02, ARCH-05 cut complete).
+- Prod backtest — только V2 `BacktestHost`; live/smoke replay — `TradingOrchestrator` + `session_backtest`.
 
 #### Артефакты
-- `backend/app/modules/robots/trading/engines/unified_runner.py` (deprecated legacy-only)
+- `backend/app/modules/robots_v2/backtest/host.py`
 - `backend/app/modules/robots/trading/runtime/orchestrator.py`
 
 #### DoD (из release map)
 - [x] `unified_runner` не используется из prod-кода.
-- [x] Legacy runtime smoke/regression зелёные (`backend/tests/test_unified_engine.py`, `backend/tests/test_trading_orchestrator.py`).
+- [x] Regression зелёные (`backend/tests/test_trading_orchestrator.py`, V2 backtest queue tests).
 
 ### R1.5 — `broker_type` immutable
 - **Release map ref**: `docs/ROBOTS-ARCHITECTURE-RELEASE_MAP.md` → таблица R1 → `R1.5`
@@ -120,16 +120,15 @@
 
 #### Что сделано
 - В прод-ходах MOEX используется единый market-data слой через `app.modules.robots.trading.data.get_market_data_facade()` (`MarketDataFacade`).
-- Legacy-пакет `backend/app/modules/robots/trading/data_provider/*` остаётся только частью legacy unified-engine контуров (`trading/engines/unified_runner.py`, `trading/engines/context.py`) и тестов (`backend/tests/test_unified_engine.py`).
+- Legacy-пакет `backend/app/modules/robots/trading/data_provider/*` **удалён** (2026-10-02); backtest prefetch — `trading_core/data/providers` + `robots_v2/backtest/candle_*`.
 
 #### Артефакты
 - `backend/app/modules/robots/trading/data/` (активный прод stack: `MarketDataFacade`)
-- `backend/app/modules/robots/trading/data_provider/` (legacy only)
-- `backend/app/modules/robots/trading/backtest/dms_emulator.py` — docstring обновлен, чтобы не направлять “новые места кода” на `data_provider`
+- `backend/app/modules/trading_core/data/providers/moex_snapshots.py`, `bybit_market.py`
 
 #### DoD (из release map)
 - [x] В прод-коде MOEX используется `MarketDataFacade` (проверка по импорто-пути `trading.data.*`).
-- [x] Legacy `data_provider` не используется в runtime MOEX pipeline (остаётся legacy/unified-engine/test-only).
+- [x] Legacy `data_provider` удалён; нет runtime MOEX pipeline imports.
 
 ## R2 — Config v3 и typed profiles (MOEX)
 

@@ -34,9 +34,3 @@ def is_backtest_cancelled(run_id: int) -> bool:
     except Exception:
         pass
     return False
-
-
-# Legacy aliases (history-backtest name)
-signal_history_backtest_cancel = signal_backtest_cancel
-clear_history_backtest_cancel = clear_backtest_cancel
-is_history_backtest_cancelled = is_backtest_cancelled

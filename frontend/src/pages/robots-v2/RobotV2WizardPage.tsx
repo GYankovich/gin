@@ -115,6 +115,7 @@ export default function RobotV2WizardPage() {
     const editId = editIdParam ? Number(editIdParam) : null
     const toast = useToast()
     const kindFromUrl = search.get('kind') === 'portfolio' ? 'portfolio' : 'trading'
+    const kindPinned = Boolean(editId) || search.has('kind')
 
     const [kind, setKind] = useState<'trading' | 'portfolio'>(kindFromUrl)
     const [step, setStep] = useState(0)
@@ -155,7 +156,12 @@ export default function RobotV2WizardPage() {
     useEffect(() => {
         if (editId) return
         setKind(kindFromUrl)
+        setStep(0)
     }, [editId, kindFromUrl])
+
+    useEffect(() => {
+        setStep(current => Math.min(current, (kind === 'portfolio' ? PORTFOLIO_STEPS : TRADING_STEPS).length - 1))
+    }, [kind])
 
     useEffect(() => {
         if (editId) {
@@ -207,6 +213,19 @@ export default function RobotV2WizardPage() {
     const patch = (partial: Partial<RobotV2WizardDraft>) => {
         setDraft(prev => ({ ...prev, ...partial }))
         setFieldErrors([])
+    }
+
+    const selectKind = (next: 'trading' | 'portfolio') => {
+        if (editId || next === kind) return
+        setKind(next)
+        setStep(0)
+        setFieldErrors([])
+        if (next === 'portfolio') {
+            setDraft(prev => ({ ...prev, portfolioEnabled: true }))
+        }
+        const params = new URLSearchParams(search)
+        params.set('kind', next)
+        navigate(`/robots/new?${params.toString()}`, { replace: true })
     }
 
     const steps = kind === 'portfolio' ? PORTFOLIO_STEPS : TRADING_STEPS
@@ -427,11 +446,7 @@ export default function RobotV2WizardPage() {
             <RobotPageChrome
                 eyebrow="SETUP NODE"
                 title={editId ? `ПРАВКА #${editId}` : kind === 'portfolio' ? 'НОВЫЙ ОПРОСНИК' : 'НОВЫЙ РОБОТ'}
-                subtitle={
-                    kind === 'portfolio'
-                        ? 'Мастер · основное → синхронизация портфеля'
-                        : 'Мастер · основное → стратегия → активы → риск'
-                }
+                subtitle={`Шаг ${step + 1} из ${steps.length} · ${kind === 'portfolio' ? 'синхронизация портфеля' : 'торговый робот'}`}
                 robotId={editId}
                 active={editId ? 'edit' : 'wizard'}
                 fleetOnly={!editId}
@@ -439,7 +454,11 @@ export default function RobotV2WizardPage() {
 
             <div className="dashboard-layout">
                 <div className="robots-v2-wizard-shell">
-                    <nav className="robots-v2-steps" aria-label="Шаги мастера">
+                    <nav
+                        className="robots-v2-steps"
+                        aria-label="Шаги мастера"
+                        style={{ ['--robots-v2-steps-count' as string]: String(steps.length) }}
+                    >
                         {steps.map((label, i) => (
                             <button
                                 key={label}
@@ -472,43 +491,56 @@ export default function RobotV2WizardPage() {
                         <Card className="dashboard-totals-card robots-v2-wizard-card">
                             <header className="robots-v2-wizard-card__head">
                                 <span className="robots-v2-wizard-card__eyebrow">
-                                    {kind === 'portfolio' ? 'СИНХРОНИЗАЦИЯ' : 'ТОРГОВЫЙ РОБОТ'} · {step + 1}/{steps.length}
+                                    {kind === 'portfolio' ? 'ОПРОСНИК' : 'ТОРГОВЫЙ РОБОТ'}
+                                    <span aria-hidden> · </span>
+                                    {step + 1}/{steps.length}
                                 </span>
                                 <h2>{stepCopy[0]}</h2>
                                 <p>{stepCopy[1]}</p>
                             </header>
                     {step === 0 && (
                         <div className="robots-v2-form">
-                            <div className="robots-v2-field">
-                                <span>Что нужно автоматизировать?</span>
-                                <div className="robots-v2-type-grid">
-                                    <button
-                                        type="button"
-                                        className={`robots-v2-type-card ${kind === 'trading' ? 'robots-v2-type-card--on' : ''}`}
-                                        aria-pressed={kind === 'trading'}
-                                        disabled={Boolean(editId)}
-                                        onClick={() => setKind('trading')}
-                                    >
-                                        <span className="robots-v2-type-card__icon" aria-hidden>↗</span>
-                                        <strong>Торговый робот</strong>
-                                        <small>Ищет сигналы, открывает позиции и контролирует риск.</small>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={`robots-v2-type-card ${kind === 'portfolio' ? 'robots-v2-type-card--on' : ''}`}
-                                        aria-pressed={kind === 'portfolio'}
-                                        disabled={Boolean(editId)}
-                                        onClick={() => {
-                                            patch({ portfolioEnabled: true })
-                                            setKind('portfolio')
-                                        }}
-                                    >
-                                        <span className="robots-v2-type-card__icon" aria-hidden>↻</span>
-                                        <strong>Синхронизация портфеля</strong>
-                                        <small>Переносит позиции и операции брокера в GIN.</small>
-                                    </button>
+                            {!kindPinned ? (
+                                <div className="robots-v2-field">
+                                    <span>Что нужно автоматизировать?</span>
+                                    <div className="robots-v2-type-grid">
+                                        <button
+                                            type="button"
+                                            className={`robots-v2-type-card ${kind === 'trading' ? 'robots-v2-type-card--on' : ''}`}
+                                            aria-pressed={kind === 'trading'}
+                                            onClick={() => selectKind('trading')}
+                                        >
+                                            <span className="robots-v2-type-card__icon" aria-hidden>↗</span>
+                                            <strong>Торговый робот</strong>
+                                            <small>Ищет сигналы, открывает позиции и контролирует риск.</small>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`robots-v2-type-card ${kind === 'portfolio' ? 'robots-v2-type-card--on' : ''}`}
+                                            aria-pressed={kind === 'portfolio'}
+                                            onClick={() => selectKind('portfolio')}
+                                        >
+                                            <span className="robots-v2-type-card__icon" aria-hidden>↻</span>
+                                            <strong>Опросник портфеля</strong>
+                                            <small>Переносит позиции и операции брокера в GIN.</small>
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="robots-v2-kind-chip" aria-label="Тип конфигурации">
+                                    <span className="robots-v2-kind-chip__mark" aria-hidden>
+                                        {kind === 'portfolio' ? '↻' : '↗'}
+                                    </span>
+                                    <div className="robots-v2-kind-chip__copy">
+                                        <strong>{kind === 'portfolio' ? 'Опросник портфеля' : 'Торговый робот'}</strong>
+                                        <small>
+                                            {kind === 'portfolio'
+                                                ? 'Синхронизация позиций и операций брокера'
+                                                : 'Сигналы, позиции и контроль риска'}
+                                        </small>
+                                    </div>
+                                </div>
+                            )}
                             <label className="robots-v2-field">
                                 <span>Название <small>Будет видно в списке и уведомлениях</small></span>
                                 <input
@@ -1087,12 +1119,12 @@ export default function RobotV2WizardPage() {
                     <aside className="robots-v2-wizard-summary" aria-label="Сводка настроек">
                         <div className="robots-v2-wizard-summary__head">
                             <span>Сводка</span>
-                            <strong>{draft.name.trim() || 'Новый робот'}</strong>
+                            <strong>{draft.name.trim() || (kind === 'portfolio' ? 'Новый опросник' : 'Новый робот')}</strong>
                         </div>
                         <dl>
                             <div>
                                 <dt>Тип</dt>
-                                <dd>{kind === 'portfolio' ? 'Синхронизация' : 'Торговля'}</dd>
+                                <dd>{kind === 'portfolio' ? 'Опросник' : 'Торговля'}</dd>
                             </div>
                             <div>
                                 <dt>Аккаунт</dt>

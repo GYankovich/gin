@@ -576,42 +576,4 @@ def _build_result(
     )
 
 
-async def run_session_history_backtest(
-    *,
-    db: Session,
-    schema: str,
-    robot_id: int,
-    user_id: int,
-    token_id: int,
-    token: str,
-    config: Dict[str, Any],
-    candles_by_figi: Dict[str, List[Dict[str, Any]]],
-    allowed_figis_by_date: Dict[str, List[str]],
-    initial_capital: float,
-    log_func=None,
-    cancel_check: Optional[Callable[[], Awaitable[bool]]] = None,
-    cancel_check_sync: Optional[Callable[[], bool]] = None,
-    progress_callback_sync: Optional[Callable[[int, int], None]] = None,
-) -> BacktestResult:
-    """Запуск полного TradingSession на исторических свечах (deprecated alias → orchestrator)."""
-    from app.modules.robots.trading.runtime import get_trading_orchestrator
-
-    return await get_trading_orchestrator().run_backtest_replay(
-        db=db,
-        schema=schema,
-        robot_id=robot_id,
-        user_id=user_id,
-        token_id=token_id,
-        token=token,
-        config=config,
-        candles_by_figi=candles_by_figi,
-        allowed_figis_by_date=allowed_figis_by_date,
-        initial_capital=initial_capital,
-        log_func=log_func,
-        cancel_check=cancel_check,
-        cancel_check_sync=cancel_check_sync,
-        progress_callback_sync=progress_callback_sync,
-    )
-
-
-__all__ = ["BacktestTradingSession", "run_session_history_backtest"]
+__all__ = ["BacktestTradingSession"]

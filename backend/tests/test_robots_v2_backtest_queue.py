@@ -72,6 +72,20 @@ def test_backtest_run_handler_registered():
     assert JOB_HANDLERS[JOB_TYPE_BACKTEST_RUN] is not None
 
 
+def test_history_backtest_job_type_removed():
+    import asyncio
+
+    from app.core.background_jobs.handlers import execute_job_handler
+
+    assert "history_backtest" not in JOB_HANDLERS
+
+    async def _run():
+        with pytest.raises(RuntimeError, match="Unknown background job type"):
+            await execute_job_handler("history_backtest", {"run_id": 123})
+
+    asyncio.run(_run())
+
+
 def test_start_enqueues_without_create_task():
     svc = BacktestService()
     db = MagicMock()

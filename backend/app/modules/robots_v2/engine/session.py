@@ -616,7 +616,50 @@ class TradingSessionV2:
 
     async def _apply_universe_refresh(self, reason: str) -> dict[str, Any]:
         assert self._parsed is not None
-        tickers, resolved_map = await self._resolve_universe_once()
+        try:
+            tickers, resolved_map = await self._resolve_universe_once()
+        except Exception as exc:
+            # Mid-session DMS/MOEX failures must keep the previous universe, not kill the loop.
+            from fastapi import HTTPException as _HTTPException
+
+            detail = getattr(exc, "detail", None) if isinstance(exc, _HTTPException) else None
+            msg = str(detail or exc) or exc.__class__.__name__
+            self._write_log(
+                f"WARN Universe refresh failed reason={reason}: {msg[:300]}"
+            )
+            logger.warning(
+                "universe refresh failed robot_id=%s reason=%s: %s",
+                self.robot_id,
+                reason,
+                msg[:300],
+            )
+            await event_bus.publish(self.robot_id, "health", {
+                "level": "warn",
+                "message": f"Universe refresh failed: {msg[:180]}",
+                "code": "UNIVERSE_REFRESH_ERROR",
+            })
+            await event_bus.publish(self.robot_id, "universe", {
+                "reason": reason,
+                "keptPrevious": True,
+                "error": msg[:300],
+                "universe": self._effective_universe_tickers(),
+                "added": [],
+                "removed": [],
+            })
+            return {
+                "robotId": self.robot_id,
+                "universe": self._effective_universe_tickers(),
+                "added": [],
+                "removed": [],
+                "reason": reason,
+                "keptPrevious": True,
+                "error": msg[:300],
+                "refreshedAt": (
+                    self._universe_refreshed_at.isoformat()
+                    if self._universe_refreshed_at
+                    else None
+                ),
+            }
         if not tickers:
             self._write_log(
                 f"WARN Universe refresh empty reason={reason} mode={self._parsed.universe.mode}"
@@ -739,6 +782,44 @@ class TradingSessionV2:
                 for i in resolved.instruments
                 if i.ticker
             }
+            # Live↔backtest parity: exclude ex-date / pre-ex window for MOEX names.
+            if self._parsed.core.instrument_type not in ("perpetual", "coin_futures") and tickers:
+                try:
+                    from datetime import datetime as _dt
+
+                    from app.modules.corporate_actions.dividend_calendar_service import (
+                        DividendCalendarService,
+                        policy_from_robot_config,
+                    )
+                    from app.modules.robots_v2.risk.eod import MSK
+
+                    trade_day = _dt.now(MSK).date()
+                    policy = policy_from_robot_config(self._parsed.model_dump(by_alias=True))
+                    svc = DividendCalendarService(db)
+                    kept: list[str] = []
+                    dropped: list[str] = []
+                    for t in tickers:
+                        reason = svc.exclusion_reason_for_day(
+                            ticker=t, trade_date=trade_day, policy=policy,
+                        )
+                        if reason is None:
+                            kept.append(t)
+                        else:
+                            dropped.append(f"{t}:{reason}")
+                    if dropped:
+                        self._write_log(
+                            f"Dividend calendar excluded n={len(dropped)} sample={dropped[:5]}"
+                        )
+                        for t in dropped:
+                            tk = t.split(":", 1)[0].upper()
+                            resolved_map.pop(tk, None)
+                    tickers = kept
+                except Exception as exc:
+                    logger.warning(
+                        "dividend filter skipped robot_id=%s: %s",
+                        self.robot_id,
+                        exc,
+                    )
             self._last_universe_rejected = list(resolved.rejected or [])
             return tickers, resolved_map
         finally:
@@ -780,10 +861,30 @@ class TradingSessionV2:
 
         while not self._stop_event.is_set():
             attempt += 1
-            resolved = await self._await_or_stop(
-                self._resolve_universe_once(),
-                what="universe_resolve",
-            )
+            try:
+                resolved = await self._await_or_stop(
+                    self._resolve_universe_once(),
+                    what="universe_resolve",
+                )
+            except Exception as exc:
+                # DMS/MOEX snapshot failures must not kill the session — retry like empty universe.
+                from fastapi import HTTPException as _HTTPException
+
+                detail = getattr(exc, "detail", None) if isinstance(exc, _HTTPException) else None
+                msg = str(detail or exc) or exc.__class__.__name__
+                self._write_log(f"WARN Universe resolve failed attempt={attempt}: {msg[:300]}")
+                logger.warning(
+                    "universe resolve failed robot_id=%s attempt=%s: %s",
+                    self.robot_id,
+                    attempt,
+                    msg[:300],
+                )
+                await event_bus.publish(self.robot_id, "health", {
+                    "level": "warn",
+                    "message": f"Universe resolve failed: {msg[:180]}",
+                    "code": "UNIVERSE_RESOLVE_ERROR",
+                })
+                resolved = ([], {})
             if resolved is None:
                 return False, {}
             tickers, resolved_map = resolved

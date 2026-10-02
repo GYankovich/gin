@@ -1,7 +1,9 @@
 # BRD-ARCH-03 — Единое ядро торгового движка (backtest + live)
 
+> **Superseded for prod backtest (2026-10-02):** реализация — V2 `BacktestHost` + shared `robots_v2/engine`; пакеты `trading/engines/*` и `trading/data_provider/*` удалены. Документ сохранён как исторический ARCH-03 design record.
+
 **Версия:** 1.0
-**Статус:** draft for implementation
+**Статус:** historical (partially implemented; experimental engines removed)
 **Связь:** наследует решения [`BRD-ARCH-02-unified-backtest-testing-spec.md`](BRD-ARCH-02-unified-backtest-testing-spec.md) и [`ARCH-01-unified-moex-candles-backtest.md`](ARCH-01-unified-moex-candles-backtest.md); закрывает зазор §3.0.1 BRD-ARCH-02 (отсутствие `DividendCalendarService` в live) и формализует общие контракты для **бэктеста** и **реальной торговли**.
 
 Документ написан в голосе **@systems-analyst** + **@senior-python-backend-engineer**, ориентирован на разработчика-исполнителя.

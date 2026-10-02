@@ -1,5 +1,5 @@
 import { normalizeUniverseMode, type UniverseMode } from '@/utils/universeMode'
-import type { PipelineFilter } from '@/pages/testing/testingPipeline'
+import type { PipelineFilter } from '@/modules/robots/shared/pipeline'
 
 /** Фильтры П1 — по историческим свечам (MOEX lookback). */
 export const HISTORICAL_FILTER_TYPES = new Set([

@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faPlus, faClipboardList, faRobot } from '@fortawesome/free-solid-svg-icons'
+import { faClipboardList, faRobot, faChevronDown } from '@fortawesome/free-solid-svg-icons'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
+import { DropdownMenu } from '@/components/ui/DropdownMenu'
 import { PageHero } from '@/components/ui/PageHero'
 import { RobotIllustration } from '@/components/ui/RobotIllustration'
 import { useToast } from '@/components/ui/Toast'
@@ -49,6 +50,7 @@ export default function RobotsV2FleetPage() {
     const [busyId, setBusyId] = useState<number | null>(null)
     const [statusMenuId, setStatusMenuId] = useState<number | null>(null)
     const [actionsMenuId, setActionsMenuId] = useState<number | null>(null)
+    const [createMenuOpen, setCreateMenuOpen] = useState(false)
     const [confirm, setConfirm] = useState<ConfirmAction>(null)
 
     const load = useCallback(async () => {
@@ -189,30 +191,48 @@ export default function RobotsV2FleetPage() {
     )
 
     const heroActions = (
-        <>
-            <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="dashboard-hero__cfg"
-                onClick={() => navigate('/robots/new?kind=portfolio')}
-                aria-label="Опросник"
-            >
-                <FontAwesomeIcon icon={faPlus} />
-                <span className="dashboard-hero__cfg-text">Опросник</span>
-            </Button>
-            <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="dashboard-hero__cfg"
-                onClick={() => navigate('/robots/new?kind=trading')}
-                aria-label="Создать робота"
-            >
-                <FontAwesomeIcon icon={faPlus} />
-                <span className="dashboard-hero__cfg-text">Создать робота</span>
-            </Button>
-        </>
+        <DropdownMenu
+            open={createMenuOpen}
+            onOpenChange={setCreateMenuOpen}
+            placement="below"
+            portaled
+            className="dashboard-hero__create"
+        >
+            <DropdownMenu.Trigger asChild aria-label="Создать">
+                <Button type="button" variant="ghost" size="sm" className="dashboard-hero__cfg">
+                    <svg className="dashboard-icon dashboard-hero__cfg-plus" viewBox="0 0 24 24" aria-hidden>
+                        <path
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.7"
+                            strokeLinecap="round"
+                            d="M12 5v14M5 12h14"
+                        />
+                    </svg>
+                    <span className="dashboard-hero__cfg-text">Создать</span>
+                    <FontAwesomeIcon
+                        icon={faChevronDown}
+                        className="dashboard-hero__create-chevron"
+                        aria-hidden
+                    />
+                </Button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Panel>
+                <DropdownMenu.Item
+                    icon={<FontAwesomeIcon icon={faClipboardList} />}
+                    onClick={() => navigate('/robots/new?kind=portfolio')}
+                >
+                    Опросник портфеля
+                </DropdownMenu.Item>
+                <DropdownMenu.Divider />
+                <DropdownMenu.Item
+                    icon={<FontAwesomeIcon icon={faRobot} />}
+                    onClick={() => navigate('/robots/new?kind=trading')}
+                >
+                    Торговый робот
+                </DropdownMenu.Item>
+            </DropdownMenu.Panel>
+        </DropdownMenu>
     )
 
     const hardStopMessage =
@@ -269,16 +289,6 @@ export default function RobotsV2FleetPage() {
                                 </span>
                             )}
                             badge={<span className="robots-v2-fleet-collapse__count">{portfolioRobots.length}</span>}
-                            headerEnd={(
-                                <button
-                                    type="button"
-                                    className="settings-tokens__add"
-                                    onClick={() => navigate('/robots/new?kind=portfolio')}
-                                    aria-label="Создать опросник портфеля"
-                                >
-                                    <FontAwesomeIcon icon={faPlus} className="settings-tokens__add-icon" />
-                                </button>
-                            )}
                             defaultOpen
                         >
                             {portfolioRobots.length > 0 ? (
@@ -299,16 +309,6 @@ export default function RobotsV2FleetPage() {
                                 </span>
                             )}
                             badge={<span className="robots-v2-fleet-collapse__count">{tradingRobots.length}</span>}
-                            headerEnd={(
-                                <button
-                                    type="button"
-                                    className="settings-tokens__add"
-                                    onClick={() => navigate('/robots/new?kind=trading')}
-                                    aria-label="Создать торгового робота"
-                                >
-                                    <FontAwesomeIcon icon={faPlus} className="settings-tokens__add-icon" />
-                                </button>
-                            )}
                             defaultOpen
                         >
                             {tradingRobots.length > 0 ? (

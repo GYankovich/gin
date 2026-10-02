@@ -2,11 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Select } from '@/components/ui/Select'
 import { bybitService } from '@/services/bybitService'
 import { parseFixedTickersInput } from '@/utils/universeMode'
-import { fmtErr } from '@/pages/testing/testingUtils'
+import { fmtErr } from '@/modules/robots/shared/fmt'
 import {
     FUNDING_MODE_OPTIONS,
     type FundingSimulationMode,
-} from '@/pages/testing/executionRiskDefaults'
+} from '@/modules/robots/shared/executionRiskDefaults'
 
 export type CryptoCostsCardProps = {
     instrumentCategory: 'spot' | 'linear' | 'inverse'

@@ -2,7 +2,7 @@ import { isCryptoBroker } from '@/modules/robots/config/builders/buildCryptoConf
 import {
     pollValueToHours,
     type TradingRobotSchedulePatch,
-} from '@/pages/testing/buildTradingRobotConfigV2'
+} from '@/modules/robots/shared/buildTradingRobotConfigV2'
 
 export type BybitAccountType = 'UNIFIED' | 'CONTRACT' | 'SPOT'
 

@@ -11,6 +11,27 @@ interface ChartProps {
     onReady?: (chart: IChartApi | null, container?: HTMLDivElement | null) => void
 }
 
+/** Crosshair / axis time labels in the browser's local timezone (not UTC). */
+export function formatLocalChartTime(time: Time): string {
+    if (typeof time === 'number') {
+        const d = new Date(time * 1000)
+        const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0
+        return d.toLocaleString('ru-RU', hasTime
+            ? { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }
+            : { day: '2-digit', month: '2-digit', year: 'numeric' })
+    }
+    if (typeof time === 'string') return time
+    const y = Number((time as { year?: number }).year)
+    const m = Number((time as { month?: number }).month)
+    const day = Number((time as { day?: number }).day)
+    if (!y || !m || !day) return String(time)
+    return new Date(y, m - 1, day).toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+    })
+}
+
 export function Chart({ height = 360, className = '', onReady }: ChartProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const chartRef = useRef<IChartApi | null>(null)
@@ -35,6 +56,10 @@ export function Chart({ height = 360, className = '', onReady }: ChartProps) {
                 textColor: isDark ? '#9ca3af' : '#6b7280',
                 fontFamily: "'Inter', sans-serif",
                 fontSize: 12,
+            },
+            localization: {
+                locale: 'ru-RU',
+                timeFormatter: formatLocalChartTime,
             },
             grid: {
                 vertLines: { color: isDark ? 'rgba(148,163,184,0.09)' : 'rgba(15,23,42,0.06)' },

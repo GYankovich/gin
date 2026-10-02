@@ -1,5 +1,5 @@
 import { buildMoexConfig } from '@/modules/robots/config/builders/buildMoexConfig'
-import type { TradingRobotFormSnapshot } from '@/pages/testing/buildTradingRobotConfigV2'
+import type { TradingRobotFormSnapshot } from '@/modules/robots/shared/buildTradingRobotConfigV2'
 import type { Type2TinvestConfig } from '@/modules/robots/config/types/type2-tinvest'
 
 /** Sandbox testing broker: v3 type2_tinvest shape with broker_type=sandbox. */

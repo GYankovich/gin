@@ -1,7 +1,7 @@
 """
 MOEX ISS history snapshots → market_snapshot_history (BRD-ARCH-04 этап 2 хвост).
 
-Единственная точка HTTP к iss.moex.com для history-backtest snapshots.
+Единственная точка HTTP к iss.moex.com для backtest market snapshots.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ def _safe_int_opt(value: Any) -> Optional[int]:
         return None
 
 
-def history_backtest_moex_log(msg: str, *args: Any) -> None:
+def backtest_moex_log(msg: str, *args: Any) -> None:
     logger.info(msg, *args)
     try:
         from app.modules.trading_core.logging.run_file_logger import log_backtest_run_info
@@ -91,7 +91,7 @@ def log_moex_external_api_isolated(
                 (user_id, token_id, broker, context_type, context_ref, endpoint, request_data, response_status, response_data,
                  started_at, finished_at, duration_ms, success, error_message)
                 VALUES
-                (:user_id, NULL, 'moex', 'history_backtest', :context_ref, :endpoint, CAST(:request_data AS jsonb), :response_status, CAST(:response_data AS jsonb),
+                (:user_id, NULL, 'moex', 'backtest', :context_ref, :endpoint, CAST(:request_data AS jsonb), :response_status, CAST(:response_data AS jsonb),
                  :started_at, :finished_at, :duration_ms, :success, :error_message)
                 """
             ),
@@ -218,7 +218,7 @@ async def fetch_moex_history_snapshot_day(
                                 success=False,
                                 error_message=str(e)[:2000]
                             )
-                        history_backtest_moex_log(
+                        backtest_moex_log(
                             "[history-backtest] MOEX iss GET failed day=%s start=%s err=%s",
                             day.isoformat(),
                             start,
@@ -241,7 +241,7 @@ async def fetch_moex_history_snapshot_day(
                             success=False,
                             error_message=str(ex)[:2000]
                         )
-                    history_backtest_moex_log(
+                    backtest_moex_log(
                         "[history-backtest] MOEX iss GET unexpected error day=%s start=%s err=%s",
                         day.isoformat(),
                         start,

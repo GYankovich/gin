@@ -102,7 +102,6 @@ export function EditUserModal({ open, onClose, login, email, phone }: EditUserMo
             onClose={onClose}
             title="Редактировать пользователя"
             width="520px"
-            className="dashboard-modal"
         >
             <div className="form-group">
                 <label className="form-label" htmlFor="profile-login">Логин</label>

@@ -3,7 +3,7 @@
  * Единый источник для /testing и настроек робота.
  */
 
-import type { PipelineFilter } from '@/pages/testing/testingPipeline'
+import type { PipelineFilter } from '@/modules/robots/shared/pipeline'
 import type { CryptoUniverseFormFields } from '@/modules/robots/config/cryptoUniverseDefaults'
 
 export type UniverseFilterPresetId = 'conservative' | 'moderate' | 'aggressive'

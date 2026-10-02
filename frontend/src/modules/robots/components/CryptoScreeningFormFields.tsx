@@ -9,7 +9,7 @@ import {
     defaultValueForCryptoFilterType,
     type CryptoScreeningFilter,
     type CryptoScreeningFilterType,
-} from '@/pages/testing/cryptoScreeningPipeline'
+} from '@/modules/robots/shared/cryptoScreeningPipeline'
 import { getCryptoFilterFieldMeta } from '@/modules/robots/config/p1ScreeningFields'
 import {
     UNIVERSE_FILTER_PRESET_META,

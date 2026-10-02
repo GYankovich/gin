@@ -1,7 +1,7 @@
 import {
     buildTradingRobotConfigV2,
     type TradingRobotFormSnapshot,
-} from '@/pages/testing/buildTradingRobotConfigV2'
+} from '@/modules/robots/shared/buildTradingRobotConfigV2'
 import type { Type2TinvestConfig } from '@/modules/robots/config/types/type2-tinvest'
 
 /**

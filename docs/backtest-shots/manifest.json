@@ -1,0 +1,37 @@
+[
+  {
+    "slug": "01-fleet",
+    "title": "Флот",
+    "file": "01-fleet.png",
+    "url": "http://localhost:5173/robots"
+  },
+  {
+    "slug": "02-live",
+    "title": "Лайв",
+    "file": "02-live.png",
+    "url": "http://localhost:5173/robots/13/monitor"
+  },
+  {
+    "slug": "03-edit",
+    "title": "Правка",
+    "file": "03-edit.png",
+    "url": "http://localhost:5173/robots/edit/13"
+  },
+  {
+    "slug": "04-logs",
+    "title": "Логи",
+    "file": "04-logs.png",
+    "url": "http://localhost:5173/robots/13/logs"
+  },
+  {
+    "slug": "05-backtest-full",
+    "title": "Бэктест (full)",
+    "file": "05-backtest-full.png"
+  },
+  {
+    "slug": "05-backtest",
+    "title": "Бэктест",
+    "file": "05-backtest.png",
+    "url": "http://localhost:5173/robots/13/backtest"
+  }
+]

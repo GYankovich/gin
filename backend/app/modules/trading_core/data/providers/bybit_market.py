@@ -470,7 +470,7 @@ async def ensure_candles_bybit_market(
         api_key=api_key,
         api_secret=api_secret,
         user_id=user_id,
-        context_type="history_backtest_prefetch",
+        context_type="backtest_prefetch",
         context_ref=(f"run:{int(run_id)}:candles" if run_id is not None else "candles"),
     )
     category = str(instrument_category or "linear").strip().lower() or "linear"
@@ -779,7 +779,7 @@ async def ensure_funding_bybit_market(
         api_key=api_key,
         api_secret=api_secret,
         user_id=user_id,
-        context_type="history_backtest_prefetch",
+        context_type="backtest_prefetch",
         context_ref=(f"run:{int(run_id)}:funding" if run_id is not None else "funding"),
     )
     try:
@@ -1002,7 +1002,7 @@ async def resolve_crypto_screening_symbols(
             quote_coin="USDT",
             testnet=testnet,
             user_id=user_id,
-            context_type="history_backtest_prefetch",
+            context_type="backtest_prefetch",
             context_ref=(f"run:{int(run_id)}:instruments" if run_id is not None else "instruments"),
         )
         _log_prefetch_cache(

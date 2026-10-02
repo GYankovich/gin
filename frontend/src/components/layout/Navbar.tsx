@@ -3,6 +3,7 @@
 
 import React from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
+import { DropdownMenu } from '@/components/ui/DropdownMenu'
 import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
 import { api } from '@/services/api'
@@ -14,7 +15,6 @@ export function Navbar() {
     const { theme, toggle } = useThemeStore()
     const [dropdownOpen, setDropdownOpen] = React.useState(false)
     const [hasExpiredToken, setHasExpiredToken] = React.useState(false)
-    const avatarWrapRef = React.useRef<HTMLDivElement>(null)
 
     const initials = user?.login?.slice(0, 2).toUpperCase() || 'U'
 
@@ -35,31 +35,6 @@ export function Navbar() {
             active = false
         }
     }, [])
-
-    React.useEffect(() => {
-        if (!dropdownOpen) return
-
-        const onPointerDown = (event: MouseEvent | TouchEvent) => {
-            const root = avatarWrapRef.current
-            const target = event.target as Node | null
-            if (root && target && !root.contains(target)) {
-                setDropdownOpen(false)
-            }
-        }
-
-        const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setDropdownOpen(false)
-        }
-
-        document.addEventListener('mousedown', onPointerDown)
-        document.addEventListener('touchstart', onPointerDown)
-        document.addEventListener('keydown', onKeyDown)
-        return () => {
-            document.removeEventListener('mousedown', onPointerDown)
-            document.removeEventListener('touchstart', onPointerDown)
-            document.removeEventListener('keydown', onKeyDown)
-        }
-    }, [dropdownOpen])
 
     return (
         <header className="navbar" role="navigation" aria-label="Главная навигация">
@@ -103,43 +78,34 @@ export function Navbar() {
                         <path d="M12 3.75a8.25 8.25 0 0 0 0 16.5V3.75Z" fill="currentColor" />
                     </svg>
                 </button>
-                <div
+                <DropdownMenu
+                    open={dropdownOpen}
+                    onOpenChange={setDropdownOpen}
+                    placement="below"
                     className="navbar__avatar-wrap"
-                    ref={avatarWrapRef}
-                    onClick={() => setDropdownOpen(open => !open)}
                 >
-                    <div className="navbar__avatar" aria-haspopup="menu" aria-expanded={dropdownOpen}>
+                    <DropdownMenu.Trigger className="navbar__avatar" aria-label="Меню пользователя">
                         {initials}
-                    </div>
-                    {dropdownOpen && (
-                        <div className="navbar__dropdown" role="menu">
-                            <button
-                                type="button"
-                                role="menuitem"
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    setDropdownOpen(false)
-                                    navigate('/settings')
-                                }}
-                            >
-                                <span>⚙</span> Настройки
-                            </button>
-                            <div className="navbar__dropdown-divider" />
-                            <button
-                                type="button"
-                                role="menuitem"
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    setDropdownOpen(false)
-                                    logout()
-                                    navigate('/login')
-                                }}
-                            >
-                                <span>↩</span> Выход
-                            </button>
-                        </div>
-                    )}
-                </div>
+                    </DropdownMenu.Trigger>
+                    <DropdownMenu.Panel>
+                        <DropdownMenu.Item
+                            icon="⚙"
+                            onClick={() => navigate('/settings')}
+                        >
+                            Настройки
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Divider />
+                        <DropdownMenu.Item
+                            icon="↩"
+                            onClick={() => {
+                                logout()
+                                navigate('/login')
+                            }}
+                        >
+                            Выход
+                        </DropdownMenu.Item>
+                    </DropdownMenu.Panel>
+                </DropdownMenu>
             </div>
         </header>
     )

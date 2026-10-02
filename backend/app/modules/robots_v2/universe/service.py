@@ -512,28 +512,61 @@ class UniverseService:
                 list_moex_board_tickers_as_of,
                 list_moex_symbols_from_cache,
             )
+            from app.modules.robots_v2.universe.historical_dms import (
+                apply_dms_filters_historical,
+                load_snapshot_rows_for_day,
+            )
+            from app.modules.robots.trading.pipeline.historical_liquidity import (
+                enrich_moex_snapshot_rows_historical_liquidity,
+            )
+
             market_key = (settings.OSENGINE_MARKET_KEY or "osengine").strip() or "osengine"
             lookback_days = 14
             if on_progress:
                 on_progress("screener_filters", 0, 0, board)
-            hist_tickers = await list_moex_board_tickers_as_of(board, as_of, db=db)
-            if not hist_tickers:
-                hist_tickers = list_moex_symbols_from_cache(db, as_of=as_of, market=market_key)
-            # Pull OsEngine D1 into candles_cache before point-in-time scoring.
-            hist_tickers = await ensure_osengine_d1_for_screener(
-                db,
-                hist_tickers,
-                as_of=as_of,
-                board=board,
-                lookback_days=lookback_days,
-                run_id=int(robot_id or 0),
-            )
-            rows = [{"ticker": t, "last_price": 0.0, "value_today": 0.0, "volume24h": 0.0, "atr": 0.0} for t in hist_tickers]
+
+            # Prefer full day snapshot (same source as legacy history scoring).
+            snap_rows = load_snapshot_rows_for_day(db, board=board, day=as_of)
             rejected: list[RejectedInstrument] = []
-            rows, hist_rejected = _apply_point_in_time_screen(
-                db, rows, as_of=as_of, market=market_key, lookback_days=lookback_days,
-            )
-            rejected.extend(hist_rejected)
+            if snap_rows:
+                enrich_moex_snapshot_rows_historical_liquidity(
+                    db, rows=snap_rows, as_of_date=as_of, lookback_days=lookback_days,
+                )
+                rows = snap_rows
+            else:
+                hist_tickers = await list_moex_board_tickers_as_of(board, as_of, db=db)
+                if not hist_tickers:
+                    hist_tickers = list_moex_symbols_from_cache(db, as_of=as_of, market=market_key)
+                hist_tickers = await ensure_osengine_d1_for_screener(
+                    db,
+                    hist_tickers,
+                    as_of=as_of,
+                    board=board,
+                    lookback_days=lookback_days,
+                    run_id=int(robot_id or 0),
+                )
+                rows = [
+                    {"ticker": t, "last_price": 0.0, "value_today": 0.0, "volume24h": 0.0, "atr": 0.0}
+                    for t in hist_tickers
+                ]
+                rows, hist_rejected = _apply_point_in_time_screen(
+                    db, rows, as_of=as_of, market=market_key, lookback_days=lookback_days,
+                )
+                rejected.extend(hist_rejected)
+
+            # Same DMS filter evaluator as live / legacy history-backtest.
+            if dms_filters and rows:
+                rows, dms_rej = apply_dms_filters_historical(
+                    rows, dms_filters=dms_filters, mode=mode,
+                )
+                for item in dms_rej:
+                    rejected.append(RejectedInstrument(
+                        ticker=str(item.get("ticker") or ""),
+                        stage="dms",
+                        code="DMS_FILTER",
+                        message=str(item.get("reason") or "rejected"),
+                    ))
+
             if price_filters or preset:
                 rows, price_rejected = _apply_price_filters(rows, price_filters, preset, custom)
                 rejected.extend(price_rejected)
@@ -543,8 +576,8 @@ class UniverseService:
                 "ticker": r["ticker"],
                 "name": r["ticker"],
                 "price": float(r.get("last_price") or 0),
-                "volume24h": float(r.get("volume24h") or 0),
-                "atr": float(r.get("atr") or 0),
+                "volume24h": float(r.get("value_today") or r.get("volume24h") or 0),
+                "atr": float(r.get("atr") or r.get("atr_percent") or 0),
             } for r in accepted]
             return assets, rejected
 

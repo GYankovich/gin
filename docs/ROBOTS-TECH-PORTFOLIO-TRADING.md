@@ -251,12 +251,9 @@ HTTP API роботов подключается через:
 
 ## 7.2 Оркестрация backtest
 
-`run_session_history_backtest(...)` в `session_backtest.py` сейчас проксирует в:
+`run_session_history_backtest(...)` в `session_backtest.py` проксирует в `TradingOrchestrator.run_backtest_replay(...)` — **smoke/market API**, не prod UI backtest.
 
-- `trading/runtime/orchestrator.py`
-- метод `TradingOrchestrator.run_backtest_replay(...)`
-
-Это целевой production-путь; старый `engines/unified_runner.py` помечен как deprecated.
+Prod UI backtest: `robots_v2/backtest` → job `backtest_run` → `BacktestHost`. Пакет `trading/engines/*` удалён (2026-10-02).
 
 ---
 

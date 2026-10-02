@@ -140,6 +140,44 @@ def test_resolve_universe_uses_fallback_and_keeps_pending():
     assert session._universe_using_fallback is True
 
 
+def test_maybe_refresh_universe_keeps_previous_on_resolve_exception():
+    from fastapi import HTTPException
+
+    cfg = _screener_config()
+    session = TradingSessionV2(
+        robot_id=1,
+        user_id=1,
+        token_id=1,
+        config=cfg,
+        virtual_capital=100_000,
+    )
+    session._parsed = TradingRobotConfigV4.model_validate(cfg)
+    session.universe = ["SBER", "GAZP"]
+    session._universe_resolve_pending = True
+    session._universe_using_fallback = True
+    session._universe_last_retry_at = 0.0
+
+    async def _run() -> dict:
+        with patch.object(
+            session,
+            "_resolve_universe_once",
+            new=AsyncMock(side_effect=HTTPException(status_code=400, detail="MOEX ISS timeout")),
+        ), patch(
+            "app.modules.robots_v2.engine.session.is_within_trading_session",
+            return_value=True,
+        ), patch(
+            "app.modules.robots_v2.engine.session.event_bus.publish",
+            new=AsyncMock(),
+        ):
+            return await session._apply_universe_refresh("pending")
+
+    payload = asyncio.run(_run())
+    assert payload["keptPrevious"] is True
+    assert "MOEX ISS timeout" in (payload.get("error") or "")
+    assert session.universe == ["SBER", "GAZP"]
+    assert session.state != SessionState.ERROR
+
+
 def test_maybe_refresh_universe_clears_pending_when_screener_recovers():
     cfg = _screener_config()
     session = TradingSessionV2(
@@ -314,6 +352,56 @@ def test_force_refresh_universe_rejects_fixed_mode():
         raise AssertionError("expected ValueError")
     except ValueError as exc:
         assert str(exc) == "UNIVERSE_REFRESH_UNSUPPORTED"
+
+
+def test_resolve_universe_retries_on_resolve_exception():
+    from fastapi import HTTPException
+
+    cfg = _screener_config()
+    session = TradingSessionV2(
+        robot_id=1,
+        user_id=1,
+        token_id=1,
+        config=cfg,
+        virtual_capital=100_000,
+    )
+    session._parsed = TradingRobotConfigV4.model_validate(cfg)
+
+    calls = {"n": 0}
+
+    async def _resolve_once_side_effect():
+        calls["n"] += 1
+        if calls["n"] < 2:
+            raise HTTPException(status_code=400, detail="Не удалось получить snapshot")
+        return ["SBER"], {"SBER": "FIGI_SBER"}
+
+    async def _run() -> tuple[bool, dict[str, str]]:
+        with patch.object(
+            session,
+            "_resolve_universe_once",
+            new=AsyncMock(side_effect=_resolve_once_side_effect),
+        ), patch.object(
+            session,
+            "_fallback_universe_tickers",
+            new=AsyncMock(return_value=[]),
+        ), patch.object(
+            session,
+            "_sleep_until_universe_retry",
+            new=AsyncMock(return_value=True),
+        ), patch(
+            "app.modules.robots_v2.engine.session.is_within_trading_session",
+            return_value=True,
+        ), patch(
+            "app.modules.robots_v2.engine.session.event_bus.publish",
+            new=AsyncMock(),
+        ):
+            return await session._resolve_universe_for_session()
+
+    ok, mapping = asyncio.run(_run())
+    assert ok is True
+    assert session.universe == ["SBER"]
+    assert mapping["SBER"] == "FIGI_SBER"
+    assert calls["n"] == 2
 
 
 def test_resolve_universe_fails_outside_session_without_fallback():

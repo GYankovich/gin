@@ -16,6 +16,22 @@ export function formatPortfolioMoney(val: unknown, currency = 'RUB', maxFraction
     return `${n.toLocaleString('ru-RU', { maximumFractionDigits: maxFractionDigits })} ${sym}`
 }
 
+/** Compact money for narrow UI (price scale / last-value badge): 800000 → «800 т. ₽». */
+export function formatPortfolioMoneyCompact(val: unknown, currency = 'RUB'): string {
+    if (val == null || Number.isNaN(Number(val))) return '—'
+    const n = Number(val)
+    const sym = currency === 'RUB' ? '₽' : currency
+    const abs = Math.abs(n)
+    const sign = n < 0 ? '−' : ''
+    const fmt = (v: number, maxFractionDigits: number) =>
+        v.toLocaleString('ru-RU', { maximumFractionDigits: maxFractionDigits, minimumFractionDigits: 0 })
+
+    if (abs >= 1_000_000_000) return `${sign}${fmt(abs / 1_000_000_000, 1)} млрд ${sym}`
+    if (abs >= 1_000_000) return `${sign}${fmt(abs / 1_000_000, 1)} млн ${sym}`
+    if (abs >= 1_000) return `${sign}${fmt(abs / 1_000, abs >= 10_000 ? 0 : 1)} т. ${sym}`
+    return `${sign}${fmt(abs, 0)} ${sym}`
+}
+
 export function formatPortfolioMoneySigned(val: unknown, currency = 'RUB'): string {
     if (val == null || Number.isNaN(Number(val))) return '—'
     const n = Number(val)

@@ -7,6 +7,7 @@ from datetime import date, datetime, timezone
 from typing import Any, Callable
 
 from app.modules.trading_core.contracts import Candle, OrderIntent
+from app.modules.robots_v2.backtest.funding import apply_funding_charges_for_bar
 from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
 from app.modules.robots_v2.engine.cycle_sync import run_paper_cycle_sync
 from app.modules.robots_v2.engine.execution import ExecutionService
@@ -177,6 +178,7 @@ class BacktestHostResult:
     orders: list[dict[str, Any]] = field(default_factory=list)
     stages: list[str] = field(default_factory=list)
     history_stats: dict[str, int] = field(default_factory=dict)
+    funding_charges_total: float = 0.0
 
 
 class BacktestHost:
@@ -198,10 +200,22 @@ class BacktestHost:
         trade_from: datetime | None = None,
         is_cancelled: Callable[[], bool] | None = None,
         progress_callback: Callable[[int, int], None] | None = None,
+        funding_by_symbol: dict[str, list[dict[str, Any]]] | None = None,
+        funding_mode: str = "historical",
+        universe_by_day: dict[date, list[str]] | None = None,
     ) -> BacktestHostResult:
         _ = user_id
         tickers = [t.upper() for t in universe if t]
+        day_universe: dict[date, list[str]] = {}
+        if universe_by_day:
+            for d, names in universe_by_day.items():
+                day_universe[d] = [str(t).upper() for t in (names or []) if t]
         candles_by_ticker = {k.upper(): v for k, v in candles_by_ticker.items()}
+        funding_by_symbol = {
+            str(k).upper(): list(v or [])
+            for k, v in (funding_by_symbol or {}).items()
+            if k
+        }
         timeline = build_bar_timeline({t: candles_by_ticker.get(t, []) for t in tickers})
         if not timeline:
             return BacktestHostResult(
@@ -240,8 +254,12 @@ class BacktestHost:
         skipped_schedule = 0
         warmup_bars = 0
         traded_bars = 0
+        funding_charges_total = 0.0
+        funding_events_applied = 0
         eod_done = False
         last_day: date | None = None
+        prev_bar_time: datetime | None = None
+        applied_funding_keys: set[tuple[str, str]] = set()
 
         idx_by_ticker: dict[str, dict[datetime, Candle]] = {}
         for t in tickers:
@@ -276,6 +294,7 @@ class BacktestHost:
 
             if trade_from is not None and bar_time < trade_from:
                 warmup_bars += 1
+                prev_bar_time = bar_time
                 continue
 
             if deferred and opens:
@@ -300,7 +319,21 @@ class BacktestHost:
                 )
 
             if not is_within_trading_session(config.core.schedule, now=bar_time):
+                # Still apply funding outside MOEX hours for 24/7 crypto perps.
+                if funding_by_symbol and ledger.positions:
+                    before_keys = len(applied_funding_keys)
+                    funding_charges_total += apply_funding_charges_for_bar(
+                        ledger,
+                        funding_by_symbol=funding_by_symbol,
+                        prev_bar_time=prev_bar_time,
+                        bar_time=bar_time,
+                        prices=prices,
+                        applied_keys=applied_funding_keys,
+                        mode=funding_mode,
+                    )
+                    funding_events_applied += len(applied_funding_keys) - before_keys
                 skipped_schedule += 1
+                prev_bar_time = bar_time
                 continue
 
             day_key = bar_time.astimezone(MSK).date()
@@ -309,6 +342,50 @@ class BacktestHost:
                 eod_done = False
                 risk.resume_entries()
             last_day = day_key
+
+            # Active tradable set for this day (+ held names so we can manage open risk).
+            if day_universe:
+                todays = set(day_universe.get(day_key) or [])
+                held = {str(t).upper() for t in ledger.positions.keys()}
+                if config.universe.exit_on_drop and held - todays:
+                    flat_drop = []
+                    for t in sorted(held - todays):
+                        pos = ledger.positions.get(t)
+                        px = prices.get(t)
+                        if pos is None or px is None or px <= 0:
+                            continue
+                        qty = int(pos.quantity)
+                        side = "SELL" if pos.is_long else "BUY"
+                        pnl = ledger.apply_fill(
+                            ticker=t,
+                            side=side,
+                            quantity=qty,
+                            price=px,
+                            reduce_only=True,
+                        )
+                        flat_drop.append({
+                            "ticker": t,
+                            "kind": "flatten",
+                            "side": side,
+                            "qty": qty,
+                            "price": px,
+                            "pnl": pnl,
+                            "reason": "universe_drop",
+                        })
+                    if flat_drop:
+                        trade_id = _record_fills(
+                            flat_drop,
+                            bar_time=bar_time,
+                            prices=prices,
+                            commission=commission,
+                            trade_id=trade_id,
+                            trades=trades,
+                            orders=orders,
+                        )
+                        held = {str(t).upper() for t in ledger.positions.keys()}
+                active_universe = sorted(todays | held) or tickers
+            else:
+                active_universe = tickers
 
             in_eod = should_eod_flatten(
                 risk=config.risk,
@@ -334,6 +411,18 @@ class BacktestHost:
                         trades=trades,
                         orders=orders,
                     )
+                if funding_by_symbol:
+                    before_keys = len(applied_funding_keys)
+                    funding_charges_total += apply_funding_charges_for_bar(
+                        ledger,
+                        funding_by_symbol=funding_by_symbol,
+                        prev_bar_time=prev_bar_time,
+                        bar_time=bar_time,
+                        prices=prices,
+                        applied_keys=applied_funding_keys,
+                        mode=funding_mode,
+                    )
+                    funding_events_applied += len(applied_funding_keys) - before_keys
                 equity = ledger.mark_equity(prices)
                 equity_curve.append({"time": bar_time.isoformat(), "equity": round(equity, 2)})
                 portfolio_snapshots.append({
@@ -342,13 +431,14 @@ class BacktestHost:
                     "cash": round(ledger.cash, 2),
                     "positions": len(ledger.positions),
                 })
+                prev_bar_time = bar_time
                 continue
 
             traded_bars += 1
             cycle_out = run_paper_cycle_sync(
                 robot_id=robot_id,
                 config=config,
-                universe=tickers,
+                universe=active_universe,
                 ledger=ledger,
                 risk=risk,
                 prices=prices,
@@ -363,15 +453,6 @@ class BacktestHost:
             )
             deferred.extend(list(cycle_out.get("deferred_intents") or []))
 
-            equity = ledger.mark_equity(prices)
-            equity_curve.append({"time": bar_time.isoformat(), "equity": round(equity, 2)})
-            portfolio_snapshots.append({
-                "snapshot_time": bar_time.isoformat(),
-                "equity": round(equity, 2),
-                "cash": round(ledger.cash, 2),
-                "positions": len(ledger.positions),
-            })
-
             trade_id = _record_fills(
                 list(cycle_out.get("fills") or []),
                 bar_time=bar_time,
@@ -381,6 +462,29 @@ class BacktestHost:
                 trades=trades,
                 orders=orders,
             )
+
+            if funding_by_symbol:
+                before_keys = len(applied_funding_keys)
+                funding_charges_total += apply_funding_charges_for_bar(
+                    ledger,
+                    funding_by_symbol=funding_by_symbol,
+                    prev_bar_time=prev_bar_time,
+                    bar_time=bar_time,
+                    prices=prices,
+                    applied_keys=applied_funding_keys,
+                    mode=funding_mode,
+                )
+                funding_events_applied += len(applied_funding_keys) - before_keys
+
+            equity = ledger.mark_equity(prices)
+            equity_curve.append({"time": bar_time.isoformat(), "equity": round(equity, 2)})
+            portfolio_snapshots.append({
+                "snapshot_time": bar_time.isoformat(),
+                "equity": round(equity, 2),
+                "cash": round(ledger.cash, 2),
+                "positions": len(ledger.positions),
+            })
+            prev_bar_time = bar_time
 
         dropped_deferred = len(deferred)
         deferred.clear()
@@ -396,6 +500,20 @@ class BacktestHost:
 
         runtime.drop_session(session_id)
 
+        stages = [
+            f"Replayed {len(timeline)} bars across {len(tickers)} tickers",
+            f"Warmup bars: {warmup_bars}",
+            f"Traded bars: {traded_bars}",
+            f"Skipped (schedule): {skipped_schedule}",
+            f"Trades: {len(trades)}",
+            "Fills at next bar open (no look-ahead)",
+        ]
+        if funding_by_symbol:
+            stages.append(
+                f"Funding events applied: {funding_events_applied} "
+                f"(cash adj {round(funding_charges_total, 4)})"
+            )
+
         return BacktestHostResult(
             initial_capital=initial_capital,
             final_equity=round(final_equity, 2),
@@ -405,21 +523,17 @@ class BacktestHost:
             equity_curve=equity_curve,
             portfolio_snapshots=portfolio_snapshots,
             orders=orders,
-            stages=[
-                f"Replayed {len(timeline)} bars across {len(tickers)} tickers",
-                f"Warmup bars: {warmup_bars}",
-                f"Traded bars: {traded_bars}",
-                f"Skipped (schedule): {skipped_schedule}",
-                f"Trades: {len(trades)}",
-                "Fills at next bar open (no look-ahead)",
-            ],
+            stages=stages,
             history_stats={
                 "bars": len(timeline),
                 "tickers": len(tickers),
+                "universe_days": len(day_universe),
                 "trades": len(trades),
                 "warmup_bars": warmup_bars,
                 "traded_bars": traded_bars,
                 "skipped_schedule": skipped_schedule,
                 "dropped_deferred": dropped_deferred,
+                "funding_events": funding_events_applied,
             },
+            funding_charges_total=round(funding_charges_total, 6),
         )

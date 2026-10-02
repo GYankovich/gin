@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
 import { DataTable, type Column } from '@/components/ui/DataTable'
-import { Chart, type IChartApi, type ISeriesApi, type Time } from '@/components/ui/Chart'
+import { Chart, type IChartApi, type ISeriesApi, type Time, formatLocalChartTime } from '@/components/ui/Chart'
 import { AreaSeries, LineSeries } from 'lightweight-charts'
 import { Select } from '@/components/ui/Select'
 import { DateRangePicker } from '@/components/ui/DateRangePicker'
@@ -25,6 +25,7 @@ import {
     formatPortfolioAccountLabel,
     formatPortfolioAccountPlatformTag,
     formatPortfolioMoney,
+    formatPortfolioMoneyCompact,
     formatPortfolioMoneySigned,
     isBybitPortfolioAccount,
 } from '@/utils/portfolioFormat'
@@ -659,6 +660,15 @@ export default function PortfolioPage() {
                 lineWidth: 2,
                 priceLineVisible: false,
                 lastValueVisible: true,
+                ...(isMobile
+                    ? {
+                        priceFormat: {
+                            type: 'custom' as const,
+                            formatter: (price: number) => formatPortfolioMoneyCompact(price, accountCurrency),
+                            minMove: 1,
+                        },
+                    }
+                    : null),
             })
             seriesRef.current = series
             if (data.length) {
@@ -676,6 +686,15 @@ export default function PortfolioPage() {
                         lineWidth: 2,
                         priceLineVisible: false,
                         lastValueVisible: false,
+                        ...(isMobile
+                            ? {
+                                priceFormat: {
+                                    type: 'custom' as const,
+                                    formatter: (price: number) => formatPortfolioMoneyCompact(price, accountCurrency),
+                                    minMove: 1,
+                                },
+                            }
+                            : null),
                     })
                     instrumentSeriesRef.current.push({
                         figi: s.figi,
@@ -711,6 +730,16 @@ export default function PortfolioPage() {
                 vertLine: { labelVisible: true },
                 horzLine: { labelVisible: true },
             },
+            localization: {
+                locale: 'ru-RU',
+                timeFormatter: formatLocalChartTime,
+                ...(isMobile
+                    ? {
+                        priceFormatter: (price: number) => formatPortfolioMoneyCompact(price, accountCurrency),
+                    }
+                    : null),
+            },
+            ...(isMobile ? { layout: { fontSize: 10 } } : null),
         })
 
         chart.timeScale().applyOptions({
@@ -767,7 +796,7 @@ export default function PortfolioPage() {
                 })
             }
         })
-    }, [chartHistory, chartMode, chartData?.instruments_series, selectedFigis, chartZoom, applyChartZoom])
+    }, [chartHistory, chartMode, chartData?.instruments_series, selectedFigis, chartZoom, applyChartZoom, isMobile, accountCurrency])
 
     const handleSnapshotClick = (snapshot: PortfolioSnapshotSummary) => {
         if (selectedAccountId && snapshot.snapshot_id) {
@@ -1287,11 +1316,6 @@ export default function PortfolioPage() {
                     {chartHeaderControls}
                 </div>
             )}
-            {isMobile && (
-                <div className="portfolio-chart-header portfolio-chart-header--mobile">
-                    {chartZoomControl}
-                </div>
-            )}
             {chartMode === 'portfolio' && (
                 <div
                     className={`mono portfolio-crosshair-main${crosshairValue ? '' : ' portfolio-crosshair-main--idle'}`}
@@ -1299,21 +1323,29 @@ export default function PortfolioPage() {
                 >
                     {crosshairValue ? (
                         <>
-                            {formatPortfolioMoney(crosshairValue.value, accountCurrency, 0)}
-                            {crosshairValue.delta != null && (
+                            <span className="portfolio-crosshair-main__value">
+                                {formatPortfolioMoney(crosshairValue.value, accountCurrency, 0)}
+                            </span>
+                            {crosshairValue.delta != null ? (
                                 <span
-                                    className={crosshairValue.delta >= 0 ? 'color-up' : 'color-down'}
-                                    style={{ marginLeft: 'var(--space-2)' }}
+                                    className={`portfolio-crosshair-main__delta${
+                                        crosshairValue.delta >= 0 ? ' color-up' : ' color-down'
+                                    }`}
                                 >
-                                    {formatPortfolioMoneySigned(crosshairValue.delta, accountCurrency)}
-                                    {crosshairValue.deltaPct != null && (
-                                        <span style={{ marginLeft: 4 }}>
+                                    <span className="portfolio-crosshair-main__delta-abs">
+                                        {formatPortfolioMoneySigned(crosshairValue.delta, accountCurrency)}
+                                    </span>
+                                    {crosshairValue.deltaPct != null ? (
+                                        <span className="portfolio-crosshair-main__delta-pct">
                                             ({crosshairValue.deltaPct >= 0 ? '+' : ''}
-                                            {crosshairValue.deltaPct.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}%)
+                                            {crosshairValue.deltaPct.toLocaleString('ru-RU', {
+                                                maximumFractionDigits: 2,
+                                            })}
+                                            %)
                                         </span>
-                                    )}
+                                    ) : null}
                                 </span>
-                            )}
+                            ) : null}
                             <span className="portfolio-crosshair-main__time">{crosshairValue.time}</span>
                         </>
                     ) : (
@@ -1331,6 +1363,11 @@ export default function PortfolioPage() {
                     onReady={onChartReady}
                     key={`${selectedAccountId}-${chartMode}-${selectedFigis.join(',')}`}
                 />
+            )}
+            {isMobile && (
+                <div className="portfolio-chart-header portfolio-chart-header--mobile portfolio-chart-header--mobile-below">
+                    {chartZoomControl}
+                </div>
             )}
             {chartMode === 'instruments' && (
                 <div className="portfolio-chart-midbar">
@@ -1905,17 +1942,5 @@ function isIntradaySeries(data: Array<{ timestamp: number }>) {
 }
 
 function formatCrosshairTime(time: Time): string {
-    if (typeof time === 'number') {
-        const d = new Date(time * 1000)
-        const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0
-        return d.toLocaleString('ru-RU', hasTime
-            ? { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }
-            : { day: '2-digit', month: '2-digit', year: 'numeric' })
-    }
-    if (typeof time === 'string') return time
-    const y = Number((time as any).year)
-    const m = Number((time as any).month)
-    const d = Number((time as any).day)
-    const dt = new Date(y, m - 1, d)
-    return dt.toLocaleDateString('ru-RU')
+    return formatLocalChartTime(time)
 }

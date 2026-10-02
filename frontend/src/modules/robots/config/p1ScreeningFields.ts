@@ -6,7 +6,7 @@
  * Не смешиваем рынки в «общие» UI-блоки — только точные backend-пути.
  */
 
-import type { CryptoScreeningFilterType } from '@/pages/testing/cryptoScreeningPipeline'
+import type { CryptoScreeningFilterType } from '@/modules/robots/shared/cryptoScreeningPipeline'
 
 export type P1Market = 'moex' | 'crypto'
 

@@ -6,7 +6,7 @@ import { CryptoScreeningFormFields } from '@/modules/robots/components/CryptoScr
 import {
     cryptoScreeningFiltersFromPreset,
     type CryptoScreeningFilter,
-} from '@/pages/testing/cryptoScreeningPipeline'
+} from '@/modules/robots/shared/cryptoScreeningPipeline'
 import { getP1Field } from '@/modules/robots/config/p1ScreeningFields'
 import { CRYPTO_UNIVERSE_MODE_OPTIONS, type CryptoUniverseMode } from '@/utils/universeMode'
 import type { UniverseFilterPresetId } from '@/modules/robots/config/universeFilterPresets'

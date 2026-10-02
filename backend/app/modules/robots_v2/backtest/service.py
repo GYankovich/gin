@@ -22,6 +22,10 @@ from app.modules.robots_v2.backtest.candle_io import (
 )
 from app.modules.robots_v2.backtest.candle_prefetch import prefetch_candles_for_backtest
 from app.modules.robots_v2.backtest.host import BacktestHost, dicts_to_candles
+from app.modules.robots_v2.backtest.funding import (
+    crypto_funding_enabled,
+    instrument_category_for_config,
+)
 from app.modules.robots_v2.backtest.persist import (
     compare_runs,
     create_db_run,
@@ -319,9 +323,39 @@ class BacktestService:
         )
         update_db_run(db, run_id, status="RUNNING", run_phase="loading_candles")
         try:
-            universe = await self._resolve_universe(db, user_id, config, request)
+            await backtest_run_store.update(
+                run_id,
+                run_phase="resolving_universe",
+                phase_label="Resolving universe",
+            )
+            update_db_run(db, run_id, run_phase="resolving_universe")
+
+            from_dt = request.from_date.astimezone(timezone.utc)
+            to_dt = request.to_date.astimezone(timezone.utc)
+            from_date = from_dt.date()
+            till_date = to_dt.date()
+
+            from app.modules.robots_v2.backtest.universe_schedule import build_universe_by_day
+
+            universe, universe_by_day, universe_stats = await build_universe_by_day(
+                db,
+                user_id=user_id,
+                config=config,
+                from_date=from_date,
+                to_date=till_date,
+                token_id=request.token_id,
+                robot_id=request.robot_id,
+                is_cancelled=lambda: self._is_cancelled(run_id),
+            )
             if not universe:
                 raise ValueError("Universe is empty after resolve")
+
+            await backtest_run_store.update(
+                run_id,
+                run_phase="loading_candles",
+                phase_label="Loading candles",
+            )
+            update_db_run(db, run_id, run_phase="loading_candles")
 
             interval_raw = v4_timeframe_to_interval_raw(config.strategy.timeframe)
             resolved = resolve_strategy_interval(interval_raw)
@@ -329,11 +363,6 @@ class BacktestService:
             cache_market = market
             if market == "moex":
                 cache_market = (settings.OSENGINE_MARKET_KEY or "osengine").strip() or "osengine"
-
-            from_dt = request.from_date.astimezone(timezone.utc)
-            to_dt = request.to_date.astimezone(timezone.utc)
-            from_date = from_dt.date()
-            till_date = to_dt.date()
 
             from app.modules.robots_v2.engine.candle_seed import lookback_days_for_warmup, warmup_bars_needed
 
@@ -388,6 +417,24 @@ class BacktestService:
                             is_cancelled=lambda: self._is_cancelled(run_id),
                             load_cached_candles=False,
                         )
+                        if crypto_funding_enabled(config):
+                            from app.modules.trading_core.data.providers.bybit_market import (
+                                ensure_funding_bybit_market,
+                            )
+
+                            await ensure_funding_bybit_market(
+                                db,
+                                symbols=universe,
+                                from_date=load_from_date,
+                                till_date=till_date,
+                                instrument_category=category,
+                                testnet=ctx.testnet,
+                                user_id=user_id,
+                                run_id=run_id,
+                                api_key=ctx.api_key,
+                                api_secret=ctx.api_secret or "",
+                                is_cancelled=lambda: self._is_cancelled(run_id),
+                            )
 
             await backtest_run_store.update(
                 run_id,
@@ -418,6 +465,20 @@ class BacktestService:
                 raise ValueError(
                     "No candle data in cache for requested universe/range "
                     f"(tickers={len(universe)}, market={cache_market})"
+                )
+
+            funding_by_symbol: dict[str, list] = {}
+            if crypto_funding_enabled(config):
+                from app.modules.trading_core.data.providers.bybit_market import (
+                    load_funding_history_from_cache,
+                )
+
+                funding_by_symbol = load_funding_history_from_cache(
+                    db,
+                    symbols=universe,
+                    instrument_category=instrument_category_for_config(config),
+                    from_dt=load_from_dt,
+                    to_dt_exclusive=to_dt_exclusive,
                 )
 
             progress_state = {"done": 0, "total": 1}
@@ -475,6 +536,8 @@ class BacktestService:
                     trade_from=from_dt,
                     is_cancelled=lambda: self._is_cancelled(run_id),
                     progress_callback=on_progress,
+                    funding_by_symbol=funding_by_symbol or None,
+                    universe_by_day=universe_by_day,
                 )
             finally:
                 sim_done = True
@@ -513,7 +576,13 @@ class BacktestService:
                 "trades": result.trades,
                 "equity_curve": result.equity_curve,
                 "stages": result.stages,
-                "history_stats": result.history_stats,
+                "history_stats": {**(result.history_stats or {}), **universe_stats},
+                "funding_charges_total": result.funding_charges_total,
+                "broker_type": (
+                    "bybit"
+                    if config.core.instrument_type in ("perpetual", "coin_futures")
+                    else "moex"
+                ),
                 "engine_version": "v2",
             }
             finished = datetime.now(timezone.utc)
@@ -535,7 +604,13 @@ class BacktestService:
                 finished_at=finished,
                 progress_percent=100,
             )
-            persist_result_payload(db, run_id, payload)
+            persist_result_payload(
+                db,
+                run_id,
+                payload,
+                orders=result.orders,
+                portfolio_snapshots=result.portfolio_snapshots,
+            )
         except Exception as exc:
             logger.exception("v2 backtest run_id=%s failed", run_id)
             finished = datetime.now(timezone.utc)

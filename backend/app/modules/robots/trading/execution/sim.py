@@ -1,11 +1,8 @@
 """
 SimExecution — симуляция исполнения для бэктеста.
 
-Использует существующие `BrokerEmulator` (цена исполнения) и `SimExecutor`
-(размер позиции с учётом cash + комиссий), чтобы поведение совпадало с
-текущим `engine.py:run_backtest_simulation` (parity guard).
-
-См. docs/BRD-ARCH-03-unified-engine-architecture.md §8.
+BrokerEmulator (цена) + SimExecutor (размер с учётом cash/комиссий).
+Prod path: robots_v2 BacktestHost / paper ledger.
 """
 #///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingExecutionSim [1]
 #/// Исходный модуль `backend/app/modules/robots/trading/execution/sim.py` — автоматическая разметка для Obsidian Source Scanner.

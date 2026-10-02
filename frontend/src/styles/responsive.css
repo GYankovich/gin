@@ -411,45 +411,38 @@
         background: color-mix(in srgb, var(--bg-card) 96%, transparent);
     }
 
-    /* Dashboard glow on md/sm: sides only */
+    /* Shared solid surfaces — no side glow */
     [data-page='dashboard'] .dashboard-totals-card,
     [data-page='dashboard'] .dashboard-assets-card,
     [data-page='dashboard'] .dashboard-totals-card:hover,
-[data-page='dashboard'] .dashboard-assets-card:hover, [data-page='portfolio'] .dashboard-assets-card:hover {
-        box-shadow:
-            -6px 0 16px -5px rgba(0, 255, 255, 0.12),
-            6px 0 16px -5px rgba(0, 255, 255, 0.12);
-    }
+    [data-page='dashboard'] .dashboard-assets-card:hover,
+    [data-page='portfolio'] .dashboard-assets-card,
+    [data-page='portfolio'] .dashboard-assets-card:hover,
     [data-theme='light'] [data-page='dashboard'] .dashboard-totals-card,
     [data-theme='light'] [data-page='dashboard'] .dashboard-assets-card,
     [data-theme='light'] [data-page='dashboard'] .dashboard-totals-card:hover,
-[data-theme='light'] [data-page='dashboard'] .dashboard-assets-card:hover, [data-theme='light'] [data-page='portfolio'] .dashboard-assets-card:hover {
-        box-shadow:
-            -5px 0 14px -4px rgba(0, 102, 204, 0.1),
-            5px 0 14px -4px rgba(0, 102, 204, 0.1);
+    [data-theme='light'] [data-page='dashboard'] .dashboard-assets-card:hover,
+    [data-theme='light'] [data-page='portfolio'] .dashboard-assets-card,
+    [data-theme='light'] [data-page='portfolio'] .dashboard-assets-card:hover {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        box-shadow: none;
     }
-[data-page='dashboard'] .dashboard-accounts-collapse .collapsible-section__toggle[aria-expanded='false'], [data-page='portfolio'] .dashboard-accounts-collapse .collapsible-section__toggle[aria-expanded='false'] {
-        box-shadow:
-            var(--dashboard-accounts-glow-side),
-            var(--dashboard-accounts-glow-side-right);
-        clip-path: inset(0 var(--dashboard-accounts-glow-clip-x) 0 var(--dashboard-accounts-glow-clip-x) round var(--radius-lg));
+[data-page='dashboard'] .dashboard-accounts-collapse .collapsible-section__toggle[aria-expanded='false'],
+[data-page='dashboard'] .dashboard-accounts-collapse.collapsible-section--open .collapsible-section__body,
+[data-page='dashboard'] .dashboard-assets-collapse.collapsible-section--open {
+        box-shadow: none;
+        clip-path: none;
     }
-[data-page='dashboard'] .dashboard-accounts-collapse.collapsible-section--open .collapsible-section__body, [data-page='portfolio'] .dashboard-accounts-collapse.collapsible-section--open .collapsible-section__body {
-        box-shadow:
-            var(--dashboard-accounts-glow-side),
-            var(--dashboard-accounts-glow-side-right);
-        clip-path: inset(0 var(--dashboard-accounts-glow-clip-x) 0 var(--dashboard-accounts-glow-clip-x) round 0 0 var(--radius-lg) var(--radius-lg));
-    }
-[data-page='dashboard'] .dashboard-assets-collapse.collapsible-section--open, [data-page='portfolio'] .dashboard-assets-collapse.collapsible-section--open {
-        box-shadow:
-            -5px 0 18px rgba(0, 255, 255, 0.07),
-            5px 0 18px rgba(0, 255, 255, 0.07);
-    }
+    .modal,
     .dashboard-modal.modal {
         box-shadow:
             -6px 0 16px -5px rgba(0, 255, 255, 0.12),
             6px 0 16px -5px rgba(0, 255, 255, 0.1);
     }
+    [data-theme='light'] .modal,
     [data-theme='light'] .dashboard-modal.modal {
         box-shadow:
             -5px 0 14px -4px rgba(0, 102, 204, 0.1),
@@ -880,19 +873,81 @@
         -webkit-overflow-scrolling: touch;
     }
 
-    /* Portfolio toolbar wrap */
+    /* ===== Portfolio mobile: hero + account select ===== */
+    [data-page='portfolio'] .dashboard-hero--node {
+        min-height: 0;
+        margin: 0 0 var(--space-4);
+        padding: 0;
+    }
     [data-page='portfolio'] .dashboard-hero--node .dashboard-hero__content {
         flex-direction: column;
         align-items: flex-start;
-        gap: var(--space-3);
+        padding-right: 0;
+        padding-bottom: 0;
+        gap: var(--space-2);
     }
     [data-page='portfolio'] .dashboard-hero--node .dashboard-hero__actions {
+        position: static;
+        top: auto;
+        bottom: auto;
+        transform: none;
         flex: 1 1 auto;
-        max-width: none;
+        max-width: 100%;
         width: 100%;
         align-self: stretch;
-        margin-top: var(--space-3);
+        margin-top: 0;
     }
+    [data-page='portfolio'] .dashboard-hero--node .dashboard-totals-card.portfolio-toolbar,
+    [data-page='portfolio'] .dashboard-hero--node .portfolio-toolbar.card {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        box-shadow: none;
+        animation: none;
+    }
+    [data-page='portfolio'] .dashboard-hero--node .portfolio-toolbar__account {
+        min-width: 0;
+        max-width: none;
+        width: 100%;
+        flex: 1 1 auto;
+    }
+    [data-page='portfolio'] .dashboard-hero--node .portfolio-toolbar__account .gin-select {
+        width: 100%;
+    }
+    [data-page='portfolio'] .dashboard-hero--node .portfolio-toolbar__account .gin-select__trigger {
+        box-sizing: border-box;
+        min-height: 42px;
+        padding: 10px 12px;
+        border: 1px solid var(--border-medium);
+        border-radius: 6px;
+        background: var(--bg-card);
+        color: var(--text-primary);
+        font-size: var(--text-sm);
+        font-weight: 500;
+        line-height: 1.25;
+        letter-spacing: 0.01em;
+        box-shadow: none;
+        backdrop-filter: none;
+    }
+    [data-page='portfolio'] .dashboard-hero--node .portfolio-toolbar__account .gin-select--open .gin-select__trigger,
+    [data-page='portfolio'] .dashboard-hero--node .portfolio-toolbar__account .gin-select__trigger:hover {
+        border-color: color-mix(in srgb, var(--text-primary) 22%, var(--border-medium));
+        background: var(--bg-card-hover);
+    }
+    [data-theme='light'] [data-page='portfolio'] .dashboard-hero--node .portfolio-toolbar__account .gin-select__trigger {
+        background: var(--bg-card);
+        border-color: var(--border-medium);
+        box-shadow: var(--shadow-sm);
+    }
+
     .portfolio-toolbar.card,
     .portfolio-toolbar {
         flex-direction: column;
@@ -933,29 +988,52 @@
         font-size: 11px;
     }
 
-    /* History zone: stack toolbar controls on mobile */
+    /* ===== Portfolio mobile: history toolbar ===== */
+    [data-page='portfolio'] .portfolio-history-zone.card {
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        background: var(--bg-card);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        box-shadow: none;
+        overflow: hidden;
+    }
+    [data-theme='light'] [data-page='portfolio'] .portfolio-history-zone.card {
+        background: var(--bg-card);
+        box-shadow: none;
+    }
     [data-page='portfolio'] .portfolio-history-zone.card > .portfolio-history-zone__toolbar,
     [data-page='portfolio'] .portfolio-history-zone.card > .portfolio-history-zone__panels {
-        padding-inline: var(--space-4);
+        padding-inline: var(--space-3);
     }
     [data-page='portfolio'] .portfolio-history-zone.card > .portfolio-history-zone__toolbar {
         padding-top: var(--space-3);
+        padding-bottom: var(--space-2);
+        gap: var(--space-2);
+        margin-bottom: 0;
+        border-bottom: 1px solid color-mix(in srgb, var(--neon-cyan) 12%, var(--border-subtle));
     }
     [data-page='portfolio'] .portfolio-history-zone__toolbar {
         flex-direction: column;
         align-items: stretch;
-        gap: var(--space-2);
-        padding-bottom: var(--space-2);
-        margin-bottom: 0;
     }
     [data-page='portfolio'] .portfolio-history-zone__lead {
         flex-direction: row;
         align-items: center;
         gap: var(--space-2);
         width: 100%;
+        min-width: 0;
     }
     [data-page='portfolio'] .portfolio-history-zone__title {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-2);
         width: auto;
+        min-width: 0;
+        flex: 1 1 auto;
+    }
+    [data-page='portfolio'] .portfolio-history-zone__count {
+        flex-shrink: 0;
     }
     [data-page='portfolio'] .portfolio-history-zone__controls {
         flex-direction: column;
@@ -980,6 +1058,7 @@
         width: 100%;
     }
     [data-page='portfolio'] .portfolio-history-period__row {
+        display: flex;
         flex-direction: row;
         align-items: center;
         gap: var(--space-2);
@@ -990,17 +1069,31 @@
         max-width: none;
         width: auto;
         min-width: 0;
+        margin-bottom: 0;
     }
     [data-page='portfolio'] .portfolio-history-period__row .date-range-picker__combo {
         width: 100%;
     }
-    [data-page='portfolio'] .portfolio-history-period__row .date-range-picker__combo .date-range-picker__input {
+    [data-page='portfolio'] .portfolio-history-period__row .date-range-picker__combo .date-range-picker__input,
+    [data-page='portfolio'] .portfolio-history-zone .date-range-picker__combo .date-range-picker__input {
         font-size: var(--text-xs);
+        min-height: 36px;
+        height: 36px;
+        padding: 8px 12px;
     }
+    [data-page='portfolio'] .portfolio-history-zone .portfolio-history-sync-btn,
     [data-page='portfolio'] .portfolio-history-sync-btn {
-        width: auto;
-        height: auto;
+        align-self: center;
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+        min-height: 36px;
         flex-shrink: 0;
+        padding: 0;
+    }
+    [data-page='portfolio'] .portfolio-history-zone .portfolio-history-sync-btn__icon {
+        width: 16px;
+        height: 16px;
     }
     [data-page='portfolio'] .portfolio-history-zone {
         min-width: 0;
@@ -1010,10 +1103,19 @@
         min-height: 0;
     }
     [data-page='portfolio'] .portfolio-history-tab-panel {
-        min-height: 280px;
+        min-height: 240px;
     }
     [data-page='portfolio'] .portfolio-history-zone.card > .portfolio-history-zone__panels {
         padding-bottom: var(--space-3);
+        padding-top: var(--space-2);
+    }
+    [data-page='portfolio'] .portfolio-history-zone .mobile-data-table-list,
+    [data-page='portfolio'] .portfolio-composition-collapse .mobile-data-table-list {
+        gap: var(--space-2);
+    }
+    [data-page='portfolio'] .portfolio-history-zone .mobile-data-row,
+    [data-page='portfolio'] .portfolio-composition-collapse .mobile-data-row {
+        padding: 0;
     }
 
     .tf-selector {
@@ -1024,18 +1126,47 @@
     .tf-btn {
         flex: 0 0 auto;
     }
-    /* Portfolio Сводка: 2 cols per row on mobile */
+
+    /* ===== Portfolio mobile: summary density ===== */
+    [data-page='portfolio'] .dashboard-layout {
+        gap: var(--space-3);
+    }
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) {
+        padding: var(--space-3);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        background: var(--bg-card);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        box-shadow: none;
+    }
+    [data-theme='light'] [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) {
+        background: var(--bg-card);
+        box-shadow: none;
+    }
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .dashboard-totals-card__head {
+        margin-bottom: var(--space-2);
+    }
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary {
+        gap: var(--space-3);
+    }
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-hero {
+        padding-bottom: var(--space-2);
+    }
     [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-hero--split {
         grid-template-columns: 1fr 1fr;
         grid-template-areas:
             'hero-label-left hero-label-right'
             'hero-value-left hero-value-right';
         column-gap: var(--space-3);
+        row-gap: 4px;
     }
     [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-hero__head {
         justify-self: start;
         text-align: left;
         justify-content: flex-start;
+        flex-wrap: wrap;
+        gap: 2px 6px;
     }
     [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-hero__own-value,
     [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-hero__own-value-skeleton {
@@ -1054,11 +1185,23 @@
     [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .dashboard-summary-metric__value {
         font-size: var(--text-sm);
     }
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-block {
+        gap: var(--space-2);
+        padding-top: var(--space-2);
+    }
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-block__title {
+        margin-bottom: 0;
+        font-size: 0.65rem;
+        letter-spacing: 0.1em;
+    }
     [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-block__grid--3,
     [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-block__grid--2,
     [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-stats-grid--details {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: var(--space-2) var(--space-3);
+    }
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .dashboard-summary-metric {
+        gap: 2px;
     }
     [data-page='portfolio'] .portfolio-chart-imoex .portfolio-summary-block__grid--3 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1080,11 +1223,91 @@
     .portfolio-chart-midbar {
         width: 100%;
     }
-    [data-page='portfolio'] .dashboard-layout {
-        gap: var(--space-3);
+
+    /* ===== Portfolio mobile: chart + composition collapsibles ===== */
+    [data-page='portfolio'] .dashboard-assets-collapse.collapsible-section,
+    [data-page='portfolio'] .dashboard-assets-collapse.collapsible-section--open,
+    [data-page='portfolio'] .portfolio-composition-collapse.collapsible-section,
+    [data-page='portfolio'] .dashboard-accounts-collapse.portfolio-composition-collapse.collapsible-section {
+        margin-top: 0;
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        background: var(--bg-card);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        overflow: hidden;
+        box-shadow: none !important;
     }
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-history-zone) {
+    [data-theme='light'] [data-page='portfolio'] .dashboard-assets-collapse.collapsible-section,
+    [data-theme='light'] [data-page='portfolio'] .dashboard-assets-collapse.collapsible-section--open,
+    [data-theme='light'] [data-page='portfolio'] .portfolio-composition-collapse.collapsible-section,
+    [data-theme='light'] [data-page='portfolio'] .dashboard-accounts-collapse.portfolio-composition-collapse.collapsible-section {
+        background: var(--bg-card);
+        box-shadow: none;
+    }
+    [data-page='portfolio'] .dashboard-assets-collapse .collapsible-section__toggle,
+    [data-page='portfolio'] .dashboard-assets-collapse.collapsible-section--open .collapsible-section__toggle,
+    [data-page='portfolio'] .dashboard-assets-collapse .collapsible-section__toggle[aria-expanded='false'],
+    [data-page='portfolio'] .dashboard-assets-collapse .collapsible-section__toggle[aria-expanded='true'],
+    [data-theme='light'] [data-page='portfolio'] .dashboard-assets-collapse.collapsible-section--open .collapsible-section__toggle,
+    [data-page='portfolio'] .portfolio-composition-collapse .collapsible-section__toggle,
+    [data-page='portfolio'] .dashboard-accounts-collapse.portfolio-composition-collapse .collapsible-section__toggle,
+    [data-page='portfolio'] .dashboard-accounts-collapse.portfolio-composition-collapse.collapsible-section:not(.collapsible-section--open) .collapsible-section__toggle,
+    [data-page='portfolio'] .dashboard-accounts-collapse.portfolio-composition-collapse .collapsible-section__toggle[aria-expanded='false'],
+    [data-page='portfolio'] .dashboard-accounts-collapse.portfolio-composition-collapse .collapsible-section__toggle[aria-expanded='true'],
+    [data-page='portfolio'] .dashboard-accounts-collapse.portfolio-composition-collapse.collapsible-section--open .collapsible-section__toggle {
         padding: var(--space-3);
+        background: transparent;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        box-shadow: none !important;
+        clip-path: none;
+        border-radius: 0;
+        gap: var(--space-2);
+        text-shadow: none;
+        filter: none;
+    }
+    [data-page='portfolio'] .dashboard-assets-collapse.collapsible-section--open .collapsible-section__toggle,
+    [data-page='portfolio'] .portfolio-composition-collapse.collapsible-section--open .collapsible-section__toggle {
+        border-bottom: 1px solid var(--border-subtle);
+    }
+    [data-page='portfolio'] .dashboard-assets-collapse .collapsible-section__body,
+    [data-page='portfolio'] .portfolio-composition-collapse .collapsible-section__body,
+    [data-page='portfolio'] .dashboard-accounts-collapse.portfolio-composition-collapse .collapsible-section__body,
+    [data-page='portfolio'] .dashboard-accounts-collapse.portfolio-composition-collapse.collapsible-section--open .collapsible-section__body {
+        padding: var(--space-2) var(--space-3) var(--space-3);
+        background: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        clip-path: none;
+        overflow: hidden;
+        border-radius: 0;
+    }
+    [data-page='portfolio'] .portfolio-composition-collapse .mobile-data-row,
+    [data-page='portfolio'] .portfolio-history-zone .mobile-data-row {
+        background: transparent;
+    }
+    [data-page='portfolio'] .portfolio-composition-collapse .mobile-data-row__main,
+    [data-page='portfolio'] .portfolio-history-zone .mobile-data-row__main {
+        padding: var(--space-2) 0;
+    }
+    [data-page='portfolio'] .portfolio-chart-header--mobile {
+        margin-bottom: var(--space-2);
+    }
+    [data-page='portfolio'] .portfolio-chart-header--mobile-below {
+        margin-top: var(--space-2);
+        margin-bottom: 0;
+    }
+    [data-page='portfolio'] .portfolio-chart-header--mobile .portfolio-chart-zoom {
+        width: 100%;
+    }
+    [data-page='portfolio'] .portfolio-chart-header--mobile .segmented-control__item {
+        flex: 1 1 0;
+        min-width: 0;
+        text-align: center;
+        padding-inline: 6px;
+        font-size: 10px;
     }
     [data-page='portfolio'] .portfolio-composition-collapse .mobile-data-row__primary {
         font-weight: 400;
@@ -1100,25 +1323,26 @@
     }
     [data-page='portfolio'] .portfolio-composition-collapse .mobile-data-row__details {
         font-weight: 400;
+        gap: 4px;
     }
     .dashboard-settings-toggle-field {
         font-size: var(--text-xs);
     }
     .portfolio-crosshair-main {
-        font-size: var(--text-base);
-        /* value + delta + time stack on mobile */
-        min-height: calc(var(--text-base) * 1.35 + var(--text-sm) * 1.35 + var(--text-xs) * 1.35 + 6px);
-    }
-    .portfolio-crosshair-main .color-up,
-    .portfolio-crosshair-main .color-down {
-        display: block;
-        margin-left: 0 !important;
-        margin-top: 4px;
+        column-gap: var(--space-3);
+        font-size: var(--text-sm);
+        min-height: calc(var(--text-base) * 1.35 + var(--text-xs) * 1.25 + 2px);
     }
     .portfolio-crosshair-main__time {
-        display: block;
-        margin-left: 0;
-        margin-top: 2px;
+        font-size: 10px;
+    }
+    .portfolio-crosshair-main__value {
+        font-size: var(--text-lg);
+    }
+    .portfolio-crosshair-main__delta,
+    .portfolio-crosshair-main .color-up,
+    .portfolio-crosshair-main .color-down {
+        font-size: 10px;
     }
     .portfolio-legend {
         gap: 6px;
@@ -1462,19 +1686,21 @@
         padding: var(--space-6) var(--space-5);
     }
 
-    /* Modal: full width on mobile */
+    /* Modal: bottom sheet on mobile */
     .modal {
         width: 95% !important;
         max-width: 95% !important;
         max-height: 90vh;
     }
 
+    .modal-backdrop,
     .dashboard-modal-backdrop {
         align-items: flex-end;
         justify-content: center;
         padding: calc(env(safe-area-inset-top, 0px) + 32px) 0 0;
         box-sizing: border-box;
     }
+    .modal,
     .dashboard-modal.modal {
         width: 100% !important;
         max-width: 100% !important;
@@ -1487,12 +1713,14 @@
             -6px 0 16px -5px rgba(0, 255, 255, 0.12),
             6px 0 16px -5px rgba(0, 255, 255, 0.1);
     }
+    [data-theme='light'] .modal,
     [data-theme='light'] .dashboard-modal.modal {
         box-shadow:
             -5px 0 14px -4px rgba(0, 102, 204, 0.1),
             5px 0 14px -4px rgba(0, 102, 204, 0.1),
             var(--shadow-lg);
     }
+    .modal__header,
     .dashboard-modal .modal__header {
         padding: var(--space-4) var(--space-4) var(--space-2);
     }
@@ -1550,12 +1778,16 @@
         bottom: auto;
         transform: none;
         align-self: stretch;
-        margin-top: var(--space-3);
+        margin-top: 0;
+        flex: 1 1 auto;
+        max-width: 100%;
+        width: 100%;
     }
     [data-page='dashboard'] .dashboard-hero__cfg.btn--ghost.btn--sm,
 [data-page='dashboard'] .dashboard-hero__cfg,
     [data-page='robots'] .dashboard-hero__cfg.btn--ghost.btn--sm,
     [data-page='robots'] .dashboard-hero__cfg {
+        min-height: 34px;
         padding: 10px 12px !important;
     }
     /* Prefer icon-only when the label would crowd the title */
@@ -1565,8 +1797,12 @@
         }
         .dashboard-hero__cfg.btn--ghost.btn--sm,
         .dashboard-hero__cfg {
+            min-height: 34px;
             padding: 10px !important;
             gap: 0;
+        }
+        .dashboard-hero__create-chevron {
+            display: none;
         }
     }
 [data-page='dashboard'] .dashboard-currency-grid, [data-page='portfolio'] .dashboard-currency-grid {
@@ -1628,80 +1864,110 @@
     }
     [data-page='dashboard'] .dashboard-accounts-collapse .collapsible-section__toggle,
     [data-page='dashboard'] .dashboard-accounts-collapse .collapsible-section__body,
-    [data-page='portfolio'] .dashboard-accounts-collapse .collapsible-section__toggle,
-    [data-page='portfolio'] .dashboard-accounts-collapse .collapsible-section__body,
     [data-page='dashboard'] .dashboard-assets-collapse .collapsible-section__toggle,
     [data-page='dashboard'] .dashboard-assets-collapse .collapsible-section__body,
-    [data-page='portfolio'] .dashboard-assets-collapse .collapsible-section__toggle,
-    [data-page='portfolio'] .dashboard-assets-collapse .collapsible-section__body,
     .robots-v2-fleet-collapse .collapsible-section__toggle,
     .robots-v2-fleet-collapse .collapsible-section__body {
         padding-left: var(--space-4);
         padding-right: var(--space-4);
     }
+    /* Portfolio chart/composition: denser padding than dashboard/fleet defaults */
+    [data-page='portfolio'] .dashboard-assets-collapse .collapsible-section__toggle,
+    [data-page='portfolio'] .dashboard-assets-collapse .collapsible-section__body,
+    [data-page='portfolio'] .portfolio-composition-collapse .collapsible-section__toggle,
+    [data-page='portfolio'] .portfolio-composition-collapse .collapsible-section__body,
+    [data-page='portfolio'] .dashboard-accounts-collapse.portfolio-composition-collapse .collapsible-section__toggle,
+    [data-page='portfolio'] .dashboard-accounts-collapse.portfolio-composition-collapse .collapsible-section__body {
+        padding-left: var(--space-3);
+        padding-right: var(--space-3);
+    }
 
-    /* Fleet hero: same stacked rhythm as portfolio, actions wrap under the title */
+    /* Fleet hero: match dashboard — title + compact cfg button in one row */
     [data-page='robots'][data-robots-view='fleet'] .dashboard-hero--node {
         min-height: 0;
         margin: 0 0 var(--space-4);
         padding: 0;
     }
     [data-page='robots'][data-robots-view='fleet'] .dashboard-hero--node .dashboard-hero__content {
-        flex-direction: column;
-        align-items: flex-start;
+        flex-direction: row;
+        align-items: center;
         padding-right: 0;
         padding-bottom: 0;
-        gap: var(--space-3);
+        gap: var(--space-2);
     }
     [data-page='robots'][data-robots-view='fleet'] .dashboard-hero--node .dashboard-hero__actions {
         position: static;
         top: auto;
         bottom: auto;
         transform: none;
-        flex: 1 1 auto;
-        flex-shrink: 1;
-        max-width: 100%;
-        width: 100%;
-        min-width: 0;
-        align-self: stretch;
-        justify-content: flex-start;
-        margin-top: var(--space-3);
+        flex: 0 0 auto;
+        width: auto;
+        max-width: none;
+        align-self: center;
+        justify-content: flex-end;
+        margin-top: 0;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .dashboard-hero--node .dashboard-hero__actions .dashboard-hero__create {
+        flex: 0 0 auto;
+        width: auto;
+        max-width: none;
     }
     [data-page='robots'][data-robots-view='fleet'] .dashboard-hero--node .dashboard-hero__actions .btn {
-        flex: 1 1 auto;
-        min-width: 0;
-        min-height: 36px;
-        max-width: 100%;
+        flex: 0 0 auto;
+        width: auto;
+        max-width: none;
+        min-height: 0;
+        justify-content: center;
     }
 
-    /* Fleet cards: identity above controls, name ellipsizes, row cannot overflow */
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card {
+    /* Fleet cards: match dashboard account-card mobile chrome */
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card.card.card--clickable.dashboard-account-card--link {
         flex-direction: column;
         align-items: stretch;
-        gap: var(--space-3);
+        gap: var(--space-2);
         min-width: 0;
         max-width: 100%;
+        padding: var(--space-3);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        background: var(--bg-card);
+        box-shadow: none;
+        transform: none;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card.card.card--clickable.dashboard-account-card--link:hover {
+        border-color: var(--border-subtle);
+        background: var(--bg-card);
+        box-shadow: none;
+        transform: none;
     }
     [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__identity {
         min-width: 0;
         max-width: 100%;
+        gap: 2px;
     }
     [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__name {
+        font-size: var(--text-sm);
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__name-text {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
     [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__meta,
     [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__activity {
+        font-size: 0.7rem;
         overflow-wrap: anywhere;
     }
     [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__controls {
         display: flex;
-        flex-wrap: wrap;
-        justify-content: flex-start;
+        flex-wrap: nowrap;
+        justify-content: stretch;
         align-items: center;
+        gap: var(--space-2);
         min-width: 0;
         max-width: 100%;
+        padding-top: var(--space-1);
+        border-top: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
     }
     [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card .robots-v2-status-menu.mobile-dock__menu {
         flex: 1 1 auto;
@@ -1714,9 +1980,12 @@
         padding: 0;
     }
     [data-page='robots'][data-robots-view='fleet'] .robots-v2-status-trigger {
+        width: 100%;
         min-height: 36px;
         max-width: 100%;
         min-width: 0;
+        justify-content: space-between;
+        padding-inline: var(--space-3);
     }
     [data-page='robots'][data-robots-view='fleet'] .robots-v2-status-trigger__label {
         overflow: hidden;
@@ -1728,9 +1997,17 @@
         min-height: 36px;
         width: 36px;
         height: 36px;
+        padding: 0 !important;
     }
 
-    /* Section title yields space; + stays a separate tap target next to count/chevron */
+[data-theme='light'] [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card.card.card--clickable.dashboard-account-card--link,
+[data-theme='light'] [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card.card.card--clickable.dashboard-account-card--link:hover {
+        border-color: var(--border-subtle);
+        background: var(--bg-card);
+        box-shadow: none;
+    }
+
+    /* Section title + count; chevron stays trailing */
     [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__toggle {
         min-width: 0;
         gap: var(--space-2);
@@ -1753,26 +2030,19 @@
         overflow: hidden;
     }
     [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__title .dashboard-collapse__label {
-        display: inline-block;
+        display: inline-flex;
+        align-items: center;
         max-width: 100%;
         min-width: 0;
         overflow: hidden;
+    }
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__title .dashboard-collapse__label > :not(svg) {
+        overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        vertical-align: bottom;
     }
     [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse__count,
     [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__chevron {
-        flex-shrink: 0;
-    }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__header-end {
-        flex: 0 0 auto;
-        margin-left: var(--space-2);
-        overflow: visible;
-    }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .settings-tokens__add {
-        position: relative;
-        z-index: 2;
         flex-shrink: 0;
     }
 [data-page='dashboard'] .dashboard-accounts-collapse .collapsible-section__body, [data-page='portfolio'] .dashboard-accounts-collapse .collapsible-section__body {
