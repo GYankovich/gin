@@ -14,7 +14,7 @@ class RejectedInstrument(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     ticker: str
-    stage: Literal["catalog", "historical", "snapshot", "cap", "excluded", "broker"]
+    stage: Literal["catalog", "historical", "snapshot", "cap", "excluded", "broker", "dms"]
     code: str
     message: str
 
