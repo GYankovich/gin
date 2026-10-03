@@ -133,6 +133,7 @@ async def build_universe_by_day(
     universe_by_day: dict[date, list[str]] = {}
     union: set[str] = set()
     resolve_calls = 0
+    cancelled = False
 
     if not _refresh_daily(config):
         base = await _resolve_once(days[0])
@@ -142,6 +143,7 @@ async def build_universe_by_day(
             ex_index = DividendCalendarService(db).preload_exclusion_index(base, days[0], days[-1])
         for d in days:
             if is_cancelled and is_cancelled():
+                cancelled = True
                 break
             day_list = apply_dividend_exclusions(
                 db, base, trade_date=d, policy=policy, ex_index=ex_index,
@@ -154,18 +156,20 @@ async def build_universe_by_day(
         all_for_div: set[str] = set()
         for d in days:
             if is_cancelled and is_cancelled():
+                cancelled = True
                 break
             if d not in cache:
                 cache[d] = await _resolve_once(d)
                 resolve_calls += 1
                 all_for_div.update(cache[d])
         ex_index = None
-        if policy is not None and all_for_div:
+        if not cancelled and policy is not None and all_for_div:
             ex_index = DividendCalendarService(db).preload_exclusion_index(
                 sorted(all_for_div), days[0], days[-1],
             )
         for d in days:
-            if is_cancelled and is_cancelled():
+            if cancelled or (is_cancelled and is_cancelled()):
+                cancelled = True
                 break
             day_list = apply_dividend_exclusions(
                 db, cache.get(d, []), trade_date=d, policy=policy, ex_index=ex_index,
@@ -180,6 +184,7 @@ async def build_universe_by_day(
         "resolve_calls": resolve_calls,
         "union_tickers": len(union),
         "dividend_filter": policy is not None,
+        "cancelled": cancelled,
     }
     logger.info(
         "backtest universe_by_day days=%s union=%s resolve_calls=%s mode=%s",

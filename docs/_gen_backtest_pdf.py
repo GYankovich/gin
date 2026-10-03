@@ -377,7 +377,9 @@ def main() -> None:
             ["6", "Legacy HTTP/job history-backtest", "DONE (cut)"],
             ["7", "pages/testing UI", "DONE (только DEPRECATED.md)"],
             ["8", "Deprecated engines + data_provider", "DONE (удалены)"],
-            ["9", "Sharpe/Sortino/Calmar в V2", "DONE (persist + backtest_metrics.sharpe_ratio)"],
+            ["9", "Sharpe/Sortino/Calmar в V2", "DONE (KPI + history + compare)"],
+            ["10", "RejectedInstrument stage=dms", "DONE (smoke fix)"],
+            ["11", "ARCH-05 Phase B deploy (отдельный compute)", "ops / стенд"],
         ],
         [10, 90, 74],
     )

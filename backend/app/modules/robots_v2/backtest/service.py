@@ -347,6 +347,25 @@ class BacktestService:
                 robot_id=request.robot_id,
                 is_cancelled=lambda: self._is_cancelled(run_id),
             )
+            if self._is_cancelled(run_id) or bool(universe_stats.get("cancelled")):
+                finished = datetime.now(timezone.utc)
+                await backtest_run_store.update(
+                    run_id,
+                    status="CANCELLED",
+                    run_phase="cancelled",
+                    phase_label="Cancelled",
+                    finished_at=finished,
+                    progress_percent=100.0,
+                )
+                update_db_run_required(
+                    db, run_id,
+                    status="CANCELLED",
+                    run_phase="cancelled",
+                    finished_at=finished,
+                    progress_percent=100,
+                    cancel_requested=True,
+                )
+                return
             if not universe:
                 raise ValueError("Universe is empty after resolve")
 
