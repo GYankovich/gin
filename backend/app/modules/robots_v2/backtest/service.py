@@ -596,6 +596,7 @@ class BacktestService:
                 "equity_curve": result.equity_curve,
                 "stages": result.stages,
                 "history_stats": {**(result.history_stats or {}), **universe_stats},
+                "daily_summary": result.daily_summary,
                 "funding_charges_total": result.funding_charges_total,
                 "broker_type": (
                     "bybit"
@@ -615,6 +616,8 @@ class BacktestService:
                 result_payload=payload,
                 portfolio_snapshots=result.portfolio_snapshots,
                 orders=result.orders,
+                signals=result.signals,
+                daily_summary=result.daily_summary,
             )
             update_db_run_required(
                 db, run_id,
@@ -629,6 +632,7 @@ class BacktestService:
                 payload,
                 orders=result.orders,
                 portfolio_snapshots=result.portfolio_snapshots,
+                signals=result.signals,
             )
             payload.update(risk_metrics)
             await backtest_run_store.update(run_id, result_payload=payload)

@@ -166,6 +166,70 @@ def _apply_deferred_intents(
     return fills, leftover
 
 
+_MAX_SIGNAL_LOG = 25_000
+
+
+def _build_daily_summary(
+    signal_events: list[dict[str, Any]],
+    trades: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    by_day: dict[str, dict[str, Any]] = {}
+
+    def _day_key(raw: Any) -> str | None:
+        if raw is None:
+            return None
+        s = str(raw)
+        return s[:10] if len(s) >= 10 else None
+
+    for ev in signal_events:
+        d = _day_key(ev.get("signal_time"))
+        if not d:
+            continue
+        row = by_day.setdefault(
+            d,
+            {
+                "date": d,
+                "signals_total": 0,
+                "signals_executed": 0,
+                "signals_rejected": 0,
+                "signals_deferred": 0,
+                "trades_total": 0,
+                "candidates_accept": 0,
+                "candidates_reject": 0,
+            },
+        )
+        row["signals_total"] += 1
+        status = str(ev.get("status") or "").lower()
+        if int(ev.get("was_executed") or 0):
+            row["signals_executed"] += 1
+            row["candidates_accept"] += 1
+        elif status == "deferred":
+            row["signals_deferred"] += 1
+            row["candidates_accept"] += 1
+        else:
+            row["signals_rejected"] += 1
+            row["candidates_reject"] += 1
+    for t in trades:
+        d = _day_key(t.get("bar_time"))
+        if not d:
+            continue
+        row = by_day.setdefault(
+            d,
+            {
+                "date": d,
+                "signals_total": 0,
+                "signals_executed": 0,
+                "signals_rejected": 0,
+                "signals_deferred": 0,
+                "trades_total": 0,
+                "candidates_accept": 0,
+                "candidates_reject": 0,
+            },
+        )
+        row["trades_total"] += 1
+    return [by_day[k] for k in sorted(by_day.keys())]
+
+
 @dataclass
 class BacktestHostResult:
     initial_capital: float
@@ -176,6 +240,8 @@ class BacktestHostResult:
     equity_curve: list[dict[str, Any]] = field(default_factory=list)
     portfolio_snapshots: list[dict[str, Any]] = field(default_factory=list)
     orders: list[dict[str, Any]] = field(default_factory=list)
+    signals: list[dict[str, Any]] = field(default_factory=list)
+    daily_summary: list[dict[str, Any]] = field(default_factory=list)
     stages: list[str] = field(default_factory=list)
     history_stats: dict[str, int] = field(default_factory=dict)
     funding_charges_total: float = 0.0
@@ -250,6 +316,8 @@ class BacktestHost:
         portfolio_snapshots: list[dict[str, Any]] = []
         trades: list[dict[str, Any]] = []
         orders: list[dict[str, Any]] = []
+        signal_events: list[dict[str, Any]] = []
+        signals_truncated = False
         trade_id = 0
         skipped_schedule = 0
         warmup_bars = 0
@@ -453,6 +521,12 @@ class BacktestHost:
             )
             deferred.extend(list(cycle_out.get("deferred_intents") or []))
 
+            for ev in list(cycle_out.get("signal_log") or []):
+                if len(signal_events) >= _MAX_SIGNAL_LOG:
+                    signals_truncated = True
+                    break
+                signal_events.append(ev)
+
             trade_id = _record_fills(
                 list(cycle_out.get("fills") or []),
                 bar_time=bar_time,
@@ -500,12 +574,15 @@ class BacktestHost:
 
         runtime.drop_session(session_id)
 
+        daily_summary = _build_daily_summary(signal_events, trades)
         stages = [
             f"Replayed {len(timeline)} bars across {len(tickers)} tickers",
             f"Warmup bars: {warmup_bars}",
             f"Traded bars: {traded_bars}",
             f"Skipped (schedule): {skipped_schedule}",
             f"Trades: {len(trades)}",
+            f"Signals logged: {len(signal_events)}"
+            + (" (truncated)" if signals_truncated else ""),
             "Fills at next bar open (no look-ahead)",
         ]
         if funding_by_symbol:
@@ -523,12 +600,16 @@ class BacktestHost:
             equity_curve=equity_curve,
             portfolio_snapshots=portfolio_snapshots,
             orders=orders,
+            signals=signal_events,
+            daily_summary=daily_summary,
             stages=stages,
             history_stats={
                 "bars": len(timeline),
                 "tickers": len(tickers),
                 "universe_days": len(day_universe),
                 "trades": len(trades),
+                "signals": len(signal_events),
+                "signals_truncated": int(signals_truncated),
                 "warmup_bars": warmup_bars,
                 "traded_bars": traded_bars,
                 "skipped_schedule": skipped_schedule,

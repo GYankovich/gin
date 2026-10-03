@@ -204,59 +204,144 @@ def run_paper_cycle_sync(
         tax_pct=config.risk.tax_pct,
     )
     signals = runtime.evaluate(session_id, ctx)
+    signal_log: list[dict[str, Any]] = []
+    cycle_id = str(ctx.cycle_id)
+    bar_iso = clock.isoformat()
+
+    def _log_signal(
+        *,
+        ticker: str,
+        side: str,
+        price: float | None,
+        strategy_reason: str | None,
+        kind: str,
+        status: str,
+        was_executed: bool,
+        reject_reason: str | None = None,
+        quantity: float | int | None = None,
+    ) -> None:
+        signal_log.append({
+            "signal_time": bar_iso,
+            "figi": ticker,
+            "signal_type": str(side or "").upper() or "UNKNOWN",
+            "price": price,
+            "was_executed": 1 if was_executed else 0,
+            "reason": strategy_reason,
+            "reject_reason": reject_reason,
+            "kind": kind,
+            "status": status,
+            "quantity": quantity,
+            "cycle_id": cycle_id,
+        })
 
     for signal in signals:
         ticker = str(signal.secid or "").upper()
+        strat_reason = signal.reason or None
         if signal.side == "CLOSE":
             pos = ledger.positions.get(ticker)
-            if pos:
-                px = prices.get(ticker, pos.avg_entry_price)
-                tp_block = block_exit_below_break_even(
-                    entry=float(pos.avg_entry_price),
-                    price=float(px),
-                    side="long" if pos.is_long else "short",
-                    broker_commission_rate=config.risk.broker_commission_pct / 100.0,
-                )
-                if tp_block and not allow_strategy_exit_below_break_even(signal.reason):
-                    continue
-                intent = OrderIntent(
+            if not pos:
+                _log_signal(
+                    ticker=ticker,
+                    side="CLOSE",
+                    price=prices.get(ticker),
+                    strategy_reason=strat_reason,
                     kind="exit_strategy",
-                    figi=ticker,
-                    side="SELL" if pos.is_long else "BUY",
-                    quantity=float(pos.quantity),
-                    price=px,
-                    reduce_only=True,
-                    reason=signal.reason or "exit_strategy",
+                    status="rejected",
+                    was_executed=False,
+                    reject_reason="NO_POSITION",
                 )
-                result = _submit_intent(
-                    exec_svc,
-                    intent,
-                    px,
-                    defer_market=defer_market_fills,
-                    deferred=deferred,
+                continue
+            px = prices.get(ticker, pos.avg_entry_price)
+            tp_block = block_exit_below_break_even(
+                entry=float(pos.avg_entry_price),
+                price=float(px),
+                side="long" if pos.is_long else "short",
+                broker_commission_rate=config.risk.broker_commission_pct / 100.0,
+            )
+            if tp_block and not allow_strategy_exit_below_break_even(signal.reason):
+                _log_signal(
+                    ticker=ticker,
+                    side="CLOSE",
+                    price=float(px) if px is not None else None,
+                    strategy_reason=strat_reason,
+                    kind="exit_strategy",
+                    status="rejected",
+                    was_executed=False,
+                    reject_reason="BREAK_EVEN_BLOCK",
+                    quantity=int(pos.quantity),
                 )
-                if result is not None and result.status in ("filled", "submitted"):
-                    risk.record_realized_pnl(result.pnl)
-                    fills.append({
-                        "ticker": ticker,
-                        "kind": "exit_strategy",
-                        "side": result.side,
-                        "reason": signal.reason or "exit_strategy",
-                        "qty": int(pos.quantity),
-                        "price": result.price or px,
-                        "pnl": result.pnl,
-                        "status": result.status,
-                    })
-                    positions_dict = ledger.positions_dict(prices)
-                    equity = ledger.mark_equity(prices)
-                    if str(signal.reason or "") == "scalper_delta_invalidation":
-                        runtime.notify_stop_loss(
-                            session_id,
-                            config.strategy.archetype,
-                            ticker,
-                            at=clock,
-                            price=result.price or px,
-                        )
+                continue
+            intent = OrderIntent(
+                kind="exit_strategy",
+                figi=ticker,
+                side="SELL" if pos.is_long else "BUY",
+                quantity=float(pos.quantity),
+                price=px,
+                reduce_only=True,
+                reason=signal.reason or "exit_strategy",
+            )
+            result = _submit_intent(
+                exec_svc,
+                intent,
+                px,
+                defer_market=defer_market_fills,
+                deferred=deferred,
+            )
+            if result is None:
+                _log_signal(
+                    ticker=ticker,
+                    side=intent.side,
+                    price=float(px) if px is not None else None,
+                    strategy_reason=strat_reason or "exit_strategy",
+                    kind="exit_strategy",
+                    status="deferred",
+                    was_executed=False,
+                    quantity=int(pos.quantity),
+                )
+            elif result.status in ("filled", "submitted"):
+                risk.record_realized_pnl(result.pnl)
+                fills.append({
+                    "ticker": ticker,
+                    "kind": "exit_strategy",
+                    "side": result.side,
+                    "reason": signal.reason or "exit_strategy",
+                    "qty": int(pos.quantity),
+                    "price": result.price or px,
+                    "pnl": result.pnl,
+                    "status": result.status,
+                })
+                positions_dict = ledger.positions_dict(prices)
+                equity = ledger.mark_equity(prices)
+                _log_signal(
+                    ticker=ticker,
+                    side=result.side or intent.side,
+                    price=float(result.price or px or 0) or None,
+                    strategy_reason=strat_reason or "exit_strategy",
+                    kind="exit_strategy",
+                    status=str(result.status),
+                    was_executed=True,
+                    quantity=int(pos.quantity),
+                )
+                if str(signal.reason or "") == "scalper_delta_invalidation":
+                    runtime.notify_stop_loss(
+                        session_id,
+                        config.strategy.archetype,
+                        ticker,
+                        at=clock,
+                        price=result.price or px,
+                    )
+            else:
+                _log_signal(
+                    ticker=ticker,
+                    side=intent.side,
+                    price=float(px) if px is not None else None,
+                    strategy_reason=strat_reason or "exit_strategy",
+                    kind="exit_strategy",
+                    status="rejected",
+                    was_executed=False,
+                    reject_reason=str(result.reason or result.status or "EXEC_REJECT"),
+                    quantity=int(pos.quantity),
+                )
             continue
 
         if not risk.session_state.accept_new_entries and signal.side in ("BUY", "SELL"):
@@ -266,21 +351,62 @@ def run_paper_cycle_sync(
                 or (signal.side == "BUY" and pos is not None and not pos.is_long)
             )
             if not is_reduce:
+                _log_signal(
+                    ticker=ticker,
+                    side=str(signal.side),
+                    price=float(signal.price_at_signal or prices.get(ticker) or 0) or None,
+                    strategy_reason=strat_reason,
+                    kind="entry",
+                    status="rejected",
+                    was_executed=False,
+                    reject_reason="ENTRIES_PAUSED",
+                )
                 continue
 
-        risk_decision, _audit = risk.pre_trade(
+        risk_decision, audit = risk.pre_trade(
             signal,
             cash=ledger.cash,
             equity=equity,
             positions=positions_dict,
         )
         if not risk_decision.allow:
+            _log_signal(
+                ticker=ticker,
+                side=str(signal.side),
+                price=float(signal.price_at_signal or prices.get(ticker) or 0) or None,
+                strategy_reason=strat_reason,
+                kind="entry",
+                status="rejected",
+                was_executed=False,
+                reject_reason=str(audit.code or risk_decision.reason or "RISK_BLOCK"),
+            )
             continue
         qty = int(risk_decision.quantity or 0)
         if qty <= 0:
+            _log_signal(
+                ticker=ticker,
+                side=str(signal.side),
+                price=float(signal.price_at_signal or prices.get(ticker) or 0) or None,
+                strategy_reason=strat_reason,
+                kind="entry",
+                status="rejected",
+                was_executed=False,
+                reject_reason="ZERO_QTY",
+            )
             continue
         price = float(signal.price_at_signal or prices.get(ticker, 0))
         if price <= 0:
+            _log_signal(
+                ticker=ticker,
+                side=str(signal.side),
+                price=None,
+                strategy_reason=strat_reason,
+                kind="entry",
+                status="rejected",
+                was_executed=False,
+                reject_reason="STALE_OR_MISSING_PRICE",
+                quantity=qty,
+            )
             continue
         intent = risk.build_entry_intent(signal, qty, price)
         result = _submit_intent(
@@ -290,7 +416,18 @@ def run_paper_cycle_sync(
             defer_market=defer_market_fills,
             deferred=deferred,
         )
-        if result is not None and result.status in ("filled", "submitted"):
+        if result is None:
+            _log_signal(
+                ticker=ticker,
+                side=intent.side,
+                price=price,
+                strategy_reason=strat_reason or "entry",
+                kind="entry",
+                status="deferred",
+                was_executed=False,
+                quantity=qty,
+            )
+        elif result.status in ("filled", "submitted"):
             fills.append({
                 "ticker": ticker,
                 "kind": "entry",
@@ -303,6 +440,28 @@ def run_paper_cycle_sync(
             })
             positions_dict = ledger.positions_dict(prices)
             equity = ledger.mark_equity(prices)
+            _log_signal(
+                ticker=ticker,
+                side=result.side or intent.side,
+                price=float(result.price or price),
+                strategy_reason=strat_reason or "entry",
+                kind="entry",
+                status=str(result.status),
+                was_executed=True,
+                quantity=qty,
+            )
+        else:
+            _log_signal(
+                ticker=ticker,
+                side=intent.side,
+                price=price,
+                strategy_reason=strat_reason or "entry",
+                kind="entry",
+                status="rejected",
+                was_executed=False,
+                reject_reason=str(result.reason or result.status or "EXEC_REJECT"),
+                quantity=qty,
+            )
 
     wanted_entries: set[tuple[str, str]] = set()
     if risk.session_state.accept_new_entries:
@@ -333,6 +492,7 @@ def run_paper_cycle_sync(
     return {
         "fills": fills,
         "signals": len(signals),
-        "cycleId": str(ctx.cycle_id),
+        "signal_log": signal_log,
+        "cycleId": cycle_id,
         "deferred_intents": deferred,
     }

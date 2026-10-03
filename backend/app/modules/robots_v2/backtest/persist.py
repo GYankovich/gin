@@ -133,6 +133,7 @@ def persist_result_payload(
     *,
     orders: list[dict[str, Any]] | None = None,
     portfolio_snapshots: list[dict[str, Any]] | None = None,
+    signals: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     trades = payload.get("trades") or []
     pnls = [float(t["pnl_net"]) for t in trades if t.get("pnl_net") is not None]
@@ -141,6 +142,8 @@ def persist_result_payload(
     avg_pnl = (sum(pnls) / len(pnls)) if pnls else None
     order_rows = orders if orders is not None else (payload.get("orders") or trades)
     snap_rows = portfolio_snapshots if portfolio_snapshots is not None else (payload.get("portfolio_snapshots") or [])
+    signal_rows = signals if signals is not None else (payload.get("signals") or [])
+    daily_summary = payload.get("daily_summary") or []
     risk = _risk_adjusted_metrics(payload)
     sharpe = risk.get("sharpe_val")
     sortino = risk.get("sortino_val")
@@ -160,6 +163,7 @@ def persist_result_payload(
         "history_stats": payload.get("history_stats") or {},
         "equity_curve": payload.get("equity_curve") or [],
         "trades": trades,
+        "daily_summary": daily_summary,
         "funding_charges_total": payload.get("funding_charges_total"),
     }
     try:
@@ -221,7 +225,14 @@ def persist_result_payload(
         except Exception:
             pass
 
-    _persist_child_tables(db, run_id, trades=trades, orders=order_rows, snapshots=snap_rows)
+    _persist_child_tables(
+        db,
+        run_id,
+        trades=trades,
+        orders=order_rows,
+        snapshots=snap_rows,
+        signals=signal_rows,
+    )
     return {
         "sharpe_ratio": summary["sharpe_ratio"],
         "sortino_ratio": summary["sortino_ratio"],
@@ -249,8 +260,9 @@ def _persist_child_tables(
     trades: list[dict[str, Any]],
     orders: list[dict[str, Any]],
     snapshots: list[dict[str, Any]],
+    signals: list[dict[str, Any]] | None = None,
 ) -> None:
-    """Replace child rows for this run (signals from trades, orders, portfolio snapshots)."""
+    """Replace child rows for this run (signal log, orders, portfolio snapshots)."""
     try:
         db.execute(text("DELETE FROM backtest_signals WHERE run_id = :rid"), {"rid": run_id})
         db.execute(text("DELETE FROM backtest_orders WHERE run_id = :rid"), {"rid": run_id})
@@ -264,26 +276,47 @@ def _persist_child_tables(
             pass
         return
 
-    for t in trades:
+    signal_rows = list(signals or [])
+    if not signal_rows:
+        # Fallback for older payloads: derive executed-only rows from trades.
+        for t in trades:
+            signal_rows.append({
+                "signal_time": t.get("bar_time"),
+                "figi": t.get("figi") or t.get("ticker"),
+                "signal_type": t.get("side") or "buy",
+                "price": t.get("price"),
+                "was_executed": 1,
+                "reason": t.get("reason"),
+                "kind": t.get("kind"),
+                "quantity": t.get("quantity"),
+                "status": "filled",
+                "pnl_net": t.get("pnl_net"),
+            })
+
+    for s in signal_rows:
         try:
             db.execute(
                 text("""
                     INSERT INTO backtest_signals
                         (run_id, signal_time, figi, signal_type, price, was_executed, payload)
                     VALUES
-                        (:rid, :ts, :figi, :stype, :price, 1, CAST(:payload AS jsonb))
+                        (:rid, :ts, :figi, :stype, :price, :exec, CAST(:payload AS jsonb))
                 """),
                 {
                     "rid": run_id,
-                    "ts": _parse_dt(t.get("bar_time")),
-                    "figi": str(t.get("figi") or t.get("ticker") or "")[:20],
-                    "stype": str(t.get("side") or "buy").lower()[:20],
-                    "price": t.get("price"),
+                    "ts": _parse_dt(s.get("signal_time") or s.get("bar_time")),
+                    "figi": str(s.get("figi") or s.get("ticker") or "")[:20],
+                    "stype": str(s.get("signal_type") or s.get("side") or "buy").lower()[:20],
+                    "price": s.get("price"),
+                    "exec": int(s.get("was_executed") or 0),
                     "payload": _json({
-                        "reason": t.get("reason"),
-                        "kind": t.get("kind"),
-                        "quantity": t.get("quantity"),
-                        "pnl_net": t.get("pnl_net"),
+                        "reason": s.get("reason"),
+                        "reject_reason": s.get("reject_reason"),
+                        "kind": s.get("kind"),
+                        "status": s.get("status"),
+                        "quantity": s.get("quantity"),
+                        "cycle_id": s.get("cycle_id"),
+                        "pnl_net": s.get("pnl_net"),
                         "engine_version": "v2",
                     }),
                 },
@@ -397,13 +430,19 @@ def load_child_artifacts(db: Session, run_id: int) -> dict[str, list[dict[str, A
             """),
             {"rid": run_id},
         ).mappings().all():
+            payload = _parse_json(row.get("payload")) or {}
             signals.append({
                 "signal_time": row.get("signal_time"),
                 "figi": row.get("figi"),
                 "signal_type": row.get("signal_type"),
                 "price": float(row["price"]) if row.get("price") is not None else None,
                 "was_executed": int(row.get("was_executed") or 0),
-                "payload": _parse_json(row.get("payload")) or {},
+                "reason": payload.get("reason"),
+                "reject_reason": payload.get("reject_reason"),
+                "kind": payload.get("kind"),
+                "status": payload.get("status"),
+                "quantity": payload.get("quantity"),
+                "payload": payload,
             })
         for row in db.execute(
             text("""

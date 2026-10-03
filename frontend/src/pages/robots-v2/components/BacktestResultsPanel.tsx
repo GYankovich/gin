@@ -160,7 +160,43 @@ export function BacktestResultsPanel({
         {
             key: 'signal_type',
             header: 'Сигнал',
-            render: s => String(s.signal_type ?? s.kind ?? '—'),
+            render: s => String(s.signal_type ?? s.side ?? '—'),
+        },
+        {
+            key: 'reason',
+            header: 'Причина',
+            render: s => {
+                const payload = (s.payload && typeof s.payload === 'object')
+                    ? (s.payload as Record<string, unknown>)
+                    : {}
+                const reason = s.reason ?? payload.reason ?? s.kind ?? payload.kind
+                return (
+                    <span className="robots-v2-scan-reason">
+                        {tradeReasonLabel(reason != null ? String(reason) : null)}
+                    </span>
+                )
+            },
+        },
+        {
+            key: 'status',
+            header: 'Статус',
+            render: s => {
+                const payload = (s.payload && typeof s.payload === 'object')
+                    ? (s.payload as Record<string, unknown>)
+                    : {}
+                return String(s.status ?? payload.status ?? (s.was_executed ? 'filled' : '—'))
+            },
+        },
+        {
+            key: 'reject_reason',
+            header: 'Отказ',
+            render: s => {
+                const payload = (s.payload && typeof s.payload === 'object')
+                    ? (s.payload as Record<string, unknown>)
+                    : {}
+                const reject = s.reject_reason ?? payload.reject_reason
+                return reject ? String(reject) : '—'
+            },
         },
         {
             key: 'price',
@@ -278,6 +314,16 @@ export function BacktestResultsPanel({
             key: 'candidates_reject',
             header: 'Reject',
             render: row => <span className="mono">{String(row.candidates_reject ?? '—')}</span>,
+        },
+        {
+            key: 'signals_rejected',
+            header: 'Rejects',
+            render: row => <span className="mono">{String(row.signals_rejected ?? '—')}</span>,
+        },
+        {
+            key: 'signals_deferred',
+            header: 'Deferred',
+            render: row => <span className="mono">{String(row.signals_deferred ?? '—')}</span>,
         },
     ], [])
 

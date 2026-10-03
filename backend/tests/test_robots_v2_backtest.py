@@ -118,6 +118,8 @@ def test_backtest_host_replay_runs():
     assert result.initial_capital == 100_000
     assert len(result.equity_curve) == 40
     assert result.history_stats["bars"] == 40
+    assert isinstance(result.signals, list)
+    assert isinstance(result.daily_summary, list)
 
 
 def test_backtest_host_run_sync_no_event_loop():
