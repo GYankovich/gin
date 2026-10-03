@@ -15,6 +15,7 @@ export type BacktestHistoryRow = {
     initial_capital: number
     total_return_percent?: number | null
     max_drawdown_percent?: number | null
+    sharpe_ratio?: number | null
     final_equity?: number | null
     trades_total: number
 }
@@ -124,6 +125,18 @@ export function BacktestHistoryCard({
             render: row => (
                 <span className="mono">
                     {row.max_drawdown_percent == null ? '—' : `${row.max_drawdown_percent.toFixed(2)}%`}
+                </span>
+            ),
+        },
+        {
+            key: 'sharpe_ratio',
+            header: 'Sharpe',
+            sortable: true,
+            render: row => (
+                <span className="mono">
+                    {row.sharpe_ratio == null || !Number.isFinite(row.sharpe_ratio)
+                        ? '—'
+                        : row.sharpe_ratio.toFixed(2)}
                 </span>
             ),
         },

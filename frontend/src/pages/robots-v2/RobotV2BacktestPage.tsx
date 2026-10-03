@@ -103,6 +103,7 @@ export default function RobotV2BacktestPage() {
         initial_capital: number
         total_return_percent?: number | null
         max_drawdown_percent?: number | null
+        sharpe_ratio?: number | null
         final_equity?: number | null
         trades_total: number
     }>>([])

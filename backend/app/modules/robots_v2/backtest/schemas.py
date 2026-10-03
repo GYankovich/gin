@@ -94,6 +94,10 @@ class RobotV2BacktestDetailsResponse(RobotV2BacktestStatusResponse):
     total_return_percent: float | None = None
     max_drawdown_percent: float | None = None
     final_equity: float | None = None
+    sharpe_ratio: float | None = None
+    sortino_ratio: float | None = None
+    calmar_ratio: float | None = None
+    win_rate_percent: float | None = None
     trades_total: int = 0
     result_payload: dict[str, Any] = Field(default_factory=dict)
     signals: list[dict[str, Any]] = Field(default_factory=list)
@@ -113,6 +117,10 @@ class RobotV2BacktestListItem(BaseModel):
     initial_capital: float = 0.0
     total_return_percent: float | None = None
     max_drawdown_percent: float | None = None
+    sharpe_ratio: float | None = None
+    sortino_ratio: float | None = None
+    calmar_ratio: float | None = None
+    win_rate_percent: float | None = None
     final_equity: float | None = None
     trades_total: int = 0
     error_message: str | None = None
