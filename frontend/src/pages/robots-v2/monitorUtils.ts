@@ -1,6 +1,67 @@
 import type { Time } from '@/components/ui/Chart'
-import type { RobotV2RoundTrip, RobotV2Status, RobotV2TickerScan } from '@/types/robotV2'
+import type {
+    RobotV2BalanceSource,
+    RobotV2RoundTrip,
+    RobotV2Status,
+    RobotV2TickerScan,
+} from '@/types/robotV2'
 import { tradeReasonLabel } from '@/pages/robots-v2/tradeReasonLabels'
+
+/** Finite numeric balance from status — never treat missing as 0. */
+export function isFiniteBalance(v: unknown): v is number {
+    if (v == null || v === '') return false
+    return Number.isFinite(Number(v))
+}
+
+export function parseBalanceSource(raw: unknown): RobotV2BalanceSource | null {
+    const s = String(raw || '').toLowerCase()
+    if (s === 'session' || s === 'broker' || s === 'paper_last') return s
+    return null
+}
+
+/** UX-06 Zone B tile labels from balanceSource (+ mode for session). */
+export function balanceTileLabels(
+    source: RobotV2BalanceSource | null,
+    mode: string | null | undefined,
+): { equity: string; cash: string } {
+    const isPaper = String(mode || '').toLowerCase() === 'paper'
+    if (source === 'broker') return { equity: 'Equity · Счёт', cash: 'Cash · Счёт' }
+    if (source === 'paper_last') return { equity: 'Equity · Paper', cash: 'Cash · Paper' }
+    if (source === 'session') {
+        return isPaper
+            ? { equity: 'Equity · Paper', cash: 'Cash · Paper' }
+            : { equity: 'Equity · Счёт', cash: 'Cash · Счёт' }
+    }
+    return { equity: 'Equity', cash: 'Cash' }
+}
+
+/** UX-06 Zone Bƒ footnote; null when no honesty line needed. */
+export function balanceFootnoteText(
+    source: RobotV2BalanceSource | null,
+    mode: string | null | undefined,
+): string | null {
+    const isPaper = String(mode || '').toLowerCase() === 'paper'
+    if (source === 'broker') return 'Счёт брокера · робот не выделяет отдельный баланс'
+    if (source === 'paper_last') return 'Последний бумажный капитал · не живой счёт'
+    if (source === 'session') {
+        return isPaper ? 'Бумажный капитал сессии' : 'Средства брокерского счёта'
+    }
+    return null
+}
+
+/** Local time for «обновлено …» freshness suffix. */
+export function formatBalanceAsOfLabel(iso: string | null | undefined): string | null {
+    if (!iso) return null
+    const d = new Date(iso)
+    if (!Number.isFinite(d.getTime())) return null
+    const time = d.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    })
+    return `обновлено ${time}`
+}
 
 export function pick<T>(obj: RobotV2Status, camel: keyof RobotV2Status, snake: string): T | undefined {
     const anyObj = obj as Record<string, unknown>

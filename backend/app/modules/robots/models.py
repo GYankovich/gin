@@ -6,7 +6,7 @@
 
 from datetime import datetime
 from sqlalchemy import (
-    Column, BigInteger, String, DateTime, ForeignKey,
+    Column, BigInteger, String, Date, DateTime, ForeignKey,
     Integer, Numeric, JSON, Text, Index
 )
 from sqlalchemy.orm import relationship
@@ -558,4 +558,47 @@ class BacktestMetric(Base):
     win_rate_percent = Column(Numeric(12, 6), nullable=True)
     avg_pnl_per_trade = Column(Numeric(20, 6), nullable=True)
     final_equity = Column(Numeric(20, 6), nullable=True)
+    payload = Column(JSON, nullable=False, default={})
+
+
+class BacktestUniverseMembership(Base):
+    """P1 glass-box daily universe membership (public schema)."""
+
+    __tablename__ = "backtest_universe_membership"
+    __table_args__ = (
+        Index("ix_backtest_universe_membership_run_date", "run_id", "trade_date"),
+    )
+
+    run_id = Column(BigInteger, ForeignKey("backtest_runs.id", ondelete="CASCADE"), primary_key=True)
+    trade_date = Column(Date, primary_key=True)
+    ticker = Column(String(32), primary_key=True)
+    source = Column(String(64), nullable=True)
+    filter_result = Column(String(32), nullable=True)
+    reject_reason = Column(Text, nullable=True)
+
+
+class BacktestExecutionEvent(Base):
+    """P2 intent↔fill lifecycle events (public schema)."""
+
+    __tablename__ = "backtest_execution_events"
+    __table_args__ = (
+        Index("ix_backtest_execution_events_run_id", "run_id"),
+        Index("ix_backtest_execution_events_run_cycle", "run_id", "cycle_id"),
+        Index("ix_backtest_execution_events_run_intent", "run_id", "intent_id"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    run_id = Column(BigInteger, ForeignKey("backtest_runs.id", ondelete="CASCADE"), nullable=False)
+    event_time = Column(DateTime(timezone=True), nullable=False)
+    intent_id = Column(String(64), nullable=False)
+    cycle_id = Column(String(64), nullable=True)
+    ticker = Column(String(32), nullable=False)
+    side = Column(String(10), nullable=True)
+    kind = Column(String(32), nullable=True)
+    status = Column(String(20), nullable=False)
+    reason = Column(String(64), nullable=True)
+    reject_reason = Column(String(64), nullable=True)
+    quantity = Column(Numeric(20, 4), nullable=True)
+    price = Column(Numeric(20, 8), nullable=True)
+    trade_id = Column(BigInteger, nullable=True)
     payload = Column(JSON, nullable=False, default={})

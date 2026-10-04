@@ -57,6 +57,37 @@ class RobotV2BacktestTrade(BaseModel):
     pnl_net: float | None = None
     reason: str | None = None
     kind: str | None = None
+    cycle_id: str | None = None
+    signal_time: str | None = None
+
+
+class RobotV2BacktestObservabilityExecutionModel(BaseModel):
+    code: str = "NEXT_BAR_OPEN"
+    label: str = "Fills at next bar open"
+    look_ahead: bool = False
+
+
+class RobotV2BacktestRejectReasonCount(BaseModel):
+    code: str
+    count: int
+
+
+class RobotV2BacktestObservability(BaseModel):
+    execution_model: RobotV2BacktestObservabilityExecutionModel = Field(
+        default_factory=RobotV2BacktestObservabilityExecutionModel,
+    )
+    signals_logged: int = 0
+    signals_truncated: bool = False
+    signal_log_cap: int = 25_000
+    reject_reason_counts: list[RobotV2BacktestRejectReasonCount] = Field(default_factory=list)
+    status_counts: dict[str, int] = Field(default_factory=dict)
+
+
+class RobotV2BacktestFeeSummary(BaseModel):
+    commission_total: float = 0.0
+    funding_total: float = 0.0
+    funding_events: int = 0
+    tax_total: float | None = None
 
 
 class RobotV2BacktestResultPayload(BaseModel):
@@ -69,6 +100,8 @@ class RobotV2BacktestResultPayload(BaseModel):
     stages: list[str] = Field(default_factory=list)
     history_stats: dict[str, int] = Field(default_factory=dict)
     daily_summary: list[dict[str, Any]] = Field(default_factory=list)
+    observability: RobotV2BacktestObservability | None = None
+    fee_summary: RobotV2BacktestFeeSummary | None = None
     engine_version: str = "v2"
 
 
@@ -87,7 +120,15 @@ class RobotV2BacktestStatusResponse(BaseModel):
     phase_units_done: int | None = None
     phase_units_total: int | None = None
     cancel_requested: bool | None = None
+    partial_result: bool | None = None
     error_message: str | None = None
+
+
+class RobotV2BacktestNarrativeStep(BaseModel):
+    section: str
+    step: int
+    text: str
+    ts: str | None = None
 
 
 class RobotV2BacktestDetailsResponse(RobotV2BacktestStatusResponse):
@@ -104,6 +145,70 @@ class RobotV2BacktestDetailsResponse(RobotV2BacktestStatusResponse):
     orders: list[dict[str, Any]] = Field(default_factory=list)
     portfolio_snapshots: list[dict[str, Any]] = Field(default_factory=list)
     daily_summary: list[dict[str, Any]] = Field(default_factory=list)
+    observability: RobotV2BacktestObservability | None = None
+    fee_summary: RobotV2BacktestFeeSummary | None = None
+    narrative: list[RobotV2BacktestNarrativeStep] = Field(default_factory=list)
+    execution_events: list[dict[str, Any]] = Field(default_factory=list)
+    signals_total: int = 0
+    signals_truncated_inline: bool = False
+
+
+class RobotV2BacktestSignalsPageResponse(BaseModel):
+    items: list[dict[str, Any]] = Field(default_factory=list)
+    total: int = 0
+    truncated_run: bool = False
+    limit: int = 200
+    offset: int = 0
+
+
+class RobotV2BacktestCycleBundleResponse(BaseModel):
+    cycle_id: str
+    signals: list[dict[str, Any]] = Field(default_factory=list)
+    trades: list[dict[str, Any]] = Field(default_factory=list)
+    orders: list[dict[str, Any]] = Field(default_factory=list)
+    execution_events: list[dict[str, Any]] = Field(default_factory=list)
+    config_risk_excerpt: dict[str, Any] = Field(default_factory=dict)
+
+
+class RobotV2BacktestExecutionEventsResponse(BaseModel):
+    run_id: int
+    items: list[dict[str, Any]] = Field(default_factory=list)
+    total: int = 0
+
+
+class RobotV2BacktestNarrativeResponse(BaseModel):
+    run_id: int
+    items: list[RobotV2BacktestNarrativeStep] = Field(default_factory=list)
+    total: int = 0
+
+
+class RobotV2BacktestPriceWindowResponse(BaseModel):
+    run_id: int
+    ticker: str
+    around: str | None = None
+    bars: int = 0
+    interval: str | None = None
+    market: str | None = None
+    candles: list[dict[str, Any]] = Field(default_factory=list)
+    source: str = "cache"
+    gap: str | None = None
+
+
+class RobotV2BacktestUniverseMembershipItem(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    trade_date: date
+    ticker: str
+    source: str | None = None
+    filter_result: str | None = None
+    reject_reason: str | None = None
+
+
+class RobotV2BacktestUniverseResponse(BaseModel):
+    run_id: int
+    items: list[RobotV2BacktestUniverseMembershipItem] = Field(default_factory=list)
+    days: list[date] = Field(default_factory=list)
+    total: int = 0
 
 
 class RobotV2BacktestListItem(BaseModel):

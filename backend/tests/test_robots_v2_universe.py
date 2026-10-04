@@ -36,3 +36,40 @@ def test_crypto_high_liquidity_preset():
     cfg = presets.resolve_crypto_filters(preset="high_liquidity", custom_filters=None)
     assert cfg["min_volume_24h_usd"] == 50_000_000
     assert cfg["max_spread_pct"] == 0.1
+
+
+def test_filters_without_trading_status_keeps_other_gates():
+    from app.modules.robots_v2.universe.service import (
+        _filters_without_trading_status,
+        _has_trading_status_filter,
+    )
+
+    filters = [
+        {"type": "security_status", "eq": "A"},
+        {"type": "trading_status", "eq": "T"},
+        {"type": "volume", "min": 10_000_000},
+    ]
+    assert _has_trading_status_filter(filters) is True
+    relaxed = _filters_without_trading_status(filters)
+    assert _has_trading_status_filter(relaxed) is False
+    assert {"type": "security_status", "eq": "A"} in relaxed
+    assert {"type": "volume", "min": 10_000_000} in relaxed
+
+
+def test_filter_tqbr_candidate_rows_falls_back_when_board_is_n():
+    from app.modules.robots.universe import filter_tqbr_candidate_rows
+
+    overnight = [
+        {"ticker": "SBER", "security_status": "A", "trading_status": "N"},
+        {"ticker": "GAZP", "security_status": "A", "trading_status": "N"},
+        {"ticker": "BAD", "security_status": "B", "trading_status": "N"},
+    ]
+    out = filter_tqbr_candidate_rows(overnight)
+    assert {r["ticker"] for r in out} == {"SBER", "GAZP"}
+
+    session_open = [
+        {"ticker": "SBER", "security_status": "A", "trading_status": "T"},
+        {"ticker": "GAZP", "security_status": "A", "trading_status": "N"},
+    ]
+    out2 = filter_tqbr_candidate_rows(session_open)
+    assert [r["ticker"] for r in out2] == ["SBER"]

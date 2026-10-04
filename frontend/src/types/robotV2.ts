@@ -36,6 +36,9 @@ export type RobotV2TickerScan = {
     metrics?: Record<string, unknown> | null
 }
 
+/** Machine source for Monitor Equity/Cash labels (SPEC-04 / UX-06). */
+export type RobotV2BalanceSource = 'session' | 'broker' | 'paper_last'
+
 export type RobotV2Status = {
     robotId: number
     robot_id?: number
@@ -48,6 +51,15 @@ export type RobotV2Status = {
     cycle_number?: number | null
     equity?: number | null
     cash?: number | null
+    /** session | broker | paper_last — do not infer labels from mode alone when set */
+    balanceSource?: RobotV2BalanceSource | null
+    balance_source?: RobotV2BalanceSource | null
+    /** ISO timestamp for balance freshness */
+    balanceAsOf?: string | null
+    balance_as_of?: string | null
+    /** Paper last capital from metadata (idle display / active echo) */
+    lastVirtualCapital?: number | null
+    last_virtual_capital?: number | null
     openPositions?: Array<Record<string, unknown>> | null
     open_positions?: Array<Record<string, unknown>> | null
     /** session = live ledger; broker = idle snapshot from broker */

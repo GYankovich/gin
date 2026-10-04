@@ -178,7 +178,17 @@ def universe_uses_pipeline(config: Optional[Dict[str, Any]]) -> bool:
     return normalize_universe_mode(config) == UNIVERSE_MODE_DMS
 
 
-def universe_min_tradable_row(row: Dict[str, Any]) -> bool:
+def universe_min_tradable_row(
+    row: Dict[str, Any],
+    *,
+    require_trading: bool = True,
+) -> bool:
+    """Board row is a candidate for TQBR scan.
+
+    ``require_trading=True`` (default) keeps only TRADINGSTATUS=T/… rows.
+    Outside the MOEX session ISS reports N for the whole board — callers may
+    fall back with ``require_trading=False`` and let DMS filters decide.
+    """
     ticker = str(row.get("ticker") or "").strip()
     if not ticker:
         return False
@@ -186,9 +196,17 @@ def universe_min_tradable_row(row: Dict[str, Any]) -> bool:
     trading = str(row.get("trading_status") or "").strip().upper()
     if status and status not in {"A", "ACTIVE"}:
         return False
-    if trading and trading not in {"T", "TRADING", "NORMAL_TRADING"}:
+    if require_trading and trading and trading not in {"T", "TRADING", "NORMAL_TRADING"}:
         return False
     return True
+
+
+def filter_tqbr_candidate_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Prefer currently-trading rows; if none (overnight board=N), keep security A."""
+    strict = [r for r in rows if universe_min_tradable_row(r, require_trading=True)]
+    if strict:
+        return strict
+    return [r for r in rows if universe_min_tradable_row(r, require_trading=False)]
 
 
 def universe_pipeline_filters(

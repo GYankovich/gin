@@ -117,6 +117,21 @@ class RobotV2StatusResponse(BaseModel):
     cycle_number: int | None = Field(default=None, alias="cycleNumber")
     equity: float | None = None
     cash: float | None = None
+    balance_source: Literal["session", "broker", "paper_last"] | None = Field(
+        default=None,
+        alias="balanceSource",
+        description="session | broker | paper_last — machine source for Equity/Cash labels",
+    )
+    balance_as_of: str | None = Field(
+        default=None,
+        alias="balanceAsOf",
+        description="ISO timestamp for balance freshness (positionsUpdatedAt or lastPaperEquityAt)",
+    )
+    last_virtual_capital: float | None = Field(
+        default=None,
+        alias="lastVirtualCapital",
+        description="Paper last capital from metadata (idle display / active echo)",
+    )
     open_positions: list[dict[str, Any]] | None = Field(default=None, alias="openPositions")
     positions_source: str | None = Field(
         default=None,

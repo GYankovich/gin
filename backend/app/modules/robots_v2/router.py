@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import JSONResponse
@@ -20,10 +21,16 @@ from app.modules.robots_v2.backtest.schemas import (
     RobotV2BacktestAsyncAccepted,
     RobotV2BacktestCompareRequest,
     RobotV2BacktestCompareResponse,
+    RobotV2BacktestCycleBundleResponse,
     RobotV2BacktestDetailsResponse,
+    RobotV2BacktestExecutionEventsResponse,
     RobotV2BacktestListResponse,
+    RobotV2BacktestNarrativeResponse,
+    RobotV2BacktestPriceWindowResponse,
     RobotV2BacktestRequest,
+    RobotV2BacktestSignalsPageResponse,
     RobotV2BacktestStatusResponse,
+    RobotV2BacktestUniverseResponse,
 )
 from app.modules.robots_v2.engine.event_bus import event_bus
 from app.modules.robots_v2.universe.schemas import UniversePreview
@@ -209,11 +216,158 @@ async def get_v2_backtest_status(
 @router.get("/backtest/runs/{run_id}", response_model=RobotV2BacktestDetailsResponse)
 async def get_v2_backtest_details(
     run_id: int,
+    signals_limit: int | None = Query(default=None, ge=1, le=1000),
+    signals_offset: int = Query(default=0, ge=0),
+    signals_status: str | None = Query(default=None),
+    reject_reason: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     _: None = Depends(_require_v2_enabled),
 ):
-    return await backtest_service.get_details(run_id, user_id=current_user.id, db=db)
+    return await backtest_service.get_details(
+        run_id,
+        user_id=current_user.id,
+        db=db,
+        signals_limit=signals_limit,
+        signals_offset=signals_offset,
+        signals_status=signals_status,
+        reject_reason=reject_reason,
+    )
+
+
+@router.get(
+    "/backtest/runs/{run_id}/signals",
+    response_model=RobotV2BacktestSignalsPageResponse,
+)
+async def get_v2_backtest_signals(
+    run_id: int,
+    limit: int = Query(default=200, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    status_filter: str | None = Query(default=None, alias="status"),
+    reject_reason: str | None = Query(default=None),
+    ticker: str | None = Query(default=None),
+    cycle_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_v2_enabled),
+):
+    return await backtest_service.get_signals_page(
+        run_id,
+        user_id=current_user.id,
+        db=db,
+        limit=limit,
+        offset=offset,
+        status_filter=status_filter,
+        reject_reason=reject_reason,
+        ticker=ticker,
+        cycle_id=cycle_id,
+    )
+
+
+@router.get(
+    "/backtest/runs/{run_id}/cycles/{cycle_id}",
+    response_model=RobotV2BacktestCycleBundleResponse,
+)
+async def get_v2_backtest_cycle(
+    run_id: int,
+    cycle_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_v2_enabled),
+):
+    """Decision inspector bundle for one cycle (SPEC-03 §6.2)."""
+    return await backtest_service.get_cycle_bundle(
+        run_id,
+        cycle_id,
+        user_id=current_user.id,
+        db=db,
+    )
+
+
+@router.get(
+    "/backtest/runs/{run_id}/universe",
+    response_model=RobotV2BacktestUniverseResponse,
+)
+async def get_v2_backtest_universe(
+    run_id: int,
+    from_date: date | None = Query(default=None, alias="from"),
+    to_date: date | None = Query(default=None, alias="to"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_v2_enabled),
+):
+    """Daily universe membership for a completed run (SPEC-03 P1 / [R-9])."""
+    return await backtest_service.get_universe_membership(
+        run_id,
+        user_id=current_user.id,
+        db=db,
+        from_date=from_date,
+        to_date=to_date,
+    )
+
+
+@router.get(
+    "/backtest/runs/{run_id}/execution-events",
+    response_model=RobotV2BacktestExecutionEventsResponse,
+)
+async def get_v2_backtest_execution_events(
+    run_id: int,
+    cycle_id: str | None = Query(default=None),
+    limit: int = Query(default=5000, ge=1, le=25_000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_v2_enabled),
+):
+    """Intent→fill lifecycle events (SPEC-03 P2 / [R-13])."""
+    return await backtest_service.get_execution_events(
+        run_id,
+        user_id=current_user.id,
+        db=db,
+        cycle_id=cycle_id,
+        limit=limit,
+    )
+
+
+@router.get(
+    "/backtest/runs/{run_id}/narrative",
+    response_model=RobotV2BacktestNarrativeResponse,
+)
+async def get_v2_backtest_narrative(
+    run_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_v2_enabled),
+):
+    """Structured RU narrative steps (SPEC-03 P2 / [R-14])."""
+    return await backtest_service.get_narrative(
+        run_id,
+        user_id=current_user.id,
+        db=db,
+    )
+
+
+@router.get(
+    "/backtest/runs/{run_id}/price-window",
+    response_model=RobotV2BacktestPriceWindowResponse,
+)
+async def get_v2_backtest_price_window(
+    run_id: int,
+    ticker: str = Query(...),
+    around: datetime = Query(..., description="Decision timestamp (ISO-8601)"),
+    bars: int = Query(default=50, ge=1, le=200, description="Half-window bars each side"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_v2_enabled),
+):
+    """Candles around a decision for chart overlay (SPEC-03 P2 / [R-12])."""
+    return await backtest_service.get_price_window(
+        run_id,
+        user_id=current_user.id,
+        db=db,
+        ticker=ticker,
+        around=around,
+        bars=bars,
+    )
 
 
 @router.post("/backtest/runs/{run_id}/cancel")

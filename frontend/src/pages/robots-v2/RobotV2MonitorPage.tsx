@@ -18,13 +18,18 @@ import { RobotStageCard } from '@/pages/robots-v2/components/RobotStageCard'
 import { fmtErr, fmtNum, sessionStateLabel } from '@/pages/robots-v2/formatters'
 import {
     appendEquityPoint,
+    balanceFootnoteText,
+    balanceTileLabels,
     collectAuditTradeTickers,
     computeDayTradeStats,
     filterScanCooldownRows,
+    formatBalanceAsOfLabel,
     fmtNetPnl,
+    isFiniteBalance,
     mergeLiveRoundTrips,
     mergeUniverseTickers,
     normalizeEquityPoints,
+    parseBalanceSource,
     pick,
     pickOpenPositions,
     posPrice,
@@ -380,8 +385,16 @@ export default function RobotV2MonitorPage() {
         ? (sessionStateRaw ? String(sessionStateRaw) : 'IDLE')
         : '…'
     const sessionUpper = String(sessionStateRaw || '').toUpperCase()
-    const equity = pick<number>(status || ({} as RobotV2Status), 'equity', 'equity') ?? 0
-    const cash = pick<number>(status || ({} as RobotV2Status), 'cash', 'cash') ?? 0
+    const equityRaw = pick<number>(status || ({} as RobotV2Status), 'equity', 'equity')
+    const cashRaw = pick<number>(status || ({} as RobotV2Status), 'cash', 'cash')
+    const equity = isFiniteBalance(equityRaw) ? Number(equityRaw) : null
+    const cash = isFiniteBalance(cashRaw) ? Number(cashRaw) : null
+    const balanceSource = parseBalanceSource(
+        pick(status || ({} as RobotV2Status), 'balanceSource', 'balance_source'),
+    )
+    const balanceAsOf = pick<string>(status || ({} as RobotV2Status), 'balanceAsOf', 'balance_as_of')
+    const statusMode = pick<string>(status || ({} as RobotV2Status), 'mode', 'mode')
+        || String((robot?.config?.core as Record<string, unknown> | undefined)?.mode || '')
     const cycle = pick<number>(status || ({} as RobotV2Status), 'cycleNumber', 'cycle_number') ?? 0
     const statusMessage = pick<string>(status || ({} as RobotV2Status), 'message', 'message')
     const bootstrapReady = Boolean(
@@ -400,7 +413,14 @@ export default function RobotV2MonitorPage() {
             || (sessionUpper === 'RUNNING' && !bootstrapReady)
             || (isActive && (stageLower === 'bootstrap' || stageLower === 'bootstrap_sync'))
         )
-    const showSessionStats = statusLoaded && isActive && !isSyncing
+    const showSessionOps = statusLoaded && isActive && !isSyncing
+    const showBalance = statusLoaded && (equity != null || cash != null)
+    const balanceLabels = balanceTileLabels(balanceSource, statusMode)
+    const balanceFootnote = showBalance ? balanceFootnoteText(balanceSource, statusMode) : null
+    const balanceAsOfLabel = showBalance ? formatBalanceAsOfLabel(balanceAsOf) : null
+    const isLiveMode = String(statusMode || '').toLowerCase() === 'live'
+    /** Live idle/fail with null balances → honesty line; paper never-capitalized → omit strip */
+    const showBalanceUnavailable = statusLoaded && !showBalance && isLiveMode
     const universeCfg = (robot?.config?.universe || {}) as Record<string, unknown>
     const universeMode = String(universeCfg.mode || '')
     const canRefreshUniverse = isActive && !isSyncing && (universeMode === 'screener' || universeMode === 'index')
@@ -559,10 +579,16 @@ export default function RobotV2MonitorPage() {
                     dayPlus={dayPlus}
                     dayMinus={dayMinus}
                     dayDelta={dayDelta}
-                    showSessionStats={showSessionStats}
+                    showBalance={showBalance}
+                    equityLabel={equity != null ? fmtNum(equity, 0) : null}
+                    cashLabel={cash != null ? fmtNum(cash, 0) : null}
+                    equityTileLabel={balanceLabels.equity}
+                    cashTileLabel={balanceLabels.cash}
+                    balanceFootnote={balanceFootnote}
+                    balanceAsOfLabel={balanceAsOfLabel}
+                    showBalanceUnavailable={showBalanceUnavailable}
+                    showSessionOps={showSessionOps}
                     isSyncing={isSyncing}
-                    equityLabel={fmtNum(equity, 0)}
-                    cashLabel={fmtNum(cash, 0)}
                     cycle={cycle}
                     positionsCount={positions.length}
                 />

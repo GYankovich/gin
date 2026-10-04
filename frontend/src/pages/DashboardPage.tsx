@@ -734,7 +734,7 @@ function TotalsBlock({
                         <span className="dashboard-summary-metric__value mono">
                             {formatMoney(totals.total_value, totals.currency)}
                         </span>
-                    </div>ё
+                    </div>
                     <div className="dashboard-summary-metric dashboard-summary-metric--gain">
                         <span className="dashboard-summary-metric__label">Общее изменение</span>
                         <span className={`dashboard-summary-metric__value mono ${roiClass(gain)}`}>

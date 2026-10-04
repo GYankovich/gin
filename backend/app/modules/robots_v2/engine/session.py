@@ -61,6 +61,7 @@ WS_SILENCE_RESUBSCRIBE_SEC = 30.0
 WS_SILENCE_REST_FALLBACK_SEC = 45.0
 EQUITY_CURVE_MAX_POINTS = 500
 UNIVERSE_RETRY_SEC = 30.0
+UNIVERSE_MAX_START_RETRIES = 6
 UNIVERSE_POLL_REFRESH_SEC = 300.0
 UNIVERSE_FORCE_MIN_INTERVAL_SEC = 15.0
 STOP_JOIN_SEC = 8.0
@@ -833,6 +834,134 @@ class TradingSessionV2:
         except asyncio.TimeoutError:
             return True
 
+    def _clear_session_desired_running(self) -> None:
+        """Stop auto-resume / UI 'desired running' after a terminal bootstrap failure."""
+        import json
+
+        from sqlalchemy import text
+
+        from app.core.config import settings as _settings
+        from app.modules.robots_v2.engine.session_resume import SESSION_DESIRED_KEY
+
+        schema = getattr(_settings, "DB_SCHEMA", None) or "public"
+        db = SessionLocal()
+        try:
+            row = db.execute(
+                text(f"SELECT metadata FROM {schema}.robots_v2 WHERE id = :rid"),
+                {"rid": self.robot_id},
+            ).first()
+            if not row:
+                return
+            raw = row[0]
+            if isinstance(raw, dict):
+                metadata = dict(raw)
+            elif isinstance(raw, str) and raw.strip():
+                try:
+                    parsed = json.loads(raw)
+                    metadata = dict(parsed) if isinstance(parsed, dict) else {}
+                except json.JSONDecodeError:
+                    metadata = {}
+            else:
+                metadata = {}
+            if metadata.get(SESSION_DESIRED_KEY) != "running":
+                return
+            metadata[SESSION_DESIRED_KEY] = "stopped"
+            db.execute(
+                text(f"""
+                    UPDATE {schema}.robots_v2
+                    SET metadata = :metadata, date_modification = NOW()
+                    WHERE id = :rid
+                """),
+                {
+                    "metadata": json.dumps(metadata, ensure_ascii=False),
+                    "rid": self.robot_id,
+                },
+            )
+            db.commit()
+            self._write_log("sessionDesired cleared to stopped after bootstrap failure")
+        except Exception:
+            logger.exception(
+                "failed to clear sessionDesired robot_id=%s", self.robot_id,
+            )
+            try:
+                db.rollback()
+            except Exception:
+                pass
+        finally:
+            db.close()
+
+    def _persist_paper_last_virtual_capital(self) -> None:
+        """On paper stop, stamp final ledger equity into metadata.lastVirtualCapital.
+
+        SPEC-04: idle Monitor then shows end-of-session capital, not only launch capital.
+        """
+        import json
+
+        from sqlalchemy import text
+
+        from app.core.config import settings as _settings
+
+        mode = str((self.raw_config.get("core") or {}).get("mode") or "paper")
+        if mode != "paper":
+            return
+        equity: float | None = None
+        if self.ledger is not None:
+            try:
+                equity = float(self.ledger.mark_equity(self.last_prices or {}))
+            except Exception:
+                try:
+                    equity = float(self.ledger.cash)
+                except Exception:
+                    equity = None
+        if equity is None or equity <= 0:
+            return
+
+        schema = getattr(_settings, "DB_SCHEMA", None) or "public"
+        db = SessionLocal()
+        try:
+            row = db.execute(
+                text(f"SELECT metadata FROM {schema}.robots_v2 WHERE id = :rid"),
+                {"rid": self.robot_id},
+            ).first()
+            if not row:
+                return
+            raw = row[0]
+            if isinstance(raw, dict):
+                metadata = dict(raw)
+            elif isinstance(raw, str) and raw.strip():
+                try:
+                    parsed = json.loads(raw)
+                    metadata = dict(parsed) if isinstance(parsed, dict) else {}
+                except json.JSONDecodeError:
+                    metadata = {}
+            else:
+                metadata = {}
+            metadata["lastVirtualCapital"] = float(equity)
+            metadata["lastPaperEquityAt"] = datetime.now(timezone.utc).isoformat()
+            db.execute(
+                text(f"""
+                    UPDATE {schema}.robots_v2
+                    SET metadata = :metadata, date_modification = NOW()
+                    WHERE id = :rid
+                """),
+                {
+                    "metadata": json.dumps(metadata, ensure_ascii=False),
+                    "rid": self.robot_id,
+                },
+            )
+            db.commit()
+            self._write_log(f"lastVirtualCapital={equity:.2f} persisted on paper stop")
+        except Exception:
+            logger.exception(
+                "failed to persist lastVirtualCapital robot_id=%s", self.robot_id,
+            )
+            try:
+                db.rollback()
+            except Exception:
+                pass
+        finally:
+            db.close()
+
     async def _fail_empty_universe(self) -> None:
         sample = [
             f"{getattr(r, 'ticker', '?')}:{getattr(r, 'code', '')}:{getattr(r, 'message', '')}"
@@ -842,6 +971,12 @@ class TradingSessionV2:
         self.state = SessionState.ERROR
         self._status_message = "Empty universe — screener returned 0 symbols"
         self._write_log(f"ERROR Empty universe mode={mode} rejected_sample={sample}")
+        try:
+            await asyncio.to_thread(self._clear_session_desired_running)
+        except Exception:
+            logger.exception(
+                "clear sessionDesired failed robot_id=%s", self.robot_id,
+            )
         await event_bus.publish(self.robot_id, "health", {
             "level": "error",
             "message": self._status_message,
@@ -917,6 +1052,11 @@ class TradingSessionV2:
                 return True, resolved_map
 
             if not in_session:
+                break
+            if attempt >= UNIVERSE_MAX_START_RETRIES:
+                self._write_log(
+                    f"ERROR Empty universe after {attempt} attempts — giving up"
+                )
                 break
 
             self._status_message = (
@@ -1334,6 +1474,13 @@ class TradingSessionV2:
                 )
             except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
                 pass
+            try:
+                self._persist_paper_last_virtual_capital()
+            except Exception:
+                logger.exception(
+                    "paper lastVirtualCapital persist failed robot_id=%s",
+                    self.robot_id,
+                )
             from app.modules.robots_v2.engine.session_manager import session_manager
             session_manager.on_session_ended(self.robot_id)
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from datetime import date, datetime, timezone
 from typing import Any, Callable
 
@@ -30,6 +31,8 @@ from app.modules.robots_v2.universe.schemas import (
 )
 from app.modules.robots_v2.universe.token_context import board_for_instrument_type, load_token_context
 
+logger = logging.getLogger(__name__)
+
 
 def _normalize_tickers(values: list[str] | None) -> list[str]:
     seen: set[str] = set()
@@ -50,6 +53,18 @@ def _price_in_bounds(price: float | None, lo: float | None, hi: float | None) ->
     if hi is not None and price > hi:
         return False
     return True
+
+
+def _filters_without_trading_status(dms_filters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop trading_status gates (MOEX sets TRADINGSTATUS=N outside the session)."""
+    return [
+        f for f in dms_filters
+        if str((f or {}).get("type") or "").lower() != "trading_status"
+    ]
+
+
+def _has_trading_status_filter(dms_filters: list[dict[str, Any]]) -> bool:
+    return any(str((f or {}).get("type") or "").lower() == "trading_status" for f in dms_filters)
 
 
 def _split_v4_price_filters(dms_filters: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -583,36 +598,54 @@ class UniverseService:
 
         if on_progress:
             on_progress("screener_filters", 0, 0, board)
-        result = await dms_service.preview_pipeline_setup(
-            db=db,
-            user_id=ctx.user_id,
-            board=board,
-            filters=dms_filters,
-            mode=mode,
-            universe_mode="tqbr_scan",
-            fixed_tickers=[],
-            warmup_candles=True,
-            on_progress=on_progress,
-        )
-        rows: list[dict[str, Any]] = []
-        rejected: list[RejectedInstrument] = []
-        for item in result.get("sample") or []:
-            ticker = str(item.get("ticker") or "").upper()
-            if item.get("result") == "ACCEPT":
-                rows.append({
-                    "ticker": ticker,
-                    "last_price": item.get("last_price"),
-                    "value_today": item.get("value_today"),
-                    "volume24h": item.get("value_today"),
-                    "atr": item.get("atr_percent") or 0,
-                })
-            elif len(rejected) < 50:
-                rejected.append(RejectedInstrument(
-                    ticker=ticker,
-                    stage="snapshot",
-                    code="FILTER_REJECT",
-                    message=str(item.get("reason") or "Filter rejected"),
-                ))
+
+        async def _run_pipeline(filters: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[RejectedInstrument]]:
+            result = await dms_service.preview_pipeline_setup(
+                db=db,
+                user_id=ctx.user_id,
+                board=board,
+                filters=filters,
+                mode=mode,
+                universe_mode="tqbr_scan",
+                fixed_tickers=[],
+                # Session bootstrap seeds candles for the capped universe; warming
+                # every pre-cap ACCEPT here makes overnight / wide screens hang.
+                warmup_candles=False,
+                on_progress=on_progress,
+            )
+            accepted_rows: list[dict[str, Any]] = []
+            rejected_rows: list[RejectedInstrument] = []
+            for item in result.get("sample") or []:
+                ticker = str(item.get("ticker") or "").upper()
+                if item.get("result") == "ACCEPT":
+                    accepted_rows.append({
+                        "ticker": ticker,
+                        "last_price": item.get("last_price"),
+                        "value_today": item.get("value_today"),
+                        "volume24h": item.get("value_today"),
+                        "atr": item.get("atr_percent") or 0,
+                    })
+                elif len(rejected_rows) < 50:
+                    rejected_rows.append(RejectedInstrument(
+                        ticker=ticker,
+                        stage="snapshot",
+                        code="FILTER_REJECT",
+                        message=str(item.get("reason") or "Filter rejected"),
+                    ))
+            return accepted_rows, rejected_rows
+
+        rows, rejected = await _run_pipeline(dms_filters)
+        # Outside the MOEX session ISS reports TRADINGSTATUS=N for the whole board.
+        # Keep security/volume/ATR gates, but do not hard-fail the screener overnight.
+        if not rows and _has_trading_status_filter(dms_filters):
+            relaxed = _filters_without_trading_status(dms_filters)
+            if relaxed != dms_filters:
+                logger.info(
+                    "moex screener: 0 accepts with trading_status — retrying without it board=%s",
+                    board,
+                )
+                rows, rejected = await _run_pipeline(relaxed)
+
         if price_filters or preset:
             rows, price_rejected = _apply_price_filters(rows, price_filters, preset, custom)
             rejected.extend(price_rejected)

@@ -296,6 +296,61 @@ export interface RobotHistoryBacktestTrade {
     pnl_net?: number | null
     reason?: string | null
     kind?: string | null
+    /** P0 glass-box: originating cycle (may be absent on older runs). */
+    cycle_id?: string | null
+    signal_time?: string | null
+    reject_reason?: string | null
+    status?: string | null
+    ticker?: string | null
+}
+
+/** SPEC-03 P0 observability block on details / metrics_summary. */
+export interface BacktestObservabilityExecutionModel {
+    code?: string | null
+    label?: string | null
+    look_ahead?: boolean | null
+    signal_on?: string | null
+    fill_on?: string | null
+    model?: string | null
+}
+
+export interface BacktestRejectReasonCount {
+    code: string
+    count: number
+}
+
+export interface BacktestObservability {
+    execution_model?: BacktestObservabilityExecutionModel | null
+    signals_logged?: number | null
+    signals_truncated?: boolean | number | null
+    signal_log_cap?: number | null
+    reject_reason_counts?: BacktestRejectReasonCount[] | null
+    status_counts?: {
+        filled?: number
+        rejected?: number
+        deferred?: number
+        [k: string]: number | undefined
+    } | null
+}
+
+export interface BacktestDecisionPacket {
+    cycle_id?: string | null
+    signal_time?: string | null
+    bar_time?: string | null
+    ticker?: string | null
+    figi?: string | null
+    kind?: string | null
+    side?: string | null
+    status?: string | null
+    strategy_reason?: string | null
+    reject_reason?: string | null
+    quantity?: number | null
+    price?: number | null
+    pnl_net?: number | null
+    linked_trade_ids?: Array<string | number> | null
+    execution_note?: string | null
+    source?: 'trade' | 'signal' | 'order' | 'cycle'
+    id?: string | number | null
 }
 
 export interface RobotHistoryBacktestResult {
@@ -312,27 +367,151 @@ export interface RobotHistoryBacktestResult {
     equity_curve: { time: string; equity: number }[]
     stages?: string[]
     history_stats?: {
-        processed: number
-        skipped_fetch: number
-        skipped_empty: number
-        total_trade_dates: number
+        processed?: number
+        skipped_fetch?: number
+        skipped_empty?: number
+        total_trade_dates?: number
         trading_days_with_equity?: number
         calendar_days?: number
         annualization_days?: number
         annualized_return_percent?: number | null
+        bars?: number
+        tickers?: number
+        universe_days?: number
+        trades?: number
+        signals?: number
+        signals_truncated?: number | boolean
+        warmup_bars?: number
+        traded_bars?: number
+        skipped_schedule?: number
+        dropped_deferred?: number
+        funding_events?: number
+        [k: string]: unknown
     }
-    fee_summary?: {
-        maker_commission?: number
-        taker_commission?: number
-        total_commission?: number
-        total_funding?: number
-    }
+    funding_charges_total?: number | null
+    observability?: BacktestObservability | null
+    fee_summary?: BacktestFeeSummary | null
+    narrative?: BacktestNarrativeStep[] | null
+    execution_events?: BacktestExecutionEvent[] | null
     margin_summary?: {
         enabled?: boolean
         leverage?: number
         maintenance_margin_rate?: number
         liquidations?: number
     }
+}
+
+/** SPEC-03 P1 costs strip [R-11]. */
+export interface BacktestFeeSummary {
+    commission_total?: number | null
+    funding_total?: number | null
+    funding_events?: number | null
+    tax_total?: number | null
+    /** Legacy aliases seen in older payloads. */
+    maker_commission?: number | null
+    taker_commission?: number | null
+    total_commission?: number | null
+    total_funding?: number | null
+}
+
+/** SPEC-03 P1 holdings row inside a portfolio snapshot [R-10]. */
+export interface BacktestHoldingPosition {
+    ticker?: string | null
+    figi?: string | null
+    qty?: number | null
+    quantity?: number | null
+    side?: string | null
+    avg_entry?: number | null
+    mark?: number | null
+}
+
+/** SPEC-03 P1 portfolio snapshot (rich positions or legacy count). */
+export interface BacktestPortfolioSnapshot {
+    time?: string | null
+    snapshot_time?: string | null
+    equity?: number | null
+    cash?: number | null
+    positions?: BacktestHoldingPosition[] | number | null
+    positions_count?: number | null
+    positions_payload?: unknown
+}
+
+/** SPEC-03 P1 universe membership [R-9]. */
+export interface BacktestUniverseMembershipItem {
+    trade_date: string
+    ticker: string
+    source?: string | null
+    filter_result?: string | null
+    reject_reason?: string | null
+}
+
+export interface BacktestUniverseResponse {
+    run_id: number
+    items: BacktestUniverseMembershipItem[]
+    days: string[]
+    total: number
+}
+
+/** SPEC-03 P2 narrative step [R-14]. */
+export interface BacktestNarrativeStep {
+    section: string
+    step: number
+    text: string
+    ts?: string | null
+    cycle_id?: string | null
+    ticker?: string | null
+}
+
+export interface BacktestNarrativeResponse {
+    run_id: number
+    items: BacktestNarrativeStep[]
+    total: number
+}
+
+/** SPEC-03 P2 intent↔fill lifecycle event [R-13]. */
+export interface BacktestExecutionEvent {
+    event_id?: string | null
+    ts?: string | null
+    intent_id?: string | null
+    cycle_id?: string | null
+    ticker?: string | null
+    side?: string | null
+    kind?: string | null
+    status?: string | null
+    reason?: string | null
+    reject_reason?: string | null
+    quantity?: number | null
+    price?: number | null
+    signal_time?: string | null
+    trade_id?: number | null
+}
+
+export interface BacktestExecutionEventsResponse {
+    run_id: number
+    items: BacktestExecutionEvent[]
+    total: number
+}
+
+/** SPEC-03 P2 price overlay candle [R-12]. */
+export interface BacktestPriceCandle {
+    time: string
+    open: number
+    high: number
+    low: number
+    close: number
+    volume?: number
+}
+
+export interface BacktestPriceWindowResponse {
+    run_id: number
+    ticker: string
+    around?: string | null
+    bars: number
+    interval?: string | null
+    market?: string | null
+    candles: BacktestPriceCandle[]
+    source?: string
+    gap?: string | null
 }
 
 /** Ответ POST /robots/history-backtest/runs/{id}/cancel. */
@@ -415,12 +594,41 @@ export interface RobotBacktestRunDetails extends RobotBacktestRunStatus {
     total_return_percent?: number | null
     max_drawdown_percent?: number | null
     final_equity?: number | null
+    win_rate_percent?: number | null
+    sharpe_ratio?: number | null
+    sortino_ratio?: number | null
+    calmar_ratio?: number | null
     trades_total: number
     result_payload: RobotHistoryBacktestResult
     signals: Array<Record<string, any>>
     orders: Array<Record<string, any>>
-    portfolio_snapshots: Array<{ time?: string; snapshot_time?: string; equity?: number } & Record<string, any>>
+    portfolio_snapshots: BacktestPortfolioSnapshot[]
     daily_summary?: Array<Record<string, unknown>>
+    /** SPEC-03 P0 — may live top-level or inside result_payload. */
+    observability?: BacktestObservability | null
+    /** SPEC-03 P1 — may live top-level or inside result_payload. */
+    fee_summary?: BacktestFeeSummary | null
+    /** SPEC-03 P2 */
+    narrative?: BacktestNarrativeStep[] | null
+    execution_events?: BacktestExecutionEvent[] | null
+    signals_total?: number | null
+    signals_truncated_inline?: boolean | null
+    execution_model?: BacktestObservabilityExecutionModel | Record<string, unknown> | null
+}
+
+export interface BacktestSignalsPageResponse {
+    items: Array<Record<string, unknown>>
+    total: number
+    truncated_run?: boolean
+}
+
+export interface BacktestCycleBundleResponse {
+    cycle_id: string
+    signals?: Array<Record<string, unknown>>
+    trades?: Array<Record<string, unknown>>
+    orders?: Array<Record<string, unknown>>
+    execution_events?: BacktestExecutionEvent[]
+    config_risk_excerpt?: Record<string, unknown>
 }
 
 /** Ответ POST /robots/jobs/historical-screening (П1 → candidate_pool). */

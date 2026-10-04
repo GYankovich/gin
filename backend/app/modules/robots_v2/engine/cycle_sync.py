@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from app.modules.trading_core.contracts import Candle, OrderIntent
 from app.modules.trading_core.costs import calculate_take_profit_price
@@ -22,6 +22,22 @@ from app.modules.robots_v2.strategy.runtime import StrategyRuntime
 from app.modules.robots_v2.strategy.schemas import OrderFlowSnapshot, StrategyContext
 
 
+def _stamp_intent_cycle(
+    intent: OrderIntent,
+    *,
+    cycle_id: str,
+    signal_time: str,
+) -> OrderIntent:
+    """Attach originating cycle linkage for next-open fill join."""
+    meta = dict(getattr(intent, "meta", None) or {})
+    meta["cycle_id"] = cycle_id
+    meta["signal_time"] = signal_time
+    if not meta.get("intent_id"):
+        meta["intent_id"] = str(uuid4())
+    intent.meta = meta
+    return intent
+
+
 def _submit_intent(
     exec_svc: ExecutionService,
     intent: OrderIntent,
@@ -29,8 +45,12 @@ def _submit_intent(
     *,
     defer_market: bool,
     deferred: list[OrderIntent],
+    cycle_id: str | None = None,
+    signal_time: str | None = None,
 ):
     """Place non-marketable LIMIT now; defer marketable fills to the next bar open."""
+    if cycle_id and signal_time:
+        _stamp_intent_cycle(intent, cycle_id=cycle_id, signal_time=signal_time)
     if not defer_market:
         return exec_svc.execute_intent_sync(intent, last_price=last_price)
     order_type = str(getattr(intent, "order_type", None) or "MARKET").upper()
@@ -64,6 +84,8 @@ def run_paper_cycle_sync(
     defer_market_fills: bool = True,
 ) -> dict[str, Any]:
     clock = now or datetime.now(timezone.utc)
+    cycle_id = str(uuid4())
+    bar_iso = clock.isoformat()
     fills: list[dict[str, Any]] = []
     deferred: list[OrderIntent] = []
     exec_svc = execution
@@ -71,14 +93,21 @@ def run_paper_cycle_sync(
     for poll_result in exec_svc.poll_resting_fills_sync(last_prices=prices):
         if poll_result.status == "filled":
             risk.record_realized_pnl(poll_result.pnl)
-            fills.append({
+            poll_meta = getattr(poll_result, "meta", None) or {}
+            fill_row = {
                 "ticker": poll_result.ticker,
                 "kind": poll_result.kind or "exit_sl_tp",
                 "side": poll_result.side,
                 "reason": poll_result.reason,
+                "qty": int(poll_result.quantity or 0) or 1,
+                "price": float(poll_result.price or 0) or None,
                 "pnl": poll_result.pnl,
                 "status": poll_result.status,
-            })
+                # Prefer originating cycle stamped on the resting intent; else this poll cycle.
+                "cycle_id": str(poll_meta.get("cycle_id") or cycle_id),
+                "signal_time": str(poll_meta.get("signal_time") or bar_iso),
+            }
+            fills.append(fill_row)
 
     positions_dict = ledger.positions_dict(prices)
     open_list = ledger.open_positions_list(prices)
@@ -158,8 +187,12 @@ def run_paper_cycle_sync(
             mark if mark > 0 else limit_or_intent_px,
             defer_market=defer_market_fills,
             deferred=deferred,
+            cycle_id=cycle_id,
+            signal_time=bar_iso,
         )
-        if result is not None and result.status in ("filled", "submitted"):
+        if result is None:
+            continue
+        if result.status in ("filled", "submitted"):
             risk.record_realized_pnl(result.pnl)
             fills.append({
                 "ticker": result.ticker,
@@ -170,6 +203,8 @@ def run_paper_cycle_sync(
                 "price": result.price,
                 "pnl": result.pnl,
                 "status": result.status,
+                "cycle_id": cycle_id,
+                "signal_time": bar_iso,
             })
             if str(getattr(intent, "reason", "") or "") == "stop_loss":
                 runtime.notify_stop_loss(
@@ -184,7 +219,7 @@ def run_paper_cycle_sync(
     equity = ledger.mark_equity(prices)
     ctx = StrategyContext(
         robot_id=robot_id,
-        cycle_id=uuid4(),
+        cycle_id=UUID(cycle_id),
         config=config.strategy,
         universe=universe,
         last_price=prices,
@@ -205,8 +240,6 @@ def run_paper_cycle_sync(
     )
     signals = runtime.evaluate(session_id, ctx)
     signal_log: list[dict[str, Any]] = []
-    cycle_id = str(ctx.cycle_id)
-    bar_iso = clock.isoformat()
 
     def _log_signal(
         *,
@@ -219,8 +252,9 @@ def run_paper_cycle_sync(
         was_executed: bool,
         reject_reason: str | None = None,
         quantity: float | int | None = None,
+        intent_id: str | None = None,
     ) -> None:
-        signal_log.append({
+        row = {
             "signal_time": bar_iso,
             "figi": ticker,
             "signal_type": str(side or "").upper() or "UNKNOWN",
@@ -232,7 +266,10 @@ def run_paper_cycle_sync(
             "status": status,
             "quantity": quantity,
             "cycle_id": cycle_id,
-        })
+        }
+        if intent_id:
+            row["intent_id"] = str(intent_id)
+        signal_log.append(row)
 
     for signal in signals:
         ticker = str(signal.secid or "").upper()
@@ -286,6 +323,8 @@ def run_paper_cycle_sync(
                 px,
                 defer_market=defer_market_fills,
                 deferred=deferred,
+                cycle_id=cycle_id,
+                signal_time=bar_iso,
             )
             if result is None:
                 _log_signal(
@@ -297,6 +336,7 @@ def run_paper_cycle_sync(
                     status="deferred",
                     was_executed=False,
                     quantity=int(pos.quantity),
+                    intent_id=str((intent.meta or {}).get("intent_id") or "") or None,
                 )
             elif result.status in ("filled", "submitted"):
                 risk.record_realized_pnl(result.pnl)
@@ -309,6 +349,9 @@ def run_paper_cycle_sync(
                     "price": result.price or px,
                     "pnl": result.pnl,
                     "status": result.status,
+                    "cycle_id": cycle_id,
+                    "signal_time": bar_iso,
+                    "intent_id": str((intent.meta or {}).get("intent_id") or "") or None,
                 })
                 positions_dict = ledger.positions_dict(prices)
                 equity = ledger.mark_equity(prices)
@@ -321,6 +364,7 @@ def run_paper_cycle_sync(
                     status=str(result.status),
                     was_executed=True,
                     quantity=int(pos.quantity),
+                    intent_id=str((intent.meta or {}).get("intent_id") or "") or None,
                 )
                 if str(signal.reason or "") == "scalper_delta_invalidation":
                     runtime.notify_stop_loss(
@@ -415,6 +459,8 @@ def run_paper_cycle_sync(
             price,
             defer_market=defer_market_fills,
             deferred=deferred,
+            cycle_id=cycle_id,
+            signal_time=bar_iso,
         )
         if result is None:
             _log_signal(
@@ -426,6 +472,7 @@ def run_paper_cycle_sync(
                 status="deferred",
                 was_executed=False,
                 quantity=qty,
+                intent_id=str((intent.meta or {}).get("intent_id") or "") or None,
             )
         elif result.status in ("filled", "submitted"):
             fills.append({
@@ -437,6 +484,9 @@ def run_paper_cycle_sync(
                 "price": result.price,
                 "pnl": result.pnl,
                 "status": result.status,
+                "cycle_id": cycle_id,
+                "signal_time": bar_iso,
+                "intent_id": str((intent.meta or {}).get("intent_id") or "") or None,
             })
             positions_dict = ledger.positions_dict(prices)
             equity = ledger.mark_equity(prices)
@@ -449,6 +499,7 @@ def run_paper_cycle_sync(
                 status=str(result.status),
                 was_executed=True,
                 quantity=qty,
+                intent_id=str((intent.meta or {}).get("intent_id") or "") or None,
             )
         else:
             _log_signal(

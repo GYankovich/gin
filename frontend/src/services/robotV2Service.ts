@@ -1,5 +1,10 @@
 import { api } from './api'
 import type {
+    BacktestCycleBundleResponse,
+    BacktestExecutionEventsResponse,
+    BacktestNarrativeResponse,
+    BacktestPriceWindowResponse,
+    BacktestUniverseResponse,
     RobotBacktestRunDetails,
     RobotBacktestRunStatus,
     RobotHistoryBacktestQueuedResponse,
@@ -235,9 +240,144 @@ export const robotV2Service = {
         return data
     },
 
-    async getBacktestRunDetails(runId: number): Promise<RobotBacktestRunDetails> {
-        const { data } = await api.get<RobotBacktestRunDetails>(`/v2/robots/backtest/runs/${runId}`)
+    async getBacktestRunDetails(
+        runId: number,
+        params?: {
+            signalsLimit?: number
+            signalsOffset?: number
+            signalsStatus?: string
+            rejectReason?: string
+        },
+    ): Promise<RobotBacktestRunDetails> {
+        const { data } = await api.get<RobotBacktestRunDetails>(`/v2/robots/backtest/runs/${runId}`, {
+            params: {
+                signals_limit: params?.signalsLimit,
+                signals_offset: params?.signalsOffset,
+                signals_status: params?.signalsStatus,
+                reject_reason: params?.rejectReason,
+            },
+        })
         return data
+    },
+
+    /** SPEC-03 P0 paginated signals — soft-fail if backend not shipped yet. */
+    async listBacktestSignals(
+        runId: number,
+        params: {
+            limit?: number
+            offset?: number
+            status?: string
+            rejectReason?: string
+            ticker?: string
+            cycleId?: string
+        } = {},
+    ): Promise<{ items: Array<Record<string, unknown>>; total: number; truncated_run?: boolean } | null> {
+        try {
+            const { data } = await api.get(`/v2/robots/backtest/runs/${runId}/signals`, {
+                params: {
+                    limit: params.limit ?? 200,
+                    offset: params.offset ?? 0,
+                    status: params.status,
+                    reject_reason: params.rejectReason,
+                    ticker: params.ticker,
+                    cycle_id: params.cycleId,
+                },
+            })
+            return data
+        } catch {
+            return null
+        }
+    },
+
+    /** SPEC-03 optional cycle inspector bundle — soft-fail if missing. */
+    async getBacktestCycle(
+        runId: number,
+        cycleId: string,
+    ): Promise<BacktestCycleBundleResponse | null> {
+        try {
+            const { data } = await api.get<BacktestCycleBundleResponse>(
+                `/v2/robots/backtest/runs/${runId}/cycles/${encodeURIComponent(cycleId)}`,
+            )
+            return data
+        } catch {
+            return null
+        }
+    },
+
+    /** SPEC-03 P1 universe membership — soft-fail for old runs without membership table. */
+    async getBacktestUniverse(
+        runId: number,
+        params: { from?: string; to?: string } = {},
+    ): Promise<BacktestUniverseResponse | null> {
+        try {
+            const { data } = await api.get<BacktestUniverseResponse>(
+                `/v2/robots/backtest/runs/${runId}/universe`,
+                {
+                    params: {
+                        from: params.from || undefined,
+                        to: params.to || undefined,
+                    },
+                },
+            )
+            return data
+        } catch {
+            return null
+        }
+    },
+
+    /** SPEC-03 P2 price overlay — soft-fail if candles unavailable. */
+    async getBacktestPriceWindow(
+        runId: number,
+        params: { ticker: string; around: string; bars?: number },
+    ): Promise<BacktestPriceWindowResponse | null> {
+        try {
+            const { data } = await api.get<BacktestPriceWindowResponse>(
+                `/v2/robots/backtest/runs/${runId}/price-window`,
+                {
+                    params: {
+                        ticker: params.ticker,
+                        around: params.around,
+                        bars: params.bars ?? 50,
+                    },
+                },
+            )
+            return data
+        } catch {
+            return null
+        }
+    },
+
+    /** SPEC-03 P2 intent↔fill lifecycle — soft-fail for legacy runs. */
+    async getBacktestExecutionEvents(
+        runId: number,
+        params: { cycleId?: string; limit?: number } = {},
+    ): Promise<BacktestExecutionEventsResponse | null> {
+        try {
+            const { data } = await api.get<BacktestExecutionEventsResponse>(
+                `/v2/robots/backtest/runs/${runId}/execution-events`,
+                {
+                    params: {
+                        cycle_id: params.cycleId,
+                        limit: params.limit ?? 500,
+                    },
+                },
+            )
+            return data
+        } catch {
+            return null
+        }
+    },
+
+    /** SPEC-03 P2 narrative steps — soft-fail if missing. */
+    async getBacktestNarrative(runId: number): Promise<BacktestNarrativeResponse | null> {
+        try {
+            const { data } = await api.get<BacktestNarrativeResponse>(
+                `/v2/robots/backtest/runs/${runId}/narrative`,
+            )
+            return data
+        } catch {
+            return null
+        }
     },
 
     async cancelBacktestRun(runId: number): Promise<{ run_id: number; cancel_requested: boolean }> {

@@ -14,9 +14,9 @@ from app.core.config import settings
 from app.modules.robots.universe import (
     UNIVERSE_MODE_FIXED,
     UNIVERSE_MODE_TQBR,
+    filter_tqbr_candidate_rows,
     normalize_universe_mode,
     normalize_universe_mode_arg,
-    universe_min_tradable_row,
     universe_uses_pipeline,
     universe_whitelist_tickers,
 )
@@ -1465,7 +1465,7 @@ class DmsService:
         elif allowed_figis:
             mapped_rows = [r for r in mapped_rows if r.get("ticker") in allowed_figis]
         elif universe_mode == UNIVERSE_MODE_TQBR:
-            mapped_rows = [r for r in mapped_rows if universe_min_tradable_row(r)]
+            mapped_rows = filter_tqbr_candidate_rows(mapped_rows)
         atr_filter_enabled = any(str((f or {}).get("type") or "").lower() == "atr" and (f or {}).get("enabled", True) is not False for f in filters)
         fast_filters = [f for f in filters if str((f or {}).get("type") or "").lower() != "atr"]
         pre_candidates: List[Dict[str, Any]] = []
@@ -2077,7 +2077,10 @@ class DmsService:
         if universe_mode == UNIVERSE_MODE_FIXED and allowed_figis:
             mapped_rows = [r for r in mapped_rows if str(r.get("ticker") or "").upper() in allowed_figis]
         elif universe_mode == UNIVERSE_MODE_TQBR:
-            mapped_rows = [r for r in mapped_rows if universe_min_tradable_row({**r, "ticker": str(r.get("ticker") or "").upper()})]
+            mapped_rows = [
+                {**r, "ticker": str(r.get("ticker") or "").upper()} for r in mapped_rows
+            ]
+            mapped_rows = filter_tqbr_candidate_rows(mapped_rows)
             if not mapped_rows and rows and snapshot_id == latest_snapshot_id:
                 created = await self.create_snapshot(db, board=board, ttl_minutes=0, is_manual=True, user_id=user_id)
                 if created.get("status") == "SUCCESS":
@@ -2095,7 +2098,7 @@ class DmsService:
                     ).fetchall()
                     mapped_rows = [
                         {
-                            "ticker": r[0],
+                            "ticker": str(r[0] or "").upper(),
                             "last_price": float(r[1]) if r[1] is not None else None,
                             "open_price": float(r[2]) if r[2] is not None else None,
                             "high_price": float(r[3]) if r[3] is not None else None,
@@ -2115,10 +2118,7 @@ class DmsService:
                         }
                         for r in rows
                     ]
-                    mapped_rows = [
-                        r for r in mapped_rows
-                        if universe_min_tradable_row({**r, "ticker": str(r.get("ticker") or "").upper()})
-                    ]
+                    mapped_rows = filter_tqbr_candidate_rows(mapped_rows)
         pipeline_mode = "ANY" if str(mode or "").upper() == "ANY" else "ALL"
         atr_filter_enabled = any(str((f or {}).get("type") or "").lower() == "atr" and (f or {}).get("enabled", True) is not False for f in filters)
         fast_filters = [f for f in filters if str((f or {}).get("type") or "").lower() != "atr"]

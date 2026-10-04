@@ -548,14 +548,60 @@ class RobotsV2Service:
                 ) from exc
             raise
 
+    @staticmethod
+    def _metadata_last_virtual_capital(metadata: dict[str, Any] | None) -> float | None:
+        """Parse metadata.lastVirtualCapital; omit fake zeros for never-capitalized paper."""
+        if not isinstance(metadata, dict):
+            return None
+        raw = metadata.get("lastVirtualCapital")
+        if raw is None or raw == "":
+            return None
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            return None
+        if value <= 0:
+            return None
+        return value
+
+    def _apply_idle_paper_balance(
+        self,
+        base: dict[str, Any],
+        *,
+        metadata: dict[str, Any] | None,
+    ) -> None:
+        """Fill idle paper Equity/Cash from lastVirtualCapital (SPEC-04 P0)."""
+        last_cap = self._metadata_last_virtual_capital(metadata)
+        base["lastVirtualCapital"] = last_cap
+        if last_cap is None:
+            base["cash"] = None
+            base["equity"] = None
+            base["balanceSource"] = None
+            base["balanceAsOf"] = None
+            return
+        as_of = None
+        if isinstance(metadata, dict):
+            raw_as_of = metadata.get("lastPaperEquityAt")
+            if isinstance(raw_as_of, str) and raw_as_of.strip():
+                as_of = raw_as_of.strip()
+        base["cash"] = last_cap
+        base["equity"] = last_cap
+        base["balanceSource"] = "paper_last"
+        base["balanceAsOf"] = as_of
+
     async def get_status(self, db: Session, user_id: int, robot_id: int) -> dict[str, Any]:
         from app.modules.robots_v2.engine.broker_positions import open_tickers_from_audit_fills
         from app.modules.robots_v2.engine.session_manager import session_manager
         from app.modules.robots_v2.risk.adapter import enrich_positions_with_exit_prices
 
         robot = self.get_robot(db, user_id, robot_id)
+        meta = robot.metadata if isinstance(robot.metadata, dict) else {}
+        last_virtual = self._metadata_last_virtual_capital(meta)
         snap = session_manager.status(robot_id)
         if snap is not None:
+            positions_updated_at = (
+                snap.last_prices_at.isoformat() if snap.last_prices_at else None
+            )
             return {
                 "robotId": robot.id,
                 "status": robot.status,
@@ -564,11 +610,14 @@ class RobotsV2Service:
                 "cycleNumber": snap.cycle_number,
                 "equity": snap.equity,
                 "cash": snap.cash,
+                "balanceSource": "session",
+                "balanceAsOf": positions_updated_at,
+                "lastVirtualCapital": last_virtual if snap.mode == "paper" else None,
                 "openPositions": snap.open_positions,
                 "positionsSource": "session",
                 "universe": snap.universe,
                 "lastCycleAt": snap.last_cycle_at.isoformat() if snap.last_cycle_at else None,
-                "positionsUpdatedAt": snap.last_prices_at.isoformat() if snap.last_prices_at else None,
+                "positionsUpdatedAt": positions_updated_at,
                 "wsHealthy": snap.ws_healthy,
                 "message": snap.message,
                 "decisions": snap.decisions,
@@ -590,7 +639,8 @@ class RobotsV2Service:
             }
 
         # No live session — for live robots, surface broker positions so Monitor
-        # stays useful after soft stop / process restart.
+        # stays useful after soft stop / process restart. Paper idle exposes
+        # lastVirtualCapital as Equity/Cash (SPEC-04).
         base: dict[str, Any] = {
             "robotId": robot.id,
             "status": robot.status,
@@ -598,12 +648,19 @@ class RobotsV2Service:
             "message": "No active session",
             "openPositions": [],
             "positionsSource": None,
+            "cash": None,
+            "equity": None,
+            "balanceSource": None,
+            "balanceAsOf": None,
+            "lastVirtualCapital": None,
         }
         cfg = robot.config if isinstance(robot.config, dict) else {}
         core = cfg.get("core") if isinstance(cfg.get("core"), dict) else {}
         mode = str(core.get("mode") or "paper")
         base["mode"] = mode
         if mode != "live" or not robot.token_id:
+            if mode == "paper":
+                self._apply_idle_paper_balance(base, metadata=meta)
             return base
 
         rid = int(robot.id)
@@ -651,12 +708,15 @@ class RobotsV2Service:
                 positions = enrich_positions_with_exit_prices(positions, risk)
             except Exception:
                 pass
+        updated_at = broker_snap.get("updatedAt")
         base.update({
             "openPositions": positions,
             "positionsSource": "broker",
-            "positionsUpdatedAt": broker_snap.get("updatedAt"),
+            "positionsUpdatedAt": updated_at,
             "cash": broker_snap.get("cash"),
             "equity": broker_snap.get("equity"),
+            "balanceSource": "broker",
+            "balanceAsOf": updated_at,
             "universe": broker_snap.get("universe"),
             "message": (
                 f"No active session · broker positions={len(positions)}"

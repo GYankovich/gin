@@ -16,7 +16,14 @@ import { fmtErr, sessionStateLabel } from '@/pages/robots-v2/formatters'
 import { formatBacktestPhaseUnits } from '@/pages/robots-v2/formatBacktestPhaseUnits'
 import { robotV2Service } from '@/services/robotV2Service'
 import type { RobotV2 } from '@/types/robotV2'
-import type { RobotBacktestRunDetails, RobotHistoryBacktestResult } from '@/types/robot'
+import type {
+    BacktestFeeSummary,
+    BacktestNarrativeStep,
+    BacktestObservability,
+    BacktestPortfolioSnapshot,
+    RobotBacktestRunDetails,
+    RobotHistoryBacktestResult,
+} from '@/types/robot'
 import type { IChartApi, ISeriesApi, Time } from '@/components/ui/Chart'
 
 function isoDateUtc(d: Date): string {
@@ -171,6 +178,17 @@ export default function RobotV2BacktestPage() {
         status?.daily_summary
         ?? (payload as { daily_summary?: Array<Record<string, unknown>> }).daily_summary
         ?? []
+    const feeSummary = (
+        status?.fee_summary
+        ?? payload.fee_summary
+        ?? null
+    ) as BacktestFeeSummary | null
+    const portfolioSnapshots = (status?.portfolio_snapshots || []) as BacktestPortfolioSnapshot[]
+    const narrative = (
+        status?.narrative
+        ?? (payload as { narrative?: BacktestNarrativeStep[] }).narrative
+        ?? null
+    ) as BacktestNarrativeStep[] | null
     const chartPoints = useMemo(() => toChartPoints(equityCurve), [equityCurve])
 
     useEffect(() => {
@@ -387,10 +405,11 @@ export default function RobotV2BacktestPage() {
     const ret = payload.total_return_percent ?? status?.total_return_percent ?? null
     const dd = payload.max_drawdown_percent ?? status?.max_drawdown_percent ?? null
     const finalEq = payload.final_equity ?? status?.final_equity ?? null
-    const winRate = payload.win_rate_percent ?? null
-    const sharpe = payload.sharpe_ratio ?? null
-    const sortino = payload.sortino_ratio ?? null
-    const calmar = payload.calmar_ratio ?? null
+    // Backend also exposes these on details top-level (schemas.RobotV2BacktestDetailsResponse).
+    const winRate = payload.win_rate_percent ?? status?.win_rate_percent ?? null
+    const sharpe = payload.sharpe_ratio ?? status?.sharpe_ratio ?? null
+    const sortino = payload.sortino_ratio ?? status?.sortino_ratio ?? null
+    const calmar = payload.calmar_ratio ?? status?.calmar_ratio ?? null
     const progress = Number(status?.progress_percent ?? 0)
     const phaseLabel = status?.phase_label || status?.run_phase || (isActive ? 'Запуск…' : '')
 
@@ -518,12 +537,6 @@ export default function RobotV2BacktestPage() {
                     />
                 )}
 
-                {runStatus === 'CANCELLED' && !isActive && (
-                    <Card className="dashboard-totals-card">
-                        <p className="dashboard-empty">Прогон отменён</p>
-                    </Card>
-                )}
-
                 {(error || (runStatus === 'FAILED' && !isActive)) && (
                     <Card className="dashboard-totals-card dashboard-error-card">
                         <p className="dashboard-empty">
@@ -532,9 +545,15 @@ export default function RobotV2BacktestPage() {
                     </Card>
                 )}
 
-                {runStatus === 'SUCCESS' && (
+                {(runStatus === 'SUCCESS'
+                    || (runStatus === 'CANCELLED' && !isActive && (
+                        equityCurve.length > 0 || trades.length > 0 || runSignals.length > 0
+                    ))) && (
                     <BacktestResultsPanel
+                        key={runId ?? 'run'}
                         runId={runId}
+                        runStatus={runStatus}
+                        partialResult={status?.partial_result ?? (runStatus === 'CANCELLED' ? true : null)}
                         capital={capital}
                         initialCapital={Number(payload.initial_capital ?? capital)}
                         finalEquity={finalEq}
@@ -545,6 +564,27 @@ export default function RobotV2BacktestPage() {
                         sortinoRatio={sortino}
                         calmarRatio={calmar}
                         stages={payload.stages}
+                        historyStats={(payload.history_stats || null) as Record<string, unknown> | null}
+                        fundingChargesTotal={
+                            (payload as { funding_charges_total?: number | null }).funding_charges_total
+                            ?? null
+                        }
+                        observability={
+                            status?.observability
+                            ?? (payload.observability as BacktestObservability | null | undefined)
+                            ?? null
+                        }
+                        executionModel={
+                            status?.execution_model
+                            ?? (payload as { execution_model?: unknown }).execution_model
+                            ?? null
+                        }
+                        feeSummary={feeSummary}
+                        portfolioSnapshots={portfolioSnapshots}
+                        narrative={narrative}
+                        requestedFrom={status?.requested_from ?? fromDate}
+                        requestedTo={status?.requested_to ?? toDate}
+                        signalsTotal={status?.signals_total ?? null}
                         trades={trades as unknown as Array<Record<string, unknown>>}
                         chartPoints={chartPoints}
                         signals={runSignals as unknown as Array<Record<string, unknown>>}
@@ -553,6 +593,13 @@ export default function RobotV2BacktestPage() {
                         chartRef={chartRef}
                         seriesRef={seriesRef}
                     />
+                )}
+
+                {runStatus === 'CANCELLED' && !isActive
+                    && equityCurve.length === 0 && trades.length === 0 && runSignals.length === 0 && (
+                    <Card className="dashboard-totals-card">
+                        <p className="dashboard-empty">Прогон отменён — артефактов нет</p>
+                    </Card>
                 )}
 
                 {!loading && robot && Number.isFinite(robotId) && (

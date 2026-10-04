@@ -59,6 +59,7 @@ class RestingOrder:
     reason: str | None = None
     kind: str | None = None
     broker_order_id: str | None = None
+    meta: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -724,7 +725,13 @@ class ExecutionService:
             if not self._limit_would_fill(ro.side, mark, ro.limit_price):
                 continue
             self._resting.pop(ticker, None)
-            results.append(self._fill_resting_sync(ro, fill_price=ro.limit_price))
+            results.append(
+                self._fill_resting_sync(
+                    ro,
+                    fill_price=ro.limit_price,
+                    meta=dict(ro.meta or {}),
+                )
+            )
         return results
 
     def _fill_resting_sync(
@@ -750,6 +757,9 @@ class ExecutionService:
             f"{self.mode.upper()} LIMIT FILL {ro.side} {ro.ticker} qty={qty} "
             f"price={px:.6g} kind={ro.kind} pnl={pnl:.4f}"
         )
+        merged_meta = dict(ro.meta or {})
+        if meta:
+            merged_meta.update(meta)
         return ExecutionResult(
             intent_id=ro.intent_id,
             ticker=ro.ticker,
@@ -762,7 +772,7 @@ class ExecutionService:
             broker_order_id=oid,
             reason=ro.reason,
             kind=ro.kind,
-            meta=meta or {},
+            meta=merged_meta,
         )
 
     def execute_intent_sync(
@@ -836,6 +846,7 @@ class ExecutionService:
                 reduce_only=reduce_only,
                 reason=intent.reason,
                 kind=intent_kind,
+                meta=dict(getattr(intent, "meta", None) or {}),
             )
             self._resting[ticker] = ro
             self._log(f"PAPER LIMIT RESTING {side} {ticker} qty={qty} @ {limit_price:.6g}")
@@ -851,6 +862,7 @@ class ExecutionService:
             intent_id=intent_id, ticker=ticker, side=side, quantity=qty,
             price=fill_price, status="filled", mode="paper", pnl=pnl,
             reason=intent.reason, kind=intent_kind,
+            meta=dict(getattr(intent, "meta", None) or {}),
         )
         self._log(
             f"PAPER FILL {side} {ticker} qty={qty} price={fill_price:.6g} kind={intent.kind} pnl={pnl:.4f}"
@@ -1317,6 +1329,7 @@ class ExecutionService:
                 reduce_only=reduce_only,
                 reason=intent.reason,
                 kind=intent_kind,
+                meta=dict(getattr(intent, "meta", None) or {}),
             )
             self._resting[ticker] = ro
             self._log(f"PAPER LIMIT RESTING {side} {ticker} qty={qty} @ {limit_price:.6g}")

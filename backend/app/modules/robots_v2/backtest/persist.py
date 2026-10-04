@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from collections import Counter
+from datetime import date, datetime, timezone
 from types import SimpleNamespace
 from typing import Any
 
@@ -14,6 +15,21 @@ from sqlalchemy.orm import Session
 from app.modules.trading_core.sim.metrics import BacktestMetricsCalculator
 
 logger = logging.getLogger(__name__)
+
+# Soft-degrade: details inlines signals up to this size; larger runs use pagination.
+DETAILS_SIGNALS_INLINE_CAP = 5_000
+REJECT_REASON_TOP_N = 8
+SIGNAL_LOG_CAP = 25_000
+
+NEXT_BAR_OPEN_EXECUTION_MODEL: dict[str, Any] = {
+    "engine_version": "v2",
+    "model": "NEXT_BAR_OPEN",
+    "code": "NEXT_BAR_OPEN",
+    "signal_on": "BAR_CLOSE",
+    "fill_on": "NEXT_BAR_OPEN",
+    "look_ahead": False,
+    "label": "Fills at next bar open",
+}
 
 
 def _json(value: Any) -> str:
@@ -40,7 +56,7 @@ def create_db_run(
         "board": "TQBR",
         "initial_capital": initial_capital,
         "config_snapshot": _json(snap),
-        "execution_model": _json({"engine_version": "v2", "model": "BAR_CLOSE"}),
+        "execution_model": _json(NEXT_BAR_OPEN_EXECUTION_MODEL),
     }
     sql = """
         INSERT INTO backtest_runs
@@ -74,7 +90,7 @@ def update_db_run(db: Session, run_id: int, **fields: Any) -> bool:
         return True
     allowed = {
         "status", "run_phase", "progress_percent", "phase_units_done", "phase_units_total",
-        "finished_at", "error_message", "cancel_requested",
+        "finished_at", "error_message", "cancel_requested", "partial_result",
     }
     sets = []
     params: dict[str, Any] = {"rid": run_id}
@@ -98,7 +114,9 @@ def update_db_run(db: Session, run_id: int, **fields: Any) -> bool:
         return False
 
 
-_CRITICAL_RUN_FIELDS = frozenset({"status", "cancel_requested", "finished_at", "error_message"})
+_CRITICAL_RUN_FIELDS = frozenset({
+    "status", "cancel_requested", "finished_at", "error_message", "partial_result",
+})
 
 
 def update_db_run_required(db: Session, run_id: int, **fields: Any) -> None:
@@ -126,6 +144,157 @@ def _risk_adjusted_metrics(payload: dict[str, Any]) -> dict[str, Any]:
     return BacktestMetricsCalculator.calculate(res=res, broker_type=broker)
 
 
+def _normalize_signal_status(raw: Any, *, was_executed: Any = None) -> str:
+    status = str(raw or "").lower().strip()
+    if status in ("filled", "submitted"):
+        return "filled"
+    if status == "deferred":
+        return "deferred"
+    if status == "rejected":
+        return "rejected"
+    if int(was_executed or 0):
+        return "filled"
+    if status:
+        return status
+    return "rejected"
+
+
+def promote_deferred_signals_to_filled(
+    signals: list[dict[str, Any]],
+    *,
+    fills: list[dict[str, Any]] | None = None,
+    trades: list[dict[str, Any]] | None = None,
+    execution_events: list[dict[str, Any]] | None = None,
+) -> int:
+    """Promote deferred signal rows to filled once a next-open fill is known.
+
+    Matching preference: ``intent_id``, then ``(cycle_id, ticker[, kind])``.
+
+    Reject-lens semantics after this + :func:`build_observability`:
+    - ``filled``: successful fills (native filled signals + promoted deferred)
+    - ``deferred``: still waiting at count time (not yet filled)
+    - ``rejected``: reject / drop signals
+    """
+    filled_intent_ids: set[str] = set()
+    filled_keys: set[tuple[str, str, str]] = set()
+
+    def _note_fill(row: dict[str, Any]) -> None:
+        iid = str(row.get("intent_id") or "").strip()
+        if iid:
+            filled_intent_ids.add(iid)
+        cid = str(row.get("cycle_id") or "").strip()
+        ticker = str(row.get("ticker") or row.get("figi") or "").upper().strip()
+        kind = str(row.get("kind") or "").strip()
+        if cid and ticker:
+            filled_keys.add((cid, ticker, kind))
+            filled_keys.add((cid, ticker, ""))
+
+    for row in fills or []:
+        _note_fill(row)
+    for row in trades or []:
+        _note_fill(row)
+    for row in execution_events or []:
+        if str(row.get("status") or "").lower() != "filled":
+            continue
+        _note_fill(row)
+
+    if not filled_intent_ids and not filled_keys:
+        return 0
+
+    promoted = 0
+    for signal in signals:
+        status = _normalize_signal_status(
+            signal.get("status"), was_executed=signal.get("was_executed"),
+        )
+        if status != "deferred":
+            continue
+        iid = str(signal.get("intent_id") or "").strip()
+        cid = str(signal.get("cycle_id") or "").strip()
+        ticker = str(signal.get("figi") or signal.get("ticker") or "").upper().strip()
+        kind = str(signal.get("kind") or "").strip()
+        matched = bool(iid and iid in filled_intent_ids)
+        if not matched and cid and ticker:
+            matched = (cid, ticker, kind) in filled_keys or (cid, ticker, "") in filled_keys
+        if not matched:
+            continue
+        signal["status"] = "filled"
+        signal["was_executed"] = 1
+        if iid:
+            signal["intent_id"] = iid
+        promoted += 1
+    return promoted
+
+
+def build_observability(
+    signals: list[dict[str, Any]],
+    *,
+    history_stats: dict[str, Any] | None = None,
+    signal_log_cap: int = SIGNAL_LOG_CAP,
+) -> dict[str, Any]:
+    """Aggregate glass-box summary for UI reject lens + honesty banner.
+
+    ``status_counts`` buckets (after deferred→filled promotion on host/enrich):
+    - filled: successful fills
+    - deferred: still waiting (not filled yet)
+    - rejected: reject / dropped-deferred signals
+    """
+    stats = history_stats or {}
+    reject_counts: Counter[str] = Counter()
+    status_counts = {"filled": 0, "rejected": 0, "deferred": 0}
+    for s in signals:
+        status = _normalize_signal_status(s.get("status"), was_executed=s.get("was_executed"))
+        if status in status_counts:
+            status_counts[status] += 1
+        else:
+            # Keep status_counts exhaustive for glass-box UI (unknown → rejected bucket).
+            status_counts["rejected"] += 1
+            status = "rejected"
+        if status == "rejected":
+            rr = s.get("reject_reason")
+            if rr:
+                reject_counts[str(rr)] += 1
+    top = [
+        {"code": code, "count": int(count)}
+        for code, count in reject_counts.most_common(REJECT_REASON_TOP_N)
+    ]
+    truncated = bool(stats.get("signals_truncated"))
+    logged = int(stats.get("signals") or len(signals))
+    return {
+        "execution_model": {
+            "code": "NEXT_BAR_OPEN",
+            "label": "Fills at next bar open",
+            "look_ahead": False,
+        },
+        "signals_logged": logged,
+        "signals_truncated": truncated,
+        "signal_log_cap": int(signal_log_cap),
+        "reject_reason_counts": top,
+        "status_counts": status_counts,
+    }
+
+
+def _attach_linked_trade_ids(
+    signals: list[dict[str, Any]],
+    trades: list[dict[str, Any]],
+) -> None:
+    """Best-effort cycle→trade linkage; incomplete when cycle_id missing (old runs)."""
+    by_cycle: dict[str, list[int]] = {}
+    for t in trades:
+        cid = t.get("cycle_id")
+        if not cid:
+            continue
+        tid = t.get("id")
+        if tid is None:
+            continue
+        by_cycle.setdefault(str(cid), []).append(int(tid))
+    for s in signals:
+        cid = s.get("cycle_id")
+        if cid:
+            s["linked_trade_ids"] = list(by_cycle.get(str(cid), []))
+        else:
+            s.setdefault("linked_trade_ids", [])
+
+
 def persist_result_payload(
     db: Session,
     run_id: int,
@@ -134,6 +303,8 @@ def persist_result_payload(
     orders: list[dict[str, Any]] | None = None,
     portfolio_snapshots: list[dict[str, Any]] | None = None,
     signals: list[dict[str, Any]] | None = None,
+    universe_by_day: dict[Any, list[str]] | None = None,
+    execution_events: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     trades = payload.get("trades") or []
     pnls = [float(t["pnl_net"]) for t in trades if t.get("pnl_net") is not None]
@@ -144,6 +315,20 @@ def persist_result_payload(
     snap_rows = portfolio_snapshots if portfolio_snapshots is not None else (payload.get("portfolio_snapshots") or [])
     signal_rows = signals if signals is not None else (payload.get("signals") or [])
     daily_summary = payload.get("daily_summary") or []
+    history_stats = payload.get("history_stats") or {}
+    observability = payload.get("observability") or build_observability(
+        signal_rows,
+        history_stats=history_stats,
+    )
+    fee_summary = payload.get("fee_summary")
+    if not isinstance(fee_summary, dict):
+        from app.modules.robots_v2.backtest.host import build_fee_summary
+
+        fee_summary = build_fee_summary(
+            trades,
+            funding_total=float(payload.get("funding_charges_total") or 0),
+            funding_events=int(history_stats.get("funding_events") or 0),
+        )
     risk = _risk_adjusted_metrics(payload)
     sharpe = risk.get("sharpe_val")
     sortino = risk.get("sortino_val")
@@ -160,20 +345,28 @@ def persist_result_payload(
         "calmar_ratio": round(calmar, 4) if calmar is not None else None,
         "engine_version": "v2",
         "stages": payload.get("stages") or [],
-        "history_stats": payload.get("history_stats") or {},
+        "history_stats": history_stats,
         "equity_curve": payload.get("equity_curve") or [],
         "trades": trades,
         "daily_summary": daily_summary,
         "funding_charges_total": payload.get("funding_charges_total"),
+        "fee_summary": fee_summary,
+        "observability": observability,
+        "narrative": list(payload.get("narrative") or []),
     }
     try:
         db.execute(
             text("""
                 UPDATE backtest_runs
-                SET metrics_summary = CAST(:summary AS jsonb)
+                SET metrics_summary = CAST(:summary AS jsonb),
+                    execution_model = CAST(:execution_model AS jsonb)
                 WHERE id = :rid
             """),
-            {"rid": run_id, "summary": _json(summary)},
+            {
+                "rid": run_id,
+                "summary": _json(summary),
+                "execution_model": _json(NEXT_BAR_OPEN_EXECUTION_MODEL),
+            },
         )
         db.commit()
     except Exception as exc:
@@ -182,6 +375,23 @@ def persist_result_payload(
             db.rollback()
         except Exception:
             pass
+        # Fallback without execution_model column rewrite (older schemas / partial deploys).
+        try:
+            db.execute(
+                text("""
+                    UPDATE backtest_runs
+                    SET metrics_summary = CAST(:summary AS jsonb)
+                    WHERE id = :rid
+                """),
+                {"rid": run_id, "summary": _json(summary)},
+            )
+            db.commit()
+        except Exception as exc2:
+            logger.warning("v2 backtest metrics_summary fallback failed run_id=%s: %s", run_id, exc2)
+            try:
+                db.rollback()
+            except Exception:
+                pass
     try:
         db.execute(
             text("""
@@ -211,9 +421,11 @@ def persist_result_payload(
                 "equity": payload.get("final_equity"),
                 "payload": _json({
                     "engine_version": "v2",
-                    "history_stats": payload.get("history_stats") or {},
+                    "history_stats": history_stats,
                     "sortino_ratio": round(sortino, 4) if sortino is not None else None,
                     "calmar_ratio": round(calmar, 4) if calmar is not None else None,
+                    "observability": observability,
+                    "fee_summary": fee_summary,
                 }),
             },
         )
@@ -233,11 +445,24 @@ def persist_result_payload(
         snapshots=snap_rows,
         signals=signal_rows,
     )
+    uni = universe_by_day if universe_by_day is not None else payload.get("universe_by_day")
+    if isinstance(uni, dict):
+        # Always replace (including empty) so re-persists do not leave stale membership.
+        persist_universe_membership(db, run_id, uni)
+    events = (
+        execution_events
+        if execution_events is not None
+        else list(payload.get("execution_events") or [])
+    )
+    persist_execution_events(db, run_id, events)
     return {
         "sharpe_ratio": summary["sharpe_ratio"],
         "sortino_ratio": summary["sortino_ratio"],
         "calmar_ratio": summary["calmar_ratio"],
         "win_rate_percent": summary["win_rate_percent"],
+        "observability": observability,
+        "fee_summary": fee_summary,
+        "narrative": summary["narrative"],
     }
 
 
@@ -316,6 +541,8 @@ def _persist_child_tables(
                         "status": s.get("status"),
                         "quantity": s.get("quantity"),
                         "cycle_id": s.get("cycle_id"),
+                        "intent_id": s.get("intent_id"),
+                        "signal_time": s.get("signal_time") or s.get("bar_time"),
                         "pnl_net": s.get("pnl_net"),
                         "engine_version": "v2",
                     }),
@@ -352,7 +579,7 @@ def _persist_child_tables(
                     "ts": _parse_dt(o.get("time") or o.get("bar_time")),
                     "figi": str(o.get("ticker") or o.get("figi") or "")[:20],
                     "side": str(o.get("side") or "buy").lower()[:10],
-                    "status": "filled",
+                    "status": str(o.get("status") or "filled").lower()[:20],
                     "qty": float(o.get("quantity") or o.get("qty") or 0),
                     "rp": o.get("price"),
                     "ep": o.get("price"),
@@ -361,6 +588,9 @@ def _persist_child_tables(
                     "payload": _json({
                         "kind": o.get("kind"),
                         "reason": o.get("reason"),
+                        "cycle_id": o.get("cycle_id"),
+                        "intent_id": o.get("intent_id"),
+                        "signal_time": o.get("signal_time"),
                         "engine_version": "v2",
                     }),
                 },
@@ -387,6 +617,20 @@ def _persist_child_tables(
         if i % step != 0 and i != len(snapshots) - 1:
             continue
         try:
+            holdings = s.get("positions")
+            if isinstance(holdings, list):
+                positions_payload = {
+                    "positions": holdings,
+                    "positions_count": int(s.get("positions_count") or len(holdings)),
+                    "engine_version": "v2",
+                }
+            else:
+                # Legacy: positions was a count integer.
+                positions_payload = {
+                    "positions": [],
+                    "positions_count": int(holdings or s.get("positions_count") or 0),
+                    "engine_version": "v2",
+                }
             db.execute(
                 text("""
                     INSERT INTO backtest_portfolio_snapshots
@@ -399,7 +643,7 @@ def _persist_child_tables(
                     "ts": _parse_dt(s.get("snapshot_time")) or datetime.now(timezone.utc),
                     "cash": float(s.get("cash") or 0),
                     "equity": float(s.get("equity") or 0),
-                    "positions": _json({"positions": s.get("positions"), "engine_version": "v2"}),
+                    "positions": _json(positions_payload),
                 },
             )
         except Exception as exc:
@@ -418,6 +662,308 @@ def _persist_child_tables(
             pass
 
 
+def persist_universe_membership(
+    db: Session,
+    run_id: int,
+    universe_by_day: dict[Any, list[str]],
+    *,
+    source: str | None = "v2_host",
+) -> None:
+    """Replace daily universe membership rows for a run (P1)."""
+    try:
+        db.execute(
+            text("DELETE FROM backtest_universe_membership WHERE run_id = :rid"),
+            {"rid": run_id},
+        )
+        db.commit()
+    except Exception as exc:
+        logger.warning("v2 backtest universe delete failed run_id=%s: %s", run_id, exc)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return
+
+    rows = 0
+    for day_key, tickers in (universe_by_day or {}).items():
+        trade_date = _coerce_trade_date(day_key)
+        if trade_date is None:
+            continue
+        for raw_ticker in tickers or []:
+            ticker = str(raw_ticker or "").upper().strip()
+            if not ticker:
+                continue
+            try:
+                db.execute(
+                    text("""
+                        INSERT INTO backtest_universe_membership
+                            (run_id, trade_date, ticker, source, filter_result, reject_reason)
+                        VALUES
+                            (:rid, :d, :ticker, :source, NULL, NULL)
+                        ON CONFLICT (run_id, trade_date, ticker) DO NOTHING
+                    """),
+                    {
+                        "rid": run_id,
+                        "d": trade_date,
+                        "ticker": ticker[:32],
+                        "source": source,
+                    },
+                )
+                rows += 1
+            except Exception as exc:
+                logger.warning(
+                    "v2 backtest universe insert failed run_id=%s day=%s: %s",
+                    run_id, trade_date, exc,
+                )
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                return
+    try:
+        db.commit()
+        logger.info("v2 backtest universe membership persisted run_id=%s rows=%s", run_id, rows)
+    except Exception as exc:
+        logger.warning("v2 backtest universe commit failed run_id=%s: %s", run_id, exc)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
+def _coerce_trade_date(raw: Any) -> date | None:
+    if raw is None:
+        return None
+    if isinstance(raw, date) and not isinstance(raw, datetime):
+        return raw
+    if isinstance(raw, datetime):
+        return raw.date()
+    s = str(raw).strip()
+    if not s:
+        return None
+    try:
+        return date.fromisoformat(s[:10])
+    except ValueError:
+        return None
+
+
+def load_universe_membership(
+    db: Session,
+    run_id: int,
+    *,
+    from_date: date | None = None,
+    to_date: date | None = None,
+) -> list[dict[str, Any]]:
+    clauses = ["run_id = :rid"]
+    params: dict[str, Any] = {"rid": run_id}
+    if from_date is not None:
+        clauses.append("trade_date >= :from_d")
+        params["from_d"] = from_date
+    if to_date is not None:
+        clauses.append("trade_date <= :to_d")
+        params["to_d"] = to_date
+    try:
+        rows = db.execute(
+            text(f"""
+                SELECT trade_date, ticker, source, filter_result, reject_reason
+                FROM backtest_universe_membership
+                WHERE {' AND '.join(clauses)}
+                ORDER BY trade_date ASC, ticker ASC
+            """),
+            params,
+        ).mappings().all()
+    except Exception as exc:
+        logger.warning("v2 backtest universe load failed run_id=%s: %s", run_id, exc)
+        return []
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        d = row.get("trade_date")
+        out.append({
+            "trade_date": d.isoformat() if hasattr(d, "isoformat") else str(d),
+            "ticker": row.get("ticker"),
+            "source": row.get("source"),
+            "filter_result": row.get("filter_result"),
+            "reject_reason": row.get("reject_reason"),
+        })
+    return out
+
+
+def persist_execution_events(
+    db: Session,
+    run_id: int,
+    events: list[dict[str, Any]],
+) -> None:
+    """Replace intent↔fill lifecycle rows for a run (P2 / [R-13])."""
+    try:
+        db.execute(
+            text("DELETE FROM backtest_execution_events WHERE run_id = :rid"),
+            {"rid": run_id},
+        )
+        db.commit()
+    except Exception as exc:
+        logger.warning("v2 backtest execution_events delete failed run_id=%s: %s", run_id, exc)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return
+
+    for ev in events or []:
+        try:
+            db.execute(
+                text("""
+                    INSERT INTO backtest_execution_events
+                        (run_id, event_time, intent_id, cycle_id, ticker, side, kind, status,
+                         reason, reject_reason, quantity, price, trade_id, payload)
+                    VALUES
+                        (:rid, :ts, :intent_id, :cycle_id, :ticker, :side, :kind, :status,
+                         :reason, :reject_reason, :qty, :price, :trade_id, CAST(:payload AS jsonb))
+                """),
+                {
+                    "rid": run_id,
+                    "ts": _parse_dt(ev.get("ts") or ev.get("event_time")) or datetime.now(timezone.utc),
+                    "intent_id": str(ev.get("intent_id") or "")[:64] or "unknown",
+                    "cycle_id": (str(ev.get("cycle_id"))[:64] if ev.get("cycle_id") else None),
+                    "ticker": str(ev.get("ticker") or "")[:32],
+                    "side": (str(ev.get("side"))[:10] if ev.get("side") else None),
+                    "kind": (str(ev.get("kind"))[:32] if ev.get("kind") else None),
+                    "status": str(ev.get("status") or "unknown")[:20],
+                    "reason": (str(ev.get("reason"))[:64] if ev.get("reason") else None),
+                    "reject_reason": (
+                        str(ev.get("reject_reason"))[:64] if ev.get("reject_reason") else None
+                    ),
+                    "qty": ev.get("quantity"),
+                    "price": ev.get("price"),
+                    "trade_id": ev.get("trade_id"),
+                    "payload": _json({
+                        "event_id": ev.get("event_id"),
+                        "signal_time": ev.get("signal_time"),
+                        "engine_version": "v2",
+                    }),
+                },
+            )
+        except Exception as exc:
+            logger.warning("v2 backtest execution_events insert failed run_id=%s: %s", run_id, exc)
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return
+    try:
+        db.commit()
+    except Exception as exc:
+        logger.warning("v2 backtest execution_events commit failed run_id=%s: %s", run_id, exc)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
+def load_execution_events(
+    db: Session,
+    run_id: int,
+    *,
+    cycle_id: str | None = None,
+    limit: int = 5000,
+) -> list[dict[str, Any]]:
+    clauses = ["run_id = :rid"]
+    params: dict[str, Any] = {
+        "rid": run_id,
+        "lim": max(1, min(int(limit), 25_000)),
+    }
+    if cycle_id:
+        clauses.append("cycle_id = :cid")
+        params["cid"] = str(cycle_id)
+    try:
+        rows = db.execute(
+            text(f"""
+                SELECT id, event_time, intent_id, cycle_id, ticker, side, kind, status,
+                       reason, reject_reason, quantity, price, trade_id, payload
+                FROM backtest_execution_events
+                WHERE {' AND '.join(clauses)}
+                ORDER BY id ASC
+                LIMIT :lim
+            """),
+            params,
+        ).mappings().all()
+    except Exception as exc:
+        logger.warning("v2 backtest execution_events load failed run_id=%s: %s", run_id, exc)
+        return []
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        payload = _parse_json(row.get("payload")) or {}
+        ts = row.get("event_time")
+        out.append({
+            "id": int(row["id"]) if row.get("id") is not None else None,
+            "event_id": payload.get("event_id"),
+            "ts": ts.isoformat() if hasattr(ts, "isoformat") else ts,
+            "intent_id": row.get("intent_id"),
+            "cycle_id": row.get("cycle_id"),
+            "ticker": row.get("ticker"),
+            "side": row.get("side"),
+            "kind": row.get("kind"),
+            "status": row.get("status"),
+            "reason": row.get("reason"),
+            "reject_reason": row.get("reject_reason"),
+            "quantity": float(row["quantity"]) if row.get("quantity") is not None else None,
+            "price": float(row["price"]) if row.get("price") is not None else None,
+            "trade_id": int(row["trade_id"]) if row.get("trade_id") is not None else None,
+            "signal_time": payload.get("signal_time"),
+        })
+    return out
+
+
+def build_cycle_inspector_bundle(
+    run: dict[str, Any],
+    cycle_id: str,
+) -> dict[str, Any] | None:
+    """Assemble decision inspector packet for one cycle_id (SPEC §6.2 + P2 events)."""
+    cid = str(cycle_id or "").strip()
+    if not cid:
+        return None
+    signals = [
+        s for s in (run.get("signals") or [])
+        if str(s.get("cycle_id") or "") == cid
+    ]
+    payload = run.get("result_payload") if isinstance(run.get("result_payload"), dict) else {}
+    trades = [
+        t for t in (payload.get("trades") or [])
+        if str(t.get("cycle_id") or "") == cid
+    ]
+    orders = [
+        o for o in (run.get("orders") or [])
+        if str(o.get("cycle_id") or "") == cid
+    ]
+    exec_events = [
+        e for e in (run.get("execution_events") or [])
+        if str(e.get("cycle_id") or "") == cid
+    ]
+    if not signals and not trades and not orders and not exec_events:
+        return None
+    config = run.get("config_snapshot") if isinstance(run.get("config_snapshot"), dict) else {}
+    risk = config.get("risk") if isinstance(config.get("risk"), dict) else {}
+    strategy = config.get("strategy") if isinstance(config.get("strategy"), dict) else {}
+    excerpt = {
+        "archetype": strategy.get("archetype") or strategy.get("archetypeName"),
+        "timeframe": strategy.get("timeframe"),
+        "stopLossPct": risk.get("stopLossPct") or risk.get("stop_loss_pct"),
+        "takeProfitPct": risk.get("takeProfitPct") or risk.get("take_profit_pct"),
+        "maxPositionSharePct": risk.get("maxPositionSharePct") or risk.get("max_position_share_pct"),
+        "maxConcurrentPositions": (
+            risk.get("maxConcurrentPositions") or risk.get("max_concurrent_positions")
+        ),
+        "brokerCommissionPct": risk.get("brokerCommissionPct") or risk.get("broker_commission_pct"),
+    }
+    return {
+        "cycle_id": cid,
+        "signals": signals,
+        "trades": trades,
+        "orders": orders,
+        "execution_events": exec_events,
+        "config_risk_excerpt": {k: v for k, v in excerpt.items() if v is not None},
+    }
+
+
 def load_child_artifacts(db: Session, run_id: int) -> dict[str, list[dict[str, Any]]]:
     signals: list[dict[str, Any]] = []
     orders: list[dict[str, Any]] = []
@@ -425,13 +971,14 @@ def load_child_artifacts(db: Session, run_id: int) -> dict[str, list[dict[str, A
     try:
         for row in db.execute(
             text("""
-                SELECT signal_time, figi, signal_type, price, was_executed, payload
+                SELECT id, signal_time, figi, signal_type, price, was_executed, payload
                 FROM backtest_signals WHERE run_id = :rid ORDER BY id
             """),
             {"rid": run_id},
         ).mappings().all():
             payload = _parse_json(row.get("payload")) or {}
             signals.append({
+                "id": int(row["id"]) if row.get("id") is not None else None,
                 "signal_time": row.get("signal_time"),
                 "figi": row.get("figi"),
                 "signal_type": row.get("signal_type"),
@@ -442,17 +989,22 @@ def load_child_artifacts(db: Session, run_id: int) -> dict[str, list[dict[str, A
                 "kind": payload.get("kind"),
                 "status": payload.get("status"),
                 "quantity": payload.get("quantity"),
+                "cycle_id": payload.get("cycle_id"),
+                "intent_id": payload.get("intent_id"),
+                "pnl_net": payload.get("pnl_net"),
                 "payload": payload,
             })
         for row in db.execute(
             text("""
-                SELECT signal_time, figi, side, status, quantity, requested_price, executed_price,
+                SELECT id, signal_time, figi, side, status, quantity, requested_price, executed_price,
                        commission, pnl_net, payload
                 FROM backtest_orders WHERE run_id = :rid ORDER BY id
             """),
             {"rid": run_id},
         ).mappings().all():
+            payload = _parse_json(row.get("payload")) or {}
             orders.append({
+                "id": int(row["id"]) if row.get("id") is not None else None,
                 "time": row.get("signal_time"),
                 "ticker": row.get("figi"),
                 "side": row.get("side"),
@@ -461,7 +1013,12 @@ def load_child_artifacts(db: Session, run_id: int) -> dict[str, list[dict[str, A
                 "price": float(row["executed_price"]) if row.get("executed_price") is not None else None,
                 "commission": float(row["commission"]) if row.get("commission") is not None else None,
                 "pnl_net": float(row["pnl_net"]) if row.get("pnl_net") is not None else None,
-                "payload": _parse_json(row.get("payload")) or {},
+                "kind": payload.get("kind"),
+                "reason": payload.get("reason"),
+                "cycle_id": payload.get("cycle_id"),
+                "intent_id": payload.get("intent_id"),
+                "signal_time": payload.get("signal_time"),
+                "payload": payload,
             })
         for row in db.execute(
             text("""
@@ -470,15 +1027,80 @@ def load_child_artifacts(db: Session, run_id: int) -> dict[str, list[dict[str, A
             """),
             {"rid": run_id},
         ).mappings().all():
+            raw_payload = _parse_json(row.get("positions_payload")) or {}
+            holdings, count = _normalize_snapshot_positions(raw_payload)
             snaps.append({
                 "snapshot_time": row.get("snapshot_time"),
                 "cash": float(row.get("cash_balance") or 0),
                 "equity": float(row.get("equity") or 0),
-                "positions_payload": _parse_json(row.get("positions_payload")) or {},
+                "positions": holdings,
+                "positions_count": count,
+                "positions_payload": raw_payload,
             })
     except Exception as exc:
         logger.warning("v2 backtest child load failed run_id=%s: %s", run_id, exc)
     return {"signals": signals, "orders": orders, "portfolio_snapshots": snaps}
+
+
+def _normalize_snapshot_positions(payload: Any) -> tuple[list[dict[str, Any]], int]:
+    """Return (holdings list, count) from positions_payload (P1 or legacy int)."""
+    if isinstance(payload, list):
+        # Very old shape: bare list of holdings.
+        holdings = [h for h in payload if isinstance(h, dict)]
+        return holdings, len(holdings)
+    if not isinstance(payload, dict):
+        return [], 0
+    positions = payload.get("positions")
+    if isinstance(positions, list):
+        holdings = [h for h in positions if isinstance(h, dict)]
+        count = int(payload.get("positions_count") or len(holdings))
+        return holdings, count
+    if isinstance(positions, (int, float)):
+        return [], int(positions)
+    count = payload.get("positions_count")
+    if isinstance(count, (int, float)):
+        return [], int(count)
+    return [], 0
+
+
+def filter_signals(
+    signals: list[dict[str, Any]],
+    *,
+    status: str | None = None,
+    reject_reason: str | None = None,
+    ticker: str | None = None,
+    cycle_id: str | None = None,
+) -> list[dict[str, Any]]:
+    out = signals
+    if status:
+        want = _normalize_signal_status(status)
+        out = [
+            s for s in out
+            if _normalize_signal_status(s.get("status"), was_executed=s.get("was_executed")) == want
+        ]
+    if reject_reason:
+        want_rr = str(reject_reason)
+        out = [s for s in out if str(s.get("reject_reason") or "") == want_rr]
+    if ticker:
+        want_t = str(ticker).upper()
+        out = [s for s in out if str(s.get("figi") or s.get("ticker") or "").upper() == want_t]
+    if cycle_id:
+        want_c = str(cycle_id)
+        out = [s for s in out if str(s.get("cycle_id") or "") == want_c]
+    return out
+
+
+def paginate_signals(
+    signals: list[dict[str, Any]],
+    *,
+    limit: int = 200,
+    offset: int = 0,
+) -> tuple[list[dict[str, Any]], int]:
+    total = len(signals)
+    lim = max(1, min(int(limit), 1000))
+    off = max(0, int(offset))
+    return signals[off: off + lim], total
+
 
 
 def _parse_json(raw: Any) -> Any:
@@ -499,7 +1121,7 @@ def fetch_db_run(db: Session, run_id: int, *, user_id: int) -> dict[str, Any] | 
         text("""
             SELECT id, robot_id, user_id, status, requested_from, requested_to, started_at, finished_at,
                    initial_capital, progress_percent, run_phase, error_message, cancel_requested,
-                   config_snapshot, metrics_summary
+                   partial_result, config_snapshot, metrics_summary, execution_model
             FROM backtest_runs
             WHERE id = :rid AND user_id = :uid
             LIMIT 1
@@ -516,6 +1138,118 @@ def fetch_db_run(db: Session, run_id: int, *, user_id: int) -> dict[str, Any] | 
         out["orders"] = children["orders"]
     if children["portfolio_snapshots"]:
         out["portfolio_snapshots"] = children["portfolio_snapshots"]
+    out["execution_events"] = load_execution_events(db, run_id)
+    enrich_run_observability(out)
+    return out
+
+
+def _honest_execution_model_banner(
+    stored_em: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Force NEXT_BAR_OPEN honesty; never surface legacy BAR_CLOSE as the fill model."""
+    label = "Fills at next bar open"
+    look_ahead = False
+    if isinstance(stored_em, dict):
+        model = str(stored_em.get("model") or stored_em.get("code") or "").upper()
+        if model == "NEXT_BAR_OPEN":
+            label = str(stored_em.get("label") or label)
+            look_ahead = bool(stored_em.get("look_ahead", False))
+    return {
+        "code": "NEXT_BAR_OPEN",
+        "label": label,
+        "look_ahead": look_ahead,
+    }
+
+
+def enrich_run_observability(out: dict[str, Any]) -> dict[str, Any]:
+    """Attach observability + linked_trade_ids; soft-degrade for legacy runs."""
+    payload = out.get("result_payload") if isinstance(out.get("result_payload"), dict) else {}
+    signals = list(out.get("signals") or [])
+    trades = list((payload or {}).get("trades") or [])
+    # Prefer metrics_summary trades (have cycle_id after P0); fall back to orders.
+    if not trades and out.get("orders"):
+        trades = [
+            {
+                "id": o.get("id"),
+                "cycle_id": o.get("cycle_id"),
+                "figi": o.get("ticker") or o.get("figi"),
+                "kind": o.get("kind"),
+                "intent_id": o.get("intent_id"),
+            }
+            for o in (out.get("orders") or [])
+            if o.get("cycle_id") or o.get("id") is not None
+        ]
+    _attach_linked_trade_ids(signals, trades)
+    # Legacy runs may still store deferred signals after next-open fills.
+    promote_deferred_signals_to_filled(
+        signals,
+        trades=trades,
+        execution_events=list(out.get("execution_events") or []),
+    )
+    out["signals"] = signals
+
+    stored_em = out.get("execution_model") if isinstance(out.get("execution_model"), dict) else None
+    # Rewrite dishonest legacy column values on read (BAR_CLOSE → NEXT_BAR_OPEN).
+    if stored_em is not None:
+        model = str(stored_em.get("model") or stored_em.get("code") or "").upper()
+        if model != "NEXT_BAR_OPEN":
+            out["execution_model"] = dict(NEXT_BAR_OPEN_EXECUTION_MODEL)
+            stored_em = out["execution_model"]
+
+    history_stats = (payload or {}).get("history_stats") if isinstance(payload, dict) else {}
+    # Always rebuild status_counts from (possibly promoted) signals so reject-lens
+    # «Исполнено» matches trades / filled execution events on legacy runs.
+    obs = build_observability(signals, history_stats=history_stats or {})
+    obs = {
+        **obs,
+        "execution_model": _honest_execution_model_banner(stored_em),
+    }
+    if isinstance(payload, dict):
+        payload = {**payload, "observability": obs}
+        out["result_payload"] = payload
+    out["observability"] = obs
+    out["signals_total"] = int(
+        (obs or {}).get("signals_logged")
+        or len(signals)
+        or ((payload or {}).get("history_stats") or {}).get("signals")
+        or 0
+    )
+    return out
+
+
+def apply_signals_page_to_details(
+    out: dict[str, Any],
+    *,
+    signals_limit: int | None = None,
+    signals_offset: int = 0,
+    signals_status: str | None = None,
+    reject_reason: str | None = None,
+) -> dict[str, Any]:
+    """Paginate/filter signals on details; omit inline body when total > 5k unless filtered/limited."""
+    enrich_run_observability(out)
+    all_signals = list(out.get("signals") or [])
+    filtered = filter_signals(
+        all_signals,
+        status=signals_status,
+        reject_reason=reject_reason,
+    )
+    total = len(filtered)
+    out["signals_total"] = total
+
+    force_page = total > DETAILS_SIGNALS_INLINE_CAP
+    explicit_limit = signals_limit is not None or signals_offset > 0 or signals_status or reject_reason
+    if force_page and not explicit_limit:
+        # SPEC §10: force paginated /signals when >5k — details returns empty slice + total.
+        out["signals"] = []
+        out["signals_truncated_inline"] = True
+        return out
+
+    lim = 200 if signals_limit is None and force_page else (
+        int(signals_limit) if signals_limit is not None else total
+    )
+    page, _ = paginate_signals(filtered, limit=max(1, lim), offset=signals_offset)
+    out["signals"] = page
+    out["signals_truncated_inline"] = force_page
     return out
 
 
@@ -525,7 +1259,7 @@ def fetch_db_run_by_id(db: Session, run_id: int) -> dict[str, Any] | None:
         text("""
             SELECT id, robot_id, user_id, status, requested_from, requested_to, started_at, finished_at,
                    initial_capital, progress_percent, run_phase, error_message, cancel_requested,
-                   config_snapshot, metrics_summary
+                   partial_result, config_snapshot, metrics_summary, execution_model
             FROM backtest_runs
             WHERE id = :rid
             LIMIT 1
@@ -603,7 +1337,9 @@ def list_db_runs(
 def _row_to_dict(row: Any) -> dict[str, Any]:
     summary = _parse_json(row.get("metrics_summary")) or {}
     config = _parse_json(row.get("config_snapshot")) or {}
+    execution_model = _parse_json(row.get("execution_model")) if "execution_model" in row else None
     payload = summary if isinstance(summary, dict) else {}
+    partial = bool(row.get("partial_result")) if "partial_result" in row else None
     out = {
         "run_id": int(row["id"]),
         "robot_id": row.get("robot_id"),
@@ -617,8 +1353,10 @@ def _row_to_dict(row: Any) -> dict[str, Any]:
         "run_phase": row.get("run_phase"),
         "phase_label": row.get("run_phase"),
         "cancel_requested": bool(row.get("cancel_requested")),
+        "partial_result": partial,
         "error_message": row.get("error_message"),
         "config_snapshot": config,
+        "execution_model": execution_model if isinstance(execution_model, dict) else None,
         "total_return_percent": payload.get("total_return_percent"),
         "max_drawdown_percent": payload.get("max_drawdown_percent"),
         "final_equity": payload.get("final_equity"),
@@ -632,6 +1370,15 @@ def _row_to_dict(row: Any) -> dict[str, Any]:
         "orders": payload.get("trades") or [],
         "portfolio_snapshots": [],
         "daily_summary": payload.get("daily_summary") or [],
+        "observability": payload.get("observability"),
+        "fee_summary": payload.get("fee_summary"),
+        "narrative": list(payload.get("narrative") or []),
+        "execution_events": [],
+        "signals_total": int(
+            (payload.get("observability") or {}).get("signals_logged")
+            or (payload.get("history_stats") or {}).get("signals")
+            or 0
+        ),
     }
     if "user_id" in row and row.get("user_id") is not None:
         out["user_id"] = int(row["user_id"])
@@ -661,6 +1408,9 @@ def nested_config_diff(base: dict[str, Any], compare: dict[str, Any]) -> dict[st
 def compare_runs(base: dict[str, Any], compare: dict[str, Any]) -> dict[str, Any]:
     def metrics(row: dict[str, Any]) -> dict[str, Any]:
         p = row.get("result_payload") or {}
+        fee = p.get("fee_summary") if isinstance(p.get("fee_summary"), dict) else (
+            row.get("fee_summary") if isinstance(row.get("fee_summary"), dict) else {}
+        )
         return {
             "total_return_percent": p.get("total_return_percent"),
             "max_drawdown_percent": p.get("max_drawdown_percent"),
@@ -671,6 +1421,9 @@ def compare_runs(base: dict[str, Any], compare: dict[str, Any]) -> dict[str, Any
             "sortino_ratio": p.get("sortino_ratio"),
             "calmar_ratio": p.get("calmar_ratio"),
             "initial_capital": row.get("initial_capital"),
+            "commission_total": fee.get("commission_total"),
+            "funding_total": fee.get("funding_total"),
+            "funding_events": fee.get("funding_events"),
         }
 
     base_m = metrics(base)

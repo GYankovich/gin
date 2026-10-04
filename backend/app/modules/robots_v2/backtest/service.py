@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from time import monotonic
 from typing import Any
 
@@ -27,22 +27,37 @@ from app.modules.robots_v2.backtest.funding import (
     instrument_category_for_config,
 )
 from app.modules.robots_v2.backtest.persist import (
+    apply_signals_page_to_details,
+    build_cycle_inspector_bundle,
+    build_observability,
     compare_runs,
     create_db_run,
+    enrich_run_observability,
     fetch_db_run,
+    filter_signals,
     is_cancel_requested,
     list_db_runs,
+    load_execution_events,
+    load_universe_membership,
+    paginate_signals,
     persist_result_payload,
     update_db_run,
     update_db_run_required,
 )
+from app.modules.robots_v2.backtest.price_window import fetch_price_window
 from app.modules.robots_v2.backtest.quotas import assert_can_enqueue_backtest
 from app.modules.robots_v2.backtest.schemas import (
     RobotV2BacktestCompareResponse,
+    RobotV2BacktestCycleBundleResponse,
     RobotV2BacktestDetailsResponse,
+    RobotV2BacktestExecutionEventsResponse,
     RobotV2BacktestListResponse,
+    RobotV2BacktestNarrativeResponse,
+    RobotV2BacktestPriceWindowResponse,
     RobotV2BacktestRequest,
+    RobotV2BacktestSignalsPageResponse,
     RobotV2BacktestStatusResponse,
+    RobotV2BacktestUniverseResponse,
 )
 from app.modules.robots_v2.backtest.store import BacktestRunRecord, backtest_run_store
 from app.modules.robots_v2.backtest.worker_handler import JOB_TYPE_BACKTEST_RUN
@@ -71,8 +86,14 @@ def v4_timeframe_to_interval_raw(timeframe: str) -> str:
 
 
 def _record_to_status(rec: BacktestRunRecord) -> dict[str, Any]:
-    payload = rec.result_payload or {}
-    return {
+    payload = dict(rec.result_payload or {})
+    signals = list(rec.signals or [])
+    if "observability" not in payload:
+        payload["observability"] = build_observability(
+            signals,
+            history_stats=payload.get("history_stats") or {},
+        )
+    out = {
         "run_id": rec.run_id,
         "robot_id": rec.robot_id,
         "status": rec.status,
@@ -87,17 +108,28 @@ def _record_to_status(rec: BacktestRunRecord) -> dict[str, Any]:
         "phase_units_done": rec.phase_units_done,
         "phase_units_total": rec.phase_units_total,
         "cancel_requested": rec.cancel_requested,
+        "partial_result": bool(rec.cancel_requested) and str(rec.status).upper() in (
+            "CANCELLED", "CANCELED", "RUNNING", "QUEUED",
+        ),
         "error_message": rec.error_message,
+        "config_snapshot": rec.config_snapshot,
         "total_return_percent": payload.get("total_return_percent"),
         "max_drawdown_percent": payload.get("max_drawdown_percent"),
         "final_equity": payload.get("final_equity"),
         "trades_total": len(payload.get("trades") or []),
         "result_payload": payload,
-        "signals": rec.signals,
+        "signals": signals,
         "orders": rec.orders,
         "portfolio_snapshots": rec.portfolio_snapshots,
         "daily_summary": rec.daily_summary,
+        "observability": payload.get("observability"),
+        "fee_summary": payload.get("fee_summary"),
+        "narrative": list(payload.get("narrative") or []),
+        "execution_events": list(getattr(rec, "execution_events", None) or payload.get("execution_events") or []),
+        "signals_total": len(signals),
     }
+    enrich_run_observability(out)
+    return out
 
 
 class BacktestService:
@@ -222,7 +254,15 @@ class BacktestService:
         raise HTTPException(status_code=404, detail="Backtest run not found")
 
     async def get_details(
-        self, run_id: int, *, user_id: int, db: Session | None = None,
+        self,
+        run_id: int,
+        *,
+        user_id: int,
+        db: Session | None = None,
+        signals_limit: int | None = None,
+        signals_offset: int = 0,
+        signals_status: str | None = None,
+        reject_reason: str | None = None,
     ) -> RobotV2BacktestDetailsResponse:
         if db is not None:
             row = fetch_db_run(db, run_id, user_id=user_id)
@@ -230,12 +270,206 @@ class BacktestService:
                 mem = await backtest_run_store.get(run_id, user_id=user_id)
                 if mem is not None and mem.result_payload:
                     merged = {**row, **_record_to_status(mem)}
+                    # Prefer DB child artifacts (flattened) when present.
+                    if row.get("signals"):
+                        merged["signals"] = row["signals"]
+                    if row.get("orders"):
+                        merged["orders"] = row["orders"]
+                    if row.get("portfolio_snapshots"):
+                        merged["portfolio_snapshots"] = row["portfolio_snapshots"]
+                    if row.get("execution_events"):
+                        merged["execution_events"] = row["execution_events"]
+                    if row.get("narrative"):
+                        merged["narrative"] = row["narrative"]
+                    apply_signals_page_to_details(
+                        merged,
+                        signals_limit=signals_limit,
+                        signals_offset=signals_offset,
+                        signals_status=signals_status,
+                        reject_reason=reject_reason,
+                    )
                     return RobotV2BacktestDetailsResponse.model_validate(merged)
+                apply_signals_page_to_details(
+                    row,
+                    signals_limit=signals_limit,
+                    signals_offset=signals_offset,
+                    signals_status=signals_status,
+                    reject_reason=reject_reason,
+                )
                 return RobotV2BacktestDetailsResponse.model_validate(row)
         rec = await backtest_run_store.get(run_id, user_id=user_id)
         if rec is not None:
-            return RobotV2BacktestDetailsResponse.model_validate(_record_to_status(rec))
+            out = _record_to_status(rec)
+            apply_signals_page_to_details(
+                out,
+                signals_limit=signals_limit,
+                signals_offset=signals_offset,
+                signals_status=signals_status,
+                reject_reason=reject_reason,
+            )
+            return RobotV2BacktestDetailsResponse.model_validate(out)
         raise HTTPException(status_code=404, detail="Backtest run not found")
+
+    async def get_cycle_bundle(
+        self,
+        run_id: int,
+        cycle_id: str,
+        *,
+        user_id: int,
+        db: Session | None = None,
+    ) -> RobotV2BacktestCycleBundleResponse:
+        if db is None:
+            raise HTTPException(status_code=503, detail="Database required for cycle inspector")
+        row = fetch_db_run(db, run_id, user_id=user_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Backtest run not found")
+        mem = await backtest_run_store.get(run_id, user_id=user_id)
+        if mem is not None and mem.result_payload:
+            merged = {**row, **_record_to_status(mem)}
+            if row.get("signals"):
+                merged["signals"] = row["signals"]
+            if row.get("orders"):
+                merged["orders"] = row["orders"]
+            if row.get("execution_events"):
+                merged["execution_events"] = row["execution_events"]
+            if not merged.get("config_snapshot"):
+                merged["config_snapshot"] = mem.config_snapshot or row.get("config_snapshot")
+            row = merged
+        bundle = build_cycle_inspector_bundle(row, cycle_id)
+        if bundle is None:
+            raise HTTPException(status_code=404, detail="Cycle not found in this run")
+        return RobotV2BacktestCycleBundleResponse.model_validate(bundle)
+
+    async def get_universe_membership(
+        self,
+        run_id: int,
+        *,
+        user_id: int,
+        db: Session,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> RobotV2BacktestUniverseResponse:
+        row = fetch_db_run(db, run_id, user_id=user_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Backtest run not found")
+        items = load_universe_membership(
+            db, run_id, from_date=from_date, to_date=to_date,
+        )
+        days = sorted({date.fromisoformat(str(i["trade_date"])[:10]) for i in items})
+        return RobotV2BacktestUniverseResponse(
+            run_id=run_id,
+            items=items,
+            days=days,
+            total=len(items),
+        )
+
+    async def get_execution_events(
+        self,
+        run_id: int,
+        *,
+        user_id: int,
+        db: Session,
+        cycle_id: str | None = None,
+        limit: int = 5000,
+    ) -> RobotV2BacktestExecutionEventsResponse:
+        row = fetch_db_run(db, run_id, user_id=user_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Backtest run not found")
+        items = load_execution_events(db, run_id, cycle_id=cycle_id, limit=limit)
+        if not items and row.get("execution_events"):
+            items = list(row["execution_events"])
+            if cycle_id:
+                items = [e for e in items if str(e.get("cycle_id") or "") == str(cycle_id)]
+        return RobotV2BacktestExecutionEventsResponse(
+            run_id=run_id, items=items, total=len(items),
+        )
+
+    async def get_narrative(
+        self,
+        run_id: int,
+        *,
+        user_id: int,
+        db: Session,
+    ) -> RobotV2BacktestNarrativeResponse:
+        row = fetch_db_run(db, run_id, user_id=user_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Backtest run not found")
+        items = list(row.get("narrative") or [])
+        if not items:
+            payload = row.get("result_payload") if isinstance(row.get("result_payload"), dict) else {}
+            items = list(payload.get("narrative") or [])
+        return RobotV2BacktestNarrativeResponse(
+            run_id=run_id, items=items, total=len(items),
+        )
+
+    async def get_price_window(
+        self,
+        run_id: int,
+        *,
+        user_id: int,
+        db: Session,
+        ticker: str,
+        around: datetime,
+        bars: int = 50,
+    ) -> RobotV2BacktestPriceWindowResponse:
+        row = fetch_db_run(db, run_id, user_id=user_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Backtest run not found")
+        win = fetch_price_window(
+            db,
+            config_snapshot=row.get("config_snapshot"),
+            ticker=ticker,
+            around=around,
+            bars=bars,
+        )
+        return RobotV2BacktestPriceWindowResponse(run_id=run_id, **win)
+
+    async def get_signals_page(
+        self,
+        run_id: int,
+        *,
+        user_id: int,
+        db: Session | None = None,
+        limit: int = 200,
+        offset: int = 0,
+        status_filter: str | None = None,
+        reject_reason: str | None = None,
+        ticker: str | None = None,
+        cycle_id: str | None = None,
+    ) -> RobotV2BacktestSignalsPageResponse:
+        signals: list[dict[str, Any]] = []
+        truncated_run = False
+        if db is not None:
+            row = fetch_db_run(db, run_id, user_id=user_id)
+            if row is None:
+                raise HTTPException(status_code=404, detail="Backtest run not found")
+            signals = list(row.get("signals") or [])
+            obs = row.get("observability") or {}
+            truncated_run = bool(obs.get("signals_truncated"))
+        else:
+            rec = await backtest_run_store.get(run_id, user_id=user_id)
+            if rec is None:
+                raise HTTPException(status_code=404, detail="Backtest run not found")
+            out = _record_to_status(rec)
+            signals = list(out.get("signals") or [])
+            obs = out.get("observability") or {}
+            truncated_run = bool(obs.get("signals_truncated"))
+
+        filtered = filter_signals(
+            signals,
+            status=status_filter,
+            reject_reason=reject_reason,
+            ticker=ticker,
+            cycle_id=cycle_id,
+        )
+        page, total = paginate_signals(filtered, limit=limit, offset=offset)
+        return RobotV2BacktestSignalsPageResponse(
+            items=page,
+            total=total,
+            truncated_run=truncated_run,
+            limit=max(1, min(int(limit), 1000)),
+            offset=max(0, int(offset)),
+        )
 
     async def list_runs(
         self, db: Session, *, user_id: int, robot_id: int | None = None, limit: int = 30,
@@ -265,7 +499,7 @@ class BacktestService:
             row = fetch_db_run(db, run_id, user_id=user_id)
             if row is None:
                 raise HTTPException(status_code=404, detail="Backtest run not found")
-            update_db_run_required(db, run_id, cancel_requested=True)
+            update_db_run_required(db, run_id, cancel_requested=True, partial_result=True)
             if rec is None:
                 rec = BacktestRunRecord(
                     run_id=run_id,
@@ -364,6 +598,7 @@ class BacktestService:
                     finished_at=finished,
                     progress_percent=100,
                     cancel_requested=True,
+                    partial_result=True,
                 )
                 return
             if not universe:
@@ -579,6 +814,7 @@ class BacktestService:
                     finished_at=finished,
                     progress_percent=100,
                     cancel_requested=True,
+                    partial_result=True,
                 )
                 return
 
@@ -598,12 +834,19 @@ class BacktestService:
                 "history_stats": {**(result.history_stats or {}), **universe_stats},
                 "daily_summary": result.daily_summary,
                 "funding_charges_total": result.funding_charges_total,
+                "fee_summary": result.fee_summary,
+                "narrative": result.narrative,
+                "execution_events": result.execution_events,
                 "broker_type": (
                     "bybit"
                     if config.core.instrument_type in ("perpetual", "coin_futures")
                     else "moex"
                 ),
                 "engine_version": "v2",
+                "observability": build_observability(
+                    result.signals,
+                    history_stats={**(result.history_stats or {}), **universe_stats},
+                ),
             }
             finished = datetime.now(timezone.utc)
             await backtest_run_store.update(
@@ -633,6 +876,8 @@ class BacktestService:
                 orders=result.orders,
                 portfolio_snapshots=result.portfolio_snapshots,
                 signals=result.signals,
+                universe_by_day=universe_by_day or result.universe_by_day,
+                execution_events=result.execution_events,
             )
             payload.update(risk_metrics)
             await backtest_run_store.update(run_id, result_payload=payload)

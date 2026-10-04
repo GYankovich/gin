@@ -424,6 +424,9 @@ def test_resolve_universe_fails_outside_session_without_fallback():
             session,
             "_fallback_universe_tickers",
             new=AsyncMock(return_value=[]),
+        ), patch.object(
+            session,
+            "_clear_session_desired_running",
         ), patch(
             "app.modules.robots_v2.engine.session.is_within_trading_session",
             return_value=False,
@@ -436,6 +439,51 @@ def test_resolve_universe_fails_outside_session_without_fallback():
     ok, _ = asyncio.run(_run())
     assert ok is False
     assert session.state == SessionState.ERROR
+
+
+def test_resolve_universe_gives_up_after_max_start_retries():
+    from app.modules.robots_v2.engine.session import UNIVERSE_MAX_START_RETRIES
+
+    cfg = _screener_config()
+    session = TradingSessionV2(
+        robot_id=1,
+        user_id=1,
+        token_id=1,
+        config=cfg,
+        virtual_capital=100_000,
+    )
+    session._parsed = TradingRobotConfigV4.model_validate(cfg)
+    resolve = AsyncMock(return_value=([], {}))
+
+    async def _run() -> tuple[bool, dict[str, str]]:
+        with patch.object(session, "_resolve_universe_once", new=resolve), patch.object(
+            session,
+            "_fallback_universe_tickers",
+            new=AsyncMock(return_value=[]),
+        ), patch.object(
+            session,
+            "_sleep_until_universe_retry",
+            new=AsyncMock(return_value=True),
+        ), patch.object(
+            session,
+            "_clear_session_desired_running",
+        ), patch.object(
+            session,
+            "_set_stage",
+            new=AsyncMock(),
+        ), patch(
+            "app.modules.robots_v2.engine.session.is_within_trading_session",
+            return_value=True,
+        ), patch(
+            "app.modules.robots_v2.engine.session.event_bus.publish",
+            new=AsyncMock(),
+        ):
+            return await session._resolve_universe_for_session()
+
+    ok, _ = asyncio.run(_run())
+    assert ok is False
+    assert session.state == SessionState.ERROR
+    assert resolve.await_count == UNIVERSE_MAX_START_RETRIES
 
 
 def test_commit_universe_syncs_figi_into_execution():
