@@ -27,7 +27,9 @@ from app.modules.robots_v2.backtest.funding import (
     instrument_category_for_config,
 )
 from app.modules.robots_v2.backtest.persist import (
+    _bound_robot_id_from_run,
     apply_signals_page_to_details,
+    attach_backtest_run_to_robot,
     build_cycle_inspector_bundle,
     build_observability,
     compare_runs,
@@ -41,6 +43,7 @@ from app.modules.robots_v2.backtest.persist import (
     load_universe_membership,
     paginate_signals,
     persist_result_payload,
+    trading_config_from_snapshot,
     update_db_run,
     update_db_run_required,
 )
@@ -55,10 +58,14 @@ from app.modules.robots_v2.backtest.schemas import (
     RobotV2BacktestNarrativeResponse,
     RobotV2BacktestPriceWindowResponse,
     RobotV2BacktestRequest,
+    RobotV2BacktestSaveAsRobotRequest,
+    RobotV2BacktestSaveAsRobotResponse,
     RobotV2BacktestSignalsPageResponse,
     RobotV2BacktestStatusResponse,
     RobotV2BacktestUniverseResponse,
 )
+from app.modules.robots_v2.schemas import RobotV2CreateRequest
+from app.modules.robots_v2.service import RobotsV2Service
 from app.modules.robots_v2.backtest.store import BacktestRunRecord, backtest_run_store
 from app.modules.robots_v2.backtest.worker_handler import JOB_TYPE_BACKTEST_RUN
 from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
@@ -171,11 +178,13 @@ class BacktestService:
         capital = float(request.initial_capital or config.risk.capital)
         config.risk.capital = capital
         snap = config.model_dump(by_alias=True)
+        # Lab-native: robotId omitted/null → orphan run (robot_id NULL in DB).
+        bind_robot_id = request.robot_id if request.robot_id and request.robot_id > 0 else None
 
         db_id = create_db_run(
             db,
             user_id=user_id,
-            robot_id=request.robot_id,
+            robot_id=bind_robot_id,
             requested_from=request.from_date,
             requested_to=request.to_date,
             initial_capital=capital,
@@ -185,6 +194,12 @@ class BacktestService:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Не удалось создать запись прогона в БД",
+            )
+        if bind_robot_id is None:
+            logger.info(
+                "event=backtest_run.started run_id=%s user_id=%s robot_id=null",
+                db_id,
+                user_id,
             )
 
         job_priority = (
@@ -197,7 +212,7 @@ class BacktestService:
             "user_id": int(user_id),
             "token_id": request.token_id,
             "priority": priority,
-            "robot_id": request.robot_id,
+            "robot_id": bind_robot_id,
         }
         job_id = enqueue_background_job(
             db,
@@ -218,7 +233,7 @@ class BacktestService:
         rec = BacktestRunRecord(
             run_id=int(db_id),
             user_id=user_id,
-            robot_id=request.robot_id,
+            robot_id=bind_robot_id,
             status="QUEUED",
             requested_from=request.from_date,
             requested_to=request.to_date,
@@ -491,6 +506,98 @@ class BacktestService:
         if base is None or other is None:
             raise HTTPException(status_code=404, detail="One or both backtest runs were not found")
         return RobotV2BacktestCompareResponse.model_validate(compare_runs(base, other))
+
+    def save_as_robot(
+        self,
+        db: Session,
+        *,
+        user_id: int,
+        run_id: int,
+        request: RobotV2BacktestSaveAsRobotRequest,
+    ) -> RobotV2BacktestSaveAsRobotResponse:
+        """SPEC-05 §6.5 — clone run config into robots_v2; optional attach; no session start."""
+        row = fetch_db_run(db, run_id, user_id=user_id)
+        if row is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backtest run not found")
+        run_status = str(row.get("status") or "").upper()
+        if run_status != "SUCCESS":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Only successful backtest runs can be saved as a robot",
+            )
+        snap_raw = row.get("config_snapshot")
+        try:
+            trading_config = trading_config_from_snapshot(
+                snap_raw if isinstance(snap_raw, dict) else None,
+            )
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid config snapshot on backtest run",
+            ) from None
+
+        robots = RobotsV2Service()
+        token_id = request.token_id
+        if token_id is None:
+            bound_robot = _bound_robot_id_from_run(row)
+            if bound_robot is not None:
+                try:
+                    src = robots.get_robot(db, user_id, bound_robot)
+                    if src.token_id:
+                        token_id = int(src.token_id)
+                except HTTPException:
+                    pass
+        if token_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="tokenId is required to create a trading robot",
+            )
+
+        if request.attach_run:
+            # Fail before insert if rebinding would conflict with an existing owner robot.
+            bound = _bound_robot_id_from_run(row)
+            if bound is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Run is already bound to another robot; disable attach or use an orphan run",
+                )
+
+        created = robots.create_or_update(
+            db,
+            user_id,
+            RobotV2CreateRequest(
+                name=request.name.strip(),
+                type=2,
+                tokenId=int(token_id),
+                config=trading_config,
+                status=2,
+            ),
+        )
+        new_robot_id = int(created.id)
+
+        if request.attach_run:
+            try:
+                attach_backtest_run_to_robot(
+                    db,
+                    run_id=run_id,
+                    user_id=user_id,
+                    robot_id=new_robot_id,
+                )
+            except RuntimeError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Could not attach run to the new robot",
+                ) from exc
+            db.commit()
+
+        logger.info(
+            "event=backtest_run.save_as_robot run_id=%s user_id=%s robot_id=%s attach=%s",
+            run_id,
+            user_id,
+            new_robot_id,
+            request.attach_run,
+        )
+        return RobotV2BacktestSaveAsRobotResponse(robotId=new_robot_id, runId=int(run_id))
 
     async def cancel(self, run_id: int, *, user_id: int, db: Session | None = None) -> BacktestRunRecord:
         self._cancel_flags[run_id] = True

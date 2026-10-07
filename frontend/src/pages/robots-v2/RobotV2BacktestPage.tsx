@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { useToast } from '@/components/ui/Toast'
 import { BacktestHistoryCard } from '@/pages/robots-v2/components/BacktestHistoryCard'
 import { BacktestResultsPanel } from '@/pages/robots-v2/components/BacktestResultsPanel'
+import { SaveAsRobotModal } from '@/pages/robots-v2/components/SaveAsRobotModal'
 import { RobotPageChrome } from '@/pages/robots-v2/components/RobotPageChrome'
 import { RobotStageCard } from '@/pages/robots-v2/components/RobotStageCard'
 import { RobotV2OptimizationCard } from '@/pages/robots-v2/components/RobotV2OptimizationCard'
@@ -88,6 +89,7 @@ const PRESETS: Array<{ id: string; label: string; days: number }> = [
 export default function RobotV2BacktestPage() {
     const { id } = useParams()
     const robotId = Number(id)
+    const navigate = useNavigate()
     const [searchParams, setSearchParams] = useSearchParams()
     const toast = useToast()
 
@@ -115,6 +117,7 @@ export default function RobotV2BacktestPage() {
         trades_total: number
     }>>([])
     const [selectedIds, setSelectedIds] = useState<number[]>([])
+    const [saveAsOpen, setSaveAsOpen] = useState(false)
     const [compare, setCompare] = useState<{
         metrics_base: Record<string, number | null>
         metrics_compare: Record<string, number | null>
@@ -199,6 +202,15 @@ export default function RobotV2BacktestPage() {
 
     const runStatus = String(status?.status || '').toUpperCase()
     const isActive = running || runStatus === 'RUNNING' || runStatus === 'QUEUED'
+    const runAlreadyBound = useMemo(() => {
+        const rid = Number(status?.robot_id ?? 0)
+        return Number.isFinite(rid) && rid > 0
+    }, [status?.robot_id])
+    const saveAsDefaultName = useMemo(() => {
+        if (runId == null) return robot?.name ? `Копия ${robot.name}` : 'Новый робот'
+        const hint = archetypeOf(robot) || 'стратегия'
+        return `Бэктест · ${hint} #${runId}`.slice(0, 50)
+    }, [runId, robot])
     const archetype = archetypeOf(robot)
     const scalperBlocked = archetype === 'scalper'
     const spanDays = useMemo(() => {
@@ -545,6 +557,14 @@ export default function RobotV2BacktestPage() {
                     </Card>
                 )}
 
+                {runStatus === 'SUCCESS' && runId != null && (
+                    <div className="robots-v2-results-actions">
+                        <Button variant="secondary" onClick={() => setSaveAsOpen(true)}>
+                            Сохранить как робота
+                        </Button>
+                    </div>
+                )}
+
                 {(runStatus === 'SUCCESS'
                     || (runStatus === 'CANCELLED' && !isActive && (
                         equityCurve.length > 0 || trades.length > 0 || runSignals.length > 0
@@ -602,6 +622,23 @@ export default function RobotV2BacktestPage() {
                     </Card>
                 )}
 
+                {runId != null && (
+                    <SaveAsRobotModal
+                        open={saveAsOpen}
+                        onClose={() => setSaveAsOpen(false)}
+                        runId={runId}
+                        defaultName={saveAsDefaultName}
+                        suggestedTokenId={tokenIdOf(robot)}
+                        runAlreadyBound={runAlreadyBound}
+                        onSaved={newRobotId => {
+                            setSaveAsOpen(false)
+                            toast.show('Робот создан из прогона', 'success')
+                            void loadHistory()
+                            navigate(`/robots/edit/${newRobotId}`)
+                        }}
+                    />
+                )}
+
                 {!loading && robot && Number.isFinite(robotId) && (
                     <RobotV2OptimizationCard
                         robotId={robotId}
@@ -625,6 +662,11 @@ export default function RobotV2BacktestPage() {
                     onToggleSelect={toggleSelect}
                     onOpenRun={id => void openHistoryRun(id)}
                     statusVariant={statusVariant}
+                    footer={(
+                        <p className="robots-v2-hint robots-v2-lab-escape">
+                            <Link to="/robots/backtest">Все прогоны в Lab</Link>
+                        </p>
+                    )}
                 />
             </div>
         </div>

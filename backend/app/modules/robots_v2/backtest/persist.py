@@ -36,6 +36,103 @@ def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, default=str)
 
 
+def _normalize_soft_bind_robot_id(robot_id: int | None) -> int | None:
+    """Soft bind id for DB; never persist fake ``0`` (host-only sentinel)."""
+    if robot_id is None:
+        return None
+    rid = int(robot_id)
+    if rid <= 0:
+        return None
+    return rid
+
+
+def _snapshot_for_run(config_snapshot: dict[str, Any], robot_id: int | None) -> dict[str, Any]:
+    """Build config_snapshot with engine_version=v2; set/clear v2RobotId for soft bind."""
+    snap = {**config_snapshot, "engine_version": "v2"}
+    if robot_id is not None:
+        snap["v2RobotId"] = robot_id
+    else:
+        snap.pop("v2RobotId", None)
+    return snap
+
+
+_SNAPSHOT_RUN_META_KEYS = frozenset({"engine_version", "v2RobotId"})
+
+
+def trading_config_from_snapshot(config_snapshot: dict[str, Any] | None) -> dict[str, Any]:
+    """Strip Lab/backtest metadata before persisting as robots_v2.config."""
+    if not isinstance(config_snapshot, dict):
+        raise ValueError("config_snapshot must be an object")
+    return {k: v for k, v in config_snapshot.items() if k not in _SNAPSHOT_RUN_META_KEYS}
+
+
+def _bound_robot_id_from_run(row: dict[str, Any]) -> int | None:
+    rid = row.get("robot_id")
+    if rid is not None:
+        try:
+            return int(rid)
+        except (TypeError, ValueError):
+            pass
+    snap = row.get("config_snapshot")
+    if isinstance(snap, dict):
+        v2 = snap.get("v2RobotId")
+        if v2 is not None and str(v2).strip():
+            try:
+                return int(v2)
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
+def attach_backtest_run_to_robot(
+    db: Session,
+    *,
+    run_id: int,
+    user_id: int,
+    robot_id: int,
+) -> None:
+    """Bind a completed run to a robot (robot_id + config_snapshot.v2RobotId). Caller commits."""
+    row = fetch_db_run(db, run_id, user_id=user_id)
+    if row is None:
+        raise ValueError("run not found")
+    bound = _bound_robot_id_from_run(row)
+    new_id = int(robot_id)
+    if bound is not None and bound != new_id:
+        raise RuntimeError("attach conflict")
+    snap_raw = row.get("config_snapshot")
+    trading = trading_config_from_snapshot(snap_raw if isinstance(snap_raw, dict) else None)
+    merged = _snapshot_for_run(trading, new_id)
+    db.execute(
+        text("""
+            UPDATE backtest_runs
+            SET robot_id = :robot_id,
+                config_snapshot = CAST(:config_snapshot AS jsonb)
+            WHERE id = :run_id AND user_id = :user_id
+        """),
+        {
+            "run_id": int(run_id),
+            "user_id": int(user_id),
+            "robot_id": new_id,
+            "config_snapshot": json.dumps(merged, ensure_ascii=False),
+        },
+    )
+
+
+def _config_label_from_snapshot(config: dict[str, Any] | None) -> str | None:
+    """Lab list hint: strategy archetype (or name) from snapshot."""
+    if not isinstance(config, dict):
+        return None
+    strategy = config.get("strategy")
+    if isinstance(strategy, dict):
+        archetype = strategy.get("archetype")
+        if archetype:
+            return str(archetype)
+    name = config.get("name")
+    if name:
+        return str(name)
+    return None
+
+
 def create_db_run(
     db: Session,
     *,
@@ -46,9 +143,11 @@ def create_db_run(
     initial_capital: float,
     config_snapshot: dict[str, Any],
 ) -> int | None:
-    snap = {**config_snapshot, "engine_version": "v2", "v2RobotId": robot_id}
+    """Insert a v2 backtest run. ``robot_id`` may be NULL (Lab orphan / unbound)."""
+    bind_id = _normalize_soft_bind_robot_id(robot_id)
+    snap = _snapshot_for_run(config_snapshot, bind_id)
     params = {
-        "robot_id": robot_id,
+        "robot_id": bind_id,
         "user_id": user_id,
         "requested_from": requested_from,
         "requested_to": requested_to,
@@ -69,12 +168,32 @@ def create_db_run(
          false, false, 'queued', 0)
         RETURNING id
     """
-    attempts: list[dict[str, Any]] = [params, {**params, "robot_id": None}]
+    # Prefer intended bind; legacy fallback nullifies only when a non-null insert fails
+    # (e.g. residual NOT NULL on older DBs before 0067).
+    attempts: list[dict[str, Any]] = [params]
+    if bind_id is not None:
+        orphan_snap = _snapshot_for_run(config_snapshot, None)
+        attempts.append({**params, "robot_id": None, "config_snapshot": _json(orphan_snap)})
+
+    if bind_id is None:
+        logger.info(
+            "event=backtest_run.create user_id=%s robot_id=null orphan=true",
+            user_id,
+        )
+    else:
+        logger.info(
+            "event=backtest_run.create user_id=%s robot_id=%s orphan=false",
+            user_id,
+            bind_id,
+        )
+
     for attempt in attempts:
         try:
             run_id = db.execute(text(sql), attempt).scalar()
             db.commit()
-            return int(run_id) if run_id is not None else None
+            if run_id is None:
+                return None
+            return int(run_id)
         except Exception as exc:
             logger.warning("v2 backtest DB create attempt failed: %s", exc)
             try:
@@ -82,6 +201,42 @@ def create_db_run(
             except Exception:
                 pass
     return None
+
+
+def nullify_robot_soft_bind(db: Session, *, robot_id: int) -> int:
+    """On robot delete: clear soft bind so runs become Lab orphans (SPEC-05 §5/§10).
+
+    Sets ``robot_id`` NULL and removes ``config_snapshot.v2RobotId`` when it matches.
+    Does not commit/rollback — caller owns the transaction.
+    Returns number of rows updated (best-effort; 0 on failure).
+    """
+    rid = int(robot_id)
+    try:
+        result = db.execute(
+            text("""
+                UPDATE backtest_runs
+                SET
+                    robot_id = NULL,
+                    config_snapshot = CASE
+                        WHEN (config_snapshot->>'v2RobotId') = CAST(:robot_id AS text)
+                        THEN config_snapshot - 'v2RobotId'
+                        ELSE config_snapshot
+                    END
+                WHERE robot_id = :robot_id
+                   OR (config_snapshot->>'v2RobotId') = CAST(:robot_id AS text)
+            """),
+            {"robot_id": rid},
+        )
+        n = int(result.rowcount or 0)
+        logger.info(
+            "event=backtest_run.nullify_bind robot_id=%s rows=%s",
+            rid,
+            n,
+        )
+        return n
+    except Exception as exc:
+        logger.warning("nullify_robot_soft_bind failed robot_id=%s: %s", rid, exc)
+        return 0
 
 
 def update_db_run(db: Session, run_id: int, **fields: Any) -> bool:
@@ -1340,9 +1495,13 @@ def _row_to_dict(row: Any) -> dict[str, Any]:
     execution_model = _parse_json(row.get("execution_model")) if "execution_model" in row else None
     payload = summary if isinstance(summary, dict) else {}
     partial = bool(row.get("partial_result")) if "partial_result" in row else None
+    robot_id_raw = row.get("robot_id")
+    robot_id = int(robot_id_raw) if robot_id_raw is not None else None
     out = {
         "run_id": int(row["id"]),
-        "robot_id": row.get("robot_id"),
+        "robot_id": robot_id,
+        "bound": robot_id is not None,
+        "config_label": _config_label_from_snapshot(config if isinstance(config, dict) else None),
         "status": row.get("status") or "UNKNOWN",
         "requested_from": row.get("requested_from"),
         "requested_to": row.get("requested_to"),

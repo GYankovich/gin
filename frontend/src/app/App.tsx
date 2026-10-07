@@ -28,6 +28,8 @@ const RobotV2LogsPage = lazy(() => import('@/pages/robots-v2/RobotV2LogsPage'))
 
 const RobotV2BacktestPage = lazy(() => import('@/pages/robots-v2/RobotV2BacktestPage'))
 
+const BacktestLabPage = lazy(() => import('@/pages/robots-v2/BacktestLabPage'))
+
 const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'))
 
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
@@ -103,6 +105,8 @@ export function App() {
                             <Route path="new" element={<RobotV2WizardPage />} />
 
                             <Route path="edit/:id" element={<RobotV2WizardPage />} />
+
+                            <Route path="backtest" element={<BacktestLabPage />} />
 
                             <Route path=":id/monitor" element={<RobotV2MonitorPage />} />
 

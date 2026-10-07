@@ -214,6 +214,9 @@ class RobotV2BacktestUniverseResponse(BaseModel):
 class RobotV2BacktestListItem(BaseModel):
     run_id: int
     robot_id: int | None = None
+    bound: bool = False
+    config_label: str | None = None
+    display_name: str | None = None
     status: str
     requested_from: datetime
     requested_to: datetime
@@ -252,3 +255,20 @@ class RobotV2BacktestCompareResponse(BaseModel):
     config_diff: dict[str, Any] = Field(default_factory=dict)
     base: dict[str, Any] = Field(default_factory=dict)
     compare: dict[str, Any] = Field(default_factory=dict)
+
+
+class RobotV2BacktestSaveAsRobotRequest(BaseModel):
+    """SPEC-05 §6.5 — create trading robot from a successful backtest run."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    name: str = Field(..., min_length=1, max_length=50)
+    token_id: int | None = Field(default=None, alias="tokenId", ge=1)
+    attach_run: bool = Field(default=True, alias="attachRun")
+
+
+class RobotV2BacktestSaveAsRobotResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    robot_id: int = Field(..., alias="robotId")
+    run_id: int = Field(..., alias="runId")

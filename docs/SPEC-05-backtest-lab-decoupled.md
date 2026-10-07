@@ -337,7 +337,7 @@ sequenceDiagram
 | Zone | Job | Data |
 |------|-----|------|
 | L0 Chrome | Title «Backtest Lab» / «Лаборатория бэктестов», link back to Флот | — |
-| L1 Launch | **P0 (Resolved):** simplified start from config snapshot / paste (JSON) + optional “from robot” / last-used snapshot; period; capital; Start. **Full visual wizard = P1** (with save-as-robot) | `POST /backtest` |
+| L1 Launch | Visual form (as robot wizard) · robot picker · previous run snapshot; period; capital; Start | `POST /backtest` |
 | L2 Runs table | All user runs: started, status, period, capital, KPIs, robot bind badge («Робот #N» / «Без робота») | `GET /backtest/runs` |
 | L3 Compare | Pick two rows → existing compare | `POST /backtest/compare` |
 | L4 Results | When run selected: **embed** `BacktestResultsPanel` (+ progress stage card) per UX-05 | detail + subresources |

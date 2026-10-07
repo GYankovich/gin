@@ -216,14 +216,19 @@ export const robotV2Service = {
         | { status: 200; data: RobotBacktestRunDetails }
         | { status: 202; data: RobotHistoryBacktestQueuedResponse }
     > {
-        const body = {
+        const body: Record<string, unknown> = {
             config: payload.config,
             from_date: payload.from_date,
             to_date: payload.to_date,
             initial_capital: payload.initial_capital,
-            robotId: payload.robotId ?? undefined,
-            tokenId: payload.tokenId ?? undefined,
             asyncExecution: payload.asyncExecution ?? true,
+        }
+        // Soft-bind: omit robotId for Lab-native (orphan) runs; never send fake 0.
+        if (payload.robotId != null && Number.isFinite(payload.robotId) && payload.robotId > 0) {
+            body.robotId = payload.robotId
+        }
+        if (payload.tokenId != null && Number.isFinite(payload.tokenId) && payload.tokenId > 0) {
+            body.tokenId = payload.tokenId
         }
         const res = await api.post<RobotBacktestRunDetails | RobotHistoryBacktestQueuedResponse>(
             '/v2/robots/backtest',
@@ -391,6 +396,10 @@ export const robotV2Service = {
         items: Array<{
             run_id: number
             robot_id?: number | null
+            /** Derived server-side when available; UI falls back to robot_id != null */
+            bound?: boolean | null
+            config_label?: string | null
+            display_name?: string | null
             status: string
             requested_from: string
             requested_to: string
@@ -399,6 +408,7 @@ export const robotV2Service = {
             initial_capital: number
             total_return_percent?: number | null
             max_drawdown_percent?: number | null
+            sharpe_ratio?: number | null
             final_equity?: number | null
             trades_total: number
             error_message?: string | null
@@ -406,9 +416,34 @@ export const robotV2Service = {
         total: number
     }> {
         const { data } = await api.get('/v2/robots/backtest/runs', {
-            params: { robot_id: params.robotId, limit: params.limit ?? 30 },
+            params: {
+                ...(params.robotId != null ? { robot_id: params.robotId } : {}),
+                limit: params.limit ?? 30,
+            },
         })
         return data
+    },
+
+    async saveBacktestRunAsRobot(
+        runId: number,
+        body: { name: string; tokenId: number; attachRun?: boolean },
+    ): Promise<{ robotId: number; runId: number }> {
+        const { data } = await api.post<{
+            robotId?: number
+            runId?: number
+            robot_id?: number
+            run_id?: number
+        }>(
+            `/v2/robots/backtest/runs/${runId}/save-as-robot`,
+            {
+                name: body.name,
+                tokenId: body.tokenId,
+                attachRun: body.attachRun ?? true,
+            },
+        )
+        const robotId = Number(data.robotId ?? data.robot_id)
+        const outRunId = Number(data.runId ?? data.run_id ?? runId)
+        return { robotId, runId: outRunId }
     },
 
     async compareBacktestRuns(baseRunId: number, compareRunId: number): Promise<{

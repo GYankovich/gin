@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faClipboardList, faRobot, faChevronDown } from '@fortawesome/free-solid-svg-icons'
+import { faChartLine, faClipboardList, faRobot, faChevronDown } from '@fortawesome/free-solid-svg-icons'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -191,48 +191,60 @@ export default function RobotsV2FleetPage() {
     )
 
     const heroActions = (
-        <DropdownMenu
-            open={createMenuOpen}
-            onOpenChange={setCreateMenuOpen}
-            placement="below"
-            portaled
-            className="dashboard-hero__create"
-        >
-            <DropdownMenu.Trigger asChild aria-label="Создать">
-                <Button type="button" variant="ghost" size="sm" className="dashboard-hero__cfg">
-                    <svg className="dashboard-icon dashboard-hero__cfg-plus" viewBox="0 0 24 24" aria-hidden>
-                        <path
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.7"
-                            strokeLinecap="round"
-                            d="M12 5v14M5 12h14"
+        <>
+            <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="dashboard-hero__cfg"
+                onClick={() => navigate('/robots/backtest')}
+            >
+                <FontAwesomeIcon icon={faChartLine} className="dashboard-icon" />
+                <span className="dashboard-hero__cfg-text">Бэктест</span>
+            </Button>
+            <DropdownMenu
+                open={createMenuOpen}
+                onOpenChange={setCreateMenuOpen}
+                placement="below"
+                portaled
+                className="dashboard-hero__create"
+            >
+                <DropdownMenu.Trigger asChild aria-label="Создать">
+                    <Button type="button" variant="ghost" size="sm" className="dashboard-hero__cfg">
+                        <svg className="dashboard-icon dashboard-hero__cfg-plus" viewBox="0 0 24 24" aria-hidden>
+                            <path
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.7"
+                                strokeLinecap="round"
+                                d="M12 5v14M5 12h14"
+                            />
+                        </svg>
+                        <span className="dashboard-hero__cfg-text">Создать</span>
+                        <FontAwesomeIcon
+                            icon={faChevronDown}
+                            className="dashboard-hero__create-chevron"
+                            aria-hidden
                         />
-                    </svg>
-                    <span className="dashboard-hero__cfg-text">Создать</span>
-                    <FontAwesomeIcon
-                        icon={faChevronDown}
-                        className="dashboard-hero__create-chevron"
-                        aria-hidden
-                    />
-                </Button>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Panel>
-                <DropdownMenu.Item
-                    icon={<FontAwesomeIcon icon={faClipboardList} />}
-                    onClick={() => navigate('/robots/new?kind=portfolio')}
-                >
-                    Опросник портфеля
-                </DropdownMenu.Item>
-                <DropdownMenu.Divider />
-                <DropdownMenu.Item
-                    icon={<FontAwesomeIcon icon={faRobot} />}
-                    onClick={() => navigate('/robots/new?kind=trading')}
-                >
-                    Торговый робот
-                </DropdownMenu.Item>
-            </DropdownMenu.Panel>
-        </DropdownMenu>
+                    </Button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Panel>
+                    <DropdownMenu.Item
+                        icon={<FontAwesomeIcon icon={faClipboardList} />}
+                        onClick={() => navigate('/robots/new?kind=portfolio')}
+                    >
+                        Опросник портфеля
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Divider />
+                    <DropdownMenu.Item
+                        icon={<FontAwesomeIcon icon={faRobot} />}
+                        onClick={() => navigate('/robots/new?kind=trading')}
+                    >
+                        Торговый робот
+                    </DropdownMenu.Item>
+                </DropdownMenu.Panel>
+            </DropdownMenu>
+        </>
     )
 
     const hardStopMessage =

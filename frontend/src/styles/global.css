@@ -4094,7 +4094,9 @@ select:focus:not(:focus-visible) {
     -webkit-backdrop-filter: none;
     box-shadow: none;
 }
-[data-page='dashboard'] .dashboard-panel-title, [data-page='portfolio'] .dashboard-panel-title {
+[data-page='dashboard'] .dashboard-panel-title,
+[data-page='portfolio'] .dashboard-panel-title,
+[data-page='robots'] .dashboard-panel-title {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -4104,7 +4106,9 @@ select:focus:not(:focus-visible) {
     text-transform: uppercase;
     color: var(--text-secondary);
 }
-[data-page='dashboard'] .dashboard-panel-title .dashboard-icon, [data-page='portfolio'] .dashboard-panel-title .dashboard-icon {
+[data-page='dashboard'] .dashboard-panel-title .dashboard-icon,
+[data-page='portfolio'] .dashboard-panel-title .dashboard-icon,
+[data-page='robots'] .dashboard-panel-title .dashboard-icon {
     color: var(--text-muted);
 }
 [data-page='dashboard'] .dashboard-summary-metrics, [data-page='portfolio'] .dashboard-summary-metrics {
@@ -4289,6 +4293,8 @@ select:focus:not(:focus-visible) {
 [data-page='portfolio'] .dashboard-assets-card:hover,
 [data-page='portfolio'] .portfolio-history-zone.card,
 [data-page='portfolio'] .portfolio-history-zone.card:hover,
+[data-page='robots'] .portfolio-history-zone.card,
+[data-page='robots'] .portfolio-history-zone.card:hover,
 [data-page='portfolio'] .dashboard-assets-collapse.collapsible-section,
 [data-page='portfolio'] .dashboard-assets-collapse.collapsible-section--open,
 [data-page='portfolio'] .portfolio-composition-collapse.collapsible-section,
@@ -4311,6 +4317,8 @@ select:focus:not(:focus-visible) {
 [data-page='robots'] .robots-v2-fleet-card:hover,
 [data-page='robots'] .robots-v2-fleet-collapse.collapsible-section,
 [data-page='robots'] .robots-v2-fleet-collapse.collapsible-section--open,
+[data-page='robots'] .dashboard-assets-collapse.collapsible-section,
+[data-page='robots'] .dashboard-assets-collapse.collapsible-section--open,
 [data-page='settings'] .dashboard-account-card,
 [data-page='settings'] .dashboard-account-card:hover,
 [data-page='settings'] .dashboard-assets-card,
@@ -4358,6 +4366,9 @@ select:focus:not(:focus-visible) {
 [data-page='robots'] .robots-v2-fleet-collapse .collapsible-section__toggle,
 [data-page='robots'] .robots-v2-fleet-collapse .collapsible-section__toggle[aria-expanded='false'],
 [data-page='robots'] .robots-v2-fleet-collapse .collapsible-section__toggle[aria-expanded='true'],
+[data-page='robots'] .dashboard-assets-collapse .collapsible-section__toggle,
+[data-page='robots'] .dashboard-assets-collapse .collapsible-section__toggle[aria-expanded='false'],
+[data-page='robots'] .dashboard-assets-collapse .collapsible-section__toggle[aria-expanded='true'],
 [data-page='robots'] .robots-v2-fleet-collapse.collapsible-section:not(.collapsible-section--open) .collapsible-section__toggle,
 [data-page='robots'] .robots-v2-fleet-collapse.collapsible-section--open .collapsible-section__toggle,
 [data-page='settings'] .portfolio-collapse .collapsible-section__toggle,
@@ -4407,6 +4418,8 @@ select:focus:not(:focus-visible) {
 [data-theme='light'] [data-page='portfolio'] .dashboard-assets-card:hover,
 [data-theme='light'] [data-page='portfolio'] .portfolio-history-zone.card,
 [data-theme='light'] [data-page='portfolio'] .portfolio-history-zone.card:hover,
+[data-theme='light'] [data-page='robots'] .portfolio-history-zone.card,
+[data-theme='light'] [data-page='robots'] .portfolio-history-zone.card:hover,
 [data-theme='light'] [data-page='portfolio'] .dashboard-assets-collapse.collapsible-section,
 [data-theme='light'] [data-page='portfolio'] .dashboard-assets-collapse.collapsible-section--open,
 [data-theme='light'] [data-page='portfolio'] .portfolio-composition-collapse.collapsible-section,
@@ -11695,6 +11708,133 @@ input.gin-select__trigger:focus {
     flex-direction: column;
     gap: var(--space-3);
     width: 100%;
+}
+
+/* Backtest Lab — portfolio-like vertical stack (history-zone chrome) */
+.robots-v2-lab-zone.portfolio-history-zone.card {
+    margin: 0;
+}
+
+.robots-v2-lab-zone__panels {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding-top: var(--space-3);
+}
+
+.robots-v2-lab-period-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-2);
+}
+
+.robots-v2-lab-capital {
+    min-width: 120px;
+    margin: 0;
+}
+
+.robots-v2-lab-capital span {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+/* Nested Lab config collapses: dashboard toggle chrome, lighter shell */
+[data-page='robots'] .robots-v2-lab-zone .dashboard-assets-collapse.collapsible-section,
+[data-page='robots'] .robots-v2-lab-zone .dashboard-assets-collapse.collapsible-section--open {
+    background: transparent;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md, 8px);
+    box-shadow: none;
+    overflow: hidden;
+}
+
+[data-page='robots'] .robots-v2-lab-zone .dashboard-assets-collapse .collapsible-section__toggle {
+    padding: var(--space-3) var(--space-4);
+}
+
+[data-page='robots'] .robots-v2-lab-zone .dashboard-assets-collapse.collapsible-section--open .collapsible-section__body {
+    padding: 0 var(--space-4) var(--space-4);
+}
+
+.robots-v2-lab-config {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.robots-v2-lab-config .robots-v2-archetype-grid--lab {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--space-2);
+}
+
+.robots-v2-lab-config--compact .robots-v2-archetype-grid--lab {
+    grid-template-columns: 1fr 1fr;
+}
+
+.robots-v2-lab-history-source {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.robots-v2-lab-launch-focus:focus {
+    outline: none;
+}
+
+.robots-v2-lab-launch-focus:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--neon-cyan, var(--accent, #4fd1c5)) 55%, transparent);
+    outline-offset: 2px;
+    border-radius: var(--radius-md, 8px);
+}
+
+.robots-v2-lab-bind-btn {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+}
+
+.robots-v2-lab-bind-btn:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--neon-cyan, var(--accent, #4fd1c5)) 55%, transparent);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.robots-v2-lab-empty-cta {
+    margin-top: var(--space-2);
+}
+
+.robots-v2-results-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--space-3);
+}
+
+.robots-v2-lab-escape {
+    margin-top: var(--space-3);
+}
+
+.robots-v2-lab-escape a {
+    color: var(--text-secondary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.robots-v2-lab-escape a:hover {
+    color: var(--text-primary);
+}
+
+.robots-v2-lab-select-hint {
+    margin: 0;
+}
+
+.robots-v2-lab-compare .robots-v2-form {
+    margin-top: var(--space-2);
 }
 
 .robots-v2-fleet-collapse.collapsible-section {

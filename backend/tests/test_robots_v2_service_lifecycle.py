@@ -43,7 +43,10 @@ def test_delete_robot_stops_active_session():
 
     with patch.object(service, "get_robot", return_value=robot), patch(
         "app.modules.robots_v2.engine.session_manager.session_manager"
-    ) as sm:
+    ) as sm, patch(
+        "app.modules.robots_v2.backtest.persist.nullify_robot_soft_bind",
+        return_value=0,
+    ) as nullify:
         sm.get.return_value = mock_session
         sm.stop = AsyncMock()
         db.execute.return_value = MagicMock(fetchone=MagicMock(return_value=MagicMock()))
@@ -57,6 +60,7 @@ def test_delete_robot_stops_active_session():
     soft_delete_call = db.execute.call_args
     assert "UPDATE" in str(soft_delete_call.args[0])
     assert "deletedAt" in str(soft_delete_call.kwargs.get("metadata") or soft_delete_call.args[1].get("metadata", ""))
+    nullify.assert_called_once_with(db, robot_id=42)
 
 
 def test_delete_robot_skips_stop_when_no_session():
@@ -66,7 +70,10 @@ def test_delete_robot_skips_stop_when_no_session():
 
     with patch.object(service, "get_robot", return_value=robot), patch(
         "app.modules.robots_v2.engine.session_manager.session_manager"
-    ) as sm:
+    ) as sm, patch(
+        "app.modules.robots_v2.backtest.persist.nullify_robot_soft_bind",
+        return_value=0,
+    ):
         sm.get.return_value = None
         sm.stop = AsyncMock()
         db.execute.return_value = MagicMock(fetchone=MagicMock(return_value=MagicMock()))

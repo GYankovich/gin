@@ -1,7 +1,8 @@
 # UX-07: Backtest Lab hub (decoupled runs)
 
 SPEC: docs/SPEC-05-backtest-lab-decoupled.md  
-Chosen option: **B** — split Lab (launch ~38% + runs table ~62%; results full width below)  
+Chosen option: **C** — vertical stack like Portfolio (launch zone full width → runs table → results)  
+Previous Option B (38/62 split) retired: visual form needs full width.  
 Surface: `/robots/backtest` (+ `?run={runId}`); robot tab `/robots/:id/backtest` stays filtered  
 Results: **reuse** [UX-05](UX-05-glass-box-backtest-results.md) / `BacktestResultsPanel` — no glass-box redesign  
 Viewport: desktop-first **≥1440**; mobile stacks L1 → L2 → L4 (must not break)
@@ -13,38 +14,34 @@ Viewport: desktop-first **≥1440**; mobile stacks L1 → L2 → L4 (must not br
 | Lab route | `/robots/backtest` under robots layout |
 | Selected run | Same page `?run={runId}` (alias `?runId=` OK if already wired) |
 | Robot delete | Nullify soft bind; keep run rows as orphans |
-| P0 config authoring | Robot picker · last-used snapshot · advanced JSON (full wizard = P1) |
+| P0 config authoring | **Настроить** (visual wizard fields) · **Робот** · **Прошлый прогон** |
 | Glass-box | UX-05 composition in L4 |
 
 ---
 
 ## Layout (zones)
 
-### Desktop (≥1440) — Option B
+### Desktop (≥1440) — Option C (portfolio stack)
 
 ```text
 +-- L0 Chrome ----------------------------------------------------------+
-| «Лаборатория бэктестов» · ← Флот · (optional cancel when active run)  |
-+-------------------------------+---------------------------------------+
-| L1 Launch card (~38%)         | L2 Runs table (~62%)                  |
-| Источник конфига              | Все прогоны пользователя              |
-| [Робот ▾] [Последний] [JSON]  | # · статус · период · капитал · KPIs  |
-| Период · Капитал              | · bind badge · compare checkboxes     |
-| [Запустить бэктест]           | empty → CTA pointing at L1            |
-| inline 422 / 503 errors       | skeleton / error+retry                |
-+-------------------------------+---------------------------------------+
-| L3 Compare strip (only when exactly 2 runs selected)                  |
-|    KPI tiles + config_diff summary · [Сравнить] already applied       |
+| ЛАБОРАТОРИЯ · ← Флот · [Запустить] / [Отменить]                       |
 +-----------------------------------------------------------------------+
-| L4 when ?run= set                                                     |
-|    RobotStageCard (queued / running / cancelling)                     |
-|    BacktestResultsPanel per UX-05 (A–I + drawer F; no Lab-local J)    |
+| L1 Launch zone (portfolio-history-zone chrome, full width)            |
+|  toolbar: title · [Настроить|Робот|Прошлый] · period · capital        |
+|  panels: LabConfigForm collapses / robot select / past run            |
+|  CTA: Запустить бэктест                                               |
++-----------------------------------------------------------------------+
+| L2 Runs table (dashboard-assets-card, full width)                     |
+|  # · статус · период · капитал · KPIs · bind · compare                |
++-----------------------------------------------------------------------+
+| L3 Compare strip (when 2 selected)                                    |
++-----------------------------------------------------------------------+
+| L4 Results (when ?run=) — StageCard + BacktestResultsPanel            |
 +-----------------------------------------------------------------------+
 ```
 
-Split row uses existing `dashboard-layout` density; L1/L2 sit as sibling cards in one horizontal band (~38/62). L3 and L4 are full-width below.
-
-When `?run=` is absent: L4 omitted (or a one-line hint under L2 — see Copy). Launch + table remain the first viewport.
+Same vertical rhythm as Portfolio: toolbar zone → table/history → detail.
 
 ### Mobile (must not break) `[R-10]`
 
@@ -78,10 +75,10 @@ Top-level Navbar change is **optional P0** — Fleet action is enough for first 
 | L0 | Page chrome | Prefer `RobotPageChrome`-like hero **without** robot id tabs, **or** fleet-style `PageHero` under `RobotsV2Layout` — title «Лаборатория бэктестов», eyebrow e.g. `BACKTEST LAB`, back/link to Флот |
 | L0 actions | Cancel active Lab run | `Button` danger sm — same semantics as robot backtest cancel when selected/active run is queued/running |
 | L1 | Launch card | `Card` `portfolio-toolbar` / `robots-v2-backtest-toolbar` patterns from `RobotV2BacktestPage` |
-| L1 source | Config source control | `SegmentedControl` or compact radio row: «Робот» · «Последний» · «JSON» |
-| L1 robot | Soft-bind picker | `Select` of user’s robots (optional); omitting robot ⇒ unbound Lab run (`robotId` omitted) |
-| L1 last | Last-used snapshot | Button/chip «Последний конфиг» — hydrate from last Lab start in `sessionStorage` / last completed run’s `config_snapshot` (client-side); if none → disabled + hint |
-| L1 JSON | Advanced paste | `CollapsibleSection` + textarea (monospace); validate JSON client-side before POST |
+| L1 source | Config source control | `SegmentedControl`: «Настроить» · «Робот» · «Прошлый» |
+| L1 visual | LabConfigForm | Same trading fields as robot wizard (strategy / universe / risk) via `wizardDraft` |
+| L1 robot | Soft-bind picker | `Select` of user’s trading robots — config + bind from robot |
+| L1 history | Previous run | `Select` of past runs → hydrate `config_snapshot` |
 | L1 period | Presets + range | `SegmentedControl` presets + `DateRangePicker` `variant="fields"` (same as robot backtest toolbar) |
 | L1 capital | Number field | Existing `robots-v2-field` / `robots-v2-input` |
 | L1 CTA | Start | `Button` «Запустить бэктест» → `POST …/backtest` without `robotId` unless picker set |
@@ -197,15 +194,14 @@ Realtime WS: **none** for Lab P0 (poll only) — same as robot backtest.
 | Element | Copy |
 |---------|------|
 | Card title | Новый прогон |
-| Source modes | Робот · Последний · JSON |
-| Robot select placeholder | Без робота (Lab) |
-| Last config | Последний конфиг |
-| Last empty | Нет сохранённого конфига — выберите робота или вставьте JSON |
-| JSON section | Конфиг (JSON) |
+| Source modes | Настроить · Робот · Прошлый |
+| Robot select placeholder | Выберите робота… |
+| History select | Выберите прогон… |
+| History empty | Пока нет завершённых прогонов — сначала запустите бэктест в режиме «Настроить» |
 | Period aria | Период бэктеста |
 | Capital | Капитал |
 | CTA | Запустить бэктест |
-| Soft-bind hint | Опционально: привязать к роботу для истории на его вкладке |
+| Soft-bind hint | Конфиг и soft-bind берутся с выбранного робота |
 | 422 generic | Проверьте конфиг и период |
 | 503 generic | Очередь занята — повторите позже |
 
@@ -238,11 +234,9 @@ Glass-box honesty / reject / inspector strings: **unchanged** from UX-05.
 ## Out of scope for UI engineer
 
 - Redesigning UX-05 glass-box zones, DecisionInspectorDrawer, scrubber, narrative, etc.
-- P1 save-as-robot modal implementation until product unlocks P1 (inventory above only).
 - P2 filters, tags, dual glass-box compare.
 - New HTTP paths / Lab API aliases (use existing `POST/GET …/backtest` contracts from SPEC-05 §6).
 - Billing, auth, Navbar-only Lab (Fleet entry is sufficient).
-- Full visual config wizard on Lab (P1 with save-as-robot).
 - Parameter-grid / optimizer Lab.
 
 ---

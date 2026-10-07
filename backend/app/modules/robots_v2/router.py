@@ -28,6 +28,8 @@ from app.modules.robots_v2.backtest.schemas import (
     RobotV2BacktestNarrativeResponse,
     RobotV2BacktestPriceWindowResponse,
     RobotV2BacktestRequest,
+    RobotV2BacktestSaveAsRobotRequest,
+    RobotV2BacktestSaveAsRobotResponse,
     RobotV2BacktestSignalsPageResponse,
     RobotV2BacktestStatusResponse,
     RobotV2BacktestUniverseResponse,
@@ -379,6 +381,27 @@ async def cancel_v2_backtest(
 ):
     rec = await backtest_service.cancel(run_id, user_id=current_user.id, db=db)
     return {"run_id": rec.run_id, "cancel_requested": True, "status": rec.status}
+
+
+@router.post(
+    "/backtest/runs/{run_id}/save-as-robot",
+    response_model=RobotV2BacktestSaveAsRobotResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def save_v2_backtest_as_robot(
+    run_id: int,
+    request: RobotV2BacktestSaveAsRobotRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_v2_enabled),
+):
+    """Create a trading robot from a successful backtest run (SPEC-05 §6.5)."""
+    return backtest_service.save_as_robot(
+        db,
+        user_id=current_user.id,
+        run_id=run_id,
+        request=request,
+    )
 
 
 @router.post("/change_status", response_model=schemas.RobotV2Response)

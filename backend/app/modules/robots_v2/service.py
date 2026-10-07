@@ -265,6 +265,7 @@ class RobotsV2Service:
         return created
 
     async def delete_robot(self, db: Session, user_id: int, robot_id: int) -> dict[str, Any]:
+        from app.modules.robots_v2.backtest.persist import nullify_robot_soft_bind
         from app.modules.robots_v2.engine.session_manager import session_manager
 
         robot = self.get_robot(db, user_id, robot_id)
@@ -288,6 +289,8 @@ class RobotsV2Service:
         ).fetchone()
         if row is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Robot not found")
+        # SPEC-05: keep run history as Lab orphans; nullify soft bind + v2RobotId.
+        nullify_robot_soft_bind(db, robot_id=robot_id)
         db.commit()
         return {"id": robot_id, "deleted": True}
 
