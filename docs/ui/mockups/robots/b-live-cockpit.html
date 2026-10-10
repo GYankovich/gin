@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Option B · Live cockpit · GIN skin</title>
+  <link rel="stylesheet" href="b-gin-skin.css" />
+</head>
+<body>
+  <div class="opt-bar">
+    <a class="opt-bar__back" href="index.html">← Все опции</a>
+    <span class="opt-bar__name">Option B — Live cockpit</span>
+    <span class="opt-bar__badge">выбрано · GIN skin</span>
+    <div class="screen-tabs" id="tabs">
+      <button type="button" data-screen="fleet" class="is-active">Флот</button>
+      <button type="button" data-screen="monitor">Лайв ★</button>
+      <button type="button" data-screen="logs">Audit</button>
+      <button type="button" data-screen="backtest">Бэктест + Lab</button>
+      <button type="button" data-screen="wizard">Мастер</button>
+    </div>
+  </div>
+  <p class="opt-caption">
+    <strong>Выбрано B.</strong> Зоны кокпита сохранены; визуал натянут на robots/portfolio chrome:
+    <span class="mono">dashboard-hero--node</span>, <span class="mono">StatTile</span>,
+    <span class="mono">dashboard-totals/assets-card</span>, cyan primary / amber ghost-sm / semantic up-down.
+  </p>
+
+  <div class="frame-wrap">
+    <div class="frame">
+      <div class="app-nav">
+        <span class="app-nav__brand">GIN</span>
+        <div class="app-nav__links">
+          <span>Дашборд</span><span>Портфель</span><span class="is-on">Роботы</span><span>Аналитика</span>
+        </div>
+        <span class="muted mono" style="margin-left:auto">стрим · ok</span>
+      </div>
+
+      <!-- FLEET -->
+      <div class="screen is-active page" id="screen-fleet" data-page="robots" data-robots-view="fleet">
+        <header class="dashboard-hero dashboard-hero--node">
+          <div class="dashboard-hero__content">
+            <div class="dashboard-hero__copy">
+              <p class="dashboard-hero__eyebrow">ROBOT COMMAND</p>
+              <h1 class="dashboard-hero__title">ФЛОТ</h1>
+              <p class="dashboard-hero__sub">Командный центр · фильтры · плотная таблица</p>
+            </div>
+            <div class="dashboard-hero__actions">
+              <div class="portfolio-period-control" aria-label="Фильтр">
+                <span class="is-on">Все</span><span>В работе</span><span>Ошибки</span><span>Paper</span><span>Live</span>
+              </div>
+              <button type="button" class="dashboard-hero__cfg">Лаборатория</button>
+              <button type="button" class="btn btn--primary btn--sm">+ Создать</button>
+            </div>
+          </div>
+        </header>
+
+        <div class="dashboard-layout">
+          <section class="dashboard-totals-card">
+            <div class="dashboard-totals-card__head">
+              <h3 class="dashboard-panel-title">Сводка флота</h3>
+              <span class="dim mono">обновлено 12:31</span>
+            </div>
+            <div class="portfolio-stats-grid robots-v2-cockpit-kpis">
+              <div class="portfolio-stat-tile">
+                <div class="portfolio-stat-tile__label">В работе</div>
+                <div class="portfolio-stat-tile__value robots-v2-pnl--up">2</div>
+                <div class="portfolio-stat-tile__hint">#41 #33</div>
+              </div>
+              <div class="portfolio-stat-tile">
+                <div class="portfolio-stat-tile__label">Ошибки</div>
+                <div class="portfolio-stat-tile__value robots-v2-pnl--down">1</div>
+                <div class="portfolio-stat-tile__hint">#38 risk halt</div>
+              </div>
+              <div class="portfolio-stat-tile">
+                <div class="portfolio-stat-tile__label">Δ дня флота</div>
+                <div class="portfolio-stat-tile__value robots-v2-pnl--up">+18 420 ₽</div>
+              </div>
+              <div class="portfolio-stat-tile">
+                <div class="portfolio-stat-tile__label">Экспозиция</div>
+                <div class="portfolio-stat-tile__value">612k</div>
+                <div class="portfolio-stat-tile__hint">3 поз. · 2 робота</div>
+              </div>
+              <div class="portfolio-stat-tile">
+                <div class="portfolio-stat-tile__label">Ожидают</div>
+                <div class="portfolio-stat-tile__value">0</div>
+              </div>
+              <div class="portfolio-stat-tile">
+                <div class="portfolio-stat-tile__label">Опросники</div>
+                <div class="portfolio-stat-tile__value">1 on</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="dashboard-assets-card" style="padding:0;overflow:hidden">
+            <div class="dashboard-assets-card__head" style="padding:var(--space-3) var(--space-4) 0">
+              <h3 class="dashboard-panel-title">Торговые роботы</h3>
+              <span class="badge badge--neutral">4</span>
+            </div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th></th><th>Робот</th><th>Режим</th><th>Архетип</th><th>Сессия</th>
+                  <th>Δ дня</th><th>Equity</th><th>Поз.</th><th>Активность</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="row-selected">
+                  <td><span class="status-dot status-dot--up"></span></td>
+                  <td><strong>Momentum MOEX</strong> <span class="dim mono">#41</span></td>
+                  <td><span class="badge badge--cyan">live</span></td>
+                  <td class="mono dim">trend</td>
+                  <td><span class="badge badge--up">В работе</span></td>
+                  <td class="robots-v2-pnl--up mono">+12 800</td>
+                  <td class="mono">1 024 510</td>
+                  <td class="mono">3</td>
+                  <td class="dim">цикл 128 · 4с</td>
+                  <td><button type="button" class="btn btn--secondary btn--sm">Пауза</button></td>
+                </tr>
+                <tr>
+                  <td><span class="status-dot status-dot--up"></span></td>
+                  <td><strong>Index satellite</strong> <span class="dim mono">#33</span></td>
+                  <td><span class="badge badge--neutral">paper</span></td>
+                  <td class="mono dim">index_rotate</td>
+                  <td><span class="badge badge--up">В работе</span></td>
+                  <td class="robots-v2-pnl--up mono">+7 760</td>
+                  <td class="mono">108 200</td>
+                  <td class="mono">4</td>
+                  <td class="dim">цикл 44</td>
+                  <td><button type="button" class="btn btn--secondary btn--sm">Пауза</button></td>
+                </tr>
+                <tr>
+                  <td><span class="status-dot status-dot--down"></span></td>
+                  <td><strong>MeanRev Bluechips</strong> <span class="dim mono">#38</span></td>
+                  <td><span class="badge badge--neutral">paper</span></td>
+                  <td class="mono dim">mean_reversion</td>
+                  <td><span class="badge badge--down">Ошибка</span></td>
+                  <td class="robots-v2-pnl--down mono">−2 140</td>
+                  <td class="mono">98 410</td>
+                  <td class="mono">0</td>
+                  <td class="robots-v2-pnl--down">risk_halt</td>
+                  <td><button type="button" class="btn btn--primary btn--sm">Открыть</button></td>
+                </tr>
+                <tr>
+                  <td><span class="status-dot"></span></td>
+                  <td><strong>Scalper test</strong> <span class="dim mono">#29</span></td>
+                  <td><span class="badge badge--neutral">paper</span></td>
+                  <td class="mono dim">scalper</td>
+                  <td><span class="badge badge--neutral">Выключен</span></td>
+                  <td class="dim mono">—</td>
+                  <td class="dim mono">—</td>
+                  <td class="mono">0</td>
+                  <td class="dim">нет запусков</td>
+                  <td><button type="button" class="btn btn--primary btn--sm">Запуск</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+          <div class="collapse-head">Опросники портфеля · 1</div>
+          <div class="callout">Клик по строке → Лайв. Примитивы: PageHero node · StatTile · DataTable · Badge · Button.</div>
+        </div>
+      </div>
+
+      <!-- MONITOR -->
+      <div class="screen page" id="screen-monitor" data-page="robots">
+        <header class="dashboard-hero dashboard-hero--node">
+          <div class="dashboard-hero__content">
+            <div class="dashboard-hero__copy">
+              <p class="dashboard-hero__eyebrow">LIVE COCKPIT</p>
+              <h1 class="dashboard-hero__title">MOMENTUM MOEX</h1>
+              <p class="dashboard-hero__sub robots-v2-hero-sub">
+                Монитор · сессия
+                <span class="badge badge--up">В работе</span>
+                <span class="badge badge--cyan">стрим</span>
+                <span class="muted"> · live · trend · цикл 128</span>
+              </p>
+            </div>
+            <div class="dashboard-hero__actions">
+              <button type="button" class="dashboard-hero__cfg">Флот</button>
+              <button type="button" class="dashboard-hero__cfg robots-v2-chrome-nav--active">Лайв</button>
+              <button type="button" class="dashboard-hero__cfg">Правка</button>
+              <button type="button" class="dashboard-hero__cfg">Audit</button>
+              <button type="button" class="dashboard-hero__cfg">Бэктест</button>
+              <button type="button" class="btn btn--secondary btn--sm">Мягкая</button>
+              <button type="button" class="btn btn--danger btn--sm">Жёсткая</button>
+            </div>
+          </div>
+        </header>
+
+        <div class="dashboard-layout">
+          <div class="robots-v2-cockpit">
+            <section class="dashboard-totals-card robots-v2-cockpit__kpi">
+              <div class="portfolio-stats-grid robots-v2-cockpit-kpis">
+                <div class="portfolio-stat-tile">
+                  <div class="portfolio-stat-tile__label">Δ дня</div>
+                  <div class="portfolio-stat-tile__value robots-v2-pnl--up">+12 800</div>
+                  <div class="portfolio-stat-tile__hint">6 сделок</div>
+                </div>
+                <div class="portfolio-stat-tile">
+                  <div class="portfolio-stat-tile__label">Equity</div>
+                  <div class="portfolio-stat-tile__value">1 024 510</div>
+                  <div class="portfolio-stat-tile__hint">сессия · 4с</div>
+                </div>
+                <div class="portfolio-stat-tile">
+                  <div class="portfolio-stat-tile__label">Cash</div>
+                  <div class="portfolio-stat-tile__value">412 000</div>
+                </div>
+                <div class="portfolio-stat-tile">
+                  <div class="portfolio-stat-tile__label">Цикл</div>
+                  <div class="portfolio-stat-tile__value">128</div>
+                </div>
+                <div class="portfolio-stat-tile">
+                  <div class="portfolio-stat-tile__label">Позиции</div>
+                  <div class="portfolio-stat-tile__value">3</div>
+                </div>
+                <div class="portfolio-stat-tile">
+                  <div class="portfolio-stat-tile__label">Заявки</div>
+                  <div class="portfolio-stat-tile__value warn">1 open</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="dashboard-totals-card robots-v2-cockpit__stage">
+              <div class="dashboard-totals-card__head">
+                <h3 class="dashboard-panel-title">Этап</h3>
+                <span class="badge badge--cyan">скан</span>
+              </div>
+              <p style="margin:0 0 4px;font-weight:650">Скан вселенной</p>
+              <div class="robots-v2-stage-bar"><i style="width:62%"></i></div>
+              <p class="mono dim" style="margin:0;font-size:11px">62%</p>
+              <p class="muted" style="margin:8px 0 0;font-size:11px">триггер: schedule</p>
+              <p class="muted" style="margin:4px 0 0;font-size:11px">detail: 48/48</p>
+              <hr style="border:0;border-top:1px solid var(--border-subtle);margin:12px 0" />
+              <p class="dim" style="margin:0;font-size:10px;letter-spacing:0.08em">СЧЁТ БРОКЕРА</p>
+              <p class="muted" style="margin:4px 0 0;font-size:11px">баланс сессии · UX-06 footnote</p>
+            </section>
+
+            <section class="dashboard-assets-card robots-v2-cockpit__chart">
+              <div class="dashboard-assets-card__head">
+                <h3 class="dashboard-panel-title">Equity сессии</h3>
+                <span class="mono dim">1 024 510</span>
+              </div>
+              <div class="chart-fake">
+                <svg viewBox="0 0 700 160" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#00ffaa" stop-opacity="0.35"/>
+                      <stop offset="100%" stop-color="#00ffaa" stop-opacity="0"/>
+                    </linearGradient>
+                  </defs>
+                  <polygon fill="url(#g)" points="0,120 70,112 140,118 210,95 280,100 350,72 420,78 490,52 560,58 630,42 700,38 700,160 0,160" />
+                  <polyline fill="none" stroke="#00ffaa" stroke-width="2.2"
+                    points="0,120 70,112 140,118 210,95 280,100 350,72 420,78 490,52 560,58 630,42 700,38" />
+                </svg>
+                <div class="chart-fake__x"><span>10:00</span><span>11:00</span><span>12:00</span><span>12:31</span></div>
+              </div>
+            </section>
+
+            <aside class="dashboard-assets-card robots-v2-cockpit__feed" style="display:flex;flex-direction:column">
+              <div class="dashboard-assets-card__head">
+                <h3 class="dashboard-panel-title">Живой поток</h3>
+                <span class="badge badge--up">стрим</span>
+              </div>
+              <ul class="event-list" style="flex:1;max-height:none">
+                <li><span class="mono dim">12:31:04</span> <span class="badge badge--cyan">cycle</span> done · eq 1.02M</li>
+                <li><span class="mono dim">12:31:02</span> <span class="badge badge--cyan">stage</span> scan 48/48</li>
+                <li><span class="mono dim">12:30:58</span> <span class="badge badge--neutral">signal</span> SBER · pass</li>
+                <li><span class="mono dim">12:30:57</span> <span class="badge badge--warn">reject</span> VTBR cooldown</li>
+                <li><span class="mono dim">12:30:41</span> <span class="badge badge--cyan">order</span> GAZP resting</li>
+                <li><span class="mono dim">12:29:12</span> <span class="badge badge--up">fill</span> SBER TP +4.2k</li>
+                <li><span class="mono dim">12:28:01</span> <span class="badge badge--neutral">decision</span> size ok</li>
+                <li><span class="mono dim">12:27:40</span> <span class="badge badge--neutral">health</span> broker ok</li>
+              </ul>
+              <div style="margin-top:10px;border-top:1px solid var(--border-subtle);padding-top:10px">
+                <div class="dashboard-assets-card__head" style="margin-bottom:6px">
+                  <h3 class="dashboard-panel-title">Решения</h3>
+                  <span class="dim">12</span>
+                </div>
+                <p class="muted" style="margin:0;font-size:11px">VTBR · reject cooldown</p>
+                <p class="muted" style="margin:4px 0 0;font-size:11px">ROSN · size reduced</p>
+                <p class="robots-v2-pnl--up" style="margin:4px 0 0;font-size:11px">SBER · accept entry</p>
+              </div>
+            </aside>
+
+            <div class="robots-v2-cockpit__tables grid-2">
+              <section class="dashboard-assets-card">
+                <div class="dashboard-assets-card__head">
+                  <h3 class="dashboard-panel-title">Позиции</h3>
+                  <span class="badge badge--neutral">3 · 4с</span>
+                </div>
+                <table class="data-table">
+                  <thead><tr><th>Тикер</th><th>Qty</th><th>Вход</th><th>Mark</th><th>SL/TP</th></tr></thead>
+                  <tbody>
+                    <tr><td><strong>SBER</strong></td><td class="mono">120</td><td class="mono">278.4</td><td class="mono robots-v2-pnl--up">281.1</td><td class="mono dim">274 / 286</td></tr>
+                    <tr><td><strong>GAZP</strong></td><td class="mono">40</td><td class="mono">162.0</td><td class="mono robots-v2-pnl--down">160.2</td><td class="mono dim">158 / 168</td></tr>
+                    <tr><td><strong>LKOH</strong></td><td class="mono">5</td><td class="mono">7120</td><td class="mono robots-v2-pnl--up">7188</td><td class="mono dim">7000 / 7350</td></tr>
+                  </tbody>
+                </table>
+              </section>
+              <section class="dashboard-assets-card">
+                <div class="dashboard-assets-card__head">
+                  <h3 class="dashboard-panel-title">Заявки / круги</h3>
+                  <span class="badge badge--warn">1 open</span>
+                </div>
+                <table class="data-table">
+                  <thead><tr><th>Тикер</th><th>Статус</th><th>Покупка</th><th>В карман</th></tr></thead>
+                  <tbody>
+                    <tr><td>GAZP</td><td>в рынке</td><td class="mono">162.0</td><td class="dim">—</td></tr>
+                    <tr><td>SBER</td><td>закрыта</td><td class="mono">278.4</td><td class="robots-v2-pnl--up mono">+4 200</td></tr>
+                    <tr><td>ROSN</td><td>закрыта</td><td class="mono">541.2</td><td class="robots-v2-pnl--down mono">−1 100</td></tr>
+                  </tbody>
+                </table>
+                <div class="collapse-head">Скан вселенной · 48</div>
+              </section>
+            </div>
+          </div>
+          <div class="callout">Первый экран ≥1440 без скролла: KPI + stage + equity + поток. Map: RobotPageChrome · StatTile · RobotStageCard · Chart · DataTable · MonitorEvents/Decisions.</div>
+        </div>
+      </div>
+
+      <!-- AUDIT -->
+      <div class="screen page" id="screen-logs" data-page="robots">
+        <header class="dashboard-hero dashboard-hero--node">
+          <div class="dashboard-hero__content">
+            <div class="dashboard-hero__copy">
+              <p class="dashboard-hero__eyebrow">AUDIT NODE</p>
+              <h1 class="dashboard-hero__title">AUDIT #41</h1>
+              <p class="dashboard-hero__sub">Только persisted: исполнения · заявки · циклы. Живой поток — на Лайве.</p>
+            </div>
+            <div class="dashboard-hero__actions">
+              <button type="button" class="dashboard-hero__cfg">Флот</button>
+              <button type="button" class="dashboard-hero__cfg">Лайв</button>
+              <button type="button" class="dashboard-hero__cfg">Правка</button>
+              <button type="button" class="dashboard-hero__cfg robots-v2-chrome-nav--active">Audit</button>
+              <button type="button" class="dashboard-hero__cfg">Бэктест</button>
+              <button type="button" class="btn btn--secondary btn--sm">Экспорт</button>
+            </div>
+          </div>
+        </header>
+        <div class="dashboard-layout">
+          <section class="portfolio-toolbar robots-v2-toolbar" style="display:flex;gap:10px;align-items:center">
+            <div class="portfolio-period-control">
+              <span class="is-on">Исполнения</span><span>Заявки</span><span>Циклы</span>
+            </div>
+            <span class="banner banner--info" style="margin:0">Поток сессии убран — Лайв → Живой поток</span>
+          </section>
+          <div class="grid-2">
+            <section class="dashboard-assets-card">
+              <table class="data-table">
+                <thead><tr><th>Время</th><th>Тикер</th><th>В карман</th><th>Тип</th></tr></thead>
+                <tbody>
+                  <tr class="row-selected"><td class="mono">12:18</td><td><strong>SBER</strong></td><td class="robots-v2-pnl--up mono">+4 200</td><td>TP</td></tr>
+                  <tr><td class="mono">11:52</td><td><strong>ROSN</strong></td><td class="robots-v2-pnl--down mono">−1 100</td><td>SL</td></tr>
+                  <tr><td class="mono">11:05</td><td><strong>SBER</strong></td><td class="dim">—</td><td>entry</td></tr>
+                </tbody>
+              </table>
+            </section>
+            <section class="dashboard-assets-card">
+              <div class="dashboard-assets-card__head">
+                <h3 class="dashboard-panel-title">Инспектор</h3>
+                <span class="dim">drawer</span>
+              </div>
+              <p class="mono" style="margin:0 0 8px">fill #9021 · SBER sell</p>
+              <p class="muted" style="font-size:12px;margin:0">net_pnl +4200 · commission 18.4 · kind take_profit</p>
+              <p class="muted" style="font-size:12px;margin:8px 0 0">cycle_id cyc_128 · order #5512</p>
+              <button type="button" class="btn btn--ghost btn--sm" style="margin-top:12px">Открыть на Лайве →</button>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <!-- BACKTEST + LAB -->
+      <div class="screen page" id="screen-backtest" data-page="robots">
+        <header class="dashboard-hero dashboard-hero--node">
+          <div class="dashboard-hero__content">
+            <div class="dashboard-hero__copy">
+              <p class="dashboard-hero__eyebrow">BACKTEST NODE</p>
+              <h1 class="dashboard-hero__title">ПРОГОНЫ</h1>
+              <p class="dashboard-hero__sub">Один chrome: Робот | Лаборатория · glass-box UX-05</p>
+            </div>
+            <div class="dashboard-hero__actions">
+              <div class="portfolio-period-control">
+                <span class="is-on">Робот #41</span><span>Лаборатория</span>
+              </div>
+              <button type="button" class="btn btn--primary btn--sm">Запустить</button>
+            </div>
+          </div>
+        </header>
+        <div class="dashboard-layout">
+          <div class="grid-2">
+            <section class="portfolio-toolbar robots-v2-toolbar robots-v2-backtest-toolbar">
+              <div class="dashboard-assets-card__head">
+                <h3 class="dashboard-panel-title">Запуск (конфиг робота)</h3>
+              </div>
+              <div class="portfolio-period-control" style="margin-bottom:10px">
+                <span>7д</span><span class="is-on">30д</span><span>90д</span><span>Свой</span>
+              </div>
+              <p class="muted mono" style="margin:0;font-size:11px">капитал 100 000 · trend · fixed 12</p>
+              <button type="button" class="btn btn--primary btn--sm" style="margin-top:12px">Запустить бэктест</button>
+            </section>
+            <section class="dashboard-totals-card">
+              <div class="dashboard-totals-card__head">
+                <h3 class="dashboard-panel-title">Последний SUCCESS</h3>
+                <span class="badge badge--up">+14.2%</span>
+              </div>
+              <div class="portfolio-stats-grid dashboard-summary-grid">
+                <div class="portfolio-stat-tile"><div class="portfolio-stat-tile__label">DD</div><div class="portfolio-stat-tile__value robots-v2-pnl--down">−6.1%</div></div>
+                <div class="portfolio-stat-tile"><div class="portfolio-stat-tile__label">Sharpe</div><div class="portfolio-stat-tile__value">1.42</div></div>
+                <div class="portfolio-stat-tile"><div class="portfolio-stat-tile__label">WR</div><div class="portfolio-stat-tile__value">58%</div></div>
+                <div class="portfolio-stat-tile"><div class="portfolio-stat-tile__label">Сделки</div><div class="portfolio-stat-tile__value">84</div></div>
+              </div>
+              <p style="margin:10px 0 0"><a href="#">Открыть glass-box →</a></p>
+            </section>
+          </div>
+          <section class="dashboard-assets-card" style="padding:0;overflow:hidden">
+            <div style="padding:10px 14px;border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between">
+              <h3 class="dashboard-panel-title">История · робот и orphan Lab</h3>
+              <span class="muted">compare · 2</span>
+            </div>
+            <table class="data-table">
+              <thead><tr><th></th><th>#</th><th>Статус</th><th>Период</th><th>Ret</th><th>DD</th><th>Bind</th></tr></thead>
+              <tbody>
+                <tr class="row-selected"><td>☐</td><td class="mono">902</td><td><span class="badge badge--up">OK</span></td><td class="mono">09-07…10-07</td><td class="robots-v2-pnl--up">+14.2%</td><td class="robots-v2-pnl--down">−6.1%</td><td><span class="badge badge--cyan">#41</span></td></tr>
+                <tr><td>☑</td><td class="mono">881</td><td><span class="badge badge--up">OK</span></td><td class="mono">08-01…09-01</td><td class="robots-v2-pnl--up">+9.1%</td><td class="robots-v2-pnl--down">−4.0%</td><td><span class="badge badge--neutral">без робота</span></td></tr>
+              </tbody>
+            </table>
+          </section>
+          <div class="pill-row">
+            <span class="chip chip--hot">reject: cooldown ×18</span>
+            <span class="chip">filled 84 · rejected 41</span>
+          </div>
+          <div class="callout">SegmentedControl Робот|Lab в hero. Results = BacktestResultsPanel (UX-05). History = BacktestHistoryCard.</div>
+        </div>
+      </div>
+
+      <!-- WIZARD -->
+      <div class="screen page" id="screen-wizard" data-page="robots">
+        <header class="dashboard-hero dashboard-hero--node">
+          <div class="dashboard-hero__content">
+            <div class="dashboard-hero__copy">
+              <p class="dashboard-hero__eyebrow">SETUP NODE</p>
+              <h1 class="dashboard-hero__title">СОЗДАНИЕ</h1>
+              <p class="dashboard-hero__sub">Шаг 2 из 4 · плотный мастер · summary справа</p>
+            </div>
+            <div class="dashboard-hero__actions">
+              <button type="button" class="dashboard-hero__cfg">Флот</button>
+            </div>
+          </div>
+        </header>
+        <div class="dashboard-layout">
+          <div class="wizard-shell">
+            <nav class="steps dashboard-totals-card">
+              <button type="button">Основное</button>
+              <button type="button" class="is-on">Стратегия</button>
+              <button type="button">Активы</button>
+              <button type="button">Риск</button>
+            </nav>
+            <section class="dashboard-totals-card">
+              <h2 style="margin:0 0 12px;font-size:16px;font-family:var(--font-cyber);letter-spacing:0.04em">Архетип и расписание</h2>
+              <div class="type-cards" style="margin-bottom:12px">
+                <div class="type-card is-on"><strong>Trend</strong><small>Импульс</small></div>
+                <div class="type-card"><strong>Mean rev</strong><small>Среднее</small></div>
+              </div>
+              <div class="field"><label>Интервал</label><input value="15m" readonly /></div>
+              <div class="collapse-head">Расширенные параметры стратегии</div>
+            </section>
+            <aside class="dashboard-totals-card">
+              <h3 class="dashboard-panel-title">Итог</h3>
+              <p style="margin:8px 0;font-size:12px"><span class="badge badge--neutral">paper</span> <span class="badge badge--cyan">trend</span></p>
+              <p class="mono muted" style="font-size:12px">cap 100k · max 15% · SL 1.5 · TP 3.0</p>
+              <button type="button" class="btn btn--primary btn--sm" style="width:100%;margin-top:14px">Сохранить</button>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-ask">
+    <h3>B locked · GIN skin</h3>
+    <p>Спека: <span class="mono">docs/ui/UX-08-robots-v2-live-cockpit.md</span>. Готовы отдать UI engineer Phase 0+1?</p>
+  </div>
+
+  <script>
+    const tabs = document.getElementById('tabs');
+    tabs.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-screen]');
+      if (!btn) return;
+      tabs.querySelectorAll('button').forEach(b => b.classList.toggle('is-active', b === btn));
+      document.querySelectorAll('.screen').forEach(s => s.classList.toggle('is-active', s.id === 'screen-' + btn.dataset.screen));
+    });
+  </script>
+</body>
+</html>

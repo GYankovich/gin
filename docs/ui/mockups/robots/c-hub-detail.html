@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Option C · Hub + detail · Роботы</title>
+  <link rel="stylesheet" href="_shared.css" />
+</head>
+<body>
+  <div class="opt-bar">
+    <a class="opt-bar__back" href="index.html">← Все опции</a>
+    <span class="opt-bar__name">Option C — Hub + detail</span>
+    <span class="opt-bar__badge">новая IA</span>
+    <div class="screen-tabs" id="tabs">
+      <button type="button" data-screen="fleet" class="is-active">Флот-хаб</button>
+      <button type="button" data-screen="monitor">Лайв + Audit</button>
+      <button type="button" data-screen="lab">Лаборатория</button>
+      <button type="button" data-screen="backtest">Бэктест-launcher</button>
+      <button type="button" data-screen="wizard">Мастер</button>
+    </div>
+  </div>
+  <p class="opt-caption">
+    <strong>Суть:</strong> глобальная навигация модуля <em>Флот | Лаборатория</em>.
+    У робота только <em>Лайв · Правка · Бэктест</em>. Логи = вкладка внутри Лайва.
+    Robot-бэктест — тонкий launcher, все прогоны живут в Lab. Максимум чистки дублей.
+  </p>
+
+  <div class="frame-wrap">
+    <div class="frame">
+      <div class="app-nav">
+        <span class="app-nav__brand">GIN</span>
+        <div class="app-nav__links">
+          <span>Дашборд</span><span>Портфель</span><span class="is-on">Роботы</span><span>Аналитика</span>
+        </div>
+      </div>
+
+      <!-- FLEET HUB -->
+      <div class="screen is-active page" id="screen-fleet">
+        <div class="hero">
+          <div>
+            <p class="hero__eyebrow">ROBOTS MODULE</p>
+            <h1 class="hero__title">РОБОТЫ</h1>
+            <p class="hero__sub">Два пространства: операционный флот и лаборатория исследований</p>
+          </div>
+          <div class="hero__actions">
+            <div class="seg" style="font-size:13px">
+              <span class="is-on" style="padding:7px 14px">Флот</span>
+              <span style="padding:7px 14px">Лаборатория</span>
+            </div>
+            <button class="btn btn--primary" type="button">+ Создать</button>
+          </div>
+        </div>
+        <div class="layout">
+          <div class="grid-3">
+            <div class="card">
+              <div class="kpi__label">Сейчас в рынке</div>
+              <div class="kpi__value up" style="font-size:22px">2 робота</div>
+              <div class="kpi__hint">7 позиций · Δ +18.4k</div>
+            </div>
+            <div class="card">
+              <div class="kpi__label">Требуют внимания</div>
+              <div class="kpi__value down" style="font-size:22px">1 ошибка</div>
+              <div class="kpi__hint">#38 risk_halt</div>
+            </div>
+            <div class="card">
+              <div class="kpi__label">Lab сегодня</div>
+              <div class="kpi__value" style="font-size:22px">3 прогона</div>
+              <div class="kpi__hint">1 orphan · 2 bound</div>
+            </div>
+          </div>
+
+          <div class="card" style="padding:0;overflow:hidden">
+            <div style="padding:10px 14px;display:flex;gap:10px;align-items:center;border-bottom:1px solid var(--border-subtle)">
+              <strong>Торговые</strong>
+              <div class="seg"><span class="is-on">Все</span><span>Live</span><span>Paper</span><span>Error</span></div>
+              <input placeholder="Поиск имени / #id" style="margin-left:auto;background:var(--bg-panel);border:1px solid var(--border-medium);border-radius:6px;color:var(--text-primary);padding:6px 10px;width:200px;font:inherit" />
+            </div>
+            <table class="table">
+              <thead><tr><th>Робот</th><th>Статус</th><th>Δ дня</th><th>Поз.</th><th>Действия</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><strong>Momentum MOEX</strong> <span class="dim mono">#41 · live · trend</span></td>
+                  <td><span class="badge badge--up">В работе</span></td>
+                  <td class="up mono">+12 800</td>
+                  <td>3</td>
+                  <td>
+                    <button class="btn btn--primary" type="button">Лайв</button>
+                    <button class="btn btn--ghost" type="button">Правка</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>MeanRev Bluechips</strong> <span class="dim mono">#38</span></td>
+                  <td><span class="badge badge--down">Ошибка</span></td>
+                  <td class="down mono">−2 140</td>
+                  <td>0</td>
+                  <td>
+                    <button class="btn btn--primary" type="button">Лайв</button>
+                    <button class="btn btn--ghost" type="button">Правка</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout">Глобальный switch Флот/Lab заменяет отдельную кнопку «Бэктест» на флоте. Нет 5-tab chrome на уровне модуля.</div>
+        </div>
+      </div>
+
+      <!-- LIVE + AUDIT TABS -->
+      <div class="screen page" id="screen-monitor">
+        <div class="hero">
+          <div>
+            <p class="hero__eyebrow">ROBOT DETAIL</p>
+            <h1 class="hero__title">MOMENTUM MOEX</h1>
+            <p class="hero__sub">Только 3 peer-вкладки робота · audit внутри лайва</p>
+          </div>
+          <div class="hero__actions">
+            <button class="btn btn--ghost" type="button">← Флот</button>
+            <div class="subnav">
+              <button class="btn btn--ghost is-on" type="button">Лайв</button>
+              <button class="btn btn--ghost" type="button">Правка</button>
+              <button class="btn btn--ghost" type="button">Бэктест</button>
+            </div>
+            <button class="btn btn--danger" type="button">Стоп</button>
+          </div>
+        </div>
+
+        <!-- Inner tabs Live | Audit -->
+        <div class="card" style="padding:8px 10px;margin-bottom:10px;display:flex;gap:8px;align-items:center">
+          <div class="seg"><span class="is-on">Обзор</span><span>Audit</span></div>
+          <span class="muted" style="font-size:11px">«Логи» больше не отдельный маршрут в chrome</span>
+          <span class="badge badge--up" style="margin-left:auto">стрим</span>
+        </div>
+
+        <div class="cockpit" style="grid-template-rows:auto 240px 1fr;min-height:560px">
+          <div class="cockpit__kpi card" style="padding:10px">
+            <div class="kpi-row kpi-row--5">
+              <div class="kpi"><div class="kpi__label">Δ дня</div><div class="kpi__value up">+12 800</div></div>
+              <div class="kpi"><div class="kpi__label">Equity</div><div class="kpi__value">1.02M</div></div>
+              <div class="kpi"><div class="kpi__label">Cash</div><div class="kpi__value">412k</div></div>
+              <div class="kpi"><div class="kpi__label">Цикл / поз.</div><div class="kpi__value">128 / 3</div></div>
+              <div class="kpi"><div class="kpi__label">Этап</div><div class="kpi__value" style="font-size:13px">Скан 62%</div></div>
+            </div>
+          </div>
+          <div class="cockpit__stage card" style="display:none"></div>
+          <div class="cockpit__chart card" style="grid-column:1 / 3">
+            <div class="card__head"><h3 class="card__title">Equity</h3></div>
+            <div class="chart-fake" style="height:180px">
+              <svg viewBox="0 0 800 140" preserveAspectRatio="none">
+                <polyline fill="none" stroke="#00ffaa" stroke-width="2" points="0,100 200,90 400,70 600,50 800,40"/>
+              </svg>
+            </div>
+          </div>
+          <div class="cockpit__feed card">
+            <div class="card__head"><h3 class="card__title">Поток + решения</h3></div>
+            <ul class="event-list">
+              <li><span class="mono dim">12:31</span> cycle done</li>
+              <li><span class="mono dim">12:30</span> reject VTBR</li>
+              <li><span class="mono dim">12:29</span> fill SBER +4.2k</li>
+              <li><span class="mono dim">12:27</span> health ok</li>
+            </ul>
+          </div>
+          <div class="cockpit__tables card" style="grid-column:1 / 3">
+            <div class="grid-2">
+              <div>
+                <h3 class="card__title">Позиции</h3>
+                <table class="table">
+                  <thead><tr><th>Тикер</th><th>Qty</th><th>Mark</th></tr></thead>
+                  <tbody>
+                    <tr><td>SBER</td><td>120</td><td class="up">281.1</td></tr>
+                    <tr><td>GAZP</td><td>40</td><td class="down">160.2</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div>
+                <h3 class="card__title">Заявки</h3>
+                <table class="table">
+                  <thead><tr><th>Тикер</th><th>Статус</th><th>PnL</th></tr></thead>
+                  <tbody>
+                    <tr><td>GAZP</td><td>в рынке</td><td>—</td></tr>
+                    <tr><td>SBER</td><td>закрыта</td><td class="up">+4.2k</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preview of Audit inner tab -->
+        <div class="card" style="margin-top:12px;border-style:dashed">
+          <div class="card__head">
+            <h3 class="card__title">Вкладка Audit (внутри Лайва)</h3>
+            <span class="badge">fills · orders · cycles</span>
+          </div>
+          <p class="muted" style="margin:0;font-size:12px">
+            Те же DataTable, что сегодня на /logs, но маршрут <span class="mono">/robots/:id/logs</span> становится redirect на
+            <span class="mono">/robots/:id/monitor?tab=audit</span>. Дубль «Поток» удаляется.
+          </p>
+        </div>
+      </div>
+
+      <!-- LAB as first-class -->
+      <div class="screen page" id="screen-lab">
+        <div class="hero">
+          <div>
+            <p class="hero__eyebrow">BACKTEST LAB</p>
+            <h1 class="hero__title">ЛАБОРАТОРИЯ</h1>
+            <p class="hero__sub">Первоклассный sibling флота · не orphan</p>
+          </div>
+          <div class="hero__actions">
+            <div class="seg">
+              <span style="padding:7px 14px">Флот</span>
+              <span class="is-on" style="padding:7px 14px">Лаборатория</span>
+            </div>
+            <button class="btn btn--danger" type="button">Отменить</button>
+            <button class="btn btn--primary" type="button">Запустить</button>
+          </div>
+        </div>
+        <div class="layout">
+          <div class="card">
+            <div class="card__head">
+              <h3 class="card__title">Новый прогон</h3>
+              <div class="seg"><span class="is-on">Настроить</span><span>Робот</span><span>Прошлый</span></div>
+            </div>
+            <div class="grid-3">
+              <div class="field" style="margin:0"><label>Архетип</label><input value="trend" readonly /></div>
+              <div class="field" style="margin:0"><label>Период</label><input value="30 дней" readonly /></div>
+              <div class="field" style="margin:0"><label>Капитал</label><input value="100000" readonly /></div>
+            </div>
+            <div class="collapse-head" style="margin-top:10px">Параметры стратегии / вселенная / риск</div>
+          </div>
+          <div class="card" style="padding:0;overflow:hidden">
+            <div style="padding:10px 14px;border-bottom:1px solid var(--border-subtle)"><strong class="card__title">Все прогоны</strong></div>
+            <table class="table">
+              <thead><tr><th>#</th><th>Статус</th><th>Ret</th><th>Bind</th><th></th></tr></thead>
+              <tbody>
+                <tr><td class="mono">902</td><td><span class="badge badge--up">OK</span></td><td class="up">+14.2%</td><td><span class="badge badge--cyan">#41</span></td><td><a href="#">Открыть</a></td></tr>
+                <tr><td class="mono">881</td><td><span class="badge badge--up">OK</span></td><td class="up">+9.1%</td><td><span class="badge">orphan</span></td><td><a href="#">Открыть</a> · <a href="#">Сохранить как робота</a></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card">
+            <div class="banner">Glass-box results (UX-05) ниже при ?run=902 — без вложенной history card</div>
+            <div class="kpi-row kpi-row--4">
+              <div class="kpi"><div class="kpi__label">Ret</div><div class="kpi__value up">+14.2%</div></div>
+              <div class="kpi"><div class="kpi__label">DD</div><div class="kpi__value down">−6.1%</div></div>
+              <div class="kpi"><div class="kpi__label">Sharpe</div><div class="kpi__value">1.42</div></div>
+              <div class="kpi"><div class="kpi__label">Сделки</div><div class="kpi__value">84</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- THIN ROBOT BACKTEST LAUNCHER -->
+      <div class="screen page" id="screen-backtest">
+        <div class="hero">
+          <div>
+            <p class="hero__eyebrow">ROBOT · BACKTEST LAUNCHER</p>
+            <h1 class="hero__title">БЭКТЕСТ #41</h1>
+            <p class="hero__sub">Тонкий экран: период → run → deep-link в Lab results</p>
+          </div>
+          <div class="hero__actions">
+            <button class="btn btn--ghost" type="button">← Флот</button>
+            <div class="subnav">
+              <button class="btn btn--ghost" type="button">Лайв</button>
+              <button class="btn btn--ghost" type="button">Правка</button>
+              <button class="btn btn--ghost is-on" type="button">Бэктест</button>
+            </div>
+          </div>
+        </div>
+        <div class="layout">
+          <div class="card">
+            <div class="card__head"><h3 class="card__title">Быстрый прогон на конфиге робота</h3></div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+              <div class="seg"><span>7д</span><span class="is-on">30д</span><span>90д</span></div>
+              <div class="field" style="margin:0;width:140px"><label>Капитал</label><input value="100000" readonly /></div>
+              <button class="btn btn--primary" type="button">Запустить</button>
+            </div>
+            <p class="muted" style="margin:12px 0 0;font-size:12px">
+              После SUCCESS → автоматический переход в
+              <span class="mono">Лаборатория?run=…</span> с glass-box. История на этом экране — только 5 последних + ссылка «все в Lab».
+            </p>
+          </div>
+          <div class="card">
+            <div class="card__head"><h3 class="card__title">Последние 5 · #41</h3><a href="#">Все в Lab →</a></div>
+            <table class="table">
+              <thead><tr><th>#</th><th>Статус</th><th>Ret</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">902</td><td>OK</td><td class="up">+14.2%</td></tr>
+                <tr><td class="mono">870</td><td>cancel</td><td class="dim">—</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout">Убираем тяжёлый glass-box + optimization + full history с robot-tab — один source of truth = Lab.</div>
+        </div>
+      </div>
+
+      <!-- WIZARD -->
+      <div class="screen page" id="screen-wizard">
+        <div class="hero">
+          <div>
+            <p class="hero__eyebrow">SETUP</p>
+            <h1 class="hero__title">НОВЫЙ РОБОТ</h1>
+            <p class="hero__sub">После save → Флот; опционально «сразу в Lab» с этим конфигом</p>
+          </div>
+          <div class="hero__actions">
+            <div class="seg"><span class="is-on">Флот</span><span>Лаборатория</span></div>
+          </div>
+        </div>
+        <div class="wizard-shell">
+          <nav class="steps card">
+            <button type="button" class="is-on">Основное</button>
+            <button type="button">Стратегия</button>
+            <button type="button">Активы</button>
+            <button type="button">Риск</button>
+          </nav>
+          <div class="card">
+            <div class="type-cards">
+              <div class="type-card is-on"><strong>Торговый робот</strong><small>Сигналы и риск</small></div>
+              <div class="type-card"><strong>Опросник</strong><small>Синхрон портфеля</small></div>
+            </div>
+            <div class="field" style="margin-top:12px"><label>Название</label><input value="Momentum MOEX" readonly /></div>
+            <div class="field"><label>Режим</label><div class="seg"><span class="is-on">Paper</span><span>Live</span></div></div>
+          </div>
+          <div class="card">
+            <h3 class="card__title">После сохранения</h3>
+            <p class="muted" style="font-size:12px">□ Сразу открыть Лайв<br />□ Создать черновик прогона в Lab</p>
+            <button class="btn btn--primary" type="button" style="width:100%;margin-top:12px">Создать</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-ask">
+    <h3>Option C — самый смелый IA</h3>
+    <p>
+      Ломает привычные 5 вкладок, зато убирает дубли Lab/Logs. Можно гибрид:
+      <strong>навигация C + раскладка монитора B</strong>.
+      Смотрите также <a href="b-live-cockpit.html">B</a> и <a href="a-portfolio-stack.html">A</a>.
+    </p>
+  </div>
+
+  <script>
+    const tabs = document.getElementById('tabs');
+    tabs.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-screen]');
+      if (!btn) return;
+      tabs.querySelectorAll('button').forEach(b => b.classList.toggle('is-active', b === btn));
+      const id = 'screen-' + btn.dataset.screen;
+      document.querySelectorAll('.screen').forEach(s => s.classList.toggle('is-active', s.id === id));
+    });
+  </script>
+</body>
+</html>

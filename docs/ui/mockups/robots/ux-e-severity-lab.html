@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>UX-E · Severity stack + Lab home</title>
+  <link rel="stylesheet" href="_wire.css" />
+</head>
+<body>
+  <div class="opt-bar">
+    <a class="opt-bar__back" href="index.html">← Хаб</a>
+    <span class="opt-bar__name">UX-E</span>
+    <span class="opt-bar__badge">probe</span>
+    <div class="tabs" id="tabs">
+      <button type="button" data-s="fleet" class="is-on">Флот</button>
+      <button type="button" data-s="monitor">Лайв+Audit</button>
+      <button type="button" data-s="lab">Lab = home</button>
+      <button type="button" data-s="bt">Robot launcher</button>
+    </div>
+  </div>
+
+  <div class="thesis">
+    <h1>UX thesis: Severity-first флот · одна ops-поверхность · Lab = дом прогонов</h1>
+    <div class="row"><span class="lbl">Job</span><span>Сначала чинить ошибки, потом смотреть running; бэктест не раздваивать.</span></div>
+    <div class="row"><span class="lbl">Как</span><span>Группы флота по <strong>серьёзности</strong> (не тип робота). Лайв содержит вкладки Обзор|Audit. Robot-БТ = тонкий launcher → результаты только в Lab.</span></div>
+    <div class="row"><span class="lbl">Жертва</span><span>Опросники и торговые вперемешку в severity-группах (или опросники отдельным хвостом). Привычный таб «Логи» исчезает. Robot-бэктест «беднее».</span></div>
+  </div>
+
+  <div class="frame-wrap"><div class="frame">
+    <div class="nav"><b>GIN</b> <span class="on">Роботы</span>
+      <span class="chip on" style="margin-left:12px">Флот</span>
+      <span class="chip">Лаборатория</span>
+    </div>
+
+    <div class="screen is-on page" id="s-fleet">
+      <div class="hero">
+        <div><h2>ФЛОТ · по состоянию</h2><p class="sub">Порядок групп = приоритет внимания</p></div>
+        <div class="acts"><span class="chip on">+ Создать</span></div>
+      </div>
+
+      <div class="zone zone--hot">
+        <span class="zn zn-pri">① ERRORS</span>
+        <div class="group-h">Требуют внимания <span class="chip">1</span></div>
+        <div class="card hot" style="margin-top:8px">
+          <div>
+            <div class="name">MeanRev #38</div>
+            <div class="meta">risk_halt · тело → Лайв</div>
+          </div>
+          <div class="aff">
+            <button type="button" class="status hot">Ошибка ▾</button>
+            <button type="button">⋯</button>
+          </div>
+        </div>
+        <p class="flow">Всегда сверху, даже один элемент. Empty-state группы скрыт.</p>
+      </div>
+
+      <div class="zone zone--ok">
+        <span class="zn zn-pri">② RUNNING</span>
+        <div class="group-h">В работе <span class="chip">2</span></div>
+        <div class="stack" style="margin-top:8px">
+          <div class="card live">
+            <div><div class="name">Momentum #41</div><div class="meta">Δ +12.8k · поз. 3</div></div>
+            <div class="aff"><button type="button" class="status ok">В работе ▾</button><button type="button">⋯</button></div>
+          </div>
+          <div class="card live">
+            <div><div class="name">Index sat #33</div><div class="meta">paper · Δ +7.7k</div></div>
+            <div class="aff"><button type="button" class="status ok">В работе ▾</button><button type="button">⋯</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="zone">
+        <span class="zn">③ IDLE</span>
+        <div class="group-h">Выключены / idle <span class="chip">1</span></div>
+        <div class="card" style="margin-top:8px">
+          <div><div class="name">Scalper #29</div><div class="meta">тело → Лайв</div></div>
+          <div class="aff"><button type="button" class="status off">Выключен ▾</button><button type="button">⋯</button></div>
+        </div>
+      </div>
+
+      <div class="zone">
+        <span class="zn">④ SYNC</span>
+        <div class="group-h">Опросники <span class="chip">1</span></div>
+        <div class="card" style="margin-top:8px">
+          <div><div class="name">Опросник #12</div><div class="meta">тело → Правка (не Лайв)</div></div>
+          <div class="aff"><button type="button" class="status ok">Включён ▾</button><button type="button">⋯</button></div>
+        </div>
+        <p class="hint">Опросники не смешиваем с ERRORS/RUNNING торговых — отдельный хвост.</p>
+      </div>
+    </div>
+
+    <div class="screen page" id="s-monitor">
+      <div class="hero">
+        <div><h2>#41 Лайв</h2><p class="sub">Одна поверхность: Обзор | Audit</p></div>
+        <div class="acts"><span class="chip">← Флот</span><span class="chip on">Лайв</span><span class="chip">Правка</span><span class="chip">БТ</span></div>
+      </div>
+      <div class="zone zone--solid" style="margin-bottom:10px">
+        <span class="zn zn-pri">TABS</span>
+        <div class="acts"><span class="chip on">Обзор</span><span class="chip">Audit</span></div>
+        <p class="hint">Нет отдельного маршрута «Логи» в chrome — меньше дублей.</p>
+      </div>
+      <ol class="pri-list">
+        <li><strong>①</strong> KPI дня + баланс + этап</li>
+        <li><strong>②</strong> Equity + поток справа</li>
+        <li><strong>③</strong> Позиции | Заявки</li>
+        <li><strong>Audit tab</strong> = fills/orders/cycles tables only</li>
+      </ol>
+      <div class="grid-cockpit" style="margin-top:10px;min-height:360px">
+        <div class="zone gc-k"><span class="zn">①</span><div class="box">KPI</div></div>
+        <div class="zone gc-s"><span class="zn">②a</span><div class="box tall">этап</div></div>
+        <div class="zone gc-c"><span class="zn">②b</span><div class="box tall solid">equity</div></div>
+        <div class="zone gc-f"><span class="zn">②c</span><div class="box tall">поток</div></div>
+        <div class="zone gc-t"><span class="zn">③</span><div class="split-2"><div class="box solid">позиции</div><div class="box solid">заявки</div></div></div>
+      </div>
+    </div>
+
+    <div class="screen page" id="s-lab">
+      <div class="hero">
+        <div><h2>ЛАБОРАТОРИЯ</h2><p class="sub">Единственный полный UI результатов</p></div>
+        <div class="acts"><span class="chip">Флот</span><span class="chip on">Лаборатория</span><span class="chip on">Запустить</span></div>
+      </div>
+      <div class="zone zone--solid"><span class="zn zn-pri">L1</span><p class="zh">Конфиг</p><div class="box">Настроить | Робот | Прошлый · период · капитал</div></div>
+      <div class="zone"><span class="zn zn-pri">L2</span><p class="zh">Все прогоны</p><div class="box solid">таблица · bind · compare</div></div>
+      <div class="zone"><span class="zn zn-pri">L4</span><p class="zh">Glass-box</p><div class="box tall solid">результаты ?run=</div></div>
+      <p class="flow">Любой SUCCESS с робота deep-link сюда. Нет второго полного results UI.</p>
+    </div>
+
+    <div class="screen page" id="s-bt">
+      <div class="hero">
+        <div><h2>БТ #41 · launcher</h2><p class="sub">Намеренно тонкий</p></div>
+        <div class="acts"><span class="chip on">Бэктест</span></div>
+      </div>
+      <div class="zone zone--solid">
+        <span class="zn zn-pri">ONLY</span>
+        <div class="box solid" style="min-height:80px">Период · капитал · [Запустить] → после успеха: Lab?run=…</div>
+        <p class="hint">Последние 3 id + «все в Lab». Без glass-box / optimization на этой вкладке.</p>
+      </div>
+      <div class="zone zone--hot">
+        <span class="zn">TRADEOFF</span>
+        <p class="zh">Меньше контекста «не уходя с робота»</p>
+        <p class="hint">Зато один source of truth и ноль путаницы chrome Lab vs robot.</p>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="footer">
+    <h3>Когда брать E</h3>
+    <p>Если боль = «не вижу ошибки» и «два бэктеста». Тяжелее для привычки 5 вкладок. Можно взять только severity-группы флота + оставить Audit route.</p>
+  </div>
+  <script>
+    document.getElementById('tabs').onclick = e => {
+      const b = e.target.closest('button[data-s]'); if (!b) return;
+      [...tabs.children].forEach(x => x.classList.toggle('is-on', x===b));
+      document.querySelectorAll('.screen').forEach(s => s.classList.toggle('is-on', s.id === 's-'+b.dataset.s));
+    };
+  </script>
+</body>
+</html>

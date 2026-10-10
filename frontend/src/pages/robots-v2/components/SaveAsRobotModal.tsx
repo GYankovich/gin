@@ -135,11 +135,13 @@ export function SaveAsRobotModal({
                         />
                         <small className="robots-v2-hint">
                             Прогон появится во вкладке «Бэктест» у нового робота.
+                            Робот создаётся остановленным: заявки не уйдут, пока вы сами не нажмёте «Запуск» на лайве.
                         </small>
                     </div>
                 ) : (
                     <p className="robots-v2-hint">
                         Прогон уже привязан к другому роботу — будет создан только новый робот с тем же конфигом.
+                        Он останется остановленным, пока вы сами не нажмёте «Запуск».
                     </p>
                 )}
                 {error ? <div className="robots-v2-banner robots-v2-banner--error">{error}</div> : null}

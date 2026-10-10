@@ -124,21 +124,46 @@ export function DataTable<T extends Record<string, any>>({
                 {sorted.map(row => {
                     const key = row[keyField]
                     const expanded = expandedKey === key
+                    const openRow = () => onRowClick?.(row)
+                    const toggleExpand = () => {
+                        if (!mobileDetails) return
+                        setExpandedKey(prev => (prev === key ? null : key))
+                    }
                     return (
-                        <div key={key} className={`mobile-data-row ${expanded ? 'mobile-data-row--expanded' : ''} ${rowClassName ? rowClassName(row) : ''}`}>
-                            <button
-                                type="button"
+                        <div
+                            key={key}
+                            className={`mobile-data-row ${expanded ? 'mobile-data-row--expanded' : ''} ${onRowClick ? 'mobile-data-row--clickable' : ''} ${rowClassName ? rowClassName(row) : ''}`.trim()}
+                        >
+                            <div
                                 className="mobile-data-row__main"
-                                onClick={() => {
-                                    if (mobileDetails) setExpandedKey(prev => (prev === key ? null : key))
-                                    onRowClick?.(row)
+                                role={onRowClick || mobileDetails ? 'button' : undefined}
+                                tabIndex={onRowClick || mobileDetails ? 0 : undefined}
+                                onClick={event => {
+                                    const target = event.target as HTMLElement | null
+                                    if (target?.closest('button, a, input, textarea, select, [data-row-stop]')) return
+                                    if (mobileDetails) {
+                                        toggleExpand()
+                                        return
+                                    }
+                                    openRow()
+                                }}
+                                onKeyDown={event => {
+                                    if (event.key !== 'Enter' && event.key !== ' ') return
+                                    const target = event.target as HTMLElement | null
+                                    if (target?.closest('button, a, input, textarea, select, [data-row-stop]')) return
+                                    event.preventDefault()
+                                    if (mobileDetails) {
+                                        toggleExpand()
+                                        return
+                                    }
+                                    openRow()
                                 }}
                             >
                                 <div className="mobile-data-row__primary">{mobilePrimary(row)}</div>
                                 {mobileSecondary && <div className="mobile-data-row__secondary">{mobileSecondary(row)}</div>}
-                            </button>
+                            </div>
                             {mobileDetails && expanded && (
-                                <div className="mobile-data-row__details">
+                                <div className="mobile-data-row__details" data-row-stop>
                                     {mobileDetails(row)}
                                 </div>
                             )}

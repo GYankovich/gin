@@ -9,6 +9,8 @@ type Props = {
     seedSteps?: BacktestNarrativeStep[] | null
     highlightedTs?: string | null
     onStepClick?: (step: BacktestNarrativeStep) => void
+    /** Open on first paint so a finished run can be read without hunting. */
+    defaultOpen?: boolean
 }
 
 function fmtTs(raw: string | null | undefined): string {
@@ -24,8 +26,9 @@ export function BacktestNarrativeSection({
     seedSteps,
     highlightedTs,
     onStepClick,
+    defaultOpen = false,
 }: Props) {
-    const [open, setOpen] = useState(false)
+    const [open, setOpen] = useState(defaultOpen)
     const [loading, setLoading] = useState(false)
     const [steps, setSteps] = useState<BacktestNarrativeStep[] | null>(
         seedSteps && seedSteps.length ? seedSteps : null,
@@ -87,12 +90,14 @@ export function BacktestNarrativeSection({
 
     return (
         <CollapsibleSection
+            id="backtest-journal"
             title={(
                 <span className="dashboard-collapse__label">
                     <IconNarrative />
-                    Как проходил прогон
+                    Журнал решений
                 </span>
             )}
+            hint="Шаги прогона по порядку: данные, сигналы, отказы"
             badge={
                 <span className="robots-v2-hint">
                     {failed || (steps != null && steps.length === 0)
@@ -109,13 +114,18 @@ export function BacktestNarrativeSection({
                     setSteps(seedSteps && seedSteps.length ? seedSteps : null)
                 }
             }}
-            defaultOpen={false}
         >
             {loading ? (
-                <p className="robots-v2-hint">Загрузка истории…</p>
+                <p className="robots-v2-hint">Загрузка журнала…</p>
             ) : empty || failed ? (
-                <p className="robots-v2-hint">Нет текстовой истории для этого прогона</p>
+                <p className="robots-v2-hint">
+                    Текстового журнала для этого прогона нет. Сделки и сигналы ниже всё равно можно открыть по строке.
+                </p>
             ) : (
+                <>
+                <p className="robots-v2-hint">
+                    Полный след прогона: какие данные взяли, какой сигнал вышел и почему сделка могла не случиться.
+                </p>
                 <ol className="robots-v2-glass-narrative__list">
                     {(steps || []).map((s, i) => (
                         <li
@@ -144,6 +154,7 @@ export function BacktestNarrativeSection({
                         </li>
                     ))}
                 </ol>
+                </>
             )}
         </CollapsibleSection>
     )

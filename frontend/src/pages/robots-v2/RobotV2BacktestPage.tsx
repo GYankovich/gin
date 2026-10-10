@@ -9,10 +9,12 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { useToast } from '@/components/ui/Toast'
 import { BacktestHistoryCard } from '@/pages/robots-v2/components/BacktestHistoryCard'
 import { BacktestResultsPanel } from '@/pages/robots-v2/components/BacktestResultsPanel'
+import { BacktestVerdictCard } from '@/pages/robots-v2/components/BacktestVerdictCard'
 import { SaveAsRobotModal } from '@/pages/robots-v2/components/SaveAsRobotModal'
 import { RobotPageChrome } from '@/pages/robots-v2/components/RobotPageChrome'
 import { RobotStageCard } from '@/pages/robots-v2/components/RobotStageCard'
 import { RobotV2OptimizationCard } from '@/pages/robots-v2/components/RobotV2OptimizationCard'
+import { collectReasonCodes } from '@/pages/robots-v2/backtestGuide'
 import { fmtErr, sessionStateLabel } from '@/pages/robots-v2/formatters'
 import { formatBacktestPhaseUnits } from '@/pages/robots-v2/formatBacktestPhaseUnits'
 import { robotV2Service } from '@/services/robotV2Service'
@@ -444,27 +446,29 @@ export default function RobotV2BacktestPage() {
                     </p>
                 }
                 actions={
-                    isActive ? (
-                        <Button
-                            type="button"
-                            variant="danger"
-                            size="sm"
-                            loading={cancelling}
-                            onClick={() => void onCancel()}
-                        >
-                            Отменить
-                        </Button>
-                    ) : (
-                        <Button
-                            type="button"
-                            size="sm"
-                            loading={running}
-                            disabled={scalperBlocked || !robot}
-                            onClick={() => void onRun()}
-                        >
-                            Запустить бэктест
-                        </Button>
-                    )
+                    <>
+                        {isActive ? (
+                            <Button
+                                type="button"
+                                variant="danger"
+                                size="sm"
+                                loading={cancelling}
+                                onClick={() => void onCancel()}
+                            >
+                                Отменить
+                            </Button>
+                        ) : (
+                            <Button
+                                type="button"
+                                size="sm"
+                                loading={running}
+                                disabled={scalperBlocked || !robot}
+                                onClick={() => void onRun()}
+                            >
+                                Запустить бэктест
+                            </Button>
+                        )}
+                    </>
                 }
             />
 
@@ -520,9 +524,10 @@ export default function RobotV2BacktestPage() {
                                 </label>
                             </div>
                             <small className="robots-v2-hint">
-                                Реальные свечи MOEX ISS / Bybit klines. Warmup для индикаторов подгружается до даты «С».
+                                Считаем этого робота на истории: те же правила, что в «Правке».
+                                Здесь меняются только период и стартовый капитал. Заявки на биржу не уходят.
                                 {spanDays > 0 ? ` · ${spanDays} дн.` : ''}
-                                {spanDays > 180 ? ' Длинный период на мелком ТФ может занять несколько минут.' : ''}
+                                {spanDays > 180 ? ' Длинный период на мелком таймфрейме может занять несколько минут.' : ''}
                             </small>
                         </div>
                     </Card>
@@ -558,11 +563,16 @@ export default function RobotV2BacktestPage() {
                 )}
 
                 {runStatus === 'SUCCESS' && runId != null && (
-                    <div className="robots-v2-results-actions">
-                        <Button variant="secondary" onClick={() => setSaveAsOpen(true)}>
-                            Сохранить как робота
-                        </Button>
-                    </div>
+                    <BacktestVerdictCard
+                        totalReturnPercent={ret == null ? null : Number(ret)}
+                        maxDrawdownPercent={dd == null ? null : Number(dd)}
+                        winRatePercent={winRate == null ? null : Number(winRate)}
+                        tradeCount={trades.length}
+                        initialCapital={Number(payload.initial_capital ?? capital)}
+                        finalEquity={finalEq == null ? null : Number(finalEq)}
+                        reasonCodes={collectReasonCodes(trades)}
+                        onSaveAsRobot={() => setSaveAsOpen(true)}
+                    />
                 )}
 
                 {(runStatus === 'SUCCESS'
@@ -664,7 +674,7 @@ export default function RobotV2BacktestPage() {
                     statusVariant={statusVariant}
                     footer={(
                         <p className="robots-v2-hint robots-v2-lab-escape">
-                            <Link to="/robots/backtest">Все прогоны в Lab</Link>
+                            <Link to="/backtest">Все прогоны — в лаборатории</Link>
                         </p>
                     )}
                 />

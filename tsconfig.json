@@ -22,6 +22,7 @@
   },
   "include": ["frontend/src/**/*.ts", "frontend/src/**/*.tsx"],
   "exclude": [
+    "frontend/src/**/*.test.ts",
     "frontend/src/core",
     "frontend/src/modules",
     "frontend/src/shared",

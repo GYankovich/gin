@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faChartLine, faClipboardList, faRobot, faChevronDown } from '@fortawesome/free-solid-svg-icons'
+import { faClipboardList, faRobot, faChevronDown } from '@fortawesome/free-solid-svg-icons'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -14,7 +14,7 @@ import { FleetRobotCard } from '@/pages/robots-v2/components/FleetRobotCard'
 import { RobotConfirmModal } from '@/pages/robots-v2/components/RobotConfirmModal'
 import { fmtErr } from '@/pages/robots-v2/formatters'
 import { robotV2Service } from '@/services/robotV2Service'
-import type { RobotV2 } from '@/types/robotV2'
+import type { RobotV2, RobotV2Status } from '@/types/robotV2'
 
 type ConfirmAction =
     | { kind: 'delete'; robot: RobotV2 }
@@ -45,6 +45,7 @@ export default function RobotsV2FleetPage() {
     const navigate = useNavigate()
     const toast = useToast()
     const [robots, setRobots] = useState<RobotV2[]>([])
+    const [snapshots, setSnapshots] = useState<Record<number, RobotV2Status>>({})
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [busyId, setBusyId] = useState<number | null>(null)
@@ -53,19 +54,44 @@ export default function RobotsV2FleetPage() {
     const [createMenuOpen, setCreateMenuOpen] = useState(false)
     const [confirm, setConfirm] = useState<ConfirmAction>(null)
 
+    const loadSnapshots = useCallback(async (items: RobotV2[]) => {
+        const trading = items.filter(robot => robot.type === 2)
+        if (trading.length === 0) {
+            setSnapshots({})
+            return
+        }
+        const settled = await Promise.all(
+            trading.map(async robot => {
+                try {
+                    const status = await robotV2Service.getStatus(robot.id)
+                    return [robot.id, status] as const
+                } catch {
+                    return null
+                }
+            }),
+        )
+        const next: Record<number, RobotV2Status> = {}
+        for (const entry of settled) {
+            if (entry) next[entry[0]] = entry[1]
+        }
+        setSnapshots(next)
+    }, [])
+
     const load = useCallback(async () => {
         setLoading(true)
         setError(null)
         try {
             const data = await robotV2Service.list()
             setRobots(data.items)
+            setLoading(false)
+            void loadSnapshots(data.items)
         } catch (e) {
             setError(fmtErr(e))
             setRobots([])
-        } finally {
+            setSnapshots({})
             setLoading(false)
         }
-    }, [])
+    }, [loadSnapshots])
 
     useEffect(() => {
         void load()
@@ -177,6 +203,7 @@ export default function RobotsV2FleetPage() {
         <FleetRobotCard
             key={robot.id}
             robot={robot}
+            snapshot={snapshots[robot.id] ?? null}
             busy={busyId === robot.id}
             statusMenuOpen={statusMenuId === robot.id}
             actionsMenuOpen={actionsMenuId === robot.id}
@@ -192,16 +219,6 @@ export default function RobotsV2FleetPage() {
 
     const heroActions = (
         <>
-            <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="dashboard-hero__cfg"
-                onClick={() => navigate('/robots/backtest')}
-            >
-                <FontAwesomeIcon icon={faChartLine} className="dashboard-icon" />
-                <span className="dashboard-hero__cfg-text">Бэктест</span>
-            </Button>
             <DropdownMenu
                 open={createMenuOpen}
                 onOpenChange={setCreateMenuOpen}

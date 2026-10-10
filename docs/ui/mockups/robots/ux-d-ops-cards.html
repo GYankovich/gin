@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>UX-D · Ops pulse + карточки опросников</title>
+  <link rel="stylesheet" href="_wire.css" />
+</head>
+<body>
+  <div class="opt-bar">
+    <a class="opt-bar__back" href="index.html">← Хаб</a>
+    <span class="opt-bar__name">UX-D</span>
+    <span class="opt-bar__badge">probe</span>
+    <div class="tabs" id="tabs">
+      <button type="button" data-s="fleet" class="is-on">Флот</button>
+      <button type="button" data-s="monitor">Лайв</button>
+      <button type="button" data-s="audit">Audit</button>
+      <button type="button" data-s="bt">Бэктест/Lab</button>
+    </div>
+  </div>
+
+  <div class="thesis">
+    <h1>UX thesis: Ops pulse + единый паттерн карточек</h1>
+    <div class="row"><span class="lbl">Job</span><span>За 3 секунды понять, кто горит; один жест «открыть работу» — как у опросников.</span></div>
+    <div class="row"><span class="lbl">Как</span><span>KPI-пульс сверху + Collapsible groups + <strong>вертикальный stack карточек</strong> (status trigger + ⋯). Тело карточки → Лайв; status/⋯ не уводят с флота зря.</span></div>
+    <div class="row"><span class="lbl">Жертва</span><span>Нет плотной DataTable / сортировки по колонкам; меньше «spreadsheet» скана при 30+ роботах без поиска.</span></div>
+  </div>
+
+  <div class="frame-wrap"><div class="frame">
+    <div class="nav"><b>GIN</b> <span>Дашборд</span> <span class="on">Роботы</span> <span>Портфель</span></div>
+
+    <div class="screen is-on page" id="s-fleet">
+      <div class="hero">
+        <div>
+          <h2>ФЛОТ</h2>
+          <p class="sub">Один паттерн карточек для опросников и торговых</p>
+        </div>
+        <div class="acts">
+          <span class="chip">Lab</span>
+          <span class="chip on">+ Создать</span>
+        </div>
+      </div>
+
+      <div class="zone zone--solid">
+        <span class="zn zn-pri">① PULSE</span>
+        <p class="zh">Что горит (флот)</p>
+        <div class="kpis">
+          <div class="kpi ok"><div class="l">В работе</div><div class="v">2</div></div>
+          <div class="kpi hot"><div class="l">Ошибки</div><div class="v">1</div></div>
+          <div class="kpi"><div class="l">Δ дня</div><div class="v" style="color:var(--ok)">+18.4k</div></div>
+          <div class="kpi"><div class="l">Позиции</div><div class="v">7</div></div>
+          <div class="kpi"><div class="l">Paper/Live</div><div class="v">5/2</div></div>
+          <div class="kpi"><div class="l">Опросники on</div><div class="v">1</div></div>
+        </div>
+        <p class="hint">Клик по «Ошибки» → скролл/фильтр к группе с ошибками (client-only).</p>
+      </div>
+
+      <div class="zone">
+        <span class="zn">② GROUP</span>
+        <div class="group-h">▾ Опросники портфеля <span class="chip ghost">1</span></div>
+        <div class="stack" style="margin-top:8px">
+          <div class="card">
+            <div>
+              <div class="name">Основной опросник <span class="mono" style="color:var(--muted)">#12</span></div>
+              <div class="meta">Синхронизация 07.10 11:40 · тело → Правка</div>
+            </div>
+            <div class="aff">
+              <button type="button" class="status ok">Включён ▾</button>
+              <button type="button">⋯</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="zone zone--solid">
+        <span class="zn zn-pri">③ CARDS</span>
+        <div class="group-h">▾ Торговые роботы <span class="chip ghost">3</span></div>
+        <div class="stack" style="margin-top:8px">
+          <div class="card live">
+            <div>
+              <div class="name">Momentum MOEX <span class="mono" style="color:var(--muted)">#41</span></div>
+              <div class="meta">trend · live · цикл 128 · <span class="arrow">клик тела → Лайв</span></div>
+              <div class="metrics" style="margin-top:6px">
+                <span style="color:var(--ok)">Δ +12.8k</span>
+                <span>eq 1.02M</span>
+                <span>поз. 3</span>
+              </div>
+            </div>
+            <div class="aff">
+              <button type="button" class="status ok">В работе ▾</button>
+              <button type="button">⋯ Логи·БТ·Клон</button>
+            </div>
+          </div>
+          <div class="card hot">
+            <div>
+              <div class="name">MeanRev Bluechips <span class="mono" style="color:var(--muted)">#38</span></div>
+              <div class="meta">ошибка · risk_halt · <span class="arrow">клик тела → Лайв (диагностика)</span></div>
+              <div class="metrics" style="margin-top:6px"><span style="color:var(--hot)">Δ −2.1k</span></div>
+            </div>
+            <div class="aff">
+              <button type="button" class="status hot">Ошибка ▾</button>
+              <button type="button">⋯</button>
+            </div>
+          </div>
+          <div class="card">
+            <div>
+              <div class="name">Scalper test <span class="mono" style="color:var(--muted)">#29</span></div>
+              <div class="meta">выключен · клик тела → Лайв (idle)</div>
+            </div>
+            <div class="aff">
+              <button type="button" class="status off">Выключен ▾</button>
+              <button type="button">⋯</button>
+            </div>
+          </div>
+        </div>
+        <p class="flow">Affordance: <strong>status ▾</strong> = start/stop без ухода · <strong>⋯</strong> = Правка/Audit/БТ · <strong>тело</strong> = Лайв (опросник → Правка).</p>
+      </div>
+    </div>
+
+    <div class="screen page" id="s-monitor">
+      <div class="hero">
+        <div><h2>Лайв · #41</h2><p class="sub">Иерархия как UX-08 cockpit, без UI-полиша</p></div>
+        <div class="acts"><span class="chip">Флот</span><span class="chip on">Лайв</span><span class="chip">Правка</span><span class="chip">Audit</span><span class="chip">БТ</span><span class="chip">Стоп</span></div>
+      </div>
+      <div class="grid-cockpit">
+        <div class="zone zone--solid gc-k"><span class="zn zn-pri">① KPI</span>
+          <div class="kpis">
+            <div class="kpi ok"><div class="l">Δ дня</div><div class="v">+12.8k</div></div>
+            <div class="kpi"><div class="l">Equity</div><div class="v">1.02M</div></div>
+            <div class="kpi"><div class="l">Cash</div><div class="v">412k</div></div>
+            <div class="kpi"><div class="l">Цикл</div><div class="v">128</div></div>
+            <div class="kpi"><div class="l">Поз.</div><div class="v">3</div></div>
+            <div class="kpi"><div class="l">Заявки</div><div class="v">1</div></div>
+          </div>
+        </div>
+        <div class="zone gc-s"><span class="zn">② ЭТАП</span><div class="box tall">stage / sync</div></div>
+        <div class="zone zone--solid gc-c"><span class="zn zn-pri">③ EQUITY</span><div class="box tall solid">график сессии</div></div>
+        <div class="zone gc-f"><span class="zn">④ ПОТОК</span>
+          <p class="zh">Единственный live-feed</p>
+          <div class="box tall">события + решения</div>
+          <p class="hint">Не дублировать на Audit</p>
+        </div>
+        <div class="zone zone--solid gc-t"><span class="zn zn-pri">⑤ РИСК</span>
+          <div class="split-2">
+            <div class="box solid">позиции</div>
+            <div class="box solid">заявки / круги</div>
+          </div>
+          <p class="hint">▾ Скан вселенной — collapse</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen page" id="s-audit">
+      <div class="hero">
+        <div><h2>Audit · #41</h2><p class="sub">Только persisted</p></div>
+        <div class="acts"><span class="chip on">Исполнения</span><span class="chip">Заявки</span><span class="chip">Циклы</span></div>
+      </div>
+      <div class="zone zone--hot">
+        <span class="zn">BANNER</span>
+        <p class="zh">Нет вкладки «Поток»</p>
+        <p class="hint">«Живой поток — на Лайве» · одна mental model событий</p>
+      </div>
+      <div class="zone zone--solid"><span class="zn zn-pri">TABLE</span><div class="box tall solid">DataTable fills/orders/cycles</div></div>
+    </div>
+
+    <div class="screen page" id="s-bt">
+      <div class="hero">
+        <div><h2>Прогоны</h2><p class="sub">Сегмент в одном chrome</p></div>
+        <div class="acts"><span class="chip on">Робот #41</span><span class="chip">Лаборатория</span></div>
+      </div>
+      <div class="split-2">
+        <div class="zone zone--solid"><span class="zn zn-pri">LAUNCH</span><div class="box tall solid">период · капитал · Запуск</div></div>
+        <div class="zone"><span class="zn">LAST</span><div class="box tall">KPI последнего SUCCESS · → glass-box</div></div>
+      </div>
+      <div class="zone"><span class="zn">HISTORY</span><div class="box">история робота + link «все в Lab»</div>
+      <p class="flow">Сегмент «Лаборатория» = уход на /robots/backtest · не второй стиль hero.</p></div>
+    </div>
+  </div></div>
+
+  <div class="footer">
+    <h3>Рекомендация по D</h3>
+    <p>Лучший fit к текущему запросу «карточки как опросники» + сохранение B-монитора. Гибрид: <strong>флот D + монитор B</strong>.</p>
+  </div>
+  <script>
+    document.getElementById('tabs').onclick = e => {
+      const b = e.target.closest('button[data-s]'); if (!b) return;
+      [...tabs.children].forEach(x => x.classList.toggle('is-on', x===b));
+      document.querySelectorAll('.screen').forEach(s => s.classList.toggle('is-on', s.id === 's-'+b.dataset.s));
+    };
+  </script>
+</body>
+</html>

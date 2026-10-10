@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Option A · Portfolio stack · Роботы</title>
+  <link rel="stylesheet" href="_shared.css" />
+</head>
+<body>
+  <div class="opt-bar">
+    <a class="opt-bar__back" href="index.html">← Все опции</a>
+    <span class="opt-bar__name">Option A — Portfolio stack</span>
+    <span class="opt-bar__badge">эволюционный</span>
+    <div class="screen-tabs" id="tabs">
+      <button type="button" data-screen="fleet" class="is-active">Флот</button>
+      <button type="button" data-screen="monitor">Лайв</button>
+      <button type="button" data-screen="logs">Логи</button>
+      <button type="button" data-screen="backtest">Бэктест</button>
+      <button type="button" data-screen="wizard">Мастер</button>
+    </div>
+  </div>
+  <p class="opt-caption">
+    <strong>Суть:</strong> тот же вертикальный ритм, что Portfolio/Dashboard — KPI → chart → таблицы.
+    Флот получает strip статуса флота. Монитор не ломает chrome: вторичное (скан, решения, поток) уезжает в collapse.
+  </p>
+
+  <div class="frame-wrap">
+    <div class="frame">
+      <div class="app-nav">
+        <span class="app-nav__brand">GIN</span>
+        <div class="app-nav__links">
+          <span>Дашборд</span><span>Портфель</span><span class="is-on">Роботы</span><span>Аналитика</span>
+        </div>
+      </div>
+
+      <!-- FLEET -->
+      <div class="screen is-active page" id="screen-fleet">
+        <div class="hero">
+          <div>
+            <p class="hero__eyebrow">ROBOT NODE</p>
+            <h1 class="hero__title">РОБОТЫ</h1>
+            <p class="hero__sub">Флот · статусы · быстрый запуск</p>
+          </div>
+          <div class="hero__actions">
+            <button class="btn btn--ghost" type="button">Лаборатория</button>
+            <button class="btn btn--primary" type="button">+ Создать</button>
+          </div>
+        </div>
+        <div class="layout">
+          <div class="card">
+            <div class="card__head"><h3 class="card__title">Сводка флота</h3><span class="dim mono">обновлено 12:31</span></div>
+            <div class="kpi-row">
+              <div class="kpi"><div class="kpi__label">В работе</div><div class="kpi__value up">2</div></div>
+              <div class="kpi"><div class="kpi__label">Ошибки</div><div class="kpi__value down">1</div></div>
+              <div class="kpi"><div class="kpi__label">Выключены</div><div class="kpi__value">4</div></div>
+              <div class="kpi"><div class="kpi__label">Δ дня (сумма)</div><div class="kpi__value up">+18 420 ₽</div></div>
+              <div class="kpi"><div class="kpi__label">Открытых поз.</div><div class="kpi__value">7</div></div>
+              <div class="kpi"><div class="kpi__label">Paper / Live</div><div class="kpi__value">5 / 2</div></div>
+            </div>
+          </div>
+
+          <div class="collapse-head"><strong style="color:var(--text-primary)">Опросники портфеля</strong> <span class="badge">1</span></div>
+          <div class="fleet-card">
+            <div>
+              <div class="fleet-card__name">Основной опросник <span class="dim mono">#12</span></div>
+              <div class="fleet-card__meta">Синхронизация 07.10 11:40</div>
+            </div>
+            <div class="fleet-metrics">
+              <span class="badge badge--up">Включён</span>
+              <button class="btn btn--ghost" type="button">⋯</button>
+            </div>
+          </div>
+
+          <div class="collapse-head" style="margin-top:8px"><strong style="color:var(--text-primary)">Торговые роботы</strong> <span class="badge">3</span></div>
+          <div class="fleet-card">
+            <div>
+              <div class="fleet-card__name"><span class="status-dot status-dot--up"></span> Momentum MOEX <span class="dim mono">#41</span></div>
+              <div class="fleet-card__meta mono">trend · live · цикл 128</div>
+            </div>
+            <div class="fleet-metrics">
+              <span class="up">+12 800 ₽</span>
+              <span class="muted">equity 1.02M</span>
+              <span class="badge badge--up">В работе</span>
+              <button class="btn btn--secondary" type="button">Пауза</button>
+            </div>
+          </div>
+          <div class="fleet-card">
+            <div>
+              <div class="fleet-card__name"><span class="status-dot status-dot--warn"></span> MeanRev Bluechips <span class="dim mono">#38</span></div>
+              <div class="fleet-card__meta mono">mean_reversion · paper</div>
+            </div>
+            <div class="fleet-metrics">
+              <span class="down">−2 140 ₽</span>
+              <span class="muted">equity 98.4k</span>
+              <span class="badge badge--warn">Ошибка</span>
+              <button class="btn btn--primary" type="button">Лайв</button>
+            </div>
+          </div>
+          <div class="fleet-card">
+            <div>
+              <div class="fleet-card__name"><span class="status-dot"></span> Scalper test <span class="dim mono">#29</span></div>
+              <div class="fleet-card__meta mono">scalper · paper · нет запусков</div>
+            </div>
+            <div class="fleet-metrics">
+              <span class="dim">—</span>
+              <span class="badge">Выключен</span>
+              <button class="btn btn--primary" type="button">Запуск</button>
+            </div>
+          </div>
+          <div class="callout">Карточки богаче текущих: day Δ и equity на строке. Chrome прежний.</div>
+        </div>
+      </div>
+
+      <!-- MONITOR -->
+      <div class="screen page" id="screen-monitor">
+        <div class="hero">
+          <div>
+            <p class="hero__eyebrow">LIVE NODE</p>
+            <h1 class="hero__title">MOMENTUM MOEX</h1>
+            <p class="hero__sub">Монитор · сессия <span class="badge badge--up">В работе</span> · стрим онлайн</p>
+          </div>
+          <div class="hero__actions">
+            <div class="subnav">
+              <button class="btn btn--ghost" type="button">Флот</button>
+              <button class="btn btn--ghost is-on" type="button">Лайв</button>
+              <button class="btn btn--ghost" type="button">Правка</button>
+              <button class="btn btn--ghost" type="button">Логи</button>
+              <button class="btn btn--ghost" type="button">Бэктест</button>
+            </div>
+            <button class="btn btn--secondary" type="button">Мягкая остановка</button>
+            <button class="btn btn--danger" type="button">Жёсткая</button>
+          </div>
+        </div>
+        <div class="layout">
+          <div class="card">
+            <div class="card__head"><h3 class="card__title">Сводка за день · 07.10</h3></div>
+            <div class="kpi-row kpi-row--4" style="margin-bottom:8px">
+              <div class="kpi"><div class="kpi__label">Сделки</div><div class="kpi__value">6</div></div>
+              <div class="kpi"><div class="kpi__label">Сумма +</div><div class="kpi__value up">+19 200</div></div>
+              <div class="kpi"><div class="kpi__label">Сумма −</div><div class="kpi__value down">−6 400</div></div>
+              <div class="kpi"><div class="kpi__label">Дельта</div><div class="kpi__value up">+12 800</div></div>
+            </div>
+            <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+              <div class="kpi"><div class="kpi__label">Equity · сессия</div><div class="kpi__value">1 024 510</div><div class="kpi__hint">обновлено 4 с назад</div></div>
+              <div class="kpi"><div class="kpi__label">Cash · сессия</div><div class="kpi__value">412 000</div></div>
+              <div class="kpi"><div class="kpi__label">Цикл</div><div class="kpi__value">128</div></div>
+              <div class="kpi"><div class="kpi__label">Позиции</div><div class="kpi__value">3</div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card__head">
+              <h3 class="card__title">Этап цикла</h3>
+              <span class="badge badge--cyan">Скан вселенной</span>
+            </div>
+            <div style="height:6px;background:var(--bg-panel);border-radius:4px;overflow:hidden">
+              <div style="width:62%;height:100%;background:var(--neon-cyan)"></div>
+            </div>
+            <p class="muted mono" style="margin:8px 0 0;font-size:11px">62% · триггер: schedule · trend</p>
+          </div>
+          <div class="card">
+            <div class="card__head"><h3 class="card__title">Equity сессии</h3></div>
+            <div class="chart-fake">
+              <svg viewBox="0 0 800 160" preserveAspectRatio="none">
+                <polyline fill="none" stroke="#00ffaa" stroke-width="2"
+                  points="0,120 80,110 160,115 240,90 320,95 400,70 480,75 560,50 640,55 720,40 800,35" />
+              </svg>
+              <div class="chart-fake__x"><span>10:00</span><span>11:00</span><span>12:00</span><span>сейчас</span></div>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <div class="card__head"><h3 class="card__title">Позиции · 3</h3><span class="dim">свежие</span></div>
+              <table class="table">
+                <thead><tr><th>Тикер</th><th>Сторона</th><th>Кол-во</th><th>Вход</th><th>Сейчас</th></tr></thead>
+                <tbody>
+                  <tr><td><strong>SBER</strong></td><td>long</td><td class="mono">120</td><td class="mono">278.4</td><td class="mono up">281.1</td></tr>
+                  <tr><td><strong>GAZP</strong></td><td>long</td><td class="mono">40</td><td class="mono">162.0</td><td class="mono down">160.2</td></tr>
+                  <tr><td><strong>LKOH</strong></td><td>long</td><td class="mono">5</td><td class="mono">7120</td><td class="mono up">7188</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card">
+              <div class="card__head"><h3 class="card__title">Сделки дня / заявки</h3></div>
+              <table class="table">
+                <thead><tr><th>Тикер</th><th>Статус</th><th>В карман</th></tr></thead>
+                <tbody>
+                  <tr><td>SBER</td><td>закрыта</td><td class="up mono">+4 200</td></tr>
+                  <tr><td>VTBR</td><td>открыта</td><td class="dim">—</td></tr>
+                  <tr><td>ROSN</td><td>закрыта</td><td class="down mono">−1 100</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="collapse-head">Вселенная / скан · 48 тикеров</div>
+          <div class="collapse-head">Решения риска · 12</div>
+          <div class="collapse-head">Живой поток · стрим онлайн</div>
+          <div class="callout">Вторичные панели по умолчанию свёрнуты — меньше скролла, чем сегодня.</div>
+        </div>
+      </div>
+
+      <!-- LOGS -->
+      <div class="screen page" id="screen-logs">
+        <div class="hero">
+          <div>
+            <p class="hero__eyebrow">AUDIT NODE</p>
+            <h1 class="hero__title">ЛОГИ #41</h1>
+            <p class="hero__sub">Audit DB · исполнения · заявки · циклы (поток сессии — на Лайве)</p>
+          </div>
+          <div class="hero__actions">
+            <div class="subnav">
+              <button class="btn btn--ghost" type="button">Флот</button>
+              <button class="btn btn--ghost" type="button">Лайв</button>
+              <button class="btn btn--ghost" type="button">Правка</button>
+              <button class="btn btn--ghost is-on" type="button">Логи</button>
+              <button class="btn btn--ghost" type="button">Бэктест</button>
+            </div>
+            <button class="btn btn--secondary" type="button">Экспорт JSON</button>
+            <button class="btn" type="button">Обновить</button>
+          </div>
+        </div>
+        <div class="layout">
+          <div class="card" style="display:flex;gap:12px;align-items:center">
+            <div class="seg">
+              <span>Поток</span><span class="is-on">Исполнения</span><span>Заявки</span><span>Циклы</span>
+            </div>
+            <span class="muted">Option A: поток остаётся, но копирайт указывает «дубль лайва»</span>
+          </div>
+          <div class="card">
+            <table class="table">
+              <thead><tr><th>Время</th><th>Тикер</th><th>Сторона</th><th>Цена</th><th>В карман</th><th>Тип</th></tr></thead>
+              <tbody>
+                <tr><td class="mono">07.10 12:18</td><td><strong>SBER</strong></td><td>sell</td><td class="mono">281.1</td><td class="up mono">+4 200</td><td>take_profit</td></tr>
+                <tr><td class="mono">07.10 11:52</td><td><strong>ROSN</strong></td><td>sell</td><td class="mono">538.0</td><td class="down mono">−1 100</td><td>stop_loss</td></tr>
+                <tr><td class="mono">07.10 11:05</td><td><strong>SBER</strong></td><td>buy</td><td class="mono">278.4</td><td class="dim">—</td><td>entry</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- BACKTEST -->
+      <div class="screen page" id="screen-backtest">
+        <div class="hero">
+          <div>
+            <p class="hero__eyebrow">BACKTEST NODE</p>
+            <h1 class="hero__title">БЭКТЕСТ #41</h1>
+            <p class="hero__sub">Momentum MOEX · trend · <span class="badge badge--up">SUCCESS</span></p>
+          </div>
+          <div class="hero__actions">
+            <div class="subnav">
+              <button class="btn btn--ghost" type="button">Флот</button>
+              <button class="btn btn--ghost" type="button">Лайв</button>
+              <button class="btn btn--ghost" type="button">Правка</button>
+              <button class="btn btn--ghost" type="button">Логи</button>
+              <button class="btn btn--ghost is-on" type="button">Бэктест</button>
+            </div>
+            <button class="btn btn--primary" type="button">Запустить бэктест</button>
+          </div>
+        </div>
+        <div class="layout">
+          <div class="card" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <div class="seg"><span>7д</span><span class="is-on">30д</span><span>90д</span><span>180д</span><span>Свой</span></div>
+            <span class="muted mono">2026-09-07 → 2026-10-07 · капитал 100 000</span>
+            <a href="#" style="margin-left:auto">Все прогоны в Lab →</a>
+          </div>
+          <div class="banner">Честность: бар-модель · без тиков · partial=false</div>
+          <div class="card">
+            <div class="kpi-row">
+              <div class="kpi"><div class="kpi__label">Доходность</div><div class="kpi__value up">+14.2%</div></div>
+              <div class="kpi"><div class="kpi__label">Max DD</div><div class="kpi__value down">−6.1%</div></div>
+              <div class="kpi"><div class="kpi__label">Sharpe</div><div class="kpi__value">1.42</div></div>
+              <div class="kpi"><div class="kpi__label">Win rate</div><div class="kpi__value">58%</div></div>
+              <div class="kpi"><div class="kpi__label">Сделки</div><div class="kpi__value">84</div></div>
+              <div class="kpi"><div class="kpi__label">Equity fin</div><div class="kpi__value">114 200</div></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card__head"><h3 class="card__title">Equity + маркеры сделок</h3></div>
+            <div class="chart-fake" style="height:180px">
+              <svg viewBox="0 0 800 160" preserveAspectRatio="none">
+                <polyline fill="none" stroke="#00ffaa" stroke-width="2"
+                  points="0,100 100,95 200,110 300,80 400,85 500,60 600,55 700,40 800,30" />
+                <circle cx="300" cy="80" r="4" fill="#00ffaa"/><circle cx="500" cy="60" r="4" fill="#ff3366"/>
+              </svg>
+            </div>
+          </div>
+          <div class="pill-row">
+            <span class="chip chip--hot">reject: cooldown ×18</span>
+            <span class="chip chip--hot">no_liquidity ×9</span>
+            <span class="chip">filled 84 · rejected 41 · deferred 12</span>
+          </div>
+          <div class="callout">Glass-box (UX-05) без смены композиции. Lab — соседняя ссылка, не новая IA.</div>
+        </div>
+      </div>
+
+      <!-- WIZARD -->
+      <div class="screen page" id="screen-wizard">
+        <div class="hero">
+          <div>
+            <p class="hero__eyebrow">SETUP NODE</p>
+            <h1 class="hero__title">НОВЫЙ РОБОТ</h1>
+            <p class="hero__sub">Шаг 2 из 4 · торговый робот</p>
+          </div>
+          <div class="hero__actions">
+            <button class="btn btn--ghost" type="button">Флот</button>
+          </div>
+        </div>
+        <div class="wizard-shell">
+          <nav class="steps card">
+            <button type="button">1 · Основное</button>
+            <button type="button" class="is-on">2 · Стратегия</button>
+            <button type="button">3 · Активы</button>
+            <button type="button">4 · Риск</button>
+          </nav>
+          <div class="card">
+            <p class="dim" style="margin-top:0;font-size:10px;letter-spacing:0.1em">ТОРГОВЫЙ РОБОТ · 2/4</p>
+            <h2 style="margin:4px 0 6px;font-size:18px">Торговая логика</h2>
+            <p class="muted" style="margin-top:0">Стиль, архетип и расписание запуска.</p>
+            <div class="field"><label>Архетип</label>
+              <div class="type-cards">
+                <div class="type-card is-on"><strong>Trend</strong><small>Импульс по тренду</small></div>
+                <div class="type-card"><strong>Mean rev</strong><small>Возврат к среднему</small></div>
+              </div>
+            </div>
+            <div class="field"><label>Цель</label>
+              <div class="seg"><span>Консерв.</span><span class="is-on">Умерен.</span><span>Агресс.</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3 class="card__title">Сводка</h3>
+            <p class="muted" style="font-size:12px">Paper · капитал 100k · max pos 15% · SL 1.5% · TP 3%</p>
+            <button class="btn btn--primary" type="button" style="width:100%;margin-top:12px">Далее</button>
+          </div>
+        </div>
+        <div class="callout">Мастер почти без изменений vs сегодня — Option A не трогает IA setup.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-ask">
+    <h3>Нравится Option A?</h3>
+    <p>Подходит, если хотите быстрые wins без смены mental model. Для сильного live-опыта смотрите <a href="b-live-cockpit.html">Option B</a>.</p>
+  </div>
+
+  <script>
+    const tabs = document.getElementById('tabs');
+    tabs.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-screen]');
+      if (!btn) return;
+      tabs.querySelectorAll('button').forEach(b => b.classList.toggle('is-active', b === btn));
+      document.querySelectorAll('.screen').forEach(s => s.classList.toggle('is-active', s.id === 'screen-' + btn.dataset.screen));
+    });
+  </script>
+</body>
+</html>

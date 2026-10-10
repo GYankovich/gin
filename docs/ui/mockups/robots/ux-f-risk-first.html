@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>UX-F · Risk-first монитор</title>
+  <link rel="stylesheet" href="_wire.css" />
+</head>
+<body>
+  <div class="opt-bar">
+    <a class="opt-bar__back" href="index.html">← Хаб</a>
+    <span class="opt-bar__name">UX-F</span>
+    <span class="opt-bar__badge">probe</span>
+    <div class="tabs" id="tabs">
+      <button type="button" data-s="fleet" class="is-on">Флот · dual CTA</button>
+      <button type="button" data-s="monitor">Лайв risk-first</button>
+      <button type="button" data-s="stream">Поток = drawer</button>
+      <button type="button" data-s="paths">Пути Audit/Lab</button>
+    </div>
+  </div>
+
+  <div class="thesis">
+    <h1>UX thesis: Сначала риск (позиции/заявки), поток — по запросу</h1>
+    <div class="row"><span class="lbl">Job</span><span>На Лайве ответить: «что у меня в рынке прямо сейчас?» раньше, чем читать ленту.</span></div>
+    <div class="row"><span class="lbl">Как</span><span>KPI → <strong>позиции|заявки full-width</strong> → equity. Поток/решения = <strong>drawer</strong>. На флоте явные две кнопки: Лайв | Правка (status отдельно).</span></div>
+    <div class="row"><span class="lbl">Жертва</span><span>Поток не всегда на экране; меньше «пульса жизни» без открытия drawer. Две кнопки на карточке плотнее, чем один клик по телу.</span></div>
+  </div>
+
+  <div class="frame-wrap"><div class="frame">
+    <div class="nav"><b>GIN</b> <span class="on">Роботы</span></div>
+
+    <div class="screen is-on page" id="s-fleet">
+      <div class="hero">
+        <div><h2>ФЛОТ</h2><p class="sub">Карточки как опросники + явный dual CTA</p></div>
+        <div class="acts"><span class="chip">① pulse KPI</span><span class="chip on">+ Создать</span></div>
+      </div>
+      <div class="zone"><span class="zn">①</span><div class="box">В работе 2 · Ошибки 1 · Δ +18k</div></div>
+      <div class="zone zone--solid">
+        <span class="zn zn-pri">CARD ANATOMY</span>
+        <div class="card live" style="grid-template-columns:1fr auto auto;margin-top:4px">
+          <div>
+            <div class="name">Momentum MOEX #41</div>
+            <div class="meta">trend · live · Δ +12.8k · поз. 3</div>
+            <div class="hint" style="margin-top:6px">Тело <strong>не</strong> кликабельно целиком — только явные CTA (меньше случайных переходов).</div>
+          </div>
+          <div class="aff">
+            <button type="button" class="status ok">В работе ▾</button>
+            <button type="button">⋯</button>
+          </div>
+          <div class="aff">
+            <button type="button" class="primary">Лайв</button>
+            <button type="button">Правка</button>
+          </div>
+        </div>
+        <div class="card" style="grid-template-columns:1fr auto auto;margin-top:8px">
+          <div>
+            <div class="name">Опросник #12</div>
+            <div class="meta">только Правка · нет Лайв</div>
+          </div>
+          <div class="aff"><button type="button" class="status ok">Включён ▾</button><button type="button">⋯</button></div>
+          <div class="aff"><button type="button" class="primary">Правка</button></div>
+        </div>
+        <p class="flow">Ответ на «когда monitor vs edit»: <strong>кнопка говорит</strong>, не догадка по типу клика.</p>
+      </div>
+    </div>
+
+    <div class="screen page" id="s-monitor">
+      <div class="hero">
+        <div><h2>Лайв · risk-first</h2><p class="sub">Порядок зон = приоритет трейдера</p></div>
+        <div class="acts">
+          <span class="chip">Флот</span><span class="chip on">Лайв</span><span class="chip">Правка</span><span class="chip">Audit</span><span class="chip">БТ</span>
+          <span class="chip on">Открыть поток ▸</span>
+        </div>
+      </div>
+      <ol class="pri-list" style="margin-bottom:10px">
+        <li><strong>① KPI + этап</strong> — жив ли робот / P&amp;L дня</li>
+        <li><strong>② Позиции | Заявки</strong> — что в рынке (above the fold)</li>
+        <li><strong>③ Equity</strong> — контекст</li>
+        <li><strong>④ Поток</strong> — drawer, не колонка</li>
+      </ol>
+      <div class="zone zone--solid"><span class="zn zn-pri">①</span>
+        <div class="kpis">
+          <div class="kpi ok"><div class="l">Δ дня</div><div class="v">+12.8k</div></div>
+          <div class="kpi"><div class="l">Equity</div><div class="v">1.02M</div></div>
+          <div class="kpi"><div class="l">Этап</div><div class="v" style="font-size:12px">Скан 62%</div></div>
+          <div class="kpi"><div class="l">Стрим</div><div class="v" style="font-size:12px;color:var(--ok)">online</div></div>
+        </div>
+      </div>
+      <div class="zone zone--solid zone--ok"><span class="zn zn-pri">② RISK</span>
+        <div class="split-2">
+          <div>
+            <p class="zh">Позиции · 3</p>
+            <div class="box solid" style="min-height:100px;justify-content:flex-start;align-items:flex-start">
+              SBER long 120 @ 281<br/>GAZP long 40 @ 160<br/>LKOH long 5 @ 7188
+            </div>
+          </div>
+          <div>
+            <p class="zh">Заявки · 1 open</p>
+            <div class="box solid" style="min-height:100px">GAZP resting · …</div>
+          </div>
+        </div>
+      </div>
+      <div class="zone"><span class="zn">③</span><div class="box tall">Equity chart (ниже риска)</div></div>
+      <p class="hint">▾ Скан · ▾ Решения (кратко) — collapse под графиком</p>
+    </div>
+
+    <div class="screen page" id="s-stream">
+      <div class="hero">
+        <div><h2>Поток как drawer</h2><p class="sub">Не конкурирует с позициями</p></div>
+      </div>
+      <div class="split-2">
+        <div class="zone"><span class="zn">MAIN</span>
+          <div class="box tall solid">позиции / заявки / equity остаются</div>
+          <p class="hint">Затемнение 30% когда drawer open</p>
+        </div>
+        <div class="drawer-mock">
+          <p class="zh">Живой поток <span class="chip">стрим</span></p>
+          <div class="box" style="min-height:140px;text-align:left;justify-content:flex-start">
+            12:31 cycle done<br/>12:30 reject VTBR<br/>12:29 fill SBER<br/>…
+          </div>
+          <p class="zh" style="margin-top:10px">Решения</p>
+          <div class="box">reject / accept list</div>
+          <p class="flow" style="margin-top:10px">Закрытие: Esc / «Скрыть поток». Badge на hero показывает unread/offline.</p>
+        </div>
+      </div>
+      <div class="zone zone--hot" style="margin-top:10px">
+        <span class="zn">VS AUDIT</span>
+        <p class="zh">Drawer = эфемерный live · Audit page = persisted таблицы</p>
+        <p class="hint">Ноль пересечения «Поток» на Audit.</p>
+      </div>
+    </div>
+
+    <div class="screen page" id="s-paths">
+      <div class="hero"><div><h2>Карта путей</h2><p class="sub">Куда ведёт каждый жест</p></div></div>
+      <div class="zone zone--solid">
+        <span class="zn zn-pri">FLEET</span>
+        <ul class="pri-list">
+          <li><strong>Лайв</strong> → monitor risk-first</li>
+          <li><strong>Правка</strong> → wizard</li>
+          <li><strong>status ▾</strong> → start/stop in place</li>
+          <li><strong>⋯ Бэктест</strong> → robot BT (B chrome) или Lab (если выберем E-launcher)</li>
+          <li><strong>⋯ Audit</strong> → audit tables</li>
+        </ul>
+      </div>
+      <div class="zone">
+        <span class="zn">LAB</span>
+        <p class="hint">F не ломает UX-08 Lab segment — можно оставить «Робот | Lab» как в B/D.</p>
+      </div>
+      <div class="zone">
+        <span class="zn">WIZARD</span>
+        <p class="hint">Optional: advanced risk → collapse. Не меняет primary jobs.</p>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="footer">
+    <h3>Когда брать F</h3>
+    <p>Если на Лайве боль = «лента мешает видеть позиции». Хорошо стыкуется с флотом D (карточки) + dual CTA. Монитор F можно гибридить с KPI/этапом из B.</p>
+  </div>
+  <script>
+    document.getElementById('tabs').onclick = e => {
+      const b = e.target.closest('button[data-s]'); if (!b) return;
+      [...tabs.children].forEach(x => x.classList.toggle('is-on', x===b));
+      document.querySelectorAll('.screen').forEach(s => s.classList.toggle('is-on', s.id === 's-'+b.dataset.s));
+    };
+  </script>
+</body>
+</html>

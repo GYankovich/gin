@@ -15,24 +15,39 @@ import {
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { MobileDockDropdown } from '@/components/ui/MobileDockDropdown'
-import { fmtDate, fmtDateTimeShort, sessionStateLabel } from '@/pages/robots-v2/formatters'
-import type { RobotV2 } from '@/types/robotV2'
+import {
+    fmtDate,
+    fmtDateTimeShort,
+    fmtMoney,
+    fmtSyncAge,
+    sessionStateLabel,
+} from '@/pages/robots-v2/formatters'
+import type { RobotV2, RobotV2Status } from '@/types/robotV2'
 
-function isSessionRunning(state: string | null | undefined): boolean {
-    return String(state || '').toUpperCase() === 'RUNNING'
+function isSessionActive(state: string | null | undefined): boolean {
+    const s = String(state || '').toUpperCase()
+    return s === 'RUNNING' || s === 'BOOTSTRAP' || s === 'STOPPING'
 }
 
 function fleetStatusBadge(
     robot: RobotV2,
     sessionState: string | null | undefined,
-): { label: string; variant: 'up' | 'neutral' | 'down' | 'warn' } {
+): { label: string; variant: 'up' | 'neutral' | 'down' | 'warn' | 'cyan' } {
     const statusName = robot.statusName || robot.status_name
     if (robot.type === 1) {
         if (robot.status === 1) return { label: statusName || 'Включён', variant: 'up' }
         if (robot.status === 2) return { label: statusName || 'Выключен', variant: 'neutral' }
         return { label: statusName || 'Удалён', variant: 'down' }
     }
-    if (isSessionRunning(sessionState)) return { label: sessionStateLabel(sessionState), variant: 'up' }
+    const s = String(sessionState || '').toUpperCase()
+    if (s === 'ERROR' || s === 'FAILED' || robot.status === 3) {
+        return { label: sessionStateLabel(sessionState) || 'Ошибка', variant: 'down' }
+    }
+    if (isSessionActive(sessionState)) {
+        if (s === 'BOOTSTRAP') return { label: 'Синхронизация', variant: 'cyan' }
+        if (s === 'STOPPING') return { label: 'Остановка', variant: 'neutral' }
+        return { label: sessionStateLabel(sessionState), variant: 'up' }
+    }
     if (robot.status === 1) return { label: statusName || 'Включён', variant: 'warn' }
     if (robot.status === 2) return { label: statusName || 'Выключен', variant: 'neutral' }
     return { label: statusName || '—', variant: 'down' }
@@ -48,26 +63,46 @@ function modeOf(robot: RobotV2): string {
     return String(core.mode || 'paper')
 }
 
-function sessionStateOf(robot: RobotV2): string | null {
-    return (robot.sessionState ?? robot.session_state ?? null) as string | null
+function sessionStateOf(robot: RobotV2, snapshot?: RobotV2Status | null): string | null {
+    return (
+        snapshot?.sessionState
+        ?? snapshot?.session_state
+        ?? robot.sessionState
+        ?? robot.session_state
+        ?? null
+    ) as string | null
 }
 
-function activityLine(robot: RobotV2, isPortfolio: boolean): string {
-    const lastStarted = robot.lastStarted || robot.last_started
-    const createdAt = robot.createdAt || robot.created_at
-    if (lastStarted) {
-        const label = isPortfolio ? 'Синхронизация' : 'Запуск'
-        return `${label} ${fmtDateTimeShort(lastStarted)}`
+function syncIso(robot: RobotV2, snapshot: RobotV2Status | null | undefined, isPortfolio: boolean): string | null {
+    if (isPortfolio) {
+        return (robot.lastStarted || robot.last_started || robot.updatedAt || robot.updated_at || null) as string | null
     }
-    if (createdAt) {
-        return `Создан ${fmtDate(createdAt)}`
-    }
-    return isPortfolio ? 'Синхронизаций ещё не было' : 'Запусков ещё не было'
+    return (
+        snapshot?.lastCycleAt
+        ?? snapshot?.last_cycle_at
+        ?? snapshot?.balanceAsOf
+        ?? snapshot?.balance_as_of
+        ?? snapshot?.positionsUpdatedAt
+        ?? snapshot?.positions_updated_at
+        ?? robot.lastStarted
+        ?? robot.last_started
+        ?? robot.updatedAt
+        ?? robot.updated_at
+        ?? null
+    ) as string | null
+}
+
+function positionsCount(snapshot: RobotV2Status | null | undefined): number | null {
+    const positions = snapshot?.openPositions ?? snapshot?.open_positions
+    if (!Array.isArray(positions)) return null
+    return positions.length
 }
 
 export type FleetRobotCardProps = {
     robot: RobotV2
     busy: boolean
+    /** Live/idle snapshot from GET /status (trading); optional. */
+    snapshot?: RobotV2Status | null
     statusMenuOpen: boolean
     actionsMenuOpen: boolean
     onStatusMenuOpenChange: (open: boolean) => void
@@ -82,6 +117,7 @@ export type FleetRobotCardProps = {
 export function FleetRobotCard({
     robot,
     busy,
+    snapshot = null,
     statusMenuOpen,
     actionsMenuOpen,
     onStatusMenuOpenChange,
@@ -94,13 +130,37 @@ export function FleetRobotCard({
 }: FleetRobotCardProps) {
     const navigate = useNavigate()
     const isPortfolio = robot.type === 1
-    const sessionState = sessionStateOf(robot)
+    const sessionState = sessionStateOf(robot, snapshot)
     const badge = fleetStatusBadge(robot, sessionState)
     const arch = archetypeOf(robot)
     const mode = modeOf(robot)
-    const metaBits = isPortfolio
-        ? []
-        : [arch, mode].filter(Boolean)
+    const syncAt = syncIso(robot, snapshot, isPortfolio)
+    const equity = snapshot?.equity
+    const cash = snapshot?.cash
+    const cycle = snapshot?.cycleNumber ?? snapshot?.cycle_number
+    const posCount = positionsCount(snapshot)
+
+    const syncCaption = syncAt ? `синхрон ${fmtSyncAge(syncAt)}` : 'синхрон —'
+
+    const metaLine = isPortfolio
+        ? syncCaption
+        : [arch, mode, syncCaption].filter(Boolean).join(' · ')
+
+    const statsParts: string[] = []
+    if (!isPortfolio) {
+        statsParts.push(
+            `Eq ${equity != null && Number.isFinite(Number(equity)) ? fmtMoney(Number(equity), 0) : '—'}`,
+        )
+        statsParts.push(
+            `Cash ${cash != null && Number.isFinite(Number(cash)) ? fmtMoney(Number(cash), 0) : '—'}`,
+        )
+        statsParts.push(
+            `цикл ${cycle != null && Number.isFinite(Number(cycle)) ? String(cycle) : '—'}`,
+        )
+        statsParts.push(
+            `${posCount != null ? String(posCount) : '—'} поз.`,
+        )
+    }
 
     const openRobot = () => navigate(
         isPortfolio ? `/robots/edit/${robot.id}` : `/robots/${robot.id}/monitor`,
@@ -116,10 +176,25 @@ export function FleetRobotCard({
                     <span className="robots-v2-fleet-card__name-text">{robot.name}</span>
                     <span className="robots-v2-fleet-card__id mono">#{robot.id}</span>
                 </h3>
-                {metaBits.length > 0 ? (
-                    <p className="robots-v2-fleet-card__meta mono">{metaBits.join(' · ')}</p>
-                ) : null}
-                <p className="robots-v2-fleet-card__activity">{activityLine(robot, isPortfolio)}</p>
+                <p
+                    className="robots-v2-fleet-card__meta"
+                    title={syncAt ? fmtDateTimeShort(syncAt) : undefined}
+                >
+                    {metaLine}
+                </p>
+                {statsParts.length > 0 ? (
+                    <p className="robots-v2-fleet-card__stats mono" aria-label="Краткая статистика">
+                        {statsParts.join(' · ')}
+                    </p>
+                ) : (
+                    <p className="robots-v2-fleet-card__activity">
+                        {robot.lastStarted || robot.last_started
+                            ? `Запуск ${fmtDateTimeShort(String(robot.lastStarted || robot.last_started))}`
+                            : robot.createdAt || robot.created_at
+                                ? `Создан ${fmtDate(String(robot.createdAt || robot.created_at))}`
+                                : 'Синхронизаций ещё не было'}
+                    </p>
+                )}
             </div>
 
             <div
@@ -171,7 +246,7 @@ export function FleetRobotCard({
                             >
                                 {robot.status === 1 ? 'Остановить' : 'Запустить'}
                             </MobileDockDropdown.Item>
-                        ) : isSessionRunning(sessionState) ? (
+                        ) : isSessionActive(sessionState) ? (
                             <>
                                 <MobileDockDropdown.Item
                                     variant="alert"

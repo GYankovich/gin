@@ -1,5 +1,12 @@
 /** Shared formatters for Robots V2 pages. */
 
+/** Resolve a CSS custom property for canvas APIs that need concrete hex/rgb. */
+export function readCssColor(varName: string, fallback: string): string {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return fallback
+    const raw = getComputedStyle(document.documentElement).getPropertyValue(varName).trim()
+    return raw || fallback
+}
+
 export function fmtErr(e: unknown): string {
     const err = e as { response?: { data?: { detail?: unknown } }; message?: string }
     const d = err?.response?.data?.detail
@@ -64,6 +71,20 @@ export function fmtDateTimeShort(iso: string): string {
         hour: '2-digit',
         minute: '2-digit',
     })
+}
+
+/** Relative age for fleet sync captions (RU). */
+export function fmtSyncAge(iso: string | null | undefined): string {
+    if (!iso) return '—'
+    const t = new Date(iso).getTime()
+    if (Number.isNaN(t)) return String(iso)
+    const sec = Math.max(0, Math.round((Date.now() - t) / 1000))
+    if (sec < 60) return `${sec} с назад`
+    const min = Math.round(sec / 60)
+    if (min < 60) return `${min} мин назад`
+    const hrs = Math.round(min / 60)
+    if (hrs < 48) return `${hrs} ч назад`
+    return fmtDateTimeShort(iso)
 }
 
 /** User-facing session / run status labels (RU). */

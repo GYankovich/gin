@@ -76,6 +76,16 @@ function RedirectRobotsV2() {
 
 
 
+function RedirectToBacktestLab() {
+
+    const { search } = useLocation()
+
+    return <Navigate to={`/backtest${search}`} replace />
+
+}
+
+
+
 export function App() {
 
     return (
@@ -98,6 +108,10 @@ export function App() {
 
                         <Route path="robots/settings" element={<Navigate to="/robots" replace />} />
 
+                        <Route path="backtest" element={<BacktestLabPage />} />
+
+                        <Route path="robots/backtest" element={<RedirectToBacktestLab />} />
+
                         <Route path="robots" element={<RobotsV2Layout />}>
 
                             <Route index element={<RobotsV2FleetPage />} />
@@ -105,8 +119,6 @@ export function App() {
                             <Route path="new" element={<RobotV2WizardPage />} />
 
                             <Route path="edit/:id" element={<RobotV2WizardPage />} />
-
-                            <Route path="backtest" element={<BacktestLabPage />} />
 
                             <Route path=":id/monitor" element={<RobotV2MonitorPage />} />
 

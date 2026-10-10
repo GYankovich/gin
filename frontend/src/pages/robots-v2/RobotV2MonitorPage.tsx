@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faGlobe } from '@fortawesome/free-solid-svg-icons'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
 import { useToast } from '@/components/ui/Toast'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { useAuthStore } from '@/stores/authStore'
@@ -15,7 +18,7 @@ import { MonitorUniverseCard } from '@/pages/robots-v2/components/MonitorUnivers
 import { RobotConfirmModal } from '@/pages/robots-v2/components/RobotConfirmModal'
 import { RobotPageChrome } from '@/pages/robots-v2/components/RobotPageChrome'
 import { RobotStageCard } from '@/pages/robots-v2/components/RobotStageCard'
-import { fmtErr, fmtNum, sessionStateLabel } from '@/pages/robots-v2/formatters'
+import { fmtErr, fmtNum, readCssColor, sessionStateLabel } from '@/pages/robots-v2/formatters'
 import {
     appendEquityPoint,
     balanceFootnoteText,
@@ -439,14 +442,18 @@ export default function RobotV2MonitorPage() {
         [orderRows],
     )
     const dayStats = useMemo(() => computeDayTradeStats(roundTrips), [roundTrips])
-    const dayPlus = fmtNetPnl(dayStats.sumPlus)
-    const dayMinus = fmtNetPnl(dayStats.sumMinus)
     const dayDelta = fmtNetPnl(dayStats.delta)
     const dayLabel = useMemo(() => {
         const [, m, d] = dayStats.dayKey.split('-')
         if (!m || !d) return 'сегодня'
         return `${d}.${m}`
     }, [dayStats.dayKey])
+    const sessionHint = useMemo(() => {
+        if (!statusLoaded || showSessionOps) return null
+        if (isSyncing) return 'Робот синхронизируется'
+        if (!isActive) return 'Робот не работает'
+        return null
+    }, [statusLoaded, showSessionOps, isSyncing, isActive])
     const orderDisplayRows = useMemo(
         () => orderRows.map(toOrderDisplayRow),
         [orderRows],
@@ -523,16 +530,22 @@ export default function RobotV2MonitorPage() {
     return (
         <div className="page" data-page="robots">
             <RobotPageChrome
-                eyebrow="LIVE NODE"
+                eyebrow="LIVE COCKPIT"
                 title={title}
                 robotId={robotId}
                 active="monitor"
                 subtitle={
                     <p className="dashboard-hero__sub robots-v2-hero-sub">
-                        Монитор · сессия {sessionStateLabel(sessionState)}{' '}
+                        Монитор · сессия{' '}
                         <Badge variant={heroBadge.variant}>{heroBadge.label}</Badge>
+                        {' '}
+                        <Badge variant={streamConnected ? 'up' : 'neutral'}>
+                            {streamConnected ? 'стрим' : 'стрим офлайн'}
+                        </Badge>
+                        {statusMode ? (
+                            <span className="muted"> · {statusMode}{archetype ? ` · ${archetype}` : ''}{cycle ? ` · цикл ${cycle}` : ''}</span>
+                        ) : null}
                         {statusMessage ? ` · ${statusMessage}` : ''}
-                        {streamConnected ? ' · online' : ''}
                     </p>
                 }
                 actions={
@@ -572,82 +585,113 @@ export default function RobotV2MonitorPage() {
             />
 
             <div className="dashboard-layout">
-                <MonitorSummaryCard
-                    dayLabel={dayLabel}
-                    statusLoaded={statusLoaded}
-                    dayTrades={dayStats.trades}
-                    dayPlus={dayPlus}
-                    dayMinus={dayMinus}
-                    dayDelta={dayDelta}
-                    showBalance={showBalance}
-                    equityLabel={equity != null ? fmtNum(equity, 0) : null}
-                    cashLabel={cash != null ? fmtNum(cash, 0) : null}
-                    equityTileLabel={balanceLabels.equity}
-                    cashTileLabel={balanceLabels.cash}
-                    balanceFootnote={balanceFootnote}
-                    balanceAsOfLabel={balanceAsOfLabel}
-                    showBalanceUnavailable={showBalanceUnavailable}
-                    showSessionOps={showSessionOps}
-                    isSyncing={isSyncing}
-                    cycle={cycle}
-                    positionsCount={positions.length}
-                />
-
-                <RobotStageCard
-                    title="Текущий этап"
-                    progress={stageProgress}
-                    badge={stageText}
-                    badgeVariant={stageKey === 'skipped' ? 'down' : isRunning ? 'cyan' : 'neutral'}
-                    ariaLabel="Прогресс этапа цикла"
-                    meta={
-                        <>
-                            <span>{Math.round(stageProgress * 100)}%</span>
-                            {stageDetailText ? (
-                                <span className="mono robots-v2-stage-detail">{stageDetailText}</span>
-                            ) : null}
-                            {triggeredBy ? <span className="mono">wake: {triggeredBy}</span> : null}
-                            {archetype ? <span className="mono">{archetype}</span> : null}
-                            {skipReason ? (
-                                <span className="robots-v2-stage-skip">
-                                    {SKIP_LABELS[skipReason] || skipReason}
-                                </span>
-                            ) : null}
-                        </>
-                    }
-                />
-
-                <div className="robots-v2-monitor-grid">
-                    <MonitorEquityChart
-                        onReady={chart => {
-                            if (!chart) {
-                                chartRef.current = null
-                                seriesRef.current = null
-                                return
-                            }
-                            chartRef.current = chart
-                            const series = chart.addSeries(LineSeries, {
-                                color: '#3dd68c',
-                                lineWidth: 2,
-                            })
-                            seriesRef.current = series
-                            if (equityPoints.length) series.setData(equityPoints)
-                        }}
-                    />
-
-                    <MonitorOrdersCard rows={orderDisplayRows} openOrderCount={openOrderCount} />
-
-                    <MonitorPositionsCard
-                        rows={positionTableRows}
+                <div className="robots-v2-cockpit">
+                    <MonitorSummaryCard
+                        dayLabel={dayLabel}
+                        statusLoaded={statusLoaded}
+                        dayTrades={dayStats.trades}
+                        dayDelta={dayDelta}
+                        showBalance={showBalance}
+                        equityLabel={equity != null ? fmtNum(equity, 0) : null}
+                        cashLabel={cash != null ? fmtNum(cash, 0) : null}
+                        equityTileLabel={balanceLabels.equity}
+                        cashTileLabel={balanceLabels.cash}
+                        balanceFootnote={balanceFootnote}
+                        balanceAsOfLabel={balanceAsOfLabel}
+                        showBalanceUnavailable={showBalanceUnavailable}
+                        cycle={cycle}
                         positionsCount={positions.length}
-                        positionsUpdatedAt={positionsUpdatedAt}
-                        brokerSoftStopHint={
-                            !isRunning
-                            && pick<string>(status || ({} as RobotV2Status), 'positionsSource', 'positions_source') === 'broker'
-                            && positions.length > 0
-                        }
-                        isRunning={isRunning}
+                        openOrderCount={openOrderCount}
+                        sessionHint={sessionHint}
                     />
 
+                    <div className="robots-v2-cockpit__stage">
+                        <RobotStageCard
+                            title="Этап"
+                            progress={stageProgress}
+                            badge={stageText}
+                            badgeVariant={stageKey === 'skipped' ? 'down' : isRunning ? 'cyan' : 'neutral'}
+                            ariaLabel="Прогресс этапа цикла"
+                            meta={
+                                <>
+                                    <span className="mono">{Math.round(stageProgress * 100)}%</span>
+                                    {stageDetailText ? (
+                                        <span className="mono robots-v2-stage-detail">{stageDetailText}</span>
+                                    ) : null}
+                                    {triggeredBy ? (
+                                        <span className="mono robots-v2-stage-trigger">триггер: {triggeredBy}</span>
+                                    ) : null}
+                                    {archetype ? <span className="mono robots-v2-stage-arch">{archetype}</span> : null}
+                                    {skipReason ? (
+                                        <span className="robots-v2-stage-skip">
+                                            {SKIP_LABELS[skipReason] || skipReason}
+                                        </span>
+                                    ) : null}
+                                </>
+                            }
+                        />
+                    </div>
+
+                    <div className="robots-v2-cockpit__chart">
+                        <MonitorEquityChart
+                            onReady={chart => {
+                                if (!chart) {
+                                    chartRef.current = null
+                                    seriesRef.current = null
+                                    return
+                                }
+                                chartRef.current = chart
+                                const series = chart.addSeries(LineSeries, {
+                                    color: readCssColor('--color-up', '#00ffaa'),
+                                    lineWidth: 2,
+                                })
+                                seriesRef.current = series
+                                if (equityPoints.length) series.setData(equityPoints)
+                            }}
+                        />
+                    </div>
+
+                    <aside className="robots-v2-cockpit__feed">
+                        <MonitorEventsCard
+                            events={events}
+                            streamConnected={streamConnected}
+                            isRunning={isRunning}
+                            hasToken={Boolean(token)}
+                        />
+                        <MonitorDecisionsCard decisions={decisions} />
+                    </aside>
+
+                    <div className="robots-v2-cockpit__tables">
+                        <MonitorPositionsCard
+                            rows={positionTableRows}
+                            positionsCount={positions.length}
+                            positionsUpdatedAt={positionsUpdatedAt}
+                            brokerSoftStopHint={
+                                !isRunning
+                                && pick<string>(status || ({} as RobotV2Status), 'positionsSource', 'positions_source') === 'broker'
+                                && positions.length > 0
+                            }
+                            isRunning={isRunning}
+                        />
+                        <MonitorOrdersCard rows={orderDisplayRows} openOrderCount={openOrderCount} />
+                    </div>
+                </div>
+
+                <CollapsibleSection
+                    className="robots-v2-fleet-collapse robots-v2-cockpit-universe"
+                    title={(
+                        <span className="dashboard-collapse__label">
+                            <FontAwesomeIcon icon={faGlobe} className="dashboard-icon" />
+                            Пул активов / скан
+                        </span>
+                    )}
+                    badge={(
+                        <span className="robots-v2-fleet-collapse__count">
+                            {displayTickerScan.length || displayUniverse.length || 0}
+                        </span>
+                    )}
+                    defaultOpen={false}
+                >
                     <MonitorUniverseCard
                         displayTickerScan={displayTickerScan}
                         displayUniverse={displayUniverse}
@@ -656,16 +700,7 @@ export default function RobotV2MonitorPage() {
                         universeBusy={universeBusy}
                         onRefreshUniverse={() => void onRefreshUniverse()}
                     />
-
-                    <MonitorDecisionsCard decisions={decisions} />
-
-                    <MonitorEventsCard
-                        events={events}
-                        streamConnected={streamConnected}
-                        isRunning={isRunning}
-                        hasToken={Boolean(token)}
-                    />
-                </div>
+                </CollapsibleSection>
             </div>
 
             <RobotConfirmModal

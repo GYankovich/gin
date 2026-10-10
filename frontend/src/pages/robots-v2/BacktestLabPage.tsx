@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
@@ -16,9 +17,18 @@ import {
     type BacktestHistoryRow,
 } from '@/pages/robots-v2/components/BacktestHistoryCard'
 import { BacktestResultsPanel } from '@/pages/robots-v2/components/BacktestResultsPanel'
+import { BacktestStartGuide } from '@/pages/robots-v2/components/BacktestStartGuide'
+import { BacktestVerdictCard } from '@/pages/robots-v2/components/BacktestVerdictCard'
 import { LabConfigForm } from '@/pages/robots-v2/components/LabConfigForm'
 import { SaveAsRobotModal } from '@/pages/robots-v2/components/SaveAsRobotModal'
 import { RobotStageCard } from '@/pages/robots-v2/components/RobotStageCard'
+import {
+    collectReasonCodes,
+    matchingPreset,
+    presetById,
+    presetDraftPatch,
+    type BacktestPresetId,
+} from '@/pages/robots-v2/backtestGuide'
 import { fmtErr, sessionStateLabel } from '@/pages/robots-v2/formatters'
 import { formatBacktestPhaseUnits } from '@/pages/robots-v2/formatBacktestPhaseUnits'
 import {
@@ -194,6 +204,7 @@ const PRESETS: Array<{ id: string; label: string; days: number }> = [
 
 export default function BacktestLabPage() {
     const navigate = useNavigate()
+    const isNarrow = useMediaQuery('(max-width: 767px)')
     const [searchParams, setSearchParams] = useSearchParams()
     const toast = useToast()
 
@@ -351,6 +362,15 @@ export default function BacktestLabPage() {
         })
         setSourceHint(null)
     }, [])
+
+    const applyPreset = useCallback((id: BacktestPresetId) => {
+        const preset = presetById(id)
+        setSource('visual')
+        patchDraft(presetDraftPatch(id))
+        setFromDate(daysAgoUtc(preset.days - 1))
+        setToDate(todayUtc())
+        setLaunchError(null)
+    }, [patchDraft])
 
     useEffect(() => {
         if (source === 'robot') {
@@ -775,22 +795,14 @@ export default function BacktestLabPage() {
     const hasRunSelection = runId != null && (status != null || openingRun || isActive)
 
     return (
-        <div className="page" data-page="robots" data-robots-view="lab">
+        <div className="page" data-page="robots" data-screen="backtest">
             <PageHero
                 className="dashboard-hero--node"
-                eyebrow="BACKTEST LAB"
+                eyebrow="БЭКТЕСТ"
                 title="ЛАБОРАТОРИЯ"
+                subtitle="Отдельный экран: готовые правила, прогон на истории, журнал каждой сделки. Биржу это не трогает."
                 actions={
                     <>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="dashboard-hero__cfg"
-                            onClick={() => navigate('/robots')}
-                        >
-                            ← Флот
-                        </Button>
                         {isActive ? (
                             <Button
                                 type="button"
@@ -894,7 +906,14 @@ export default function BacktestLabPage() {
 
                     <div className="portfolio-history-zone__panels robots-v2-lab-zone__panels">
                         {source === 'visual' && (
-                            <LabConfigForm draft={draft} onChange={patchDraft} compact={false} />
+                            <>
+                                <BacktestStartGuide
+                                    draft={draft}
+                                    activePreset={matchingPreset(draft)}
+                                    onApplyPreset={applyPreset}
+                                />
+                                <LabConfigForm draft={draft} onChange={patchDraft} compact={false} />
+                            </>
                         )}
 
                         {source === 'robot' && (
@@ -914,7 +933,7 @@ export default function BacktestLabPage() {
                                         />
                                     )}
                                     <small className="robots-v2-hint">
-                                        Конфиг и soft-bind берутся с выбранного робота
+                                        Берутся сохранённые правила этого робота. После успешного прогона можно создать нового — он останется остановленным.
                                     </small>
                                 </label>
                                 {selectedRobot ? (
@@ -980,14 +999,25 @@ export default function BacktestLabPage() {
                             tabIndex={-1}
                             className="dashboard-settings-actions robots-v2-lab-launch-focus"
                         >
-                            <Button
-                                type="button"
-                                loading={running}
-                                disabled={scalperBlocked || isActive}
-                                onClick={() => void onRun()}
-                            >
-                                Запустить бэктест
-                            </Button>
+                            {isNarrow && isActive ? (
+                                <Button
+                                    type="button"
+                                    variant="danger"
+                                    loading={cancelling}
+                                    onClick={() => void onCancel()}
+                                >
+                                    Отменить прогон
+                                </Button>
+                            ) : (
+                                <Button
+                                    type="button"
+                                    loading={running}
+                                    disabled={scalperBlocked || isActive}
+                                    onClick={() => void onRun()}
+                                >
+                                    Запустить бэктест
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </Card>
@@ -1081,11 +1111,16 @@ export default function BacktestLabPage() {
                 )}
 
                 {runStatus === 'SUCCESS' && runId != null && (
-                    <div className="robots-v2-results-actions dashboard-settings-actions">
-                        <Button variant="secondary" onClick={() => setSaveAsOpen(true)}>
-                            Сохранить как робота
-                        </Button>
-                    </div>
+                    <BacktestVerdictCard
+                        totalReturnPercent={ret == null ? null : Number(ret)}
+                        maxDrawdownPercent={dd == null ? null : Number(dd)}
+                        winRatePercent={winRate == null ? null : Number(winRate)}
+                        tradeCount={trades.length}
+                        initialCapital={Number(payload.initial_capital ?? capital)}
+                        finalEquity={finalEq == null ? null : Number(finalEq)}
+                        reasonCodes={collectReasonCodes(trades)}
+                        onSaveAsRobot={() => setSaveAsOpen(true)}
+                    />
                 )}
 
                 {(runStatus === 'SUCCESS'

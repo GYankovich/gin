@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GIN · Роботы · UX explorations</title>
+  <link rel="stylesheet" href="_shared.css" />
+</head>
+<body>
+  <div class="hub">
+    <p class="hub__eyebrow">Mockups · UX first · UI secondary</p>
+    <h1 class="hub__title">Роботы — исследования UX</h1>
+    <p class="hub__lead">
+      <strong style="color:var(--color-up)">Baseline shipped:</strong> Option B / UX-08 (Phase 0–1) —
+      <a href="b-live-cockpit.html">b-live-cockpit.html</a> ·
+      <span class="mono">docs/ui/UX-08-robots-v2-live-cockpit.md</span>.
+      Флот ушёл к паттерну карточек опросников. Ниже — <strong>новые low-fi зонды</strong> (серые схемы, приоритеты зон, потоки).
+      UX-08 не переписываем, пока не выберете направление.
+    </p>
+
+    <p class="hub__eyebrow" style="margin-top:8px">Новые UX probes</p>
+    <div class="hub-cards">
+      <a class="hub-card hub-card--rec" href="ux-d-ops-cards.html">
+        <span class="hub-card__tag">UX-D · рекоменд. старт</span>
+        <h2>Ops pulse + карточки</h2>
+        <p>
+          KPI-пульс · groups · карточки как опросники (status + ⋯ + клик тела → Лайв).
+          Монитор = cockpit B. Audit без потока. Lab-сегмент. Минимум ломки vs текущий продукт.
+        </p>
+      </a>
+      <a class="hub-card" href="ux-e-severity-lab.html">
+        <span class="hub-card__tag">UX-E</span>
+        <h2>Severity + Lab home</h2>
+        <p>
+          Группы флота: ошибки → running → idle → опросники.
+          Audit = вкладка внутри Лайва. Robot-БТ = тонкий launcher → Lab.
+        </p>
+      </a>
+      <a class="hub-card" href="ux-f-risk-first.html">
+        <span class="hub-card__tag">UX-F</span>
+        <h2>Risk-first монитор</h2>
+        <p>
+          Сначала позиции/заявки, equity ниже, поток = drawer.
+          На флоте явные кнопки Лайв | Правка. Сильнее меняет монитор B.
+        </p>
+      </a>
+    </div>
+
+    <p class="hub__eyebrow" style="margin-top:20px">Архив визуальных опций</p>
+    <div class="hub-cards">
+      <a class="hub-card" href="b-live-cockpit.html">
+        <span class="hub-card__tag">B · UX-08 baseline</span>
+        <h2>Live cockpit (GIN skin)</h2>
+        <p>Зафиксированный hi-fi референс. Флот в B был table — продукт уже на карточках.</p>
+      </a>
+      <a class="hub-card" href="a-portfolio-stack.html">
+        <span class="hub-card__tag">A · архив</span>
+        <h2>Portfolio stack</h2>
+        <p>Ранний эволюционный вариант.</p>
+      </a>
+      <a class="hub-card" href="c-hub-detail.html">
+        <span class="hub-card__tag">C · архив</span>
+        <h2>Hub + detail</h2>
+        <p>Глобальная IA Флот|Lab — идеи пересекаются с E.</p>
+      </a>
+    </div>
+
+    <div class="hub-note">
+      <strong>Стили зондов:</strong> <span class="mono">_wire.css</span> (low-fi).
+      Hi-fi B: <span class="mono">b-gin-skin.css</span>.
+      <br /><br />
+      <strong>Вопрос:</strong> какой UX развиваем дальше — D / E / F / гибрид (напр. флот D + монитор F)?
+    </div>
+  </div>
+</body>
+</html>

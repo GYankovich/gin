@@ -5,6 +5,7 @@ import { Chart } from '@/components/ui/Chart'
 import type { IChartApi } from '@/components/ui/Chart'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { readCssColor } from '@/pages/robots-v2/formatters'
 import { robotV2Service } from '@/services/robotV2Service'
 import type { BacktestPriceCandle, BacktestPriceWindowResponse } from '@/types/robot'
 
@@ -129,7 +130,7 @@ export function BacktestPriceScrubber({
             markers.push({
                 time: play.time,
                 position: 'aboveBar',
-                color: '#7dd3fc',
+                color: readCssColor('--neon-cyan', '#00ffff'),
                 shape: 'circle',
                 id: 'playhead',
                 size: 1.5,
@@ -248,14 +249,15 @@ export function BacktestPriceScrubber({
                                 return
                             }
                             chartRef.current = chart
-                            const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+                            const up = readCssColor('--color-up', '#00ffaa')
+                            const down = readCssColor('--color-down', '#ff3366')
                             const series = chart.addSeries(CandlestickSeries, {
-                                upColor: isDark ? '#3dd68c' : '#16a34a',
-                                downColor: isDark ? '#f07178' : '#dc2626',
-                                borderUpColor: isDark ? '#3dd68c' : '#16a34a',
-                                borderDownColor: isDark ? '#f07178' : '#dc2626',
-                                wickUpColor: isDark ? '#3dd68c' : '#16a34a',
-                                wickDownColor: isDark ? '#f07178' : '#dc2626',
+                                upColor: up,
+                                downColor: down,
+                                borderUpColor: up,
+                                borderDownColor: down,
+                                wickUpColor: up,
+                                wickDownColor: down,
                             })
                             seriesRef.current = series
                             applySeriesData(candlesRef.current, scrubIndexRef.current)

@@ -13,6 +13,7 @@ type RobotStageCardProps = {
     ariaLabel?: string
     meta?: React.ReactNode
     detail?: React.ReactNode
+    className?: string
 }
 
 function normalizeProgress(progress: number): number {
@@ -30,11 +31,12 @@ export function RobotStageCard({
     ariaLabel = 'Прогресс',
     meta,
     detail,
+    className = '',
 }: RobotStageCardProps) {
     const pct = normalizeProgress(progress)
 
     return (
-        <Card className="dashboard-totals-card robots-v2-stage-card">
+        <Card className={`dashboard-totals-card robots-v2-stage-card ${className}`.trim()}>
             <div className="dashboard-totals-card__head robots-v2-stage-card__head">
                 <h3 className="dashboard-panel-title">{title}</h3>
                 {badge != null ? (

@@ -360,10 +360,10 @@ export const ARCHETYPE_CARDS: Array<{
     title: string
     description: string
 }> = [
-    { id: 'momentum', title: 'Momentum', description: 'Пробой и тренд: цена vs MA + объём' },
-    { id: 'reversion', title: 'Reversion', description: 'Отскок от перекупленности / перепроданности' },
-    { id: 'grid', title: 'Grid', description: 'Сетка уровней с шагом ATR' },
-    { id: 'scalper', title: 'Scalper', description: 'Быстрые входы по дисбалансу (нужен WS)' },
+    { id: 'momentum', title: 'Тренд', description: 'Покупка на пробое максимума, если объём выше обычного' },
+    { id: 'reversion', title: 'Отскок', description: 'Вход, когда цена слишком далеко от обычного значения' },
+    { id: 'grid', title: 'Сетка', description: 'Несколько уровней вокруг цены с фиксированным шагом' },
+    { id: 'scalper', title: 'Скальпер', description: 'Очень короткие входы. В бэктесте по свечам недоступен' },
 ]
 
 export const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']

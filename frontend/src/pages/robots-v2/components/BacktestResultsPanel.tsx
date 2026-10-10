@@ -12,7 +12,7 @@ import { BacktestNarrativeSection } from '@/pages/robots-v2/components/BacktestN
 import { BacktestPriceScrubber, type PriceBarsPreset } from '@/pages/robots-v2/components/BacktestPriceScrubber'
 import { BacktestUniverseSection } from '@/pages/robots-v2/components/BacktestUniverseSection'
 import { DecisionInspectorDrawer } from '@/pages/robots-v2/components/DecisionInspectorDrawer'
-import { fmtMoney, fmtPct } from '@/pages/robots-v2/formatters'
+import { fmtMoney, fmtPct, readCssColor } from '@/pages/robots-v2/formatters'
 import { tradeReasonLabel } from '@/pages/robots-v2/tradeReasonLabels'
 import {
     GLASS_BOX_EXECUTION_COPY,
@@ -163,6 +163,7 @@ export function BacktestResultsPanel({
     const chartCardRef = useRef<HTMLDivElement | null>(null)
 
     const [rejectFilter, setRejectFilter] = useState<string | null>(null)
+    const [decisionFilter, setDecisionFilter] = useState<'all' | 'filled' | 'rejected' | 'ignored'>('all')
     const [signalsOpen, setSignalsOpen] = useState(false)
     const [pagedSignals, setPagedSignals] = useState<SignalRow[] | null>(null)
     const [signalsPage, setSignalsPage] = useState(0)
@@ -204,18 +205,21 @@ export function BacktestResultsPanel({
         [observabilityProp, signalsProp, historyStats, executionModel],
     )
 
-    const signalsTotal =
-        signalsFetchTotal
-        ?? signalsTotalProp
+    const runSignalsTotal =
+        signalsTotalProp
         ?? Number(observability.signals_logged ?? signalsProp.length)
         ?? signalsProp.length
+    const signalsTotal = signalsFetchTotal ?? runSignalsTotal
 
-    const needServerPagination = signalsTotal > SIGNAL_PAGINATE_THRESHOLD && signalsEndpointOk
+    const needServerPagination = runSignalsTotal > SIGNAL_PAGINATE_THRESHOLD && signalsEndpointOk
 
     const filteredSignals = useMemo(() => {
-        if (!rejectFilter) return baseSignals
-        return baseSignals.filter(s => rowRejectReason(s) === rejectFilter)
-    }, [baseSignals, rejectFilter])
+        return baseSignals.filter(s => {
+            if (rejectFilter && rowRejectReason(s) !== rejectFilter) return false
+            if (decisionFilter !== 'all' && rowStatus(s) !== decisionFilter) return false
+            return true
+        })
+    }, [baseSignals, rejectFilter, decisionFilter])
 
     const rejectTop = useMemo(
         () => (observability.reject_reason_counts || []).slice(0, 8),
@@ -373,7 +377,11 @@ export function BacktestResultsPanel({
         }
     }, [])
 
-    const loadSignalsPage = useCallback(async (page: number, reject: string | null) => {
+    const loadSignalsPage = useCallback(async (
+        page: number,
+        reject: string | null,
+        status: 'all' | 'filled' | 'rejected' | 'ignored',
+    ) => {
         if (runId == null || !needServerPagination) return
         setSignalsLoading(true)
         try {
@@ -381,6 +389,7 @@ export function BacktestResultsPanel({
                 limit: SIGNAL_PAGE_SIZE,
                 offset: page * SIGNAL_PAGE_SIZE,
                 rejectReason: reject ?? undefined,
+                status: status === 'all' ? undefined : status,
             })
             if (!res) {
                 setSignalsEndpointOk(false)
@@ -402,8 +411,8 @@ export function BacktestResultsPanel({
             setPagedSignals(null)
             return
         }
-        void loadSignalsPage(0, rejectFilter)
-    }, [needServerPagination, rejectFilter, loadSignalsPage])
+        void loadSignalsPage(0, rejectFilter, decisionFilter)
+    }, [needServerPagination, rejectFilter, decisionFilter, loadSignalsPage])
 
     const onRejectChip = (code: string | null) => {
         setRejectFilter(prev => (prev === code ? null : code))
@@ -438,9 +447,11 @@ export function BacktestResultsPanel({
             const side = String(t.side || '').toUpperCase()
             const isBuy = side === 'BUY' || side === 'LONG'
             const pnl = t.pnl_net
-            let color = isBuy ? '#3dd68c' : '#f07178'
+            const up = readCssColor('--color-up', '#00ffaa')
+            const down = readCssColor('--color-down', '#ff3366')
+            let color = isBuy ? up : down
             if (pnl != null && Number.isFinite(pnl)) {
-                color = pnl >= 0 ? '#3dd68c' : '#f07178'
+                color = pnl >= 0 ? up : down
             }
             markers.push({
                 time,
@@ -555,22 +566,37 @@ export function BacktestResultsPanel({
         },
         {
             key: 'signal_type',
-            header: 'Сигнал',
-            render: s => String(s.signal_type ?? s.side ?? '—'),
+            header: 'Решение',
+            render: s => {
+                const raw = String(s.signal_type ?? s.side ?? '—').toUpperCase()
+                return raw === 'NONE' ? 'Нет сигнала' : raw
+            },
         },
         {
             key: 'reason',
-            header: 'Причина',
-            render: s => (
-                <span className="robots-v2-scan-reason">
-                    {tradeReasonLabel(packetFromSignal(s).strategy_reason)}
-                </span>
-            ),
+            header: 'Почему',
+            render: s => {
+                const packet = packetFromSignal(s)
+                return (
+                    <span className="robots-v2-scan-reason">
+                        {packet.decision_message
+                            || tradeReasonLabel(packet.strategy_reason)
+                            || '—'}
+                    </span>
+                )
+            },
         },
         {
             key: 'status',
             header: 'Статус',
-            render: s => rowStatus(s) || '—',
+            render: s => {
+                const status = rowStatus(s)
+                if (status === 'filled') return 'Исполнен'
+                if (status === 'rejected') return 'Отклонён'
+                if (status === 'deferred') return 'Отложен'
+                if (status === 'ignored') return 'Условий нет'
+                return status || '—'
+            },
         },
         {
             key: 'reject_reason',
@@ -815,7 +841,7 @@ export function BacktestResultsPanel({
                             }
                             chartRef.current = chart
                             const series = chart.addSeries(LineSeries, {
-                                color: '#3dd68c',
+                                color: readCssColor('--color-up', '#00ffaa'),
                                 lineWidth: 2,
                             })
                             seriesRef.current = series
@@ -853,6 +879,9 @@ export function BacktestResultsPanel({
                         </span>
                         <span className="robots-v2-chip robots-v2-chip--static">
                             Отложено {statusCounts.deferred ?? 0}
+                        </span>
+                        <span className="robots-v2-chip robots-v2-chip--static">
+                            Без сигнала {statusCounts.ignored ?? 0}
                         </span>
                     </div>
                 </div>
@@ -934,12 +963,12 @@ export function BacktestResultsPanel({
                 />
             </Card>
 
-            {/* Zone G — signals */}
+            {/* Zone G — complete strategy decision trace */}
             <CollapsibleSection
                 title={(
                     <span className="dashboard-collapse__label">
                         <IconSignal />
-                        Сигналы
+                        Журнал решений
                     </span>
                 )}
                 badge={
@@ -950,12 +979,33 @@ export function BacktestResultsPanel({
                         {rejectFilter ? ` · ${tradeReasonLabel(rejectFilter)}` : ''}
                     </span>
                 }
+                hint="Сигналы, отказы и бары без сигнала — с фактическими значениями условий"
                 className="dashboard-assets-card"
                 open={signalsOpen}
                 onOpenChange={setSignalsOpen}
             >
+                <div className="robots-v2-chip-row robots-v2-decision-filters" role="group" aria-label="Фильтр журнала решений">
+                    {([
+                        ['all', 'Все решения', runSignalsTotal],
+                        ['filled', 'Исполнены', statusCounts.filled ?? 0],
+                        ['rejected', 'Отклонены', statusCounts.rejected ?? 0],
+                        ['ignored', 'Без сигнала', statusCounts.ignored ?? 0],
+                    ] as const).map(([value, label, count]) => (
+                        <button
+                            key={value}
+                            type="button"
+                            className={`robots-v2-chip ${decisionFilter === value ? 'robots-v2-chip--on' : ''}`}
+                            onClick={() => {
+                                setDecisionFilter(value)
+                                setSignalsPage(0)
+                            }}
+                        >
+                            {label} <span className="mono">{count}</span>
+                        </button>
+                    ))}
+                </div>
                 {signalsLoading ? (
-                    <p className="robots-v2-hint">Загрузка сигналов…</p>
+                    <p className="robots-v2-hint">Загрузка решений…</p>
                 ) : (
                     <DataTable
                         columns={signalColumns}
@@ -964,7 +1014,9 @@ export function BacktestResultsPanel({
                         emptyText={
                             rejectFilter
                                 ? 'Нет сигналов с этим кодом отказа'
-                                : 'Нет сигналов за период'
+                                : decisionFilter === 'ignored'
+                                    ? 'Нет сохранённых проверок без сигнала. Старые прогоны их не содержат.'
+                                    : 'Нет решений за период'
                         }
                         maxHeight={320}
                         onRowClick={(s) => {
@@ -981,7 +1033,9 @@ export function BacktestResultsPanel({
                             disabled={signalsPage <= 0 || signalsLoading}
                             onClick={() => {
                                 const next = signalsPage - 1
-                                if (needServerPagination) void loadSignalsPage(next, rejectFilter)
+                                if (needServerPagination) {
+                                    void loadSignalsPage(next, rejectFilter, decisionFilter)
+                                }
                                 else setSignalsPage(next)
                             }}
                         >
@@ -996,7 +1050,9 @@ export function BacktestResultsPanel({
                             disabled={signalsPage + 1 >= pageCount || signalsLoading}
                             onClick={() => {
                                 const next = signalsPage + 1
-                                if (needServerPagination) void loadSignalsPage(next, rejectFilter)
+                                if (needServerPagination) {
+                                    void loadSignalsPage(next, rejectFilter, decisionFilter)
+                                }
                                 else setSignalsPage(next)
                             }}
                         >
@@ -1043,6 +1099,7 @@ export function BacktestResultsPanel({
                 seedSteps={narrativeProp}
                 highlightedTs={playheadTs}
                 onStepClick={onNarrativeStep}
+                defaultOpen
             />
 
             {/* Orders — de-emphasized */}

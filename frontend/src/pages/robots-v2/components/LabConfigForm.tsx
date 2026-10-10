@@ -48,6 +48,20 @@ function maskToWeekdays(mask: number): boolean[] {
     return Array.from({ length: 7 }, (_, index) => Boolean(mask & (1 << index)))
 }
 
+const PARAM_LABELS: Record<string, string> = {
+    maPeriod: 'Период средней, баров',
+    volumeMultiplier: 'Объём выше обычного, раз',
+    breakoutLookback: 'Окно пробоя, баров',
+    indicator: 'Индикатор',
+    overboughtThreshold: 'Порог перекупленности',
+    oversoldThreshold: 'Порог перепроданности',
+    rsiPeriod: 'Период RSI',
+    gridStepAtrPct: 'Шаг сетки, % ATR',
+    gridDepth: 'Сколько уровней',
+    baseAllocationPct: 'Доля капитала на уровень, %',
+    scaleMultiplier: 'Множитель объёма к следующему уровню',
+}
+
 export type LabConfigFormProps = {
     draft: RobotV2WizardDraft
     onChange: (patch: Partial<RobotV2WizardDraft>) => void
@@ -154,7 +168,7 @@ export function LabConfigForm({ draft, onChange, compact = true }: LabConfigForm
                     <div className="robots-v2-params">
                         {Object.entries(draft.strategyParams).map(([key, val]) => (
                             <label key={key} className="robots-v2-field">
-                                <span>{key}</span>
+                                <span title={key}>{PARAM_LABELS[key] ?? key}</span>
                                 <input
                                     className="robots-v2-input"
                                     type={typeof val === 'number' ? 'number' : 'text'}

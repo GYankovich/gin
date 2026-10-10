@@ -1116,7 +1116,7 @@ export default function RobotV2WizardPage() {
                         </footer>
                     </main>
 
-                    <aside className="robots-v2-wizard-summary" aria-label="Сводка настроек">
+                    <aside className="dashboard-totals-card robots-v2-wizard-summary" aria-label="Сводка настроек">
                         <div className="robots-v2-wizard-summary__head">
                             <span>Сводка</span>
                             <strong>{draft.name.trim() || (kind === 'portfolio' ? 'Новый опросник' : 'Новый робот')}</strong>
