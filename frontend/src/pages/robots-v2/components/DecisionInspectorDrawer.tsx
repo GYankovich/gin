@@ -34,6 +34,17 @@ function fmtTs(raw: string | null | undefined): string {
     return d.toLocaleString('ru-RU')
 }
 
+function fmtMetric(value: unknown): string {
+    if (value == null) return '—'
+    if (typeof value === 'number') {
+        return Number.isInteger(value) ? String(value) : value.toLocaleString('ru-RU', {
+            maximumFractionDigits: 4,
+        })
+    }
+    if (typeof value === 'boolean') return value ? 'да' : 'нет'
+    return String(value)
+}
+
 function isEditableTarget(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false
     return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'))
@@ -174,6 +185,29 @@ export function DecisionInspectorDrawer({
                                         </span>
                                     ) : null}
                                 </Field>
+                                {packet.decision_message ? (
+                                    <Field label={packet.status === 'ignored' ? 'Почему сигнала нет' : 'Проверка условий'}>
+                                        <span className="robots-v2-scan-reason">
+                                            {packet.decision_message}
+                                        </span>
+                                        {packet.decision_code ? (
+                                            <span className="mono robots-v2-inspector__code">
+                                                {' '}{packet.decision_code}
+                                            </span>
+                                        ) : null}
+                                    </Field>
+                                ) : null}
+                                {packet.decision_metrics && Object.keys(packet.decision_metrics).length > 0 ? (
+                                    <Field label="Значения условий">
+                                        <div className="robots-v2-decision-metrics">
+                                            {Object.entries(packet.decision_metrics).map(([key, value]) => (
+                                                <span key={key} className="robots-v2-chip robots-v2-chip--static">
+                                                    {key}: <span className="mono">{fmtMetric(value)}</span>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </Field>
+                                ) : null}
                                 <Field label="Отказ">
                                     {packet.reject_reason ? (
                                         <>

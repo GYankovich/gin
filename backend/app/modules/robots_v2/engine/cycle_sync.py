@@ -239,6 +239,7 @@ def run_paper_cycle_sync(
         tax_pct=config.risk.tax_pct,
     )
     signals = runtime.evaluate(session_id, ctx)
+    ticker_scan = runtime.last_scan(session_id, config.strategy.archetype)
     signal_log: list[dict[str, Any]] = []
 
     def _log_signal(
@@ -544,6 +545,9 @@ def run_paper_cycle_sync(
         "fills": fills,
         "signals": len(signals),
         "signal_log": signal_log,
+        # One row per evaluated ticker. In live mode this powers the universe
+        # card; in backtests it becomes the auditable "why no signal" trace.
+        "tickerScan": ticker_scan,
         "cycleId": cycle_id,
         "deferred_intents": deferred,
     }

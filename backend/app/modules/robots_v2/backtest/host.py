@@ -549,7 +549,10 @@ class BacktestHost:
         )
         runtime = StrategyRuntime()
         plugin = runtime.get_plugin(session_id, config.strategy.archetype)
-        plugin.scan_enabled = False
+        # Backtests must retain the same per-ticker explanation produced by
+        # live strategy plugins. The trace is capped together with signals
+        # below, so a long run cannot grow storage without bounds.
+        plugin.scan_enabled = True
 
         equity_curve: list[dict[str, Any]] = []
         portfolio_snapshots: list[dict[str, Any]] = []
@@ -782,11 +785,54 @@ class BacktestHost:
                 ))
             deferred.extend(new_deferred)
 
+            scan_by_ticker = {
+                str(row.get("ticker") or "").upper(): row
+                for row in list(cycle_out.get("tickerScan") or [])
+                if row.get("ticker")
+            }
+            generated_tickers: set[str] = set()
             for ev in list(cycle_out.get("signal_log") or []):
                 if len(signal_events) >= _MAX_SIGNAL_LOG:
                     signals_truncated = True
                     break
+                ticker = str(ev.get("figi") or ev.get("ticker") or "").upper()
+                generated_tickers.add(ticker)
+                scan = scan_by_ticker.get(ticker)
+                if scan:
+                    ev = {
+                        **ev,
+                        "decision_code": scan.get("code"),
+                        "decision_message": scan.get("message"),
+                        "decision_metrics": dict(scan.get("metrics") or {}),
+                    }
                 signal_events.append(ev)
+
+            # A missing signal is still a strategy decision. Persist one
+            # bounded row per evaluated ticker so the user can verify every
+            # threshold (warmup, MA, breakout, volume, position state, ...).
+            for scan in list(cycle_out.get("tickerScan") or []):
+                ticker = str(scan.get("ticker") or "").upper()
+                if not ticker or ticker in generated_tickers:
+                    continue
+                if len(signal_events) >= _MAX_SIGNAL_LOG:
+                    signals_truncated = True
+                    break
+                signal_events.append({
+                    "signal_time": bar_time.isoformat(),
+                    "figi": ticker,
+                    "signal_type": "NONE",
+                    "price": scan.get("price"),
+                    "was_executed": 0,
+                    "reason": None,
+                    "reject_reason": None,
+                    "kind": "decision",
+                    "status": "ignored",
+                    "quantity": None,
+                    "cycle_id": cycle_out.get("cycleId"),
+                    "decision_code": scan.get("code"),
+                    "decision_message": scan.get("message"),
+                    "decision_metrics": dict(scan.get("metrics") or {}),
+                })
 
             cycle_fills = list(cycle_out.get("fills") or [])
             for fill in cycle_fills:

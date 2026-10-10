@@ -158,17 +158,20 @@ export function deriveStatusCounts(signals: Array<Record<string, unknown>>): {
     filled: number
     rejected: number
     deferred: number
+    ignored: number
 } {
     let filled = 0
     let rejected = 0
     let deferred = 0
+    let ignored = 0
     for (const s of signals) {
         const st = rowStatus(s)
         if (st === 'filled' || st === 'executed') filled += 1
         else if (st === 'deferred') deferred += 1
+        else if (st === 'ignored') ignored += 1
         else if (st === 'rejected' || rowRejectReason(s)) rejected += 1
     }
-    return { filled, rejected, deferred }
+    return { filled, rejected, deferred, ignored }
 }
 
 export function packetFromTrade(t: Record<string, unknown>): BacktestDecisionPacket {
@@ -197,6 +200,7 @@ export function packetFromTrade(t: Record<string, unknown>): BacktestDecisionPac
 export function packetFromSignal(s: Record<string, unknown>): BacktestDecisionPacket {
     const p = signalPayload(s)
     const linked = s.linked_trade_ids ?? p.linked_trade_ids ?? p.linkedTradeIds
+    const rawMetrics = s.decision_metrics ?? p.decision_metrics
     return {
         id: (s.id as string | number | undefined) ?? null,
         source: 'signal',
@@ -210,6 +214,12 @@ export function packetFromSignal(s: Record<string, unknown>): BacktestDecisionPa
         status: rowStatus(s),
         strategy_reason: rowReason(s),
         reject_reason: rowRejectReason(s),
+        decision_code: pickStr(s.decision_code, p.decision_code),
+        decision_message: pickStr(s.decision_message, p.decision_message),
+        decision_metrics:
+            rawMetrics && typeof rawMetrics === 'object' && !Array.isArray(rawMetrics)
+                ? rawMetrics as Record<string, unknown>
+                : null,
         quantity: pickNum(s.quantity, p.quantity),
         price: pickNum(s.price, p.price),
         pnl_net: pickNum(s.pnl_net, p.pnl_net),
@@ -248,6 +258,9 @@ export function mergeCycleBundle(
         cycle_id: base.cycle_id || bundle.cycle_id || fromSig?.cycle_id || fromTr?.cycle_id,
         strategy_reason: base.strategy_reason || fromSig?.strategy_reason || fromTr?.strategy_reason,
         reject_reason: base.reject_reason || fromSig?.reject_reason,
+        decision_code: base.decision_code || fromSig?.decision_code,
+        decision_message: base.decision_message || fromSig?.decision_message,
+        decision_metrics: base.decision_metrics || fromSig?.decision_metrics,
         status: base.status || fromSig?.status || fromTr?.status,
         linked_trade_ids: linked.length ? linked : base.linked_trade_ids,
         execution_note: EXECUTION_NOTE_RU,

@@ -122,6 +122,28 @@ def test_backtest_host_replay_runs():
     assert isinstance(result.daily_summary, list)
 
 
+def test_backtest_records_why_no_signal_trace():
+    """Every evaluated ticker leaves a bounded, human-readable decision row."""
+    config = _sample_config()
+    result = BacktestHost().run_sync(
+        config=config,
+        universe=["AAA"],
+        candles_by_ticker={"AAA": _synthetic_uptrend(40)},
+        initial_capital=100_000,
+        session_id=999_012,
+    )
+
+    ignored = [row for row in result.signals if row.get("status") == "ignored"]
+    assert ignored, "bars without a signal must be auditable"
+    row = ignored[0]
+    assert row["signal_type"] == "NONE"
+    assert row["kind"] == "decision"
+    assert row["cycle_id"]
+    assert row["decision_code"]
+    assert row["decision_message"]
+    assert isinstance(row["decision_metrics"], dict)
+
+
 def test_backtest_host_run_sync_no_event_loop():
     config = _sample_config()
     candles = {"AAA": _synthetic_uptrend(40)}

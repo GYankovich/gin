@@ -329,6 +329,7 @@ export interface BacktestObservability {
         filled?: number
         rejected?: number
         deferred?: number
+        ignored?: number
         [k: string]: number | undefined
     } | null
 }
@@ -344,6 +345,9 @@ export interface BacktestDecisionPacket {
     status?: string | null
     strategy_reason?: string | null
     reject_reason?: string | null
+    decision_code?: string | null
+    decision_message?: string | null
+    decision_metrics?: Record<string, unknown> | null
     quantity?: number | null
     price?: number | null
     pnl_net?: number | null

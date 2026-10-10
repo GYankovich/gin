@@ -392,10 +392,11 @@ def build_observability(
     - filled: successful fills
     - deferred: still waiting (not filled yet)
     - rejected: reject / dropped-deferred signals
+    - ignored: strategy evaluated the ticker but intentionally emitted no signal
     """
     stats = history_stats or {}
     reject_counts: Counter[str] = Counter()
-    status_counts = {"filled": 0, "rejected": 0, "deferred": 0}
+    status_counts = {"filled": 0, "rejected": 0, "deferred": 0, "ignored": 0}
     for s in signals:
         status = _normalize_signal_status(s.get("status"), was_executed=s.get("was_executed"))
         if status in status_counts:
@@ -699,6 +700,9 @@ def _persist_child_tables(
                         "intent_id": s.get("intent_id"),
                         "signal_time": s.get("signal_time") or s.get("bar_time"),
                         "pnl_net": s.get("pnl_net"),
+                        "decision_code": s.get("decision_code"),
+                        "decision_message": s.get("decision_message"),
+                        "decision_metrics": dict(s.get("decision_metrics") or {}),
                         "engine_version": "v2",
                     }),
                 },
@@ -1147,6 +1151,9 @@ def load_child_artifacts(db: Session, run_id: int) -> dict[str, list[dict[str, A
                 "cycle_id": payload.get("cycle_id"),
                 "intent_id": payload.get("intent_id"),
                 "pnl_net": payload.get("pnl_net"),
+                "decision_code": payload.get("decision_code"),
+                "decision_message": payload.get("decision_message"),
+                "decision_metrics": payload.get("decision_metrics") or {},
                 "payload": payload,
             })
         for row in db.execute(
