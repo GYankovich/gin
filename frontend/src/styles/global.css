@@ -7375,37 +7375,39 @@ select:focus:not(:focus-visible) {
 }
 [data-page='portfolio'] .portfolio-summary-hero--split {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto auto;
-    grid-template-areas:
-        'hero-label-left hero-label-right'
-        'hero-value-left hero-value-right';
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     column-gap: var(--space-4);
-    row-gap: 6px;
+    align-items: start;
     min-width: 0;
-    align-items: baseline;
+}
+[data-page='portfolio'] .portfolio-summary-hero__col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+}
+[data-page='portfolio'] .portfolio-summary-hero__col--own {
+    align-items: flex-end;
+    text-align: right;
 }
 [data-page='portfolio'] .portfolio-summary-hero__label {
-    grid-area: hero-label-left;
     min-width: 0;
 }
 [data-page='portfolio'] .portfolio-summary-hero__head {
-    grid-area: hero-label-right;
     display: flex;
     align-items: baseline;
     justify-content: flex-end;
     gap: 4px;
     min-width: 0;
-    justify-self: end;
 }
-[data-page='portfolio'] .portfolio-summary-hero__value {
-    grid-area: hero-value-left;
+[data-page='portfolio'] .portfolio-summary-hero__value,
+[data-page='portfolio'] .portfolio-summary-hero__own-value,
+[data-page='portfolio'] .portfolio-summary-hero__own-value-skeleton {
     min-width: 0;
 }
 [data-page='portfolio'] .portfolio-summary-hero__own-value,
 [data-page='portfolio'] .portfolio-summary-hero__own-value-skeleton {
-    grid-area: hero-value-right;
-    justify-self: end;
     text-align: right;
 }
 [data-page='portfolio'] .portfolio-summary-hero__value,

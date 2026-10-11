@@ -140,7 +140,8 @@ export default function PortfolioPage() {
     const [chartRetrying, setChartRetrying] = useState(false)
     const [chartMode, setChartMode] = useState<'portfolio' | 'instruments'>('portfolio')
     const [chartZoom, setChartZoom] = useState<ChartZoom>('month')
-    const [chartSectionOpen, setChartSectionOpen] = useState(false)
+    const [chartSectionOpen, setChartSectionOpen] = useState(true)
+    const [summaryDetailsOpen, setSummaryDetailsOpen] = useState(false)
     const [selectedFigis, setSelectedFigis] = useState<string[]>([])
     const [crosshairValue, setCrosshairValue] = useState<{
         time: string
@@ -1197,8 +1198,26 @@ export default function PortfolioPage() {
         </div>
     )
 
+    const summaryCollapsed = isMobile && !summaryDetailsOpen
+    const summaryDelta = (
+        <span className={`portfolio-summary-hero__delta mono ${deltaClass(portfolioGain.abs)}`}>
+            {formatAbsWithPercent(portfolioGain.abs, portfolioGain.pct, accountCurrency)}
+        </span>
+    )
+    const summaryMore = isMobile ? (
+        <button
+            type="button"
+            className="portfolio-summary-more"
+            aria-expanded={summaryDetailsOpen}
+            onClick={() => setSummaryDetailsOpen(open => !open)}
+        >
+            <IconSummaryMore open={summaryDetailsOpen} />
+            <span>{summaryDetailsOpen ? 'свернуть' : 'подробнее'}</span>
+        </button>
+    ) : null
+
     const summaryCard = (
-        <Card className="dashboard-totals-card">
+        <Card className={`dashboard-totals-card${summaryCollapsed ? ' dashboard-totals-card--collapsed' : ''}`}>
             <div className="dashboard-totals-card__head">
                 <h3 className="dashboard-panel-title">Сводка</h3>
                 <IconSummary />
@@ -1206,17 +1225,35 @@ export default function PortfolioPage() {
             {statsLoading ? (
                 <div className="portfolio-stats-rows portfolio-summary" aria-busy="true" aria-label="Расчет статистики">
                     <div className="portfolio-summary-hero portfolio-summary-hero--split">
-                        <span className="dashboard-summary-metric__label portfolio-summary-hero__label">Стоимость</span>
-                        <div className="portfolio-summary-hero__head">
-                            <Skeleton width="36px" height="10px" borderRadius="4px" />
-                            <Skeleton width="112px" height="10px" borderRadius="4px" />
+                        <div className="portfolio-summary-hero__col">
+                            <span className="dashboard-summary-metric__label portfolio-summary-hero__label">Стоимость</span>
+                            <div className="portfolio-summary-hero__value">
+                                <Skeleton width="68%" height="28px" borderRadius="4px" />
+                            </div>
+                            {isMobile && (
+                                <span className="portfolio-summary-hero__delta">
+                                    <Skeleton width="112px" height="10px" borderRadius="4px" />
+                                </span>
+                            )}
                         </div>
-                        <Skeleton width="68%" height="32px" borderRadius="4px" />
-                        <span className="portfolio-summary-hero__own-value-skeleton">
-                            <Skeleton width="96px" height="32px" borderRadius="4px" />
-                        </span>
+                        <div className="portfolio-summary-hero__col portfolio-summary-hero__col--own">
+                            <div className="portfolio-summary-hero__head">
+                                <span className="dashboard-summary-metric__label">
+                                    <Skeleton width="36px" height="10px" borderRadius="4px" />
+                                </span>
+                                {!isMobile && (
+                                    <span className="portfolio-summary-hero__delta">
+                                        <Skeleton width="112px" height="10px" borderRadius="4px" />
+                                    </span>
+                                )}
+                            </div>
+                            <span className="portfolio-summary-hero__own-value-skeleton">
+                                <Skeleton width="96px" height="32px" borderRadius="4px" />
+                            </span>
+                            {summaryMore}
+                        </div>
                     </div>
-                    {[0, 1, 2].map(i => (
+                    {!summaryCollapsed && [0, 1, 2].map(i => (
                         <div key={i} className="portfolio-summary-block">
                             <Skeleton width="120px" height="12px" borderRadius="4px" />
                             <div className="portfolio-summary-block__grid portfolio-summary-block__grid--3">
@@ -1235,21 +1272,26 @@ export default function PortfolioPage() {
             ) : (
                 <div className="portfolio-stats-rows portfolio-summary">
                     <div className="portfolio-summary-hero portfolio-summary-hero--split">
-                        <span className="dashboard-summary-metric__label portfolio-summary-hero__label">Стоимость</span>
-                        <div className="portfolio-summary-hero__head">
-                            <span className="dashboard-summary-metric__label">СВОИ:</span>
-                            <span className={`portfolio-summary-hero__delta mono ${deltaClass(portfolioGain.abs)}`}>
-                                {formatAbsWithPercent(portfolioGain.abs, portfolioGain.pct, accountCurrency)}
+                        <div className="portfolio-summary-hero__col">
+                            <span className="dashboard-summary-metric__label portfolio-summary-hero__label">Стоимость</span>
+                            <div className="portfolio-summary-hero__value mono">
+                                {money(stats?.overall.current_total_value)}
+                            </div>
+                            {isMobile && summaryDelta}
+                        </div>
+                        <div className="portfolio-summary-hero__col portfolio-summary-hero__col--own">
+                            <div className="portfolio-summary-hero__head">
+                                <span className="dashboard-summary-metric__label">СВОИ:</span>
+                                {!isMobile && summaryDelta}
+                            </div>
+                            <span className="portfolio-summary-hero__own-value mono">
+                                {money(stats?.overall.own_funds)}
                             </span>
+                            {summaryMore}
                         </div>
-                        <div className="portfolio-summary-hero__value mono">
-                            {money(stats?.overall.current_total_value)}
-                        </div>
-                        <span className="portfolio-summary-hero__own-value mono">
-                            {money(stats?.overall.own_funds)}
-                        </span>
                     </div>
 
+                    {!summaryCollapsed && <>
                     <SummaryBlock title="Состояние портфеля">
                         <div className="portfolio-summary-block__grid portfolio-summary-block__grid--1">
                             <SummaryMetric
@@ -1300,6 +1342,7 @@ export default function PortfolioPage() {
                     <SummaryBlock title="Детали">
                         {detailsBlock}
                     </SummaryBlock>
+                    </>}
                 </div>
             )}
         </Card>
@@ -1458,7 +1501,7 @@ export default function PortfolioPage() {
                 headerEnd={papersToggle}
                 open={chartSectionOpen}
                 onOpenChange={setChartSectionOpen}
-                defaultOpen={false}
+                defaultOpen
             >
                 {chartErrorCard}
             </CollapsibleSection>
@@ -1487,7 +1530,7 @@ export default function PortfolioPage() {
                 headerEnd={papersToggle}
                 open={chartSectionOpen}
                 onOpenChange={setChartSectionOpen}
-                defaultOpen={false}
+                defaultOpen
             >
                 {chartBody}
             </CollapsibleSection>
@@ -1768,6 +1811,18 @@ function IconChart() {
         <svg className="dashboard-icon" viewBox="0 0 24 24" aria-hidden>
             <path fill="none" stroke="currentColor" strokeWidth="1.7" d="M12 3.6a8.4 8.4 0 1 1-8.4 8.4" />
             <path fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" d="M12 3.6V12h8.4" />
+        </svg>
+    )
+}
+
+function IconSummaryMore({ open }: { open: boolean }) {
+    return (
+        <svg className="portfolio-summary-more__icon" viewBox="0 0 24 24" aria-hidden>
+            {open ? (
+                <path fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" d="M5 12h14" />
+            ) : (
+                <path fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" d="M5 7h14M5 12h14M5 17h10" />
+            )}
         </svg>
     )
 }
