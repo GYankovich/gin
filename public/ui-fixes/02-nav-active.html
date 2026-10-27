@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>6. Nav active</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .light-demo {
+    --page: #f4f5f7;
+    --panel: #fff;
+    --text: #0f172a;
+    --muted: #64748b;
+    --border: rgba(15,23,42,.1);
+    background: #f4f5f7;
+    color: #0f172a;
+  }
+  .light-demo .nav { background: rgba(255,255,255,.92); }
+  .light-demo .nav-pill { background: #eef1f4; }
+  .light-demo .nav-link--active-old { background: rgba(15,23,42,.04); color:#0f172a; box-shadow: inset 0 0 0 1px rgba(15,23,42,.08); }
+  .light-demo .nav-link--active { background:#0f172a; color:#fff; box-shadow:none; }
+  .light-demo .avatar { background:#eef1f4; color:#0f172a; }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← К списку</a>
+    <div>
+      <h1>6. Активная вкладка в навбаре</h1>
+      <p>Сейчас active почти сливается с фоном. Предлагаю более плотный контрастный pill.</p>
+    </div>
+  </div>
+  <div class="wrap">
+    <h2 class="section-title">Dark</h2>
+    <div class="grid-2">
+      <div>
+        <div class="frame-label"><span>Сейчас</span></div>
+        <div class="frame">
+          <div class="nav">
+            <div class="brand">GINITY</div>
+            <div class="nav-pill">
+              <button class="nav-link">Дашборд</button>
+              <button class="nav-link nav-link--active-old">Портфель</button>
+              <button class="nav-link">Роботы</button>
+              <button class="nav-link">Лаборатория</button>
+            </div>
+            <div class="avatar">GY</div>
+          </div>
+          <div class="frame__body muted">Активный пункт едва заметнее соседних.</div>
+        </div>
+      </div>
+      <div>
+        <div class="frame-label"><span>Предлагаю</span></div>
+        <div class="frame">
+          <div class="nav">
+            <div class="brand">GINITY</div>
+            <div class="nav-pill">
+              <button class="nav-link">Дашборд</button>
+              <button class="nav-link nav-link--active">Портфель</button>
+              <button class="nav-link">Роботы</button>
+              <button class="nav-link">Лаборатория</button>
+            </div>
+            <div class="avatar">GY</div>
+          </div>
+          <div class="frame__body muted">Светлый filled-pill на dark — сразу видно «где я».</div>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="section-title">Light</h2>
+    <div class="grid-2">
+      <div>
+        <div class="frame-label"><span>Сейчас</span></div>
+        <div class="frame light-demo">
+          <div class="nav">
+            <div class="brand">GINITY</div>
+            <div class="nav-pill">
+              <button class="nav-link nav-link--active-old">Дашборд</button>
+              <button class="nav-link">Портфель</button>
+              <button class="nav-link">Роботы</button>
+              <button class="nav-link">Лаборатория</button>
+            </div>
+            <div class="avatar">GY</div>
+          </div>
+          <div class="frame__body muted">Pill почти того же тона, что трек.</div>
+        </div>
+      </div>
+      <div>
+        <div class="frame-label"><span>Предлагаю</span></div>
+        <div class="frame light-demo">
+          <div class="nav">
+            <div class="brand">GINITY</div>
+            <div class="nav-pill">
+              <button class="nav-link nav-link--active">Дашборд</button>
+              <button class="nav-link">Портфель</button>
+              <button class="nav-link">Роботы</button>
+              <button class="nav-link">Лаборатория</button>
+            </div>
+            <div class="avatar">GY</div>
+          </div>
+          <div class="frame__body muted">Инверсия: тёмный filled на светлом треке.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>2+3. Лаборатория</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .lab-old {
+    background:
+      linear-gradient(rgba(0,255,255,.04) 1px, transparent 1px) 0 0 / 28px 28px,
+      linear-gradient(90deg, rgba(0,255,255,.04) 1px, transparent 1px) 0 0 / 28px 28px,
+      #07090c;
+  }
+  .lab-old .hero {
+    font-family: Impact, Haettenschweiler, sans-serif;
+    font-size: 42px;
+    letter-spacing: 0.04em;
+    color: #5cf0ff;
+    text-shadow: 0 0 18px rgba(0,255,255,.35);
+    margin: 4px 0 14px;
+  }
+  .lab-old .eyebrow { color: #5cf0ff; font-size: 11px; letter-spacing: .12em; }
+  .lab-old .run-btn { background: #1ec8d8; color: #041016; }
+  .lab-old .err { background: #ff2d88; }
+  .lab-new .hero {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 2px 0 14px;
+  }
+  .lab-new .eyebrow { color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+  .layout {
+    display: grid;
+    grid-template-columns: 1.4fr .9fr;
+    gap: 12px;
+  }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .phone-scroll {
+    padding-bottom: 140px;
+    min-height: 640px;
+  }
+  .sticky-run {
+    position: absolute;
+    left: 12px; right: 12px;
+    bottom: 76px;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(24,28,33,.96);
+    border: 1px solid var(--border);
+  }
+  .sticky-run .btn { padding: 10px 14px; }
+  .field-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .fake-input {
+    background: var(--input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    font-size: 13px;
+  }
+  .fake-input span { display:block; color:var(--muted); font-size:11px; margin-bottom:4px; }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← К списку</a>
+    <div>
+      <h1>2+3. Лаборатория — стиль и mobile</h1>
+      <p>Убираем «кибер-неон» заголовок; на телефоне форма не прячется под «Запустить».</p>
+    </div>
+  </div>
+  <div class="wrap">
+    <h2 class="section-title">Desktop — визуальный язык</h2>
+    <div class="grid-2">
+      <div>
+        <div class="frame-label"><span>Сейчас</span></div>
+        <div class="frame lab-old"><div class="frame__body">
+          <div class="eyebrow">BACKTEST NODE</div>
+          <div class="hero">ЛАБОРАТОРИЯ</div>
+          <div class="layout">
+            <div class="card">
+              <div class="toolbar">
+                <span class="chip chip--on" style="background:#1ec8d8;border-color:#1ec8d8;color:#041016">Настроить</span>
+                <span class="chip">Робот</span>
+                <span class="chip">30д</span>
+              </div>
+              <div class="secondary" style="margin-bottom:8px">Стратегия 1h</div>
+              <div class="field-grid">
+                <div class="fake-input"><span>Тип</span>Тренд</div>
+                <div class="fake-input"><span>ТФ</span>1h</div>
+              </div>
+              <div style="margin-top:12px;display:flex;justify-content:flex-end">
+                <button class="btn run-btn">Запустить</button>
+              </div>
+            </div>
+            <div class="card">
+              <div style="font-weight:650;margin-bottom:8px">Все прогоны</div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px">
+                <span>#236 momentum</span><span class="err" style="color:#fff;padding:2px 8px;border-radius:999px;font-size:11px">ОШИБКА</span>
+              </div>
+              <div class="muted" style="font-size:12px">Сделки 0 · — · —</div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+      <div>
+        <div class="frame-label"><span>Предлагаю</span></div>
+        <div class="frame lab-new"><div class="frame__body">
+          <div class="eyebrow">Прогоны</div>
+          <div class="hero">Лаборатория</div>
+          <div class="layout">
+            <div class="card">
+              <div class="toolbar">
+                <span class="chip chip--on">Настроить</span>
+                <span class="chip">Робот</span>
+                <span class="chip">30д</span>
+              </div>
+              <div class="secondary" style="margin-bottom:8px">Стратегия 1h</div>
+              <div class="field-grid">
+                <div class="fake-input"><span>Тип</span>Тренд</div>
+                <div class="fake-input"><span>ТФ</span>1h</div>
+              </div>
+              <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center">
+                <span class="muted" style="font-size:12px">Свечи MOEX / Bybit · 31 дн.</span>
+                <button class="btn">Запустить</button>
+              </div>
+            </div>
+            <div class="card">
+              <div style="font-weight:650;margin-bottom:8px">Все прогоны · 34</div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;gap:8px">
+                <div>
+                  <div><strong>#236</strong> momentum</div>
+                  <div class="muted" style="font-size:12px;margin-top:4px">Нет свечей Bybit за период</div>
+                </div>
+                <span style="align-self:start;font-size:11px;font-weight:700;color:#fff;background:#a12d45;border-radius:999px;padding:3px 8px">Ошибка</span>
+              </div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <h2 class="section-title">Mobile — не перекрывать форму</h2>
+    <div class="grid-2">
+      <div>
+        <div class="frame-label"><span>Сейчас</span></div>
+        <div class="frame frame--phone"><div class="frame__body phone-scroll" style="padding-bottom:120px">
+          <div class="eyebrow" style="color:#5cf0ff">BACKTEST NODE</div>
+          <div style="font-size:28px;color:#5cf0ff;font-weight:800;margin-bottom:10px">ЛАБОРАТОРИЯ</div>
+          <div class="card">
+            <div class="secondary">Новый прогон</div>
+            <div class="toolbar" style="margin-top:8px">
+              <span class="chip chip--on" style="background:#1ec8d8;border:0;color:#041016">Настроить</span>
+              <span class="chip">Робот</span>
+            </div>
+            <div class="field-grid" style="margin-top:8px">
+              <div class="fake-input"><span>7д</span></div>
+              <div class="fake-input"><span>30д</span></div>
+              <div class="fake-input"><span>90д</span></div>
+              <div class="fake-input"><span>180д</span></div>
+            </div>
+          </div>
+          <div class="card" style="margin-top:10px;opacity:.55">
+            <div class="secondary">Стратегия 1h</div>
+            <div class="fake-input" style="margin-top:8px"><span>Тип</span>Тренд — поле под футером</div>
+          </div>
+          <div class="sticky-run" style="bottom:68px">
+            <span class="muted" style="font-size:11px">Свечи · 31 дн.</span>
+            <button class="btn" style="background:#1ec8d8;color:#041016">Запустить</button>
+          </div>
+          <div class="dock"><span>⌂</span><span>💼</span><span>🤖</span><span class="on">⚗ Лаб</span><span>GY</span></div>
+        </div></div>
+      </div>
+      <div>
+        <div class="frame-label"><span>Предлагаю</span></div>
+        <div class="frame frame--phone"><div class="frame__body phone-scroll">
+          <div class="eyebrow">Прогоны</div>
+          <div class="hero" style="font-size:22px;font-weight:700;margin:0 0 12px">Лаборатория</div>
+          <div class="card">
+            <div class="secondary">Новый прогон</div>
+            <div class="toolbar" style="margin-top:8px">
+              <span class="chip chip--on">Настроить</span>
+              <span class="chip">Робот</span>
+              <span class="chip">Прошлый</span>
+            </div>
+            <div class="toolbar">
+              <span class="chip">7д</span><span class="chip chip--on">30д</span><span class="chip">90д</span><span class="chip">180д</span>
+            </div>
+            <div class="fake-input"><span>Период</span>27.09.2026 — 27.10.2026</div>
+          </div>
+          <div class="card" style="margin-top:10px">
+            <div class="secondary">Стратегия 1h</div>
+            <div class="toolbar" style="margin-top:8px">
+              <span class="chip chip--on">Тренд</span><span class="chip">Отскок</span><span class="chip">Сетка</span>
+            </div>
+            <div class="field-grid" style="margin-top:8px">
+              <div class="fake-input"><span>Тип</span>Тренд</div>
+              <div class="fake-input"><span>Инструмент</span>Акции</div>
+              <div class="fake-input"><span>ТФ</span>1h</div>
+              <div class="fake-input"><span>Период ср.</span>50</div>
+            </div>
+            <div class="muted" style="font-size:12px;margin-top:10px">Активы · Риск — раскрываются ниже, всё скроллится над панелью запуска</div>
+          </div>
+          <div class="sticky-run">
+            <span class="muted" style="font-size:11px">MOEX / Bybit · 31 дн.</span>
+            <button class="btn">Запустить</button>
+          </div>
+          <div class="dock"><span>⌂</span><span>💼</span><span>🤖</span><span class="on">⚗ Лаб</span><span>GY</span></div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

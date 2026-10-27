@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>12. Визард</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .layout {
+    display: grid;
+    grid-template-columns: 1.4fr .8fr;
+    gap: 14px;
+  }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .steps {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .step {
+    font-size: 12px;
+    color: var(--muted);
+    padding-bottom: 8px;
+    border-bottom: 2px solid transparent;
+  }
+  .step.on {
+    color: var(--text);
+    border-bottom-color: #fff;
+    font-weight: 650;
+  }
+  .choice {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 12px 0;
+  }
+  .choice .card {
+    cursor: default;
+  }
+  .choice .on {
+    box-shadow: inset 0 0 0 1px rgba(94, 214, 180, 0.55);
+  }
+  .sum-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .sum-row:first-child { border-top: 0; }
+  .def {
+    font-size: 11px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px 7px;
+    margin-left: 6px;
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← К списку</a>
+    <div>
+      <h1>12. Визард — сводка на шаге 1</h1>
+      <p>Поля следующих шагов показываем как значения по умолчанию, не как уже выбранные.</p>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="grid-2">
+      <div>
+        <div class="frame-label"><span>Сейчас</span></div>
+        <div class="frame"><div class="frame__body">
+          <div class="muted" style="font-size:12px">Шаг 1 из 4 · торговый робот</div>
+          <div style="font-size:22px;font-weight:700;margin:4px 0 12px">Новый робот</div>
+          <div class="steps">
+            <div class="step on">Шаг 1 · Основное</div>
+            <div class="step">Стратегия</div>
+            <div class="step">Активы</div>
+            <div class="step">Риск</div>
+          </div>
+          <div class="layout">
+            <div class="card">
+              <div class="secondary">Основа робота</div>
+              <div class="choice">
+                <div class="card on">Торговый робот</div>
+                <div class="card">Опросник</div>
+              </div>
+              <div class="muted" style="font-size:12px">Название / аккаунт…</div>
+            </div>
+            <div class="card">
+              <div style="font-weight:650;margin-bottom:8px">Сводка</div>
+              <div class="sum-row"><span class="muted">Тип</span><span>Торговля</span></div>
+              <div class="sum-row"><span class="muted">Аккаунт</span><span>Не выбран</span></div>
+              <div class="sum-row"><span class="muted">Стратегия</span><span>Тренд</span></div>
+              <div class="sum-row"><span class="muted">Активы</span><span>2 в списке</span></div>
+              <div class="sum-row"><span class="muted">Риск</span><span>10% капитала</span></div>
+            </div>
+          </div>
+          <p class="muted" style="font-size:12px;margin:10px 0 0">Кажется, что стратегия/активы/риск уже настроены, хотя шаг 1 ещё не пройден.</p>
+        </div></div>
+      </div>
+      <div>
+        <div class="frame-label"><span>Предлагаю</span></div>
+        <div class="frame"><div class="frame__body">
+          <div class="muted" style="font-size:12px">Шаг 1 из 4 · торговый робот</div>
+          <div style="font-size:22px;font-weight:700;margin:4px 0 12px">Новый робот</div>
+          <div class="steps">
+            <div class="step on">Шаг 1 · Основное</div>
+            <div class="step">Стратегия</div>
+            <div class="step">Активы</div>
+            <div class="step">Риск</div>
+          </div>
+          <div class="layout">
+            <div class="card">
+              <div class="secondary">Основа робота</div>
+              <div class="choice">
+                <div class="card on">Торговый робот</div>
+                <div class="card">Опросник</div>
+              </div>
+              <div class="muted" style="font-size:12px">Название / аккаунт…</div>
+            </div>
+            <div class="card">
+              <div style="font-weight:650;margin-bottom:8px">Сводка</div>
+              <div class="sum-row"><span class="muted">Тип</span><span>Торговля</span></div>
+              <div class="sum-row"><span class="muted">Аккаунт</span><span class="warn">Не выбран</span></div>
+              <div class="sum-row"><span class="muted">Стратегия</span><span>Тренд <span class="def">по умолчанию</span></span></div>
+              <div class="sum-row"><span class="muted">Активы</span><span>2 <span class="def">черновик</span></span></div>
+              <div class="sum-row"><span class="muted">Риск</span><span>10% <span class="def">по умолчанию</span></span></div>
+              <div class="muted" style="font-size:12px;margin-top:10px">Можно изменить на следующих шагах</div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -673,6 +673,8 @@
     }
 
     .mobile-dock {
+        --dock-accent: #e8eaed;
+        --dock-on-accent: #13161a;
         display: block;
         position: fixed;
         left: 0;
@@ -688,6 +690,11 @@
         backdrop-filter: none;
         border: 0;
         pointer-events: none;
+    }
+
+    [data-theme='light'] .mobile-dock {
+        --dock-accent: #0f172a;
+        --dock-on-accent: #ffffff;
     }
 
     .mobile-dock__capsule {
@@ -754,21 +761,35 @@
     .mobile-dock__brand--active .mobile-dock__logo,
     a.mobile-dock__brand.mobile-dock__brand--active:hover .mobile-dock__logo {
         opacity: 1;
+        /* dark logo on light active pill */
+        filter: brightness(0);
+    }
+
+    [data-theme='light'] .mobile-dock__brand--active .mobile-dock__logo,
+    [data-theme='light'] a.mobile-dock__brand.mobile-dock__brand--active:hover .mobile-dock__logo {
+        /* light logo on dark active pill */
+        filter: brightness(0) invert(1);
     }
 
     .mobile-dock__brand,
     a.mobile-dock__brand:hover,
     a.mobile-dock__brand:focus,
     a.mobile-dock__brand:active,
-    a.mobile-dock__brand:visited,
+    a.mobile-dock__brand:visited {
+        text-decoration: none;
+        background: transparent;
+        outline: none;
+    }
+
     .mobile-dock__brand--active,
     a.mobile-dock__brand.mobile-dock__brand--active:hover,
     a.mobile-dock__brand.mobile-dock__brand--active:focus,
     a.mobile-dock__brand.mobile-dock__brand--active:active,
     a.mobile-dock__brand.mobile-dock__brand--active:visited {
         text-decoration: none;
-        background: transparent;
+        background: var(--dock-accent, #e8eaed);
         outline: none;
+        border-radius: 12px;
     }
 
     .mobile-dock__brand:focus-visible {
@@ -884,20 +905,25 @@
     a.mobile-dock__tab.mobile-dock__tab--active:focus-visible,
     a.mobile-dock__tab.mobile-dock__tab--active:active,
     a.mobile-dock__tab.mobile-dock__tab--active:visited {
-        color: var(--text-primary);
+        color: var(--dock-on-accent);
         opacity: 1;
         gap: 2px;
-        background: transparent;
+        background: var(--dock-accent);
         text-decoration: none;
+        border-radius: 12px;
     }
 
     .mobile-dock__tab--active .mobile-dock__tab-label {
         max-height: 12px;
         opacity: 1;
+        color: inherit;
+        font-weight: 600;
     }
 
     .mobile-dock__tab--active .mobile-dock__tab-icon {
-        transform: scale(1.12);
+        transform: none;
+        color: inherit;
+        opacity: 1;
     }
 
     .mobile-dock__avatar {
@@ -947,6 +973,9 @@
     a.mobile-dock__avatar.mobile-dock__avatar--active:hover,
     a.mobile-dock__avatar.mobile-dock__avatar--active:visited {
         opacity: 1;
+        color: var(--dock-on-accent);
+        background: var(--dock-accent);
+        border-radius: 12px;
     }
 
     .mobile-dock__avatar--alert {

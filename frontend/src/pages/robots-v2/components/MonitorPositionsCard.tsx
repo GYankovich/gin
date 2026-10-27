@@ -104,6 +104,33 @@ export function MonitorPositionsCard({
                     </span>
                 )}
             />
+            <div className="robots-monitor-position-cards" aria-label="Открытые позиции">
+                {rows.length === 0 ? (
+                    <p className="dashboard-empty">
+                        {isRunning
+                            ? 'Нет открытых позиций — робот ещё не вошёл в сделку'
+                            : 'Нет открытых позиций на брокере (в universe / по audit fills)'}
+                    </p>
+                ) : (
+                    rows.map(r => (
+                        <article key={r.id} className="robots-monitor-position-card">
+                            <div className="robots-monitor-position-card__head">
+                                <strong className="robots-monitor-position-card__title">
+                                    {r.tickerWarning ? <TickerWarningMark text={r.tickerWarning} /> : null}
+                                    {r.tickerLabel}
+                                    <span> · {r.side}</span>
+                                </strong>
+                            </div>
+                            <div className="robots-monitor-position-card__grid">
+                                <div><span>Кол-во</span><strong className="mono">{r.quantity}</strong></div>
+                                <div><span>Вход</span><strong className="mono">{r.entry}</strong></div>
+                                <div><span>Сейчас</span><strong className="mono">{r.current}</strong></div>
+                                <div><span>SL / TP</span><strong className="mono">{r.sl} / {r.tp}</strong></div>
+                            </div>
+                        </article>
+                    ))
+                )}
+            </div>
         </>
     )
 

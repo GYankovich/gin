@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>9. Дашборд</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .summary {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 800px) { .summary { grid-template-columns: 1fr; } }
+  .hero-num { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; }
+  .hero-sub { font-size: 13px; margin-top: 4px; }
+  .bar {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.06);
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .bar > i { display:block; height:100%; background: #c9853b; }
+  .accounts-old {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    color: var(--secondary);
+    font-size: 13px;
+  }
+  .accounts-new .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .accounts-new .row:first-child { border-top: 0; padding-top: 0; }
+  .phone-hero { display:grid; gap: 14px; }
+  .phone-hero .pair { display:grid; grid-template-columns: 1.3fr .9fr; gap: 10px; }
+  .phone-hero .main { font-size: 28px; font-weight: 700; }
+  .phone-hero .side { font-size: 18px; font-weight: 650; color: var(--secondary); }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← К списку</a>
+    <div>
+      <h1>9. Дашборд — KPI и счета</h1>
+      <p>Выделяем главную цифру; счета — нормальный блок, не тонкая полоска.</p>
+    </div>
+  </div>
+  <div class="wrap">
+    <h2 class="section-title">Desktop</h2>
+    <div class="grid-2">
+      <div>
+        <div class="frame-label"><span>Сейчас</span></div>
+        <div class="frame"><div class="frame__body">
+          <div class="summary">
+            <div class="card">
+              <div class="secondary" style="margin-bottom:12px">Сводка RUB</div>
+              <div style="display:flex;gap:28px">
+                <div>
+                  <div class="muted" style="font-size:12px">Собственные средства</div>
+                  <div style="font-size:26px;font-weight:650;margin-top:4px">1 350 360,64 ₽</div>
+                </div>
+                <div>
+                  <div class="muted" style="font-size:12px">Текущая стоимость</div>
+                  <div style="font-size:26px;font-weight:650;margin-top:4px">1 238 850,93 ₽</div>
+                </div>
+              </div>
+              <div style="margin-top:12px;font-size:13px"><span class="down">−8,26%</span> · <span class="up">+0,51% за день</span></div>
+            </div>
+            <div class="card">
+              <div class="secondary" style="margin-bottom:10px">Структура активов</div>
+              <div style="font-size:13px">Облигации 57%</div>
+              <div class="bar"><i style="width:57%"></i></div>
+            </div>
+          </div>
+          <div class="accounts-old"><span>Счета</span><span>▾</span></div>
+        </div></div>
+      </div>
+      <div>
+        <div class="frame-label"><span>Предлагаю</span></div>
+        <div class="frame"><div class="frame__body">
+          <div class="summary">
+            <div class="card">
+              <div class="secondary" style="margin-bottom:8px">Сводка RUB</div>
+              <div class="muted" style="font-size:12px">Текущая стоимость портфеля</div>
+              <div class="hero-num">1 238 850,93 ₽</div>
+              <div class="hero-sub"><span class="up">+6 261,72 ₽ · +0,51% за день</span></div>
+              <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:12px">
+                <div>
+                  <div class="muted" style="font-size:11px">Собственные средства</div>
+                  <div style="font-weight:650;margin-top:2px">1 350 360,64 ₽</div>
+                </div>
+                <div style="text-align:right">
+                  <div class="muted" style="font-size:11px">Всего к своим</div>
+                  <div class="down" style="font-weight:650;margin-top:2px">−111 509,71 ₽ · −8,26%</div>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="secondary" style="margin-bottom:10px">Структура активов</div>
+              <div style="font-size:13px">Облигации 57%</div>
+              <div class="bar"><i style="width:57%"></i></div>
+              <div style="font-size:13px;margin-top:10px">Акции РФ 31%</div>
+              <div class="bar"><i style="width:31%;background:#7b6cff"></i></div>
+            </div>
+          </div>
+          <div class="card accounts-new" style="margin-top:12px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+              <strong>Счета · 3</strong>
+              <span class="muted" style="font-size:12px">все →</span>
+            </div>
+            <div class="row"><span>Pinkin · T-Инвестиции</span><strong>832 321 ₽</strong></div>
+            <div class="row"><span>Анти-мейнстрим</span><strong>291 118 ₽</strong></div>
+            <div class="row"><span class="muted">+ ещё 1 счёт</span><span class="muted">показать</span></div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <h2 class="section-title">Mobile — иерархия чисел</h2>
+    <div class="grid-2">
+      <div>
+        <div class="frame-label"><span>Сейчас</span></div>
+        <div class="frame frame--phone"><div class="frame__body phone-hero">
+          <div class="card pair">
+            <div>
+              <div class="muted" style="font-size:11px">Текущая стоимость</div>
+              <div class="up" style="font-size:12px">+0,51%</div>
+              <div class="main">1 238 850</div>
+            </div>
+            <div>
+              <div class="muted" style="font-size:11px">Собственные</div>
+              <div class="down" style="font-size:12px">−8,26%</div>
+              <div class="side">1 350 360</div>
+            </div>
+          </div>
+          <div class="dock"><span>⌂</span><span>💼</span><span class="on">🤖</span><span>⚗</span><span>GY</span></div>
+        </div></div>
+      </div>
+      <div>
+        <div class="frame-label"><span>Предлагаю</span></div>
+        <div class="frame frame--phone"><div class="frame__body phone-hero">
+          <div class="card">
+            <div class="muted" style="font-size:11px">Текущая стоимость</div>
+            <div class="main">1 238 850,93 ₽</div>
+            <div class="up" style="font-size:13px;margin-top:4px">+6 261,72 ₽ · +0,51% за день</div>
+            <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between">
+              <div>
+                <div class="muted" style="font-size:11px">Собственные</div>
+                <div style="font-weight:650">1 350 360 ₽</div>
+              </div>
+              <div style="text-align:right">
+                <div class="muted" style="font-size:11px">к своим</div>
+                <div class="down" style="font-weight:650">−8,26%</div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div style="display:flex;justify-content:space-between"><strong>Счета · 3</strong><span class="muted">открыть</span></div>
+            <div style="margin-top:8px;font-size:13px;display:flex;justify-content:space-between"><span>Pinkin</span><strong>832 321 ₽</strong></div>
+          </div>
+          <div class="dock"><span>⌂</span><span>💼</span><span class="on">🤖 Роботы</span><span>⚗</span><span>GY</span></div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

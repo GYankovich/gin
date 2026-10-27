@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>1. Аналитика — убрать</title>
+<link rel="stylesheet" href="./_shared.css" />
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← К списку</a>
+    <div>
+      <h1>1. Аналитика — убрать</h1>
+      <p>Рудимент: страница `/analytics` жива, но нигде в навигации её нет.</p>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="note">
+      <strong>Предложение:</strong> удалить роут, пункт меню не добавлять, код страницы/сервис оставить на потом или выпилить в том же PR.
+      Ниже — как выглядит кабинет без аналитики (уже так и есть в nav).
+    </div>
+    <div class="frame">
+      <div class="nav">
+        <div class="brand">GINITY</div>
+        <div class="nav-pill">
+          <button class="nav-link nav-link--active">Дашборд</button>
+          <button class="nav-link">Портфель</button>
+          <button class="nav-link">Роботы</button>
+          <button class="nav-link">Лаборатория</button>
+        </div>
+        <div class="avatar">GY</div>
+      </div>
+      <div class="frame__body">
+        <p class="muted" style="margin:0">В меню только 4 раздела. Отдельной «Аналитики» нет и не будет.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>10. Портфель</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .side {
+    width: 280px;
+    max-width: 100%;
+  }
+  .pair-old { display:flex; gap:12px; align-items:baseline; }
+  .pair-old .a { font-size:28px; font-weight:700; }
+  .pair-old .b { font-size:16px; color: var(--muted); }
+  .details-old, .details-new {
+    margin-top: 12px;
+    display: grid;
+    gap: 6px;
+    font-size: 12px;
+  }
+  .details-old div, .details-new div {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .details-new { gap: 8px; }
+  .details-new .group {
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+  .details-new .group:first-child { border-top:0; padding-top:0; }
+  table { width:100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-weight: 500; padding: 8px 6px; border-bottom: 1px solid var(--border); }
+  td { padding: 8px 6px; border-bottom: 1px solid rgba(255,255,255,.04); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:hover td { background: rgba(255,255,255,.03); }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← К списку</a>
+    <div>
+      <h1>10. Портфель — подписи и плотность</h1>
+      <p>Две крупные суммы с ролями; детали группами; деньги в таблице вправо.</p>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="grid-2">
+      <div>
+        <div class="frame-label"><span>Сейчас</span></div>
+        <div class="frame"><div class="frame__body">
+          <div class="card side">
+            <div class="pair-old">
+              <div class="a">840 449,76 ₽</div>
+              <div class="b">895 110,64 ₽</div>
+            </div>
+            <div class="details-old">
+              <div><span class="muted">Свободные</span><span>18 803,99 ₽</span></div>
+              <div><span class="muted">ROI всего</span><span class="down">−6,11%</span></div>
+              <div><span class="muted">ROI мес</span><span class="down">−0,53%</span></div>
+              <div><span class="muted">Max DD</span><span class="down">39,24%</span></div>
+              <div><span class="muted">Win rate</span><span class="up">58,82%</span></div>
+              <div><span class="muted">PF</span><span class="down">0,85</span></div>
+              <div><span class="muted">Дивиденды</span><span class="up">…</span></div>
+              <div><span class="muted">Комиссия</span><span>…</span></div>
+              <div><span class="muted">Налоги</span><span>…</span></div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+      <div>
+        <div class="frame-label"><span>Предлагаю</span></div>
+        <div class="frame"><div class="frame__body">
+          <div class="card side">
+            <div class="muted" style="font-size:11px">Текущая стоимость</div>
+            <div style="font-size:28px;font-weight:700">840 449,76 ₽</div>
+            <div style="margin-top:6px;font-size:13px" class="secondary">
+              Собственные средства <strong style="color:var(--text)">895 110,64 ₽</strong>
+            </div>
+            <div class="details-new">
+              <div class="group">
+                <div class="muted" style="margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:.04em">Состояние</div>
+                <div><span class="muted">Свободные</span><span>18 803,99 ₽</span></div>
+                <div><span class="muted">ROI всего</span><span class="down">−6,11%</span></div>
+                <div><span class="muted">ROI мес</span><span class="down">−0,53%</span></div>
+              </div>
+              <div class="group">
+                <div class="muted" style="margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:.04em">Риск</div>
+                <div><span class="muted">Max DD</span><span class="down">39,24%</span></div>
+                <div><span class="muted">Win rate</span><span class="up">58,82%</span></div>
+                <div><span class="muted">Profit factor</span><span class="down">0,85</span></div>
+              </div>
+              <div class="group">
+                <div class="muted" style="margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:.04em">Детали</div>
+                <div><span class="muted">Дивиденды</span><span class="up">…</span></div>
+                <div><span class="muted">Комиссия</span><span>…</span></div>
+              </div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <h2 class="section-title">Таблица состава — выравнивание</h2>
+    <div class="frame"><div class="frame__body">
+      <table>
+        <thead>
+          <tr>
+            <th>Актив</th>
+            <th>Тип</th>
+            <th class="num">Кол-во</th>
+            <th class="num">Средняя</th>
+            <th class="num">Цена</th>
+            <th class="num">P&amp;L</th>
+            <th class="num">Стоимость</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>ОФЗ 26238</td>
+            <td class="muted">Облигации</td>
+            <td class="num">120</td>
+            <td class="num">96,40</td>
+            <td class="num">97,12</td>
+            <td class="num up">+864</td>
+            <td class="num">11 654</td>
+          </tr>
+          <tr>
+            <td>TMOS</td>
+            <td class="muted">ETF</td>
+            <td class="num">40</td>
+            <td class="num">148,20</td>
+            <td class="num">151,05</td>
+            <td class="num up">+114</td>
+            <td class="num">6 042</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="muted" style="margin:10px 0 0;font-size:12px">Заголовки числовых колонок тоже вправо · hover по строке</p>
+    </div></div>
+  </div>
+</body>
+</html>

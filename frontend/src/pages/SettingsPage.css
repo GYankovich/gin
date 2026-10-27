@@ -674,12 +674,13 @@
 
 .settings-logout .btn {
     min-width: 140px;
-    color: var(--text-secondary);
+    color: var(--color-down);
 }
 
 .settings-logout .btn:hover,
 .settings-logout .btn:focus-visible {
-    color: var(--text-primary);
+    color: var(--color-down);
+    background: color-mix(in srgb, var(--color-down) 8%, transparent);
 }
 
 /* Token detail fields reuse the same input surface as dashboard forms */

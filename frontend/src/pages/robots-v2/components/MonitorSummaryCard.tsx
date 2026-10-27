@@ -86,10 +86,9 @@ export function MonitorSummaryCard({
             ) : (
                 <div className="portfolio-stats-grid robots-v2-cockpit-kpis">
                     <StatTile
-                        label="За день"
+                        label={dayTrades > 0 ? `Прибыль за день · ${dayTrades} сделок` : 'Прибыль за день'}
                         value={dayDelta.text}
                         valueClassName={`robots-v2-pnl--${dayDelta.tone}`}
-                        hint={dayTrades > 0 ? `${dayTrades} сделок` : 'нет сделок'}
                     />
                     <StatTile
                         label={equityTileLabel || 'Equity'}
@@ -99,7 +98,6 @@ export function MonitorSummaryCard({
                         label={cashTileLabel || 'Cash'}
                         value={showBalance && cashLabel != null ? cashLabel : '—'}
                     />
-                    <StatTile label="Цикл" value={cycle} />
                     <StatTile label="Позиции" value={positionsCount} />
                     <StatTile
                         label="Заявки"
@@ -107,6 +105,7 @@ export function MonitorSummaryCard({
                         valueClassName={openOrderCount > 0 ? 'color-warn' : ''}
                         hint={openOrderCount > 0 ? 'open' : undefined}
                     />
+                    <StatTile label="Цикл" value={cycle} />
                 </div>
             )}
 

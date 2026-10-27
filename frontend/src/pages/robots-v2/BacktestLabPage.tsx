@@ -488,9 +488,9 @@ export default function BacktestLabPage() {
     return (
         <div className="page" data-page="robots" data-screen="backtest">
             <PageHero
-                className="dashboard-hero--node"
-                eyebrow="BACKTEST NODE"
-                title="ЛАБОРАТОРИЯ"
+                className="dashboard-hero--node dashboard-hero--cabin"
+                eyebrow="Прогоны"
+                title="Лаборатория"
             />
 
             <div className="dashboard-layout robots-v2-lab-layout">

@@ -856,7 +856,7 @@ export default function PortfolioPage() {
             key: 'total_value',
             header: 'Стоимость',
             sortable: true,
-            align: 'center',
+            align: 'right',
             render: r => (
                 <span className="portfolio-table__sum mono">{money(r.total_value)}</span>
             ),
@@ -865,7 +865,7 @@ export default function PortfolioPage() {
             key: 'daily_yield',
             header: 'Дневной доход',
             sortable: true,
-            align: 'center',
+            align: 'right',
             render: r => (
                 <span className={r.daily_yield >= 0 ? 'color-up' : 'color-down'}>
                     {moneySigned(r.daily_yield)}
@@ -895,19 +895,19 @@ export default function PortfolioPage() {
         {
             key: 'quantity',
             header: 'Кол-во',
-            align: 'center',
+            align: 'right',
             render: r => Number(r.quantity || 0).toLocaleString('ru-RU'),
         },
         {
             key: 'price',
             header: 'Цена',
-            align: 'center',
+            align: 'right',
             render: r => Number(r.price || 0).toLocaleString('ru-RU', { maximumFractionDigits: 4 }),
         },
         {
             key: 'payment',
             header: 'Сумма',
-            align: 'center',
+            align: 'right',
             render: r => {
                 const v = Number(r.payment || 0)
                 return (
@@ -1250,34 +1250,16 @@ export default function PortfolioPage() {
             </div>
             {statsLoading ? (
                 <div className="portfolio-stats-rows portfolio-summary" aria-busy="true" aria-label="Расчет статистики">
-                    <div className="portfolio-summary-hero portfolio-summary-hero--split">
-                        <div className="portfolio-summary-hero__col">
-                            <span className="dashboard-summary-metric__label portfolio-summary-hero__label">Стоимость</span>
-                            <div className="portfolio-summary-hero__value">
-                                <Skeleton width="68%" height="28px" borderRadius="4px" />
-                            </div>
-                            {isMobile && (
-                                <span className="portfolio-summary-hero__delta">
-                                    <Skeleton width="112px" height="10px" borderRadius="4px" />
-                                </span>
-                            )}
+                    <div className="portfolio-summary-hero portfolio-summary-hero--stack">
+                        <span className="dashboard-summary-metric__label portfolio-summary-hero__label">Текущая стоимость</span>
+                        <div className="portfolio-summary-hero__value">
+                            <Skeleton width="68%" height="28px" borderRadius="4px" />
                         </div>
-                        <div className="portfolio-summary-hero__col portfolio-summary-hero__col--own">
-                            <div className="portfolio-summary-hero__head">
-                                <span className="dashboard-summary-metric__label">
-                                    <Skeleton width="36px" height="10px" borderRadius="4px" />
-                                </span>
-                                {!isMobile && (
-                                    <span className="portfolio-summary-hero__delta">
-                                        <Skeleton width="112px" height="10px" borderRadius="4px" />
-                                    </span>
-                                )}
-                            </div>
-                            <span className="portfolio-summary-hero__own-value-skeleton">
-                                <Skeleton width="96px" height="32px" borderRadius="4px" />
-                            </span>
-                            {summaryMore}
+                        <div className="portfolio-summary-hero__own-line">
+                            <Skeleton width="40%" height="12px" borderRadius="4px" />
+                            <Skeleton width="28%" height="16px" borderRadius="4px" />
                         </div>
+                        {summaryMore}
                     </div>
                     {!summaryCollapsed && [0, 1, 2].map(i => (
                         <div key={i} className="portfolio-summary-block">
@@ -1297,24 +1279,19 @@ export default function PortfolioPage() {
                 statsErrorCard
             ) : (
                 <div className="portfolio-stats-rows portfolio-summary">
-                    <div className="portfolio-summary-hero portfolio-summary-hero--split">
-                        <div className="portfolio-summary-hero__col">
-                            <span className="dashboard-summary-metric__label portfolio-summary-hero__label">Стоимость</span>
-                            <div className="portfolio-summary-hero__value mono">
-                                {money(stats?.overall.current_total_value)}
-                            </div>
-                            {isMobile && summaryDelta}
+                    <div className="portfolio-summary-hero portfolio-summary-hero--stack">
+                        <span className="dashboard-summary-metric__label portfolio-summary-hero__label">Текущая стоимость</span>
+                        <div className="portfolio-summary-hero__value mono">
+                            {money(stats?.overall.current_total_value)}
                         </div>
-                        <div className="portfolio-summary-hero__col portfolio-summary-hero__col--own">
-                            <div className="portfolio-summary-hero__head">
-                                <span className="dashboard-summary-metric__label">СВОИ:</span>
-                                {!isMobile && summaryDelta}
-                            </div>
+                        {summaryDelta}
+                        <div className="portfolio-summary-hero__own-line">
+                            <span className="dashboard-summary-metric__label">Собственные средства</span>
                             <span className="portfolio-summary-hero__own-value mono">
                                 {money(stats?.overall.own_funds)}
                             </span>
-                            {summaryMore}
                         </div>
+                        {summaryMore}
                     </div>
 
                     {!summaryCollapsed && <>

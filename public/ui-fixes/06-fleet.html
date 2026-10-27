@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>8. Флот</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 12px;
+    align-items: center;
+    padding: 14px 12px;
+    border-top: 1px solid var(--border);
+  }
+  .row:first-child { border-top: 0; }
+  .status {
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid rgba(61,190,122,.35);
+    color: var(--up);
+    background: rgba(61,190,122,.08);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .status--btn { cursor: pointer; }
+  .status--btn::after { content: "▾"; color: var(--muted); }
+  .kebab {
+    width: 32px; height: 32px; border-radius: 10px;
+    border: 1px solid var(--border); background: transparent; color: var(--secondary);
+  }
+  .menu {
+    margin-top: 8px;
+    border: 1px solid var(--border);
+    background: var(--elevated);
+    border-radius: 12px;
+    padding: 6px;
+    width: 220px;
+  }
+  .menu button {
+    display: block; width: 100%; text-align: left;
+    border: 0; background: transparent; color: var(--text);
+    padding: 10px 10px; border-radius: 8px; font-size: 13px;
+  }
+  .menu button:hover { background: rgba(255,255,255,.05); }
+  .tip {
+    display: inline-block;
+    border-bottom: 1px dashed var(--muted);
+    cursor: help;
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← К списку</a>
+    <div>
+      <h1>8. Флот — статус и действия</h1>
+      <p>Статус только индикатор; смена режима и прочее — в меню «⋯». Подписи к Eq/Cash.</p>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="grid-2">
+      <div>
+        <div class="frame-label"><span>Сейчас</span></div>
+        <div class="frame"><div class="frame__body">
+          <div class="card" style="padding:0">
+            <div class="row">
+              <div>
+                <div style="font-weight:650">Копия хард #3</div>
+                <div class="muted" style="font-size:12px;margin-top:4px">scalper · live · синхрон 3 с назад</div>
+                <div class="muted" style="font-size:12px;margin-top:4px">Eq 9 063 · Cash 3 143 · цикл 413 · 6 поз.</div>
+              </div>
+              <button class="status status--btn">● В работе</button>
+              <button class="kebab">⋯</button>
+            </div>
+          </div>
+          <p class="muted" style="font-size:12px;margin:10px 0 0">Два контрола рядом: dropdown статуса и kebab — непонятно, куда жать.</p>
+        </div></div>
+      </div>
+      <div>
+        <div class="frame-label"><span>Предлагаю</span></div>
+        <div class="frame"><div class="frame__body">
+          <div class="card" style="padding:0">
+            <div class="row">
+              <div>
+                <div style="font-weight:650">Копия хард #3</div>
+                <div class="muted" style="font-size:12px;margin-top:4px">scalper · live · синхрон 3 с назад</div>
+                <div class="muted" style="font-size:12px;margin-top:4px">
+                  <span class="tip" title="Equity счёта">Eq 9 063</span> ·
+                  <span class="tip" title="Свободные средства">Cash 3 143</span> ·
+                  цикл 413 · 6 поз.
+                </div>
+              </div>
+              <span class="status">● В работе</span>
+              <button class="kebab">⋯</button>
+            </div>
+          </div>
+          <div class="menu">
+            <button>Открыть монитор</button>
+            <button>Пауза</button>
+            <button>Стоп</button>
+            <button>История</button>
+            <button>Клонировать</button>
+            <button>Изменить</button>
+            <button style="color:var(--down)">Удалить</button>
+          </div>
+          <p class="muted" style="font-size:12px;margin:10px 0 0">Статус не кликабелен. Все действия — в одном меню.</p>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>4. Empty states — пояснение</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .kpi {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .kpi .card { min-height: 78px; }
+  .kpi .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .kpi .value { font-size: 22px; font-weight: 650; margin-top: 6px; }
+  .hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--secondary);
+    line-height: 1.35;
+  }
+  .run {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--input);
+    margin-top: 8px;
+  }
+  .err {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    background: #a12d45;
+    border-radius: 999px;
+    padding: 3px 8px;
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← К списку</a>
+    <div>
+      <h1>4. Что такое «пустые состояния»</h1>
+      <p>Не про баги данных. Про то, как UI объясняет «почему здесь прочерк / ноль / пусто».</p>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="note">
+      <strong>Коротко:</strong> сейчас в нескольких местах стоят «—» или пустые графики без причины.
+      Пользователь не понимает: это ещё грузится, данных нет, ошибка, или раздел не для этой валюты?
+      Предложение — одна короткая подсказка + CTA, где уместно.
+    </div>
+
+    <h2 class="section-title">Пример A — сводка USDT на дашборде</h2>
+    <div class="grid-2">
+      <div>
+        <div class="frame-label"><span>Сейчас</span></div>
+        <div class="frame"><div class="frame__body">
+          <div class="card">
+            <div class="secondary" style="margin-bottom:12px">Сводка USDT</div>
+            <div style="display:flex;gap:24px">
+              <div>
+                <div class="muted" style="font-size:12px">Собственные средства</div>
+                <div style="font-size:28px;font-weight:650;margin-top:4px">—</div>
+              </div>
+              <div>
+                <div class="muted" style="font-size:12px">Текущая стоимость</div>
+                <div style="font-size:28px;font-weight:650;margin-top:4px">9,63 USDT</div>
+              </div>
+            </div>
+            <div class="muted" style="margin-top:12px;font-size:13px">Общее изменение — · За день —</div>
+          </div>
+        </div></div>
+      </div>
+      <div>
+        <div class="frame-label"><span>Предлагаю</span></div>
+        <div class="frame"><div class="frame__body">
+          <div class="card">
+            <div class="secondary" style="margin-bottom:12px">Сводка USDT</div>
+            <div style="display:flex;gap:24px">
+              <div>
+                <div class="muted" style="font-size:12px">Собственные средства</div>
+                <div style="font-size:28px;font-weight:650;margin-top:4px">н/д</div>
+              </div>
+              <div>
+                <div class="muted" style="font-size:12px">Текущая стоимость</div>
+                <div style="font-size:28px;font-weight:650;margin-top:4px">9,63 USDT</div>
+              </div>
+            </div>
+            <div class="hint">Нет истории снимков по USDT — изменение и свои средства появятся после первого дня учёта.</div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <h2 class="section-title">Пример B — карточка ошибки в лаборатории</h2>
+    <div class="grid-2">
+      <div>
+        <div class="frame-label"><span>Сейчас</span></div>
+        <div class="frame"><div class="frame__body">
+          <div class="run">
+            <div>
+              <div><strong>#236</strong> momentum</div>
+              <div class="muted" style="font-size:12px;margin-top:6px">Сделки 0 · Просадка — · Доход/риск —</div>
+            </div>
+            <span class="err">ОШИБКА</span>
+          </div>
+        </div></div>
+      </div>
+      <div>
+        <div class="frame-label"><span>Предлагаю</span></div>
+        <div class="frame"><div class="frame__body">
+          <div class="run">
+            <div>
+              <div style="display:flex;align-items:center;gap:8px"><strong>#236</strong> momentum <span class="err">ОШИБКА</span></div>
+              <div class="hint">Нет свечей Bybit за 19.09–20.10. Открой прогон или сузь период.</div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <h2 class="section-title">Пример C — пустые KPI / график</h2>
+    <div class="grid-2">
+      <div>
+        <div class="frame-label"><span>Сейчас</span></div>
+        <div class="frame"><div class="frame__body">
+          <div class="kpi">
+            <div class="card"><div class="label">Sharpe</div><div class="value">—</div></div>
+            <div class="card"><div class="label">Sortino</div><div class="value">—</div></div>
+            <div class="card"><div class="label">Просадка</div><div class="value">—</div></div>
+          </div>
+          <div class="card" style="margin-top:10px;height:120px;display:grid;place-items:center" class="muted">
+            <span class="muted">пустой график</span>
+          </div>
+        </div></div>
+      </div>
+      <div>
+        <div class="frame-label"><span>Предлагаю</span></div>
+        <div class="frame"><div class="frame__body">
+          <div class="kpi">
+            <div class="card"><div class="label">Sharpe</div><div class="value">н/д</div><div class="hint">мало сделок</div></div>
+            <div class="card"><div class="label">Sortino</div><div class="value">н/д</div><div class="hint">мало сделок</div></div>
+            <div class="card"><div class="label">Просадка</div><div class="value">н/д</div><div class="hint">нет серии PnL</div></div>
+          </div>
+          <div class="card" style="margin-top:10px;height:120px;display:grid;place-items:center;text-align:center;padding:18px">
+            <div>
+              <div style="font-weight:600">Нет ряда для графика</div>
+              <div class="hint">Выбери другой год или робота — либо дождись первых сделок.</div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="note" style="margin-top:22px">
+      <strong>Важно:</strong> пункт 1 говорит «аналитику убрать», поэтому пример C скорее для дашборда/портфеля/лаборатории,
+      а не для отдельной страницы аналитики. Суть та же: не молчаливый «—».
+    </div>
+  </div>
+</body>
+</html>

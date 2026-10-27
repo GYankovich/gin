@@ -131,9 +131,10 @@ export default function LoginPage() {
     const [code, setCode] = useState('')
     const [devCode, setDevCode] = useState<string | null>(null)
     const [codeError, setCodeError] = useState('')
-    const codeInputRef = useRef<HTMLInputElement>(null)
+    const codeDigitRefs = useRef<Array<HTMLInputElement | null>>([])
     const loginInputRef = useRef<HTMLInputElement>(null)
     const busyRef = useRef(false)
+    const autoSubmitRef = useRef(false)
 
     useEffect(() => {
         if (isReset) return
@@ -206,8 +207,10 @@ export default function LoginPage() {
 
     useEffect(() => {
         if (!codeOpen) return
+        autoSubmitRef.current = false
         const frame = window.requestAnimationFrame(() => {
-            codeInputRef.current?.focus({ preventScroll: true })
+            const firstEmpty = Math.min(Math.max(code.length, 0), 5)
+            codeDigitRefs.current[firstEmpty]?.focus({ preventScroll: true })
         })
         return () => window.cancelAnimationFrame(frame)
     }, [codeOpen])
@@ -279,21 +282,49 @@ export default function LoginPage() {
         })
     }
 
-    const confirmCode = async (e: React.FormEvent) => {
-        e.preventDefault()
+    const submitCode = async (rawCode: string) => {
         if (!pendingEmail) return
+        const nextCode = rawCode.replace(/\D/g, '').slice(0, 6)
+        if (nextCode.length !== 6) return
         setCodeError('')
         await runBusy(async () => {
             try {
                 const session = codePurpose === 'register'
-                    ? await authService.confirmRegistration({ email: pendingEmail, code: code.trim() })
-                    : await authService.confirmLogin({ email: pendingEmail, code: code.trim() })
+                    ? await authService.confirmRegistration({ email: pendingEmail, code: nextCode })
+                    : await authService.confirmLogin({ email: pendingEmail, code: nextCode })
                 setAuth(session.user, session.token)
                 navigate('/dashboard', { replace: true })
             } catch (err: unknown) {
                 setCodeError(errorText(err, 'Неверный код'))
+                setCode('')
+                autoSubmitRef.current = false
+                window.requestAnimationFrame(() => {
+                    codeDigitRefs.current[0]?.focus({ preventScroll: true })
+                })
             }
         })
+    }
+
+    const confirmCode = async (e: React.FormEvent) => {
+        e.preventDefault()
+        await submitCode(code)
+    }
+
+    const setCodeDigits = (nextRaw: string, focusIndex?: number) => {
+        const next = nextRaw.replace(/\D/g, '').slice(0, 6)
+        setCode(next)
+        if (isWrongCode(codeError)) setCodeError('')
+        if (typeof focusIndex === 'number') {
+            const idx = Math.min(Math.max(focusIndex, 0), 5)
+            window.requestAnimationFrame(() => {
+                codeDigitRefs.current[idx]?.focus({ preventScroll: true })
+                codeDigitRefs.current[idx]?.select()
+            })
+        }
+        if (next.length === 6 && !autoSubmitRef.current) {
+            autoSubmitRef.current = true
+            void submitCode(next)
+        }
     }
 
     const resendCode = async () => {
@@ -492,11 +523,13 @@ export default function LoginPage() {
                             </Button>
                             <div className="auth-links">
                                 {card === 'login' ? (
-                                    <p className="auth-switch">
-                                            <button type="button" onClick={() => switchCard('register')}>Зарегистрироваться</button>
-                                            {' или '}
-                                            <button type="button" onClick={() => navigate('/demo')}>попробовать демо</button>
-                                        </p>
+                                    <p className="auth-switch auth-switch--split">
+                                        <button type="button" onClick={() => switchCard('register')}>Зарегистрироваться</button>
+                                        <span className="auth-switch__sep" aria-hidden>·</span>
+                                        <button type="button" className="auth-demo-link" onClick={() => navigate('/demo')}>
+                                            Попробовать демо
+                                        </button>
+                                    </p>
                                 ) : (
                                     <p className="auth-switch">
                                         Уже есть аккаунт?{' '}
@@ -525,25 +558,56 @@ export default function LoginPage() {
                             Почтовый сервер не настроен. Код для разработки: {devCode}
                         </p>
                     )}
-                    <label className="auth-field" htmlFor="auth-code">
-                        <span>Код из письма</span>
-                        <input
-                            id="auth-code"
-                            ref={codeInputRef}
-                            inputMode="numeric"
-                            autoComplete="one-time-code"
-                            pattern="\d{6}"
-                            maxLength={6}
-                            value={code}
-                            className={isWrongCode(codeError) ? 'auth-code auth-code--invalid' : 'auth-code'}
-                            onChange={e => {
-                                setCode(e.target.value.replace(/\D/g, '').slice(0, 6))
-                                if (isWrongCode(codeError)) setCodeError('')
-                            }}
-                            aria-invalid={isWrongCode(codeError) || undefined}
-                            required
-                        />
-                    </label>
+                    <div className="auth-field">
+                        <span id="auth-code-label">Код из письма</span>
+                        <div
+                            className={isWrongCode(codeError) ? 'auth-otp auth-otp--invalid' : 'auth-otp'}
+                            role="group"
+                            aria-labelledby="auth-code-label"
+                        >
+                            {Array.from({ length: 6 }, (_, index) => (
+                                <input
+                                    key={index}
+                                    ref={el => { codeDigitRefs.current[index] = el }}
+                                    id={index === 0 ? 'auth-code' : undefined}
+                                    className="auth-otp__cell"
+                                    inputMode="numeric"
+                                    autoComplete={index === 0 ? 'one-time-code' : 'off'}
+                                    pattern="\d*"
+                                    maxLength={1}
+                                    value={code[index] ?? ''}
+                                    aria-label={`Цифра ${index + 1}`}
+                                    aria-invalid={isWrongCode(codeError) || undefined}
+                                    required={index === 0}
+                                    onChange={e => {
+                                        const digit = e.target.value.replace(/\D/g, '').slice(-1)
+                                        if (!digit) {
+                                            setCodeDigits(code.slice(0, index), index)
+                                            return
+                                        }
+                                        // После ошибки любой новый символ начинает код заново
+                                        if (codeError) {
+                                            setCodeDigits(digit, 1)
+                                            return
+                                        }
+                                        const next = `${code.slice(0, index)}${digit}${code.slice(index + 1)}`.slice(0, 6)
+                                        setCodeDigits(next, Math.min(index + 1, 5))
+                                    }}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Backspace' && !code[index] && index > 0) {
+                                            e.preventDefault()
+                                            setCodeDigits(code.slice(0, index - 1), index - 1)
+                                        }
+                                    }}
+                                    onPaste={e => {
+                                        e.preventDefault()
+                                        const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+                                        setCodeDigits(pasted, Math.min(Math.max(pasted.length, 1) - 1, 5))
+                                    }}
+                                />
+                            ))}
+                        </div>
+                    </div>
                     {codeError && !isWrongCode(codeError) && <div className="auth-error" role="alert">{codeError}</div>}
                     <Button type="submit" variant="primary" size="lg" loading={loading} className="auth-submit">
                         Подтвердить

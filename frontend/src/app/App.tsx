@@ -32,8 +32,6 @@ const BacktestLabPage = lazy(() => import('@/pages/robots-v2/BacktestLabPage'))
 
 const BacktestRunPage = lazy(() => import('@/pages/robots-v2/BacktestRunPage'))
 
-const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'))
-
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
 
 
@@ -148,7 +146,7 @@ export function App() {
 
                         <Route path="robots-v2/*" element={<RedirectRobotsV2 />} />
 
-                        <Route path="analytics" element={<AnalyticsPage />} />
+                        <Route path="analytics" element={<Navigate to="/dashboard" replace />} />
 
                         <Route path="settings" element={<SettingsPage />} />
 

@@ -1630,3 +1630,74 @@ body:has([data-page='robots']) .date-popover__day--range {
     }
 }
 
+/* Monitor mobile: PnL hero + position cards */
+@media (max-width: 767px) {
+    [data-page='robots'][data-robots-view='monitor'] .robots-v2-cockpit-kpis {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    [data-page='robots'][data-robots-view='monitor'] .robots-v2-cockpit-kpis .portfolio-stat-tile:first-child {
+        grid-column: 1 / -1;
+        background: color-mix(in srgb, var(--color-up) 8%, var(--bg-input));
+        border: 1px solid color-mix(in srgb, var(--color-up) 25%, var(--border-subtle));
+        border-radius: 12px;
+        padding: 12px;
+    }
+
+    [data-page='robots'][data-robots-view='monitor'] .robots-v2-cockpit-kpis .portfolio-stat-tile:first-child .portfolio-stat-tile__value {
+        font-size: 1.6rem;
+        font-weight: 700;
+    }
+
+    [data-page='robots'][data-robots-view='monitor'] .robots-v2-monitor-positions .data-table-wrap,
+    [data-page='robots'][data-robots-view='monitor'] .robots-v2-monitor-positions .mobile-data-table-list {
+        display: none;
+    }
+
+    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-position-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-position-card {
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        background: var(--bg-card);
+        padding: 12px;
+    }
+
+    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-position-card__head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-position-card__title span {
+        color: var(--text-muted);
+        font-weight: 500;
+    }
+
+    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-position-card__grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 12px;
+        font-size: 12px;
+    }
+
+    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-position-card__grid span {
+        color: var(--text-muted);
+        display: block;
+        margin-bottom: 2px;
+    }
+}
+
+@media (min-width: 768px) {
+    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-position-cards {
+        display: none;
+    }
+}
+
