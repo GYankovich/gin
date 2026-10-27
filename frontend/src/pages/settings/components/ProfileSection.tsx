@@ -1,94 +1,61 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPencil } from '@fortawesome/free-solid-svg-icons'
-import { useToast } from '@/components/ui/Toast'
-import { EditUserModal } from '@/pages/settings/components/ProfileModals'
-import { useCopyableField } from '@/pages/settings/hooks/useLongPressCopy'
-import { formatLoginTime, formatProfileDate } from '@/pages/settings/utils'
+import { formatProfileDate } from '@/pages/settings/utils'
 
 type Props = {
     login?: string | null
     email?: string | null
-    phone?: string | null
     createdAt?: string | null
-    loginAt?: string | null
+    onEdit: () => void
+    /** Full-row tap target matching mobile mockup. */
+    sheet?: boolean
 }
 
-function ProfileRow({
-    label,
-    value,
-    copyValue,
-}: {
-    label: string
-    value: string
-    copyValue?: string
-}) {
-    const toast = useToast()
-    const { className: copyClass, ...copyHandlers } = useCopyableField(copyValue, {
-        onCopied: () => toast.show(`${label} скопирован`, 'success'),
-        onFailed: () => toast.show('Не удалось скопировать', 'error'),
-    })
+export function ProfileSection({ login, email, createdAt, onEdit, sheet = false }: Props) {
+    const initials = (login || 'U').slice(0, 2).toUpperCase()
 
-    return (
-        <div className="settings-profile-row">
-            <span className="settings-profile-row__label">{label}</span>
-            <div className="settings-profile-row__value-wrap">
-                {copyValue ? (
-                    <span
-                        className={`settings-profile-row__value mono ${copyClass}`}
-                        {...copyHandlers}
-                    >
-                        {value || '—'}
+    if (sheet) {
+        return (
+            <button type="button" className="settings-profile settings-profile--sheet" onClick={onEdit}>
+                <span className="settings-profile__avatar" aria-hidden>
+                    {initials}
+                </span>
+                <span className="settings-profile__identity">
+                    <span className="settings-profile__row">
+                        <strong className="settings-profile__login">{login || 'Пользователь'}</strong>
+                        <span className="settings-profile__since">с {formatProfileDate(createdAt)}</span>
                     </span>
-                ) : (
-                    <span className="settings-profile-row__value mono">{value || '—'}</span>
-                )}
-            </div>
-        </div>
-    )
-}
-
-export function ProfileSection({ login, email, phone, createdAt, loginAt }: Props) {
-    const [editOpen, setEditOpen] = useState(false)
-    const initials = login?.slice(0, 2).toUpperCase() || 'U'
+                    <span className="settings-profile__meta">{email || '—'}</span>
+                </span>
+                <span className="settings-profile__edit" aria-hidden>
+                    <FontAwesomeIcon icon={faPencil} className="settings-profile__edit-icon" />
+                </span>
+            </button>
+        )
+    }
 
     return (
-        <div className="settings-profile-panel">
-            <div className="settings-profile-panel__head">
-                <div className="settings-profile-panel__who">
-                    <div className="settings-profile-panel__avatar" aria-hidden>
-                        {initials}
-                    </div>
-                    <div className="settings-profile-panel__identity">
-                        <h2 className="settings-profile-panel__name">{login || 'Пользователь'}</h2>
-                        <span className="settings-profile-panel__login-at mono">
-                            вход {formatLoginTime(loginAt)}
-                        </span>
-                    </div>
+        <div className="settings-profile">
+            <button
+                type="button"
+                className="settings-profile__edit"
+                onClick={onEdit}
+                aria-label="Изменить профиль"
+            >
+                <FontAwesomeIcon icon={faPencil} className="settings-profile__edit-icon" />
+            </button>
+
+            <div className="settings-profile__avatar" aria-hidden>
+                {initials}
+            </div>
+            <div className="settings-profile__identity">
+                <div className="settings-profile__row">
+                    <strong className="settings-profile__login">{login || 'Пользователь'}</strong>
+                    <span className="settings-profile__since">с {formatProfileDate(createdAt)}</span>
                 </div>
-                <button
-                    type="button"
-                    className="settings-profile-panel__edit"
-                    onClick={() => setEditOpen(true)}
-                    aria-label="Редактировать профиль"
-                >
-                    <FontAwesomeIcon icon={faPencil} className="settings-profile-panel__edit-icon" />
-                </button>
+                <span className="settings-profile__meta">{email || '—'}</span>
             </div>
-
-            <div className="settings-profile-rows">
-                <ProfileRow label="Email" value={email || '—'} copyValue={email || undefined} />
-                <ProfileRow label="Телефон" value={phone || '—'} copyValue={phone || undefined} />
-                <ProfileRow label="Создан" value={formatProfileDate(createdAt)} />
-            </div>
-
-            <EditUserModal
-                open={editOpen}
-                onClose={() => setEditOpen(false)}
-                login={login}
-                email={email}
-                phone={phone}
-            />
         </div>
     )
 }

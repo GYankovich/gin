@@ -572,6 +572,55 @@ def test_create_db_run_execution_model_is_next_bar_open():
     assert NEXT_BAR_OPEN_EXECUTION_MODEL["fill_on"] == "NEXT_BAR_OPEN"
 
 
+def test_fetch_db_run_metadata_only_skips_heavy_artifacts():
+    from unittest.mock import MagicMock, patch
+
+    from app.modules.robots_v2.backtest.persist import fetch_db_run
+
+    started = datetime(2025, 1, 2, 9, 0, tzinfo=timezone.utc)
+    row = {
+        "id": 42,
+        "robot_id": 7,
+        "user_id": 3,
+        "status": "RUNNING",
+        "requested_from": started,
+        "requested_to": started + timedelta(days=1),
+        "started_at": started,
+        "finished_at": None,
+        "initial_capital": 100_000,
+        "progress_percent": 25,
+        "run_phase": "simulating",
+        "error_message": None,
+        "cancel_requested": False,
+        "partial_result": False,
+        "config_snapshot": {},
+        "metrics_summary": {},
+        "execution_model": {"model": "NEXT_BAR_OPEN"},
+    }
+    result = MagicMock()
+    result.mappings.return_value.first.return_value = row
+    db = MagicMock()
+    db.execute.return_value = result
+
+    with patch(
+        "app.modules.robots_v2.backtest.persist.load_child_artifacts",
+    ) as load_children, patch(
+        "app.modules.robots_v2.backtest.persist.load_execution_events",
+    ) as load_events:
+        fetched = fetch_db_run(
+            db,
+            42,
+            user_id=3,
+            include_artifacts=False,
+        )
+
+    assert fetched is not None
+    assert fetched["status"] == "RUNNING"
+    assert fetched["progress_percent"] == 25
+    load_children.assert_not_called()
+    load_events.assert_not_called()
+
+
 def test_fee_summary_and_holdings_on_host_result():
     from app.modules.robots_v2.backtest.host import build_fee_summary
 
@@ -740,7 +789,21 @@ def test_p2_lifecycle_narrative_and_price_window():
         history_stats={"bars": 10, "tickers": 1, "trades": 1, "signals": 2, "dropped_deferred": 1},
         fee_summary={"commission_total": 1.0, "funding_total": 0.0},
     )
-    RobotV2BacktestNarrativeResponse.model_validate({"run_id": 1, "items": narrative, "total": len(narrative)})
+    narrative.append({
+        "section": "решение",
+        "step": len(narrative) + 1,
+        "text": "Сигнал связан с циклом",
+        "ts": None,
+        "cycle_id": "cycle-deep-link",
+        "ticker": "AAA",
+    })
+    validated_narrative = RobotV2BacktestNarrativeResponse.model_validate({
+        "run_id": 1,
+        "items": narrative,
+        "total": len(narrative),
+    })
+    assert validated_narrative.items[-1].cycle_id == "cycle-deep-link"
+    assert validated_narrative.items[-1].ticker == "AAA"
 
     db = MagicMock()
     db.execute.return_value = MagicMock()
@@ -1092,6 +1155,7 @@ def test_details_response_glass_box_observability_narrative_holdings():
         "started_at": started,
         "finished_at": finished,
         "initial_capital": 100_000.0,
+        "config_snapshot": {"strategy": {"archetype": "momentum"}, "universe": {"mode": "fixed"}},
         "total_return_percent": 1.25,
         "max_drawdown_percent": 0.5,
         "final_equity": 101_250.0,
@@ -1193,6 +1257,7 @@ def test_details_response_glass_box_observability_narrative_holdings():
     assert {"qty", "side", "avg_entry", "mark"} <= set(holdings[0].keys())
 
     validated = RobotV2BacktestDetailsResponse.model_validate(details)
+    assert validated.config_snapshot["universe"]["mode"] == "fixed"
     assert validated.observability is not None
     assert validated.observability.reject_reason_counts[0].code == "DROPPED_DEFERRED"
     assert validated.fee_summary is not None

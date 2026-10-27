@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -15,6 +16,27 @@ from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
 logger = logging.getLogger(__name__)
 
 JOB_TYPE_BACKTEST_RUN = "backtest_run"
+WORKER_STOPPED_MESSAGE = "Прогон прерван: воркер остановился до завершения"
+
+
+def mark_run_failed_worker_stopped(run_id: int) -> None:
+    """Persist FAILED when the heavy-lane worker is cancelled mid-run.
+
+    CancelledError skips the execute_run exception handler, so the row would
+    stay RUNNING and the page would poll forever.
+    """
+    try:
+        with get_db_context() as db:
+            update_db_run(
+                db,
+                run_id,
+                status="FAILED",
+                run_phase="failed",
+                finished_at=datetime.now(timezone.utc),
+                error_message=WORKER_STOPPED_MESSAGE,
+            )
+    except Exception:
+        logger.exception("backtest_run worker-stop persist failed run_id=%s", run_id)
 
 
 def _parse_dt(value: Any) -> datetime:
@@ -92,5 +114,9 @@ async def handle_backtest_run(payload: dict[str, Any]) -> None:
     from app.modules.robots_v2.backtest.service import backtest_service
 
     logger.info("backtest_run start run_id=%s user_id=%s", run_id, user_id)
-    await backtest_service.execute_run(user_id, run_id, config, request)
+    try:
+        await backtest_service.execute_run(user_id, run_id, config, request)
+    except asyncio.CancelledError:
+        mark_run_failed_worker_stopped(run_id)
+        raise
     logger.info("backtest_run done run_id=%s", run_id)

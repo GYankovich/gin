@@ -32,6 +32,11 @@ MOEX_HTTP_TIMEOUT_SEC = 20
 IMOEX_FIGI = "IMOEX"
 IMOEX_TICKER = "IMOEX"
 IMOEX_DAY_INTERVAL = "CANDLE_INTERVAL_DAY"
+# Daily close is stored at session open, so "now" is always past the last bar.
+# A one-day tail is the still-open session, not a hole worth an ISS round-trip.
+_IMOEX_TAIL_LAG_DAYS = 1
+_IMOEX_SYNC_COOLDOWN = timedelta(minutes=30)
+_imoex_sync_attempted_at: Optional[datetime] = None
 
 
 async def _moex_get_json_with_retry(
@@ -523,8 +528,29 @@ def _load_imoex_closes(db: Session, from_dt: datetime, to_dt: datetime) -> List[
     return sorted(out, key=lambda item: item[0])
 
 
+def _imoex_tail_is_current(max_ts: datetime, to_dt: datetime) -> bool:
+    """True when the newest stored close is the requested day or the day before."""
+    return _utc(max_ts).date() >= _utc(to_dt).date() - timedelta(days=_IMOEX_TAIL_LAG_DAYS)
+
+
+def _imoex_sync_on_cooldown() -> bool:
+    global _imoex_sync_attempted_at
+    if _imoex_sync_attempted_at is None:
+        return False
+    return datetime.now(timezone.utc) - _imoex_sync_attempted_at < _IMOEX_SYNC_COOLDOWN
+
+
+def _mark_imoex_sync_attempt() -> None:
+    global _imoex_sync_attempted_at
+    _imoex_sync_attempted_at = datetime.now(timezone.utc)
+
+
 async def ensure_imoex_candles(db: Session, from_dt: datetime, to_dt: datetime) -> None:
-    """Persist official IMOEX daily closes from MOEX ISS (index market) into market_candles."""
+    """Persist official IMOEX daily closes from MOEX ISS (index market) into market_candles.
+
+    A request whose end is today does not download the index again when yesterday's
+    close is already stored. A real hole is fetched at most once per cooldown.
+    """
     schema = settings.DB_SCHEMA
     from_u = _utc(from_dt)
     to_u = _utc(to_dt)
@@ -549,12 +575,22 @@ async def ensure_imoex_candles(db: Session, from_dt: datetime, to_dt: datetime) 
 
     bounds = await run_in_threadpool(repo.fetch_coverage_bounds, db, schema, IMOEX_FIGI, IMOEX_DAY_INTERVAL)
     if bounds is None:
+        if _imoex_sync_on_cooldown():
+            return
+        _mark_imoex_sync_attempt()
         await sync_range(from_u, to_u)
         return
     mn, mx = _utc(bounds[0]), _utc(bounds[1])
-    if from_u < mn:
+    needs_head = from_u < mn
+    needs_tail = to_u > mx and not _imoex_tail_is_current(mx, to_u)
+    if not needs_head and not needs_tail:
+        return
+    if _imoex_sync_on_cooldown():
+        return
+    _mark_imoex_sync_attempt()
+    if needs_head:
         await sync_range(from_u, mn)
-    if to_u > mx:
+    if needs_tail:
         await sync_range(mx, to_u)
 
 

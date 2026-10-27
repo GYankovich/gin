@@ -30,6 +30,10 @@ type MonitorSummaryCardProps = {
     openOrderCount: number
     /** When syncing / idle — muted session hint under KPIs (optional) */
     sessionHint?: string | null
+    /** Cycle stage, shown as a thin bar under the tiles. */
+    stageLabel?: string | null
+    stageProgress?: number | null
+    stageDetail?: string | null
 }
 
 /**
@@ -53,6 +57,9 @@ export function MonitorSummaryCard({
     positionsCount,
     openOrderCount,
     sessionHint,
+    stageLabel,
+    stageProgress,
+    stageDetail,
 }: MonitorSummaryCardProps) {
     const footnoteText = (() => {
         if (!balanceFootnote && !balanceAsOfLabel) return null
@@ -61,7 +68,7 @@ export function MonitorSummaryCard({
     })()
 
     return (
-        <Card className="dashboard-totals-card robots-v2-cockpit__kpi robots-v2-cockpit-kpi-card">
+        <Card className="dashboard-totals-card robots-v2-cockpit-kpi-card">
             <div className="dashboard-totals-card__head">
                 <h3 className="dashboard-panel-title">Сводка · {dayLabel}</h3>
             </div>
@@ -79,7 +86,7 @@ export function MonitorSummaryCard({
             ) : (
                 <div className="portfolio-stats-grid robots-v2-cockpit-kpis">
                     <StatTile
-                        label="Δ дня"
+                        label="За день"
                         value={dayDelta.text}
                         valueClassName={`robots-v2-pnl--${dayDelta.tone}`}
                         hint={dayTrades > 0 ? `${dayTrades} сделок` : 'нет сделок'}
@@ -113,6 +120,25 @@ export function MonitorSummaryCard({
 
             {statusLoaded && sessionHint ? (
                 <p className="dashboard-empty robots-v2-session-placeholder">{sessionHint}</p>
+            ) : null}
+
+            {statusLoaded && stageLabel ? (
+                <div className="robots-monitor-stage">
+                    <div className="robots-monitor-stage__row">
+                        <span>Этап</span>
+                        <span>
+                            {stageLabel}
+                            {stageProgress != null ? ` · ${Math.round(stageProgress)}%` : ''}
+                        </span>
+                    </div>
+                    <div className="robots-v2-stage-progress" role="meter" aria-label="Прогресс этапа цикла" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(stageProgress ?? 0)}>
+                        <div
+                            className="robots-v2-stage-progress__bar"
+                            style={{ width: `${Math.round(stageProgress ?? 0)}%` }}
+                        />
+                    </div>
+                    {stageDetail ? <p className="robots-v2-hint">{stageDetail}</p> : null}
+                </div>
             ) : null}
         </Card>
     )

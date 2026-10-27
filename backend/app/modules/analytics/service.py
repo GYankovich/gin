@@ -194,6 +194,20 @@ class AnalyticsService:
         has_snapshot_id = interval is None
         return [self._row_to_history_item(row, has_snapshot_id) for row in result]
 
+    def get_account_daily_history(
+            self,
+            db: Session,
+            account_id: int,
+            from_date: datetime,
+            to_date: datetime,
+    ) -> List[dict]:
+        """Один снимок на московский день — последнее значение дня."""
+        self.db = db
+        rows = self._execute(
+            queries.build_account_daily_history_query(account_id, from_date, to_date)
+        )
+        return [self._row_to_history_item(row, has_snapshot_id=True) for row in rows]
+
     def get_account_distribution(
             self,
             db: Session,
@@ -376,6 +390,7 @@ class AnalyticsService:
             fetch_all=False,
         )
         count = self._safe_int(count_row[0] if count_row else 0, 0)
+        earliest = self._safe_datetime(count_row[1], None) if count_row and len(count_row) > 1 else None
 
         rows = self._execute(
             queries.build_account_snapshots_page_query(
@@ -395,6 +410,7 @@ class AnalyticsService:
             "limit": limit,
             "offset": offset,
             "history": history,
+            "earliest_snapshot_date": earliest,
         }
 
     def get_account_operations(
@@ -470,17 +486,18 @@ class AnalyticsService:
             from_date: datetime,
             to_date: datetime,
             figis: Optional[List[str]] = None,
+            include_instruments: bool = False,
+            include_hourly: bool = False,
     ) -> Optional[Dict[str, Any]]:
         self.db = db
         if not self.check_account_ownership(db, account_id, user_id):
             return None
 
-        history = self.get_account_history(
+        history = self.get_account_daily_history(
             db=db,
             account_id=account_id,
             from_date=from_date,
             to_date=to_date,
-            days=0,
         )
         portfolio_series = [
             {"date": h.get("date"), "value": float(h.get("total_value") or 0.0)}
@@ -494,38 +511,51 @@ class AnalyticsService:
             for r in available_rows if r[0]
         ]
 
-        figis_set = {str(f).strip() for f in (figis or []) if str(f).strip()}
-        rows = self._execute(
-            queries.build_account_instrument_chart_query(
-                account_id,
-                from_date,
-                to_date,
-                list(figis_set),
-                1 if not figis_set else 0,
+        instruments_series: List[Dict[str, Any]] = []
+        if include_instruments:
+            figis_set = {str(f).strip() for f in (figis or []) if str(f).strip()}
+            rows = self._execute(
+                queries.build_account_instrument_chart_query(
+                    account_id,
+                    from_date,
+                    to_date,
+                    list(figis_set),
+                    1 if not figis_set else 0,
+                )
             )
-        )
-        grouped: Dict[str, Dict[str, Any]] = {}
-        for r in rows:
-            dt = r[0]
-            figi = self._safe_str(r[1])
-            ticker = self._safe_str(r[2], None) if r[2] else None
-            name = self._safe_str(r[3], None) if r[3] else None
-            value = float(r[4] or 0.0)
-            if figi not in grouped:
-                grouped[figi] = {
-                    "figi": figi,
-                    "ticker": ticker,
-                    "name": name or ticker,
-                    "points": [],
-                }
-            grouped[figi]["points"].append({"date": dt, "value": value})
-        instruments_series: List[Dict[str, Any]] = list(grouped.values())
+            grouped: Dict[str, Dict[str, Any]] = {}
+            for r in rows:
+                dt = r[0]
+                figi = self._safe_str(r[1])
+                ticker = self._safe_str(r[2], None) if r[2] else None
+                name = self._safe_str(r[3], None) if r[3] else None
+                value = float(r[4] or 0.0)
+                if figi not in grouped:
+                    grouped[figi] = {
+                        "figi": figi,
+                        "ticker": ticker,
+                        "name": name or ticker,
+                        "points": [],
+                    }
+                grouped[figi]["points"].append({"date": dt, "value": value})
+            instruments_series = list(grouped.values())
+
+        hourly_series: List[Dict[str, Any]] = []
+        if include_hourly:
+            hourly_rows = self._execute(
+                queries.build_account_hourly_history_query(account_id, from_date, to_date)
+            )
+            hourly_series = [
+                {"date": self._safe_datetime(r[1]), "value": float(r[2] or 0.0)}
+                for r in hourly_rows
+            ]
 
         return {
             "account_id": account_id,
             "from_date": from_date,
             "to_date": to_date,
             "portfolio_series": portfolio_series,
+            "hourly_series": hourly_series,
             "drawdown_series": drawdown_series,
             "instruments_series": instruments_series,
             "available_instruments": available_instruments,
@@ -764,6 +794,7 @@ class AnalyticsService:
             user_id: int,
             from_date: datetime,
             to_date: datetime,
+            history: Optional[List[dict]] = None,
     ) -> Optional[Dict[str, Any]]:
         self.db = db
         if not self.check_account_ownership(db, account_id, user_id):
@@ -803,12 +834,11 @@ class AnalyticsService:
         )
         period_inflow = self._safe_float(period_inflow_row[0] if period_inflow_row else 0.0, 0.0) or 0.0
 
-        period_history = self.get_account_history(
+        period_history = history if history is not None else self.get_account_daily_history(
             db=db,
             account_id=account_id,
             from_date=from_date,
             to_date=to_date,
-            days=0,
         )
 
         end_value: Optional[float] = None
@@ -1001,36 +1031,29 @@ class AnalyticsService:
             from_date: datetime,
             to_date: datetime,
     ) -> Optional[Dict[str, Any]]:
-        base_stats = self.get_account_statistics(db, account_id, user_id, from_date, to_date)
+        period_history = self.get_account_daily_history(db, account_id, from_date, to_date)
+        base_stats = self.get_account_statistics(
+            db, account_id, user_id, from_date, to_date, history=period_history,
+        )
         if not base_stats:
             return None
 
-        op_rows = self._execute(
-            queries.build_account_period_operations_query(account_id, from_date, to_date)
+        cashflow = self._execute(
+            queries.build_account_period_operations_query(account_id, from_date, to_date),
+            fetch_all=False,
         )
-        sum_input = sum(float(r[1] or 0.0) for r in op_rows if r[0] == "OPERATION_TYPE_INPUT")
-        sum_output = sum(float(r[1] or 0.0) for r in op_rows if r[0] == "OPERATION_TYPE_OUTPUT")
+        sum_input = float(cashflow[0] or 0.0) if cashflow else 0.0
+        sum_output = float(cashflow[1] or 0.0) if cashflow else 0.0
         net_flow = sum_input - sum_output
-        dividends = sum(float(r[1] or 0.0) for r in op_rows if r[0] == "OPERATION_TYPE_DIVIDEND")
+        dividends = float(cashflow[2] or 0.0) if cashflow else 0.0
         # Терминология по вашему бизнес-слою:
         # TRACK_MFEE = комиссия брокера, TRACK_PFEE = вознаграждение.
-        broker_fees = sum(float(r[1] or 0.0) for r in op_rows if r[0] == "OPERATION_TYPE_TRACK_MFEE")
-        track_fees = sum(float(r[1] or 0.0) for r in op_rows if r[0] == "OPERATION_TYPE_TRACK_PFEE")
-        taxes_paid = sum(
-            float(r[1] or 0.0)
-            for r in op_rows
-            if r[0] in {"OPERATION_TYPE_TAX", "OPERATION_TYPE_DIVIDEND_TAX"}
-        )
+        broker_fees = float(cashflow[3] or 0.0) if cashflow else 0.0
+        track_fees = float(cashflow[4] or 0.0) if cashflow else 0.0
+        taxes_paid = float(cashflow[5] or 0.0) if cashflow else 0.0
 
         fifo_metrics = self._build_fifo_trade_metrics(db, account_id, from_date, to_date)
 
-        period_history = self.get_account_history(
-            db=db,
-            account_id=account_id,
-            from_date=from_date,
-            to_date=to_date,
-            days=0,
-        )
         values = [float(x.get("total_value") or 0.0) for x in period_history]
         dates = [x.get("date") for x in period_history]
         drawdown_period = self._compute_drawdown_series(period_history)
@@ -1038,9 +1061,7 @@ class AnalyticsService:
         current_dd = drawdown_period[-1]["drawdown_percent"] if drawdown_period else None
         avg_recovery_days = self._calc_average_recovery_days(values, dates) if values and all(dates) else None
         avg_portfolio = (sum(values) / len(values)) if values else None
-
-        all_history = self.get_account_history(db=db, account_id=account_id, days=3650)
-        drawdown_full = self._compute_drawdown_series(all_history)
+        drawdown_full = drawdown_period
 
         portfolio_return = base_stats["period"]["period_roi_percent"]
         imoex_benchmark = await market_data_service.get_imoex_benchmark(db, from_date, to_date)

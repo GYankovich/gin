@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faClipboardList, faRobot, faChevronDown } from '@fortawesome/free-solid-svg-icons'
+import { faClipboardList, faRobot } from '@fortawesome/free-solid-svg-icons'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
 import { DropdownMenu } from '@/components/ui/DropdownMenu'
-import { PageHero } from '@/components/ui/PageHero'
 import { RobotIllustration } from '@/components/ui/RobotIllustration'
 import { useToast } from '@/components/ui/Toast'
 import { FleetRobotCard } from '@/pages/robots-v2/components/FleetRobotCard'
@@ -217,51 +217,44 @@ export default function RobotsV2FleetPage() {
         />
     )
 
-    const heroActions = (
-        <>
-            <DropdownMenu
-                open={createMenuOpen}
-                onOpenChange={setCreateMenuOpen}
-                placement="below"
-                portaled
-                className="dashboard-hero__create"
-            >
-                <DropdownMenu.Trigger asChild aria-label="Создать">
-                    <Button type="button" variant="ghost" size="sm" className="dashboard-hero__cfg">
-                        <svg className="dashboard-icon dashboard-hero__cfg-plus" viewBox="0 0 24 24" aria-hidden>
-                            <path
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="1.7"
-                                strokeLinecap="round"
-                                d="M12 5v14M5 12h14"
-                            />
-                        </svg>
-                        <span className="dashboard-hero__cfg-text">Создать</span>
-                        <FontAwesomeIcon
-                            icon={faChevronDown}
-                            className="dashboard-hero__create-chevron"
-                            aria-hidden
+    const createFab = createPortal(
+        <DropdownMenu
+            open={createMenuOpen}
+            onOpenChange={setCreateMenuOpen}
+            placement="above"
+            portaled
+            className="robots-create-fab"
+        >
+            <DropdownMenu.Trigger asChild aria-label="Создать">
+                <Button type="button" variant="primary" className="robots-create-fab__btn">
+                    <svg viewBox="0 0 24 24" aria-hidden>
+                        <path
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.7"
+                            strokeLinecap="round"
+                            d="M12 5v14M5 12h14"
                         />
-                    </Button>
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Panel>
-                    <DropdownMenu.Item
-                        icon={<FontAwesomeIcon icon={faClipboardList} />}
-                        onClick={() => navigate('/robots/new?kind=portfolio')}
-                    >
-                        Опросник портфеля
-                    </DropdownMenu.Item>
-                    <DropdownMenu.Divider />
-                    <DropdownMenu.Item
-                        icon={<FontAwesomeIcon icon={faRobot} />}
-                        onClick={() => navigate('/robots/new?kind=trading')}
-                    >
-                        Торговый робот
-                    </DropdownMenu.Item>
-                </DropdownMenu.Panel>
-            </DropdownMenu>
-        </>
+                    </svg>
+                </Button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Panel>
+                <DropdownMenu.Item
+                    icon={<FontAwesomeIcon icon={faClipboardList} />}
+                    onClick={() => navigate('/robots/new?kind=portfolio')}
+                >
+                    Опросник портфеля
+                </DropdownMenu.Item>
+                <DropdownMenu.Divider />
+                <DropdownMenu.Item
+                    icon={<FontAwesomeIcon icon={faRobot} />}
+                    onClick={() => navigate('/robots/new?kind=trading')}
+                >
+                    Торговый робот
+                </DropdownMenu.Item>
+            </DropdownMenu.Panel>
+        </DropdownMenu>,
+        document.body,
     )
 
     const hardStopMessage =
@@ -274,26 +267,16 @@ export default function RobotsV2FleetPage() {
     if (loading && robots.length === 0 && !error) {
         return (
             <div className="page" data-page="robots" data-robots-view="fleet">
-                <PageHero
-                    className="dashboard-hero--node"
-                    eyebrow="ROBOT NODE"
-                    title="РОБОТЫ"
-                    actions={heroActions}
-                />
+                <h1 className="dash-sr-only">Роботы</h1>
                 <FleetSkeleton />
+                {createFab}
             </div>
         )
     }
 
     return (
         <div className="page" data-page="robots" data-robots-view="fleet">
-            <PageHero
-                className="dashboard-hero--node"
-                eyebrow="ROBOT NODE"
-                title="РОБОТЫ"
-                actions={heroActions}
-            />
-
+            <h1 className="dash-sr-only">Роботы</h1>
             <div className="dashboard-layout">
                 {!loading && error && (
                     <Card className="dashboard-totals-card dashboard-error-card">
@@ -351,6 +334,8 @@ export default function RobotsV2FleetPage() {
                     </div>
                 )}
             </div>
+
+            {createFab}
 
             <RobotConfirmModal
                 open={confirm?.kind === 'delete'}

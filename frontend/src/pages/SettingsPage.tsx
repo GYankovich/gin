@@ -1,35 +1,42 @@
 import React, { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faPlus, faKey } from '@fortawesome/free-solid-svg-icons'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
-import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
-import { PageHero } from '@/components/ui/PageHero'
+import { Button } from '@/components/ui/Button'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { authService } from '@/services/authService'
 import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
+import { EditUserModal } from '@/pages/settings/components/ProfileModals'
 import { ProfileSection } from '@/pages/settings/components/ProfileSection'
+import {
+    IconThemeMark,
+    SettingsSectionLabel,
+} from '@/pages/settings/components/SettingsSectionLabel'
 import { ThemeSection } from '@/pages/settings/components/ThemeSection'
 import { TokensSection } from '@/pages/settings/components/TokensSection'
+import './DashboardPage.css'
+import './SettingsPage.css'
 
 ///@EPIC Frontend.ITEM Settings.TOPIC Profile Tokens Theme [1]
-///@ Экран пользовательских настроек: профиль, API токены, оформление.
+///@ Настройки в языке дашборда/портфеля: профиль, тема и брокеры (токены + счета).
 export default function SettingsPage() {
+    const navigate = useNavigate()
     const user = useAuthStore(s => s.user)
-    const loginAt = useAuthStore(s => s.loginAt)
     const updateUser = useAuthStore(s => s.updateUser)
+    const logout = useAuthStore(s => s.logout)
     const { preference, setPreference } = useThemeStore()
     const [createOpen, setCreateOpen] = useState(false)
-    const [tokenCount, setTokenCount] = useState(0)
-    const [tokensOpen, setTokensOpen] = useState(false)
+    const [editOpen, setEditOpen] = useState(false)
     const location = useLocation()
+    const isMobile = useMediaQuery('(max-width: 767px)')
 
     useEffect(() => {
         const hash = location.hash.replace(/^#/, '').toLowerCase()
         if (hash !== 'tokens') return
-        setTokensOpen(true)
+        const scroll = () => document.getElementById('tokens')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
         window.requestAnimationFrame(() => {
-            document.getElementById('tokens')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            scroll()
+            window.setTimeout(scroll, 80)
         })
     }, [location.pathname, location.hash])
 
@@ -41,67 +48,69 @@ export default function SettingsPage() {
         return () => { cancelled = true }
     }, [updateUser])
 
+    const onLogout = () => {
+        logout()
+        navigate('/login')
+    }
+
     return (
-        <div className="page settings-page" data-page="settings">
-            <PageHero
-                eyebrow="CONTROL NODE"
-                title="НАСТРОЙКИ"
-                subtitle="Профиль · токены · оформление"
-            />
+        <div
+            className="page settings-page"
+            data-page="settings"
+            data-settings-layout={isMobile ? 'sheet' : 'rail'}
+        >
+            <h1 className="dash-sr-only">Настройки</h1>
 
             <div className="dashboard-layout settings-page__stack">
                 <div className="settings-top-grid">
-                    <Card className="dashboard-account-card settings-profile-card">
+                    <Card className="dashboard-assets-card settings-profile-card">
                         <ProfileSection
                             login={user?.login}
                             email={user?.email}
-                            phone={user?.phone}
                             createdAt={user?.created_at}
-                            loginAt={loginAt}
+                            onEdit={() => setEditOpen(true)}
+                            sheet={isMobile}
                         />
                     </Card>
 
-                    <Card className="dashboard-assets-card settings-theme-card">
-                        <div className="dashboard-assets-card__head">
-                            <h3 className="dashboard-panel-title">Оформление</h3>
+                    {isMobile ? (
+                        <div className="settings-theme-bare">
+                            <SettingsSectionLabel icon={<IconThemeMark />}>Тема</SettingsSectionLabel>
+                            <ThemeSection preference={preference} onChange={setPreference} />
                         </div>
-                        <ThemeSection preference={preference} onChange={setPreference} />
-                    </Card>
+                    ) : (
+                        <Card className="dashboard-assets-card settings-theme-card">
+                            <ThemeSection preference={preference} onChange={setPreference} />
+                        </Card>
+                    )}
                 </div>
 
-                <CollapsibleSection
-                    id="tokens"
-                    open={tokensOpen}
-                    onOpenChange={setTokensOpen}
-                    className="portfolio-collapse settings-tokens-collapse"
-                    title={(
-                        <span className="dashboard-collapse__label">
-                            <FontAwesomeIcon icon={faKey} className="dashboard-icon" />
-                            API токены
-                        </span>
-                    )}
-                    badge={
-                        <span className="portfolio-collapse__count">{tokenCount}</span>
-                    }
-                    headerEnd={(
-                        <button
-                            type="button"
-                            className="settings-tokens__add"
-                            onClick={() => setCreateOpen(true)}
-                            aria-label="Добавить токен"
-                        >
-                            <FontAwesomeIcon icon={faPlus} className="settings-tokens__add-icon" />
+                <TokensSection
+                    createOpen={createOpen}
+                    onCreateOpenChange={setCreateOpen}
+                    sheet={isMobile}
+                />
+
+                <div className="settings-logout">
+                    {isMobile ? (
+                        <button type="button" className="settings-logout__sheet" onClick={onLogout}>
+                            Выйти
                         </button>
+                    ) : (
+                        <Button type="button" variant="ghost" onClick={onLogout}>
+                            Выйти
+                        </Button>
                     )}
-                    keepMounted
-                >
-                    <TokensSection
-                        createOpen={createOpen}
-                        onCreateOpenChange={setCreateOpen}
-                        onCountChange={setTokenCount}
-                    />
-                </CollapsibleSection>
+                </div>
             </div>
+
+            <EditUserModal
+                open={editOpen}
+                onClose={() => setEditOpen(false)}
+                login={user?.login}
+                email={user?.email}
+                phone={user?.phone}
+            />
         </div>
     )
 }

@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark" data-v="a">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>settings-sheet-seg-panel · варианты · GIN</title>
+<style>
+  :root {
+    --bg-page: #0a0a0f;
+    --bg-card: #12121a;
+    --bg-input: #0e0e16;
+    --bg-elevated: #181824;
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-medium: rgba(255, 255, 255, 0.12);
+    --text-primary: #e0e0e0;
+    --text-secondary: #888888;
+    --text-muted: #555555;
+    --color-up: #00ffaa;
+    --color-down: #ff3366;
+    --color-warn: #ffaa00;
+    --radius-lg: 12px;
+    --picker-bg: #0e0e14;
+    --phone-w: 390px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    background: #07070b;
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+  button:focus-visible { outline: 2px solid rgba(255,255,255,0.28); outline-offset: 2px; }
+
+  .picker {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 20px;
+    padding: 14px 20px;
+    background: var(--picker-bg);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .picker h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .picker p { margin: 4px 0 0; max-width: 72ch; font-size: 13px; color: var(--text-secondary); line-height: 1.45; }
+  .picker__modes {
+    display: flex; flex-wrap: wrap; gap: 4px; padding: 4px;
+    margin-left: auto; background: var(--bg-input); border-radius: 12px;
+  }
+  .picker__modes button {
+    border: 1px solid transparent; border-radius: 9px;
+    padding: 8px 12px; min-height: 36px;
+    font-size: 13px; font-weight: 500; color: var(--text-muted);
+  }
+  .picker__modes button.is-on {
+    background: var(--bg-elevated); color: var(--text-primary);
+    border-color: var(--border-medium);
+  }
+  .picker__note {
+    flex: 1 1 100%;
+    margin: 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.4;
+  }
+  .picker__note strong { color: var(--text-secondary); }
+
+  .stage {
+    display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;
+    padding: 28px 16px 48px; min-height: calc(100vh - 100px);
+  }
+  .phone {
+    width: var(--phone-w); max-width: 100%;
+    border-radius: 28px;
+    border: 1px solid var(--border-medium);
+    background: var(--bg-page);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.55);
+    overflow: hidden;
+  }
+  .phone__pad { padding: 14px 12px 24px; }
+  .phone__tag {
+    margin: 0 0 10px 4px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--text-muted);
+  }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .broker-h {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; min-height: 52px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .broker-h__icon {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: grid; place-items: center;
+    background: var(--bg-input); border: 1px solid var(--border-subtle);
+    font-size: 10px; font-weight: 700; color: var(--text-secondary);
+  }
+  .broker-h__name { font-size: 14.5px; font-weight: 600; }
+
+  .seg {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 3px;
+    margin: 10px 12px 0; padding: 3px; border-radius: 10px; background: var(--bg-input);
+  }
+  .seg button {
+    min-height: 34px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    color: var(--text-muted);
+  }
+  .seg button.is-on { background: var(--bg-elevated); color: var(--text-primary); }
+  .seg__count { margin-left: 4px; font-weight: 600; opacity: 0.7; font-size: 11px; }
+
+  .variant { display: none; }
+  body[data-v='a'] .variant-a,
+  body[data-v='b'] .variant-b,
+  body[data-v='c'] .variant-c,
+  body[data-v='d'] .variant-d,
+  body[data-v='e'] .variant-e { display: block; }
+
+  .name { font-size: 14px; font-weight: 400; line-height: 1.25; }
+  .meta { font-size: 12px; line-height: 1.35; color: var(--text-secondary); }
+  .dot {
+    display: inline-block; width: 7px; height: 7px; border-radius: 999px;
+    background: var(--color-up); flex-shrink: 0;
+  }
+  .dot.is-warn { background: var(--color-warn); }
+  .del {
+    width: 44px; height: 44px; display: grid; place-items: center;
+    color: color-mix(in srgb, var(--color-down) 80%, var(--text-secondary)); font-size: 13px;
+  }
+  .empty {
+    margin: 0; padding: 18px 14px 22px;
+    font-size: 13px; color: var(--text-muted); text-align: center;
+  }
+
+  /* shared token row (B chosen) */
+  .tok {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; min-height: 52px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .tok:first-child { border-top: 0; }
+  .tok__main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; text-align: left; }
+  .tok__title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+  /* ——— A · Now ——— */
+  .a-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 10px 12px 4px;
+  }
+  .a-cap {
+    font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--text-muted);
+  }
+  .a-add {
+    width: 32px; height: 32px; display: grid; place-items: center;
+    border-radius: 8px; color: var(--text-muted); font-size: 16px;
+  }
+
+  /* ——— B · No cap ——— */
+  .b-toolbar {
+    display: flex; justify-content: flex-end;
+    padding: 6px 10px 0;
+  }
+  .b-add {
+    width: 32px; height: 32px; display: grid; place-items: center;
+    border-radius: 8px; color: var(--text-muted); font-size: 16px;
+  }
+  .b-list .tok:first-child { border-top: 1px solid var(--border-subtle); }
+
+  /* ——— C · Text action ——— */
+  .c-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; padding: 12px 14px 6px;
+  }
+  .c-cap {
+    font-size: 13px; font-weight: 500; color: var(--text-secondary);
+  }
+  .c-add {
+    font-size: 13px; font-weight: 500; color: var(--text-secondary);
+  }
+  .c-add:hover { color: var(--text-primary); }
+  .c-foot {
+    display: block; width: 100%;
+    padding: 12px 14px 14px;
+    font-size: 13px; font-weight: 500; color: var(--text-secondary);
+    text-align: left; border-top: 1px solid var(--border-subtle);
+  }
+  .c-foot:hover { color: var(--text-primary); }
+
+  /* ——— D · Well ——— */
+  .d-panel {
+    margin: 10px 12px 14px;
+    padding: 4px 0 8px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .d-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 10px 12px 6px;
+  }
+  .d-cap {
+    font-size: 12px; font-weight: 500; color: var(--text-muted);
+  }
+  .d-add {
+    width: 28px; height: 28px; display: grid; place-items: center;
+    border-radius: 8px; color: var(--text-muted); font-size: 15px;
+    background: var(--bg-elevated);
+  }
+  .d-panel .tok { border-top-color: color-mix(in srgb, var(--border-subtle) 80%, transparent); }
+  .d-panel .tok:first-of-type { border-top: 0; }
+
+  /* ——— E · Seg + ——— */
+  .e-seg-wrap {
+    display: grid; grid-template-columns: 1fr 1fr auto; gap: 3px;
+    margin: 10px 12px 0; padding: 3px; border-radius: 10px; background: var(--bg-input);
+  }
+  .e-seg-wrap button.tab {
+    min-height: 34px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    color: var(--text-muted);
+  }
+  .e-seg-wrap button.tab.is-on { background: var(--bg-elevated); color: var(--text-primary); }
+  .e-seg-wrap .e-add {
+    width: 34px; min-height: 34px; display: grid; place-items: center;
+    border-radius: 8px; color: var(--text-muted); font-size: 16px;
+  }
+  .e-seg-wrap .e-add:hover { color: var(--text-primary); background: var(--bg-elevated); }
+  .e-hint {
+    margin: 0; padding: 10px 14px 2px;
+    font-size: 12px; color: var(--text-muted);
+  }
+</style>
+</head>
+<body data-v="a">
+  <header class="picker">
+    <div>
+      <h1>settings-sheet-seg-panel</h1>
+      <p>Варианты обвязки панели сегмента: заголовок, add, отступы. Строки токенов — уже выбранный B.</p>
+    </div>
+    <div class="picker__modes" role="tablist" aria-label="Вариант">
+      <button type="button" data-v="a" class="is-on">A · Now</button>
+      <button type="button" data-v="b">B · No cap</button>
+      <button type="button" data-v="c">C · Text</button>
+      <button type="button" data-v="d">D · Well</button>
+      <button type="button" data-v="e">E · Seg+</button>
+    </div>
+    <p class="picker__note" id="note">
+      <strong>A · Now</strong> — uppercase «Ключи API» + квадратный +.
+    </p>
+  </header>
+
+  <main class="stage">
+    <!-- filled -->
+    <div class="phone">
+      <div class="phone__pad">
+        <p class="phone__tag">Со списком</p>
+        <div class="card">
+          <div class="broker-h">
+            <span class="broker-h__icon">T</span>
+            <span class="broker-h__name">T-Bank</span>
+          </div>
+
+          <!-- A -->
+          <div class="variant variant-a">
+            <div class="seg">
+              <button type="button" class="is-on">Токены <span class="seg__count">2</span></button>
+              <button type="button">Счета <span class="seg__count">2</span></button>
+            </div>
+            <div class="panel">
+              <div class="a-head">
+                <span class="a-cap">Ключи API</span>
+                <button type="button" class="a-add" aria-label="Добавить">+</button>
+              </div>
+              <div>
+                <div class="tok">
+                  <button type="button" class="tok__main">
+                    <span class="tok__title"><span class="dot"></span><span class="name">Основной</span></span>
+                    <span class="meta">2 ч назад</span>
+                  </button>
+                  <button type="button" class="del" aria-label="Удалить">⌫</button>
+                </div>
+                <div class="tok">
+                  <button type="button" class="tok__main">
+                    <span class="tok__title"><span class="dot is-warn"></span><span class="name">Песочница</span></span>
+                    <span class="meta">вчера</span>
+                  </button>
+                  <button type="button" class="del" aria-label="Удалить">⌫</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- B -->
+          <div class="variant variant-b">
+            <div class="seg">
+              <button type="button" class="is-on">Токены <span class="seg__count">2</span></button>
+              <button type="button">Счета <span class="seg__count">2</span></button>
+            </div>
+            <div class="panel">
+              <div class="b-toolbar">
+                <button type="button" class="b-add" aria-label="Добавить">+</button>
+              </div>
+              <div class="b-list">
+                <div class="tok">
+                  <button type="button" class="tok__main">
+                    <span class="tok__title"><span class="dot"></span><span class="name">Основной</span></span>
+                    <span class="meta">2 ч назад</span>
+                  </button>
+                  <button type="button" class="del" aria-label="Удалить">⌫</button>
+                </div>
+                <div class="tok">
+                  <button type="button" class="tok__main">
+                    <span class="tok__title"><span class="dot is-warn"></span><span class="name">Песочница</span></span>
+                    <span class="meta">вчера</span>
+                  </button>
+                  <button type="button" class="del" aria-label="Удалить">⌫</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- C -->
+          <div class="variant variant-c">
+            <div class="seg">
+              <button type="button" class="is-on">Токены <span class="seg__count">2</span></button>
+              <button type="button">Счета <span class="seg__count">2</span></button>
+            </div>
+            <div class="panel">
+              <div>
+                <div class="tok">
+                  <button type="button" class="tok__main">
+                    <span class="tok__title"><span class="dot"></span><span class="name">Основной</span></span>
+                    <span class="meta">2 ч назад</span>
+                  </button>
+                  <button type="button" class="del" aria-label="Удалить">⌫</button>
+                </div>
+                <div class="tok">
+                  <button type="button" class="tok__main">
+                    <span class="tok__title"><span class="dot is-warn"></span><span class="name">Песочница</span></span>
+                    <span class="meta">вчера</span>
+                  </button>
+                  <button type="button" class="del" aria-label="Удалить">⌫</button>
+                </div>
+              </div>
+              <button type="button" class="c-foot">Добавить токен</button>
+            </div>
+          </div>
+
+          <!-- D -->
+          <div class="variant variant-d">
+            <div class="seg">
+              <button type="button" class="is-on">Токены <span class="seg__count">2</span></button>
+              <button type="button">Счета <span class="seg__count">2</span></button>
+            </div>
+            <div class="d-panel">
+              <div class="d-head">
+                <span class="d-cap">Ключи API</span>
+                <button type="button" class="d-add" aria-label="Добавить">+</button>
+              </div>
+              <div class="tok">
+                <button type="button" class="tok__main">
+                  <span class="tok__title"><span class="dot"></span><span class="name">Основной</span></span>
+                  <span class="meta">2 ч назад</span>
+                </button>
+                <button type="button" class="del" aria-label="Удалить">⌫</button>
+              </div>
+              <div class="tok">
+                <button type="button" class="tok__main">
+                  <span class="tok__title"><span class="dot is-warn"></span><span class="name">Песочница</span></span>
+                  <span class="meta">вчера</span>
+                </button>
+                <button type="button" class="del" aria-label="Удалить">⌫</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- E -->
+          <div class="variant variant-e">
+            <div class="e-seg-wrap">
+              <button type="button" class="tab is-on">Токены <span class="seg__count">2</span></button>
+              <button type="button" class="tab">Счета <span class="seg__count">2</span></button>
+              <button type="button" class="e-add" aria-label="Добавить">+</button>
+            </div>
+            <p class="e-hint">Нажмите строку, чтобы открыть ключ</p>
+            <div>
+              <div class="tok">
+                <button type="button" class="tok__main">
+                  <span class="tok__title"><span class="dot"></span><span class="name">Основной</span></span>
+                  <span class="meta">2 ч назад</span>
+                </button>
+                <button type="button" class="del" aria-label="Удалить">⌫</button>
+              </div>
+              <div class="tok">
+                <button type="button" class="tok__main">
+                  <span class="tok__title"><span class="dot is-warn"></span><span class="name">Песочница</span></span>
+                  <span class="meta">вчера</span>
+                </button>
+                <button type="button" class="del" aria-label="Удалить">⌫</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- empty -->
+    <div class="phone">
+      <div class="phone__pad">
+        <p class="phone__tag">Пусто</p>
+        <div class="card">
+          <div class="broker-h">
+            <span class="broker-h__icon">T</span>
+            <span class="broker-h__name">T-Bank</span>
+          </div>
+
+          <div class="variant variant-a">
+            <div class="seg">
+              <button type="button" class="is-on">Токены</button>
+              <button type="button">Счета</button>
+            </div>
+            <div class="a-head">
+              <span class="a-cap">Ключи API</span>
+              <button type="button" class="a-add" aria-label="Добавить">+</button>
+            </div>
+            <p class="empty">Нет токенов</p>
+          </div>
+
+          <div class="variant variant-b">
+            <div class="seg">
+              <button type="button" class="is-on">Токены</button>
+              <button type="button">Счета</button>
+            </div>
+            <div class="b-toolbar">
+              <button type="button" class="b-add" aria-label="Добавить">+</button>
+            </div>
+            <p class="empty">Нет токенов</p>
+          </div>
+
+          <div class="variant variant-c">
+            <div class="seg">
+              <button type="button" class="is-on">Токены</button>
+              <button type="button">Счета</button>
+            </div>
+            <p class="empty">Нет токенов</p>
+            <button type="button" class="c-foot">Добавить токен</button>
+          </div>
+
+          <div class="variant variant-d">
+            <div class="seg">
+              <button type="button" class="is-on">Токены</button>
+              <button type="button">Счета</button>
+            </div>
+            <div class="d-panel">
+              <div class="d-head">
+                <span class="d-cap">Ключи API</span>
+                <button type="button" class="d-add" aria-label="Добавить">+</button>
+              </div>
+              <p class="empty">Нет токенов</p>
+            </div>
+          </div>
+
+          <div class="variant variant-e">
+            <div class="e-seg-wrap">
+              <button type="button" class="tab is-on">Токены</button>
+              <button type="button" class="tab">Счета</button>
+              <button type="button" class="e-add" aria-label="Добавить">+</button>
+            </div>
+            <p class="empty">Нет токенов — нажмите +</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const notes = {
+      a: '<strong>A · Now</strong> — uppercase «Ключи API» + квадратный + над списком.',
+      b: '<strong>B · No cap</strong> — без заголовка панели, только + справа; сегмент уже говорит «Токены».',
+      c: '<strong>C · Text</strong> — без шапки; список и текстовая «Добавить токен» снизу.',
+      d: '<strong>D · Well</strong> — панель в inset-колодце с фоном, отделена от сегмента.',
+      e: '<strong>E · Seg+</strong> — + встроен в сегмент-бар; панель без своей шапки, короткий hint.',
+    };
+    const noteEl = document.getElementById('note');
+    const buttons = [...document.querySelectorAll('.picker__modes button')];
+    function setV(v) {
+      document.body.dataset.v = v;
+      buttons.forEach((b) => b.classList.toggle('is-on', b.dataset.v === v));
+      noteEl.innerHTML = notes[v];
+      history.replaceState(null, '', '#' + v);
+    }
+    buttons.forEach((b) => b.addEventListener('click', () => setV(b.dataset.v)));
+    const fromHash = (location.hash || '#a').slice(1);
+    if (notes[fromHash]) setV(fromHash);
+  </script>
+</body>
+</html>

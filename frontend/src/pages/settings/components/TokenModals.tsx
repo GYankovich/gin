@@ -5,6 +5,7 @@ import { Select } from '@/components/ui/Select'
 import { useToast } from '@/components/ui/Toast'
 import { api } from '@/services/api'
 import type { ApiKeyItem } from '@/pages/settings/types'
+import '@/pages/DashboardPage.css'
 
 function isBybitType(tokenType: string, label?: string) {
     const val = String(tokenType || '').toLowerCase()
@@ -67,6 +68,10 @@ export function CreateTokenModal({ open, onClose, onCreated }: Props) {
         setNewName(`${label} ${new Date().toLocaleDateString('ru-RU')}`)
     }
 
+    const canSubmit = Boolean(
+        newName.trim() && newToken && newTokenType && (!bybit || newTokenSecret),
+    )
+
     const handleTest = async () => {
         setTesting(true)
         setTestResult(null)
@@ -115,77 +120,101 @@ export function CreateTokenModal({ open, onClose, onCreated }: Props) {
         <Modal
             open={open}
             onClose={onClose}
-            title="Добавить токен"
-            width="520px"
+            title="Токен"
+            flush
+            className="dash-quiet-modal dash-scene-modal"
+            lead={(
+                <div className="dash-scene__brand">
+                    <p className="dash-scene__kicker">Настройки</p>
+                    <p className="dash-scene__title">Добавить токен</p>
+                    <p className="dash-scene__line">
+                        Ключ брокера для роботов и синхронизации счетов. Можно сначала проверить соединение.
+                    </p>
+                </div>
+            )}
         >
-            <div className="form-group">
-                <label className="form-label">Тип брокера</label>
-                <Select
-                    options={tokenTypes}
-                    value={newTokenType}
-                    onChange={setNewTokenType}
-                    placeholder="Выберите тип токена"
-                    size="md"
-                />
-            </div>
-            <div className="form-group">
-                <label className="form-label">Название</label>
-                <input
-                    className="gin-select__trigger"
-                    value={newName}
-                    onFocus={suggestName}
-                    onChange={e => setNewName(e.target.value)}
-                    placeholder="Брокерский счёт (торг)"
-                />
-            </div>
-            <div className="form-group">
-                <label className="form-label">{bybit ? 'API Key' : 'Токен'}</label>
-                <input
-                    className="gin-select__trigger"
-                    value={newToken}
-                    onChange={e => setNewToken(e.target.value)}
-                    placeholder={bybit ? 'ByBit API Key' : 't.xxx...'}
-                    autoComplete="off"
-                />
-            </div>
-            {bybit && (
-                <div className="form-group">
-                    <label className="form-label">API Secret</label>
-                    <input
-                        className="gin-select__trigger"
-                        type="password"
-                        value={newTokenSecret}
-                        onChange={e => setNewTokenSecret(e.target.value)}
-                        placeholder="ByBit API Secret"
-                        autoComplete="new-password"
-                    />
+            <div className="dashboard-settings">
+                <div className="dashboard-settings-list">
+                    <section className="dashboard-settings-group">
+                        <header className="dashboard-settings-group__head">
+                            <div className="dashboard-settings-group__title-wrap">
+                                <span className="dashboard-settings-group__cur">Брокер и ключ</span>
+                            </div>
+                            <button
+                                type="button"
+                                className="dashboard-settings-group__bulk"
+                                onClick={() => void handleTest()}
+                                disabled={testing || !newToken || !newTokenType || (bybit && !newTokenSecret)}
+                            >
+                                {testing ? 'Проверка…' : 'Проверить'}
+                            </button>
+                        </header>
+                        <div className="settings-scene-fields">
+                            <label className="settings-scene-field">
+                                <span>Тип брокера</span>
+                                <Select
+                                    options={tokenTypes}
+                                    value={newTokenType}
+                                    onChange={setNewTokenType}
+                                    placeholder="Выберите тип токена"
+                                    size="md"
+                                />
+                            </label>
+                            <label className="settings-scene-field">
+                                <span>Название</span>
+                                <input
+                                    value={newName}
+                                    onFocus={suggestName}
+                                    onChange={e => setNewName(e.target.value)}
+                                    placeholder="Брокерский счёт (торг)"
+                                />
+                            </label>
+                            <label className="settings-scene-field">
+                                <span>{bybit ? 'API Key' : 'Токен'}</span>
+                                <input
+                                    value={newToken}
+                                    onChange={e => setNewToken(e.target.value)}
+                                    placeholder={bybit ? 'ByBit API Key' : 't.xxx...'}
+                                    autoComplete="off"
+                                />
+                            </label>
+                            {bybit ? (
+                                <label className="settings-scene-field">
+                                    <span>API Secret</span>
+                                    <input
+                                        type="password"
+                                        value={newTokenSecret}
+                                        onChange={e => setNewTokenSecret(e.target.value)}
+                                        placeholder="ByBit API Secret"
+                                        autoComplete="new-password"
+                                    />
+                                </label>
+                            ) : null}
+                            {testResult ? (
+                                <p
+                                    className={`settings-scene-hint${
+                                        testResult.startsWith('Валиден') ? ' settings-scene-hint--ok' : ' settings-scene-hint--warn'
+                                    }`}
+                                >
+                                    {testResult}
+                                </p>
+                            ) : null}
+                        </div>
+                    </section>
                 </div>
-            )}
-            {testResult && (
-                <div
-                    className="form-hint"
-                    style={{ color: testResult.startsWith('Валиден') ? 'var(--color-up)' : 'var(--color-down)' }}
-                >
-                    {testResult}
+                <div className="dashboard-settings-actions">
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="lg"
+                        className="dashboard-settings-actions__apply"
+                        loading={saving}
+                        disabled={!canSubmit}
+                        onClick={() => void handleSave()}
+                    >
+                        Сохранить
+                    </Button>
                 </div>
-            )}
-            <div className="dashboard-settings-actions settings-token-create-actions">
-                <Button
-                    variant="ghost"
-                    className="settings-token-create-actions__test"
-                    loading={testing}
-                    onClick={handleTest}
-                    disabled={!newToken || !newTokenType || (bybit && !newTokenSecret)}
-                >
-                    Проверить
-                </Button>
-                <Button
-                    loading={saving}
-                    onClick={handleSave}
-                    disabled={!newName || !newToken || !newTokenType || (bybit && !newTokenSecret)}
-                >
-                    Сохранить
-                </Button>
             </div>
         </Modal>
     )
@@ -200,34 +229,59 @@ type DeleteProps = {
 }
 
 export function DeleteTokenModal({ token, open, loading, onClose, onConfirm }: DeleteProps) {
-  const [ack, setAck] = useState(false)
+    const [ack, setAck] = useState(false)
 
-  useEffect(() => {
-    if (open) setAck(false)
-  }, [open, token?.id])
+    useEffect(() => {
+        if (open) setAck(false)
+    }, [open, token?.id])
 
-  if (!token) return null
+    if (!token) return null
 
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="Удалить токен?"
-      width="520px"
-    >
-      <p className="settings-delete-copy">
-        Удалить токен <strong>{token.name || 'API key'}</strong>? Роботы, использующие этот ключ, перестанут работать.
-      </p>
-      <label className="settings-delete-ack">
-        <input type="checkbox" checked={ack} onChange={e => setAck(e.target.checked)} />
-        <span>Я понимаю последствия</span>
-      </label>
-      <div className="dashboard-settings-actions">
-        <Button variant="ghost" onClick={onClose} disabled={loading}>Отмена</Button>
-        <Button variant="danger" loading={loading} disabled={!ack} onClick={onConfirm}>
-          Удалить
-        </Button>
-      </div>
-    </Modal>
-  )
+    return (
+        <Modal
+            open={open}
+            onClose={onClose}
+            title="Удаление"
+            flush
+            className="dash-quiet-modal dash-scene-modal"
+            lead={(
+                <div className="dash-scene__brand">
+                    <p className="dash-scene__kicker">Настройки</p>
+                    <p className="dash-scene__title">Удалить токен?</p>
+                    <p className="dash-scene__line">
+                        Роботы с этим ключом перестанут работать. Действие необратимо.
+                    </p>
+                </div>
+            )}
+        >
+            <div className="dashboard-settings">
+                <div className="dashboard-settings-list">
+                    <section className="dashboard-settings-group">
+                        <div className="settings-scene-fields">
+                            <p className="settings-scene-hint">
+                                Токен <strong>{token.name || 'API key'}</strong> будет удалён.
+                            </p>
+                            <label className="settings-delete-ack">
+                                <input type="checkbox" checked={ack} onChange={e => setAck(e.target.checked)} />
+                                <span>Я понимаю последствия</span>
+                            </label>
+                        </div>
+                    </section>
+                </div>
+                <div className="dashboard-settings-actions">
+                    <Button
+                        type="button"
+                        variant="danger"
+                        size="lg"
+                        className="dashboard-settings-actions__apply"
+                        loading={loading}
+                        disabled={!ack}
+                        onClick={onConfirm}
+                    >
+                        Удалить
+                    </Button>
+                </div>
+            </div>
+        </Modal>
+    )
 }

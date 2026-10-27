@@ -40,8 +40,13 @@ api.interceptors.response.use(
         if (err.response?.status === 401) {
             const url = config?.url ?? ''
             // Login/register 401 is a credential error — show it in UI, do not hard-reload.
+            const path = url.split('?')[0]
             const isAuthCredentialRequest =
-                url.includes('/auth/login') || url.includes('/auth/register')
+                path === '/auth' ||
+                path.endsWith('/auth/confirm') ||
+                path.endsWith('/auth/resend') ||
+                path.includes('/registration') ||
+                path.includes('/auth/login')
             if (!isAuthCredentialRequest) {
                 localStorage.removeItem('gin-token')
                 localStorage.removeItem('gin-user')

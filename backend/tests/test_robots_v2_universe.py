@@ -10,6 +10,45 @@ os.environ.setdefault("SECRET_KEY", "test")
 from app.modules.robots_v2.universe import presets
 
 
+def test_stock_screener_preview_does_not_require_token():
+    import asyncio
+    from datetime import date
+    from unittest.mock import MagicMock
+
+    from app.modules.robots_v2.universe.service import UniverseService
+
+    captured = {}
+
+    async def _run():
+        svc = UniverseService()
+
+        async def fake_screener(db, ctx, universe, instrument_type, excluded, **kwargs):
+            captured["market"] = ctx.market
+            captured["token_id"] = ctx.token_id
+            return (
+                [{"ticker": "SBER", "name": "SBER", "price": 1.0, "volume24h": 1.0, "atr": 1.0}],
+                [],
+            )
+
+        svc._preview_screener = fake_screener  # type: ignore[method-assign]
+        return await svc.preview(
+            MagicMock(),
+            1,
+            token_id=None,
+            instrument_type="stock",
+            universe_raw={
+                "mode": "screener",
+                "screener": {"preset": "high_liquidity", "filters": [], "filterMode": "all"},
+                "maxAssets": 20,
+            },
+            as_of=date(2025, 1, 6),
+        )
+
+    preview = asyncio.run(_run())
+    assert captured == {"market": "moex", "token_id": 0}
+    assert [a.ticker for a in preview.assets] == ["SBER"]
+
+
 def test_moex_high_liquidity_preset_maps_to_dms_filters():
     filters = presets.resolve_moex_dms_filters(preset="high_liquidity", custom_filters=None)
     types = {str(f["type"]) for f in filters}

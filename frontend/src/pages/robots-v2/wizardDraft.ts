@@ -23,6 +23,13 @@ export type RobotV2WizardDraft = {
     fixedList: string
     indexCode: string
     screenerPreset: 'high_liquidity' | 'volatile' | 'low_price' | 'custom'
+    /** Manual screener gates when screenerPreset === 'custom' (0 = omit). */
+    screenerMinVolume: number
+    screenerMinHistVolume: number
+    screenerMaxSpreadPct: number
+    screenerMinAtrPct: number
+    screenerMinPrice: number
+    screenerMaxPrice: number
     maxAssets: number
     exitOnDrop: boolean
     capital: number
@@ -68,6 +75,12 @@ export function defaultWizardDraft(): RobotV2WizardDraft {
         fixedList: 'SBER, GAZP',
         indexCode: 'IMOEX',
         screenerPreset: 'high_liquidity',
+        screenerMinVolume: 10_000_000,
+        screenerMinHistVolume: 0,
+        screenerMaxSpreadPct: 0,
+        screenerMinAtrPct: 0,
+        screenerMinPrice: 10,
+        screenerMaxPrice: 0,
         maxAssets: 20,
         exitOnDrop: false,
         capital: 100_000,
@@ -136,6 +149,126 @@ export function parseFixedList(raw: string): string[] {
         .filter(Boolean)
 }
 
+export type ScreenerV4Filter = {
+    type: string
+    op?: string
+    value?: number
+    valuePct?: number
+    period?: string
+    allowed?: string[]
+}
+
+export function isCryptoInstrument(instrumentType: WizardInstrumentType): boolean {
+    return instrumentType === 'perpetual' || instrumentType === 'coin_futures'
+}
+
+/** Seed values when user switches preset to «Свой» (matches backend custom defaults). */
+export function customScreenerFieldDefaults(
+    instrumentType: WizardInstrumentType,
+): Pick<
+    RobotV2WizardDraft,
+    | 'screenerMinVolume'
+    | 'screenerMinHistVolume'
+    | 'screenerMaxSpreadPct'
+    | 'screenerMinAtrPct'
+    | 'screenerMinPrice'
+    | 'screenerMaxPrice'
+> {
+    const crypto = isCryptoInstrument(instrumentType)
+    return {
+        screenerMinVolume: crypto ? 5_000_000 : 10_000_000,
+        screenerMinHistVolume: 0,
+        screenerMaxSpreadPct: 0,
+        screenerMinAtrPct: 0,
+        screenerMinPrice: crypto ? 0 : 10,
+        screenerMaxPrice: 0,
+    }
+}
+
+export function buildScreenerFilters(draft: RobotV2WizardDraft): ScreenerV4Filter[] {
+    const filters: ScreenerV4Filter[] = []
+    if (draft.screenerMinVolume > 0) {
+        filters.push({
+            type: 'volume',
+            op: '>',
+            value: draft.screenerMinVolume,
+            period: 'session',
+        })
+    }
+    if (draft.screenerMinHistVolume > 0) {
+        filters.push({
+            type: 'hist_volume',
+            op: '>',
+            value: draft.screenerMinHistVolume,
+            period: '20d',
+        })
+    }
+    if (draft.screenerMaxSpreadPct > 0) {
+        filters.push({
+            type: 'spread',
+            op: '<',
+            valuePct: draft.screenerMaxSpreadPct,
+        })
+    }
+    if (draft.screenerMinAtrPct > 0) {
+        filters.push({
+            type: 'atr',
+            op: '>',
+            value: draft.screenerMinAtrPct,
+        })
+    }
+    if (draft.screenerMinPrice > 0) {
+        filters.push({ type: 'price', op: '>', value: draft.screenerMinPrice })
+    }
+    if (draft.screenerMaxPrice > 0) {
+        filters.push({ type: 'price', op: '<', value: draft.screenerMaxPrice })
+    }
+    // Empty → backend uses preset «custom» defaults. Otherwise keep trading status.
+    if (filters.length === 0) return []
+    return [{ type: 'status', allowed: ['trading'] }, ...filters]
+}
+
+export function parseScreenerFilters(
+    raw: unknown,
+): Pick<
+    RobotV2WizardDraft,
+    | 'screenerMinVolume'
+    | 'screenerMinHistVolume'
+    | 'screenerMaxSpreadPct'
+    | 'screenerMinAtrPct'
+    | 'screenerMinPrice'
+    | 'screenerMaxPrice'
+> {
+    const defaults = customScreenerFieldDefaults('stock')
+    const out = {
+        screenerMinVolume: 0,
+        screenerMinHistVolume: 0,
+        screenerMaxSpreadPct: 0,
+        screenerMinAtrPct: 0,
+        screenerMinPrice: 0,
+        screenerMaxPrice: 0,
+    }
+    if (!Array.isArray(raw)) return defaults
+    for (const item of raw) {
+        if (!item || typeof item !== 'object') continue
+        const f = item as Record<string, unknown>
+        const type = String(f.type || '').toLowerCase()
+        const value = Number(f.value ?? 0)
+        const valuePct = Number(f.valuePct ?? f.value ?? 0)
+        const op = String(f.op || '>')
+        if (type === 'volume' && value > 0) out.screenerMinVolume = value
+        else if (type === 'hist_volume' && value > 0) out.screenerMinHistVolume = value
+        else if (type === 'spread' && valuePct > 0) out.screenerMaxSpreadPct = valuePct
+        else if (type === 'atr' && value > 0) out.screenerMinAtrPct = value
+        else if (type === 'price' && value > 0) {
+            if (op === '<') out.screenerMaxPrice = value
+            else out.screenerMinPrice = value
+        }
+    }
+    const anySet = Object.values(out).some(v => v > 0)
+    return anySet ? out : defaults
+}
+
 export function draftToV4Config(draft: RobotV2WizardDraft): Record<string, unknown> {
     const fixed = parseFixedList(draft.fixedList)
     let universe: Record<string, unknown>
@@ -160,7 +293,7 @@ export function draftToV4Config(draft: RobotV2WizardDraft): Record<string, unkno
             mode: 'screener',
             screener: {
                 preset: draft.screenerPreset,
-                filters: [],
+                filters: draft.screenerPreset === 'custom' ? buildScreenerFilters(draft) : [],
                 filterMode: 'all',
                 refreshPolicy: 'daily',
             },
@@ -249,6 +382,7 @@ export function configToDraft(config: Record<string, unknown>, name: string, tok
         fixedList,
         indexCode: String(universe.index || base.indexCode),
         screenerPreset: (screener.preset as RobotV2WizardDraft['screenerPreset']) || base.screenerPreset,
+        ...parseScreenerFilters(screener.filters),
         maxAssets: Number(universe.maxAssets ?? base.maxAssets),
         exitOnDrop: Boolean(universe.exitOnDrop),
         capital: Number(risk.capital ?? base.capital),

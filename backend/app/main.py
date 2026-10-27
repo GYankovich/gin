@@ -48,6 +48,13 @@ async def _start_api_background() -> None:
         except Exception as e:
             system_log.error("Ошибка автозапуска OsEngine: %s", e)
 
+    try:
+        from app.core.mail_sender import start_mail_sender
+
+        start_mail_sender()
+    except Exception as e:
+        system_log.error("Ошибка запуска робота почты: %s", e)
+
     if settings.WORKER_EMBEDDED_ENABLED:
         try:
             from app.core.background_jobs.worker import start_embedded_lane_workers
@@ -100,6 +107,9 @@ async def _stop_api_background() -> None:
     from app.modules.robots.moex_securities_updater.scheduler import stop_moex_securities_scheduler
     from app.modules.osengine.scheduler import stop_osengine_cache_gc_scheduler
     from app.core.background_jobs.worker import stop_embedded_lane_workers
+    from app.core.mail_sender import stop_mail_sender
+
+    stop_mail_sender()
 
     await _stop_background_task("portfolio", stop_portfolio_v2_scheduler())
     await _stop_background_task("dms", stop_dms_scheduler())
@@ -159,6 +169,8 @@ def _apply_common_middleware(app: FastAPI) -> None:
 
 
 def _register_api_routers(app: FastAPI) -> None:
+    from app.modules.auth.router import change_pass_router
+    from app.modules.auth.router import registration_router
     from app.modules.auth.router import router as auth_router
     from app.modules.auth.router import users_router
     from app.modules.tinvest.router import router as tinvest_router
@@ -177,6 +189,8 @@ def _register_api_routers(app: FastAPI) -> None:
     from app.modules.osengine.router import router as osengine_router
 
     app.include_router(auth_router, prefix="/api", tags=["auth"])
+    app.include_router(registration_router, prefix="/api", tags=["auth"])
+    app.include_router(change_pass_router, prefix="/api", tags=["auth"])
     app.include_router(users_router, prefix="/api", tags=["users"])
     app.include_router(tinvest_router, prefix="/api/tinvest", tags=["tinvest"])
     app.include_router(robots_v2_router, prefix="/api", tags=["robots-v2"])

@@ -30,11 +30,15 @@ type RobotPageChromeProps = {
     /** When true, show only Флот (create wizard). */
     fleetOnly?: boolean
     className?: string
+    /** Quiet title + pill nav. Used by the live monitor. */
+    variant?: 'hero' | 'quiet'
+    /** Status beside the title in the quiet variant. */
+    status?: React.ReactNode
 }
 
 /**
- * Shared PageHero + subnav for Robots V2 detail pages.
- * Full set: Флот · Лайв · Правка · Audit · Бэктест
+ * Shared header for a robot: Флот · Лайв · История.
+ * Правка открывается из списка флота. Бэктест живёт в лаборатории.
  */
 export function RobotPageChrome({
     eyebrow,
@@ -45,6 +49,8 @@ export function RobotPageChrome({
     actions,
     fleetOnly = false,
     className = 'dashboard-hero--node',
+    variant = 'hero',
+    status,
 }: RobotPageChromeProps) {
     const navigate = useNavigate()
     const isNarrow = useMediaQuery('(max-width: 767px)')
@@ -57,9 +63,7 @@ export function RobotPageChrome({
         if (!fleetOnly && id) {
             items.push(
                 { id: 'monitor', label: 'Лайв', path: `/robots/${id}/monitor` },
-                { id: 'edit', label: 'Правка', path: `/robots/edit/${id}` },
-                { id: 'logs', label: 'Audit', path: `/robots/${id}/logs` },
-                { id: 'backtest', label: 'Бэктест', path: `/robots/${id}/backtest` },
+                { id: 'logs', label: 'История', path: `/robots/${id}/logs` },
             )
         }
         return items
@@ -75,7 +79,9 @@ export function RobotPageChrome({
             type="button"
             variant="ghost"
             size="sm"
-            className={`dashboard-hero__cfg${isActive ? ' robots-v2-chrome-nav--active' : ''}`}
+            className={variant === 'quiet'
+                ? `robots-quiet-chrome__tab${isActive ? ' robots-quiet-chrome__tab--active' : ''}`
+                : `dashboard-hero__cfg${isActive ? ' robots-v2-chrome-nav--active' : ''}`}
             aria-current={isActive ? 'page' : undefined}
             onClick={() => navigate(path)}
         >
@@ -93,11 +99,9 @@ export function RobotPageChrome({
                         'Лайв',
                         `/robots/${id}/monitor`,
                         active === 'monitor',
-                        <FontAwesomeIcon icon={faTowerBroadcast} />,
+                        variant === 'quiet' ? undefined : <FontAwesomeIcon icon={faTowerBroadcast} />,
                     )}
-                    {navBtn('Правка', `/robots/edit/${id}`, active === 'edit')}
-                    {navBtn('Audit', `/robots/${id}/logs`, active === 'logs')}
-                    {navBtn('Бэктест', `/robots/${id}/backtest`, active === 'backtest')}
+                    {navBtn('История', `/robots/${id}/logs`, active === 'logs')}
                 </>
             ) : null}
         </>
@@ -110,6 +114,31 @@ export function RobotPageChrome({
             {actions}
         </>
     ) : undefined
+
+    if (variant === 'quiet') {
+        return (
+            <header className="robots-quiet-chrome">
+                <div className="robots-quiet-chrome__top">
+                    <div className="robots-quiet-chrome__copy">
+                        <div className="robots-quiet-chrome__title-row">
+                            <h1 className="robots-quiet-chrome__title">{title}</h1>
+                            {status}
+                        </div>
+                        {subtitle}
+                    </div>
+                    {actions ? <div className="robots-quiet-chrome__actions">{actions}</div> : null}
+                </div>
+                {showDesktopNav ? (
+                    <nav className="robots-quiet-chrome__nav" aria-label="Разделы робота">
+                        {desktopNav}
+                    </nav>
+                ) : null}
+                {isNarrow && navItems.length > 0 && (fleetOnly || id) ? (
+                    <RobotMobileSubnav items={navItems} active={active} />
+                ) : null}
+            </header>
+        )
+    }
 
     return (
         <>

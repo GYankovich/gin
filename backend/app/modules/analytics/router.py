@@ -265,7 +265,9 @@ def get_account_chart_series(
         user_id=current_user.id,
         from_date=body.from_date,
         to_date=body.to_date,
-        figis=body.figis or []
+        figis=body.figis or [],
+        include_instruments=body.include_instruments,
+        include_hourly=body.include_hourly,
     )
     if not result:
         raise HTTPException(status_code=404, detail="Account not found")

@@ -20,17 +20,19 @@ def plan_worker_heal(
 
     Returns (next_restart_at, force_lease, should_spawn).
 
-    Lease conflict (exit 2) waits until the previous heartbeat is stale, but
-    only on the first observation — postponing every poll would delay forever.
-    Lease lost (exit 3) restarts quickly with --force-lease.
+    Lease conflict (exit 2) waits until the previous heartbeat can go stale,
+    but only on the first observation — postponing every poll would delay forever.
+    Lease lost (exit 3) restarts quickly. Neither path passes --force-lease:
+    a live holder keeps the lane, and a dead holder's row is taken over once
+    its heartbeat is stale. Automatic force-steal ping-pongs when two
+    supervisors are up and cancels the in-flight backtest.
     """
+    _ = force_lease
     nxt = float(next_restart_at)
-    force = bool(force_lease)
+    force = False
     if newly_exited and int(exit_code) == WORKER_EXIT_LEASE_CONFLICT:
-        force = True
         nxt = max(nxt, now + float(conflict_backoff_sec))
     elif newly_exited and int(exit_code) == WORKER_EXIT_LEASE_LOST:
-        force = True
         nxt = max(nxt, now + float(restart_backoff_sec))
     should_spawn = now >= nxt
     return nxt, force, should_spawn

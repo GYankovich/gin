@@ -179,6 +179,23 @@ class DefaultOsEngineFacade:
         if not instruments:
             return stats
 
+        if settings.OSENGINE_ENABLED and settings.OSENGINE_START_ON_DEMAND:
+            try:
+                from app.modules.osengine.process import ensure_osengine_running
+
+                ready = await ensure_osengine_running()
+                if not ready:
+                    logger.warning(
+                        "osengine MCP still down before ensure run_id=%s — file import only",
+                        request.run_id,
+                    )
+            except Exception:
+                logger.warning(
+                    "osengine on-demand start failed run_id=%s — continue ensure",
+                    request.run_id,
+                    exc_info=True,
+                )
+
         instrument_ids: List[str] = []
         for idx, instrument in enumerate(instruments):
             if is_cancelled and is_cancelled():

@@ -14,6 +14,7 @@ from app.modules.trading_core.broker_position_sync import money_to_float
 from app.modules.trading_core.brokers.base import BrokerFacade
 from app.modules.trading_core.contracts import OrderIntent
 from app.modules.robots_v2.engine.broker_factory import _looks_like_figi
+from app.modules.robots_v2.engine.lot_size import lots_to_shares, normalize_lot_size, shares_to_lots
 from app.modules.robots_v2.engine.event_bus import event_bus
 from app.modules.robots_v2.engine.paper_ledger import PaperLedger
 from app.modules.robots_v2.engine.session_log import log_external_api
@@ -39,6 +40,7 @@ _SKIP_TICKER_ISSUE_REASONS = frozenset({
 _FIGI_WARN = "FIGI не сопоставлен — заявки по тикеру брокер отклонит"
 _TICKER_ISSUE_LABELS = {
     "FIGI_UNRESOLVED": "Нет FIGI у брокера — ордер не отправлен",
+    "LOT_SIZE": "Объём меньше одного лота — заявка не отправлена",
     "STALE_OR_MISSING_PRICE": "Нет актуальной цены для заявки",
     "INVALID_QTY_OR_TICKER": "Некорректный тикер или количество",
     "FILL_CONFIRM_TIMEOUT": "Нет подтверждения исполнения заявки",
@@ -106,6 +108,7 @@ class ExecutionService:
         broker: BrokerFacade | None = None,
         account_id: str | None = None,
         instrument_map: dict[str, str] | None = None,
+        lot_sizes: dict[str, int] | None = None,
         fill_poll_interval_sec: float = 0.4,
         fill_timeout_sec: float = 15.0,
         limit_fill_timeout_sec: float = 2.0,
@@ -121,6 +124,8 @@ class ExecutionService:
         self.broker = broker
         self.account_id = account_id
         self.instrument_map = {k.upper(): v for k, v in (instrument_map or {}).items()}
+        self.lot_sizes: dict[str, int] = {}
+        self.update_lot_sizes(lot_sizes or {})
         self.guard = SymbolGuard()
         self.fill_poll_interval_sec = max(0.1, float(fill_poll_interval_sec))
         self.fill_timeout_sec = max(1.0, float(fill_timeout_sec))
@@ -270,6 +275,35 @@ class ExecutionService:
                 ):
                     self.clear_ticker_issue(ticker)
 
+    def update_lot_sizes(self, lot_sizes: dict[str, int] | None) -> None:
+        for key, raw in (lot_sizes or {}).items():
+            ticker = str(key or "").upper()
+            if ticker:
+                self.lot_sizes[ticker] = normalize_lot_size(raw)
+
+    def lot_size_for(self, ticker: str) -> int:
+        """Share lot for T-Invest. Other brokers keep quantity unchanged (lot 1)."""
+        if getattr(self.broker, "broker_type", "") != "tinvest":
+            return 1
+        t = str(ticker or "").upper()
+        if t not in self.lot_sizes:
+            self.lot_sizes[t] = 1
+            if t:
+                self._log(f"WARN lot size unknown {t} — using 1")
+        return normalize_lot_size(self.lot_sizes.get(t))
+
+    def _order_lots(self, ticker: str, shares: int) -> tuple[int, int]:
+        """(lots for the broker, shares those lots represent)."""
+        lot = self.lot_size_for(ticker)
+        lots = shares_to_lots(int(shares or 0), lot)
+        return lots, lots_to_shares(lots, lot)
+
+    def _shares_from_broker_qty(self, ticker: str, broker_qty: float) -> int:
+        lots = int(round(float(broker_qty or 0)))
+        if lots <= 0:
+            return 0
+        return lots_to_shares(lots, self.lot_size_for(ticker))
+
     def _instrument_id(self, ticker: str) -> str:
         t = ticker.upper()
         return self.instrument_map.get(t, t)
@@ -382,11 +416,12 @@ class ExecutionService:
         if bo is None:
             return None
 
+        share_qty = self._shares_from_broker_qty(t, bo.quantity)
         ro = RestingOrder(
             intent_id=str(uuid4()),
             ticker=t,
             side=bo.side,
-            quantity=bo.quantity if bo.quantity > 0 else 1,
+            quantity=share_qty if share_qty > 0 else 1,
             limit_price=float(bo.limit_price or 0),
             reduce_only=True,
             reason="take_profit",
@@ -575,7 +610,10 @@ class ExecutionService:
             if status_raw in _FILL_STATUSES or (
                 "FILL" in status_raw and "PARTIAL" not in status_raw and lots_exec > 0
             ):
-                qty = int(lots_exec) if lots_exec > 0 else ro.quantity
+                qty = (
+                    self._shares_from_broker_qty(ticker, lots_exec)
+                    if lots_exec > 0 else ro.quantity
+                )
                 px = self._fill_unit_price(price, qty, ref_px=float(ro.limit_price or 0) or None)
                 self._resting.pop(ticker, None)
                 results.append(
@@ -649,11 +687,12 @@ class ExecutionService:
         for ticker, bo in chosen.items():
             old = prev.get(ticker)
             same = old is not None and str(old.broker_order_id or "") == bo.order_id
+            share_qty = self._shares_from_broker_qty(ticker, bo.quantity)
             new_resting[ticker] = RestingOrder(
                 intent_id=old.intent_id if same and old else str(uuid4()),
                 ticker=ticker,
                 side=bo.side,
-                quantity=bo.quantity if bo.quantity > 0 else (old.quantity if old else 0),
+                quantity=share_qty if share_qty > 0 else (old.quantity if old else 0),
                 limit_price=float(bo.limit_price or (old.limit_price if old else 0) or 0),
                 reduce_only=bool(bo.reduce_only or (old.reduce_only if old else True)),
                 reason=(old.reason if same and old else "broker_sync"),
@@ -711,18 +750,35 @@ class ExecutionService:
         self,
         *,
         last_prices: dict[str, float] | None = None,
+        bar_highs: dict[str, float] | None = None,
+        bar_lows: dict[str, float] | None = None,
     ) -> list[ExecutionResult]:
-        """Paper mark-cross fills without event-loop hops."""
+        """Paper mark-cross fills without event-loop hops.
+
+        Optional bar high/low lets LIMIT TP/SL fill when the bar trades through
+        the rest price even if close does not (backtest credibility).
+        """
         if not self._resting:
             return []
         prices = {k.upper(): float(v) for k, v in (last_prices or {}).items() if v}
+        highs = {k.upper(): float(v) for k, v in (bar_highs or {}).items() if v}
+        lows = {k.upper(): float(v) for k, v in (bar_lows or {}).items() if v}
         results: list[ExecutionResult] = []
         for ticker in list(self._resting.keys()):
             ro = self._resting.get(ticker)
             if ro is None:
                 continue
             mark = prices.get(ticker, 0.0)
-            if not self._limit_would_fill(ro.side, mark, ro.limit_price):
+            hi = highs.get(ticker)
+            lo = lows.get(ticker)
+            if hi is not None or lo is not None:
+                if str(ro.side or "").upper() == "SELL":
+                    crossed = float(hi if hi is not None else mark) >= ro.limit_price
+                else:
+                    crossed = float(lo if lo is not None else mark) <= ro.limit_price
+            else:
+                crossed = self._limit_would_fill(ro.side, mark, ro.limit_price)
+            if not crossed:
                 continue
             self._resting.pop(ticker, None)
             results.append(
@@ -1018,7 +1074,10 @@ class ExecutionService:
             if status_raw in _FILL_STATUSES or (
                 "FILL" in status_raw and "PARTIAL" not in status_raw and lots_exec > 0
             ):
-                qty = int(lots_exec) if lots_exec > 0 else ro.quantity
+                qty = (
+                    self._shares_from_broker_qty(ticker, lots_exec)
+                    if lots_exec > 0 else ro.quantity
+                )
                 px = self._fill_unit_price(price, qty, ref_px=float(ro.limit_price or 0) or None)
                 self._resting.pop(ticker, None)
                 results.append(
@@ -1039,13 +1098,14 @@ class ExecutionService:
         self,
         order_id: str,
         *,
+        ticker: str,
         fallback_price: float,
         fallback_qty: int,
         timeout_sec: float | None = None,
     ) -> tuple[str, float, int, dict[str, Any]]:
         """Poll get_order_state until terminal or timeout.
 
-        Returns (status, price, qty, raw_state) where status is filled|rejected|submitted.
+        Returns (status, price, share qty, raw_state). Broker lotsExecuted is lots.
         """
         assert self.broker is not None and self.account_id
         deadline = asyncio.get_running_loop().time() + (
@@ -1102,7 +1162,10 @@ class ExecutionService:
             if status_raw in _FILL_STATUSES or (
                 "FILL" in status_raw and "PARTIAL" not in status_raw and lots_exec > 0
             ):
-                qty = int(lots_exec) if lots_exec > 0 else fallback_qty
+                qty = (
+                    self._shares_from_broker_qty(ticker, lots_exec)
+                    if lots_exec > 0 else fallback_qty
+                )
                 ref_px = fallback_price if fallback_price > 0 else None
                 px = self._fill_unit_price(price, qty, ref_px=ref_px)
                 return "filled", px, qty, state
@@ -1144,12 +1207,26 @@ class ExecutionService:
                     intent_id=intent_id, ticker=ticker, side=side, quantity=qty, price=fill_price,
                     status="rejected", mode="live", reason="FIGI_UNRESOLVED", kind=intent_kind,
                 )
+            lots, order_shares = self._order_lots(ticker, qty)
+            if lots <= 0:
+                lot = self.lot_size_for(ticker)
+                self._mark_reject_cooldown(ticker)
+                self._log(f"LIVE ORDER SKIP {ticker}: {qty} shares < 1 lot (lot={lot})")
+                return ExecutionResult(
+                    intent_id=intent_id, ticker=ticker, side=side, quantity=qty, price=fill_price,
+                    status="rejected", mode="live", reason="LOT_SIZE", kind=intent_kind,
+                )
+            qty = order_shares
+            lot = self.lot_size_for(ticker)
             endpoint = f"{broker_type or 'broker'}.post_market_order"
             started = datetime.now(timezone.utc)
-            self._log(f"LIVE ORDER submit {side} {ticker}→{instrument} qty={qty} dir={direction}")
+            self._log(
+                f"LIVE ORDER submit {side} {ticker}→{instrument} "
+                f"shares={qty} lots={lots} lot={lot} dir={direction}"
+            )
             try:
                 resp = await self.broker.post_market_order(
-                    instrument, qty, direction, self.account_id,
+                    instrument, lots, direction, self.account_id,
                 )
                 if broker_type != "bybit":
                     await log_external_api(
@@ -1158,7 +1235,8 @@ class ExecutionService:
                         token_id=self.token_id,
                         endpoint=endpoint,
                         request_data={
-                            "instrument": instrument, "qty": qty, "direction": direction,
+                            "instrument": instrument, "qty": lots, "shares": qty,
+                            "lotSize": lot, "direction": direction,
                             "account_id": self.account_id,
                         },
                         response_data=resp if isinstance(resp, dict) else {"raw": str(resp)},
@@ -1173,7 +1251,8 @@ class ExecutionService:
                         token_id=self.token_id,
                         endpoint=endpoint,
                         request_data={
-                            "instrument": instrument, "qty": qty, "direction": direction,
+                            "instrument": instrument, "qty": lots, "shares": qty,
+                            "lotSize": lot, "direction": direction,
                             "account_id": self.account_id,
                         },
                         error_message=str(exc)[:500],
@@ -1205,7 +1284,7 @@ class ExecutionService:
                 )
 
             conf_status, conf_price, conf_qty, state = await self._await_fill(
-                order_id, fallback_price=fill_price, fallback_qty=qty,
+                order_id, ticker=ticker, fallback_price=fill_price, fallback_qty=qty,
             )
             if conf_status == "filled":
                 pnl = self.ledger.apply_fill(
@@ -1374,16 +1453,28 @@ class ExecutionService:
                     intent_id=intent_id, ticker=ticker, side=side, quantity=qty, price=limit_price,
                     status="rejected", mode="live", reason="FIGI_UNRESOLVED", kind=intent_kind,
                 )
+            lots, order_shares = self._order_lots(ticker, qty)
+            if lots <= 0:
+                lot = self.lot_size_for(ticker)
+                self._mark_reject_cooldown(ticker)
+                self._log(f"LIVE LIMIT SKIP {ticker}: {qty} shares < 1 lot (lot={lot})")
+                return ExecutionResult(
+                    intent_id=intent_id, ticker=ticker, side=side, quantity=qty, price=limit_price,
+                    status="rejected", mode="live", reason="LOT_SIZE", kind=intent_kind,
+                )
+            qty = order_shares
+            lot = self.lot_size_for(ticker)
             endpoint = f"{broker_type or 'broker'}.post_order"
             started = datetime.now(timezone.utc)
             self._log(
-                f"LIVE LIMIT submit {side} {ticker}→{instrument} qty={qty} "
+                f"LIVE LIMIT submit {side} {ticker}→{instrument} "
+                f"shares={qty} lots={lots} lot={lot} "
                 f"price={limit_price:.6g} dir={direction}"
             )
             try:
                 resp = await self.broker.post_order(
                     instrument,
-                    qty,
+                    lots,
                     limit_price,
                     direction,
                     self.account_id,
@@ -1397,7 +1488,9 @@ class ExecutionService:
                         endpoint=endpoint,
                         request_data={
                             "instrument": instrument,
-                            "qty": qty,
+                            "qty": lots,
+                            "shares": qty,
+                            "lotSize": lot,
                             "price": limit_price,
                             "direction": direction,
                             "account_id": self.account_id,
@@ -1416,7 +1509,9 @@ class ExecutionService:
                         endpoint=endpoint,
                         request_data={
                             "instrument": instrument,
-                            "qty": qty,
+                            "qty": lots,
+                            "shares": qty,
+                            "lotSize": lot,
                             "price": limit_price,
                             "direction": direction,
                             "account_id": self.account_id,
@@ -1452,6 +1547,7 @@ class ExecutionService:
 
             conf_status, conf_price, conf_qty, state = await self._await_fill(
                 order_id,
+                ticker=ticker,
                 fallback_price=limit_price,
                 fallback_qty=qty,
                 timeout_sec=self.limit_fill_timeout_sec,

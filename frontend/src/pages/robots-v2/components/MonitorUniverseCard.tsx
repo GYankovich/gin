@@ -15,6 +15,7 @@ type MonitorUniverseCardProps = {
     canRefreshUniverse: boolean
     universeBusy: boolean
     onRefreshUniverse: () => void
+    bare?: boolean
 }
 
 export function MonitorUniverseCard({
@@ -24,6 +25,7 @@ export function MonitorUniverseCard({
     canRefreshUniverse,
     universeBusy,
     onRefreshUniverse,
+    bare = false,
 }: MonitorUniverseCardProps) {
     const scanTableRows = useMemo(
         () => displayTickerScan.map(row => ({ ...row, id: row.ticker })),
@@ -54,14 +56,15 @@ export function MonitorUniverseCard({
         },
     ], [])
 
-    return (
-        <Card className="dashboard-assets-card robots-v2-monitor-scan">
+    const body = (
+        <>
+            {!bare || canRefreshUniverse ? (
             <div className="dashboard-assets-card__head">
-                <h3 className="dashboard-panel-title">Пул активов</h3>
+                {bare ? null : <h3 className="dashboard-panel-title">Пул активов</h3>}
                 <div className="robots-v2-universe-head-actions">
-                    {displayTickerScan.length > 0 ? (
+                    {!bare && displayTickerScan.length > 0 ? (
                         <span className="robots-v2-hint">{displayTickerScan.length}</span>
-                    ) : displayUniverse.length > 0 ? (
+                    ) : !bare && displayUniverse.length > 0 ? (
                         <span className="robots-v2-hint">{displayUniverse.length}</span>
                     ) : null}
                     {canRefreshUniverse ? (
@@ -78,6 +81,7 @@ export function MonitorUniverseCard({
                     ) : null}
                 </div>
             </div>
+            ) : null}
             <p className="robots-v2-hint robots-v2-universe-caption">
                 Кандидаты и результат последней оценки стратегии
                 {tickerScanAt ? (
@@ -114,6 +118,16 @@ export function MonitorUniverseCard({
                     mobileDetails={r => String(r.message || '—')}
                 />
             )}
+        </>
+    )
+
+    if (bare) {
+        return <div className="robots-v2-monitor-scan">{body}</div>
+    }
+
+    return (
+        <Card className="dashboard-assets-card robots-v2-monitor-scan">
+            {body}
         </Card>
     )
 }

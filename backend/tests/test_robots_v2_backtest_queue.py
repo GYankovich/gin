@@ -236,3 +236,48 @@ def test_handle_backtest_run_calls_execute():
         "archetype": "momentum",
         "token_id": 9,
     }
+
+
+def test_handle_backtest_run_marks_failed_when_worker_cancelled():
+    from app.modules.robots_v2.backtest import worker_handler as wh
+    from app.modules.robots_v2.backtest.service import backtest_service
+
+    row = {
+        "run_id": 77,
+        "user_id": 3,
+        "robot_id": 13,
+        "status": "RUNNING",
+        "cancel_requested": False,
+        "requested_from": datetime(2026, 1, 1, tzinfo=timezone.utc),
+        "requested_to": datetime(2026, 1, 10, tzinfo=timezone.utc),
+        "started_at": datetime(2026, 1, 1, tzinfo=timezone.utc),
+        "initial_capital": 100_000,
+        "config_snapshot": _sample_config_dict(),
+    }
+    updates: list[dict] = []
+
+    async def _exec(*_args, **_kwargs):
+        raise asyncio.CancelledError()
+
+    def _update(_db, run_id, **fields):
+        updates.append({"run_id": run_id, **fields})
+        return True
+
+    async def _run():
+        with (
+            patch.object(wh, "get_db_context") as ctx_mock,
+            patch.object(wh, "fetch_db_run_by_id", return_value=row),
+            patch.object(wh, "update_db_run", side_effect=_update),
+            patch.object(backtest_service, "execute_run", side_effect=_exec),
+        ):
+            ctx_mock.return_value.__enter__ = MagicMock(return_value=MagicMock())
+            ctx_mock.return_value.__exit__ = MagicMock(return_value=False)
+            with pytest.raises(asyncio.CancelledError):
+                await wh.handle_backtest_run({"run_id": 77, "user_id": 3, "token_id": 9})
+
+    asyncio.run(_run())
+    assert len(updates) == 1
+    assert updates[0]["run_id"] == 77
+    assert updates[0]["status"] == "FAILED"
+    assert updates[0]["run_phase"] == "failed"
+    assert updates[0]["error_message"] == wh.WORKER_STOPPED_MESSAGE

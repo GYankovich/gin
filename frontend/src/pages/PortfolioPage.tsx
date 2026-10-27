@@ -10,7 +10,6 @@ import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { Toggle } from '@/components/ui/Toggle'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { PageHero } from '@/components/ui/PageHero'
 import { RobotIllustration } from '@/components/ui/RobotIllustration'
 import { analyticsService } from '@/services/analyticsService'
 import type {
@@ -31,6 +30,7 @@ import {
 } from '@/utils/portfolioFormat'
 import { PortfolioComposition } from '@/components/portfolio/PortfolioComposition'
 import { Tooltip } from '@/components/ui/Tooltip'
+import './DashboardPage.css'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 
 const RETRY_MIN_MS = 1800
@@ -155,6 +155,8 @@ export default function PortfolioPage() {
     const instrumentSeriesRef = useRef<Array<{ figi: string; label: string; series: ISeriesApi<any> }>>([])
     const instrumentPriceLinesRef = useRef<Record<string, any>>({})
     const earliestSnapshotRef = useRef<string | null>(null)
+    const instrumentsFetchRef = useRef<number | null>(null)
+    const hourlyFetchRef = useRef<number | null>(null)
     const snapshotsLoadingMoreGuard = useRef(false)
     const opsLoadingMoreGuard = useRef(false)
 
@@ -204,16 +206,38 @@ export default function PortfolioPage() {
         const periodReady = historyPeriodActive || (!historyFrom && !historyTo)
         if (!periodReady) return
         loadSnapshots(selectedAccountId, { reset: true })
-        loadOperations(selectedAccountId, { reset: true })
     }, [selectedAccountId, historyFrom, historyTo])
+
+    useEffect(() => {
+        if (!selectedAccountId || historyTab !== 'operations') return
+        const periodReady = historyPeriodActive || (!historyFrom && !historyTo)
+        if (!periodReady) return
+        loadOperations(selectedAccountId, { reset: true })
+    }, [selectedAccountId, historyFrom, historyTo, historyTab])
 
     useEffect(() => {
         if (!selectedAccountId) return
         setChartZoom('month')
         earliestSnapshotRef.current = null
+        instrumentsFetchRef.current = null
+        hourlyFetchRef.current = null
         loadStatistics(selectedAccountId)
         loadChartSeries(selectedAccountId)
     }, [selectedAccountId])
+
+    useEffect(() => {
+        if (!selectedAccountId || chartMode !== 'instruments') return
+        if (instrumentsFetchRef.current === selectedAccountId) return
+        instrumentsFetchRef.current = selectedAccountId
+        void loadChartSeries(selectedAccountId, { includeInstruments: true })
+    }, [chartMode, selectedAccountId])
+
+    useEffect(() => {
+        if (!selectedAccountId || chartZoom !== 'day') return
+        if (hourlyFetchRef.current === selectedAccountId) return
+        hourlyFetchRef.current = selectedAccountId
+        void loadChartSeries(selectedAccountId, { hourly: true })
+    }, [chartZoom, selectedAccountId])
 
     useEffect(() => {
         const seriesFigis = (chartData?.instruments_series || [])
@@ -257,33 +281,6 @@ export default function PortfolioPage() {
         setPosLoading(false)
     }
 
-    const resolveEarliestSnapshotDate = async (
-        accId: number,
-        count: number,
-        loaded: PortfolioSnapshotSummary[],
-    ) => {
-        if (count <= 0) {
-            earliestSnapshotRef.current = null
-            return
-        }
-        if (loaded.length >= count) {
-            const oldest = loaded[loaded.length - 1]
-            earliestSnapshotRef.current = oldest?.date ? oldest.date.slice(0, 10) : null
-            return
-        }
-        try {
-            const res = await analyticsService.getSnapshotsByPeriod({
-                account_id: accId,
-                limit: 1,
-                offset: Math.max(0, count - 1),
-            })
-            const oldest = res.history?.[0]
-            earliestSnapshotRef.current = oldest?.date ? oldest.date.slice(0, 10) : null
-        } catch {
-            /* keep previous */
-        }
-    }
-
     const loadSnapshots = async (
         accId: number,
         opts?: { reset?: boolean; offset?: number; from?: string | null; to?: string | null },
@@ -317,7 +314,8 @@ export default function PortfolioPage() {
             setSnapshotsCount(data.count)
             setSnapshots(prev => (reset ? rows : [...prev, ...rows]))
             if (reset && allTime) {
-                await resolveEarliestSnapshotDate(accId, data.count, rows)
+                const earliest = data.earliest_snapshot_date
+                earliestSnapshotRef.current = earliest ? earliest.slice(0, 10) : null
             }
         } catch {
             if (reset) {
@@ -410,12 +408,14 @@ export default function PortfolioPage() {
         setStatsRetrying(false)
     }
 
-    const loadChartSeries = async (accId: number, opts?: { fromRetry?: boolean }) => {
+    const loadChartSeries = async (accId: number, opts?: { fromRetry?: boolean; includeInstruments?: boolean; hourly?: boolean }) => {
         const fromRetry = !!opts?.fromRetry
+        const includeInstruments = !!opts?.includeInstruments
+        const hourly = !!opts?.hourly
         const started = Date.now()
         if (fromRetry) setChartRetrying(true)
-        else setChartLoading(true)
-        setChartError(false)
+        else if (!includeInstruments && !hourly) setChartLoading(true)
+        if (!includeInstruments && !hourly) setChartError(false)
 
         let ok = false
         const { from, to } = resolveObservationWindow()
@@ -424,16 +424,44 @@ export default function PortfolioPage() {
                 account_id: accId,
                 from_date: toApiFromDate(from),
                 to_date: toApiToDate(to),
+                include_instruments: includeInstruments,
+                include_hourly: hourly,
             })
-            setChartData(data)
+            setChartData(prev => {
+                if (hourly && prev) {
+                    return { ...prev, hourly_series: data.hourly_series ?? [] }
+                }
+                if (includeInstruments && prev) {
+                    return {
+                        ...prev,
+                        instruments_series: data.instruments_series,
+                        available_instruments: data.available_instruments,
+                    }
+                }
+                if (!includeInstruments && prev?.instruments_series?.length) {
+                    return {
+                        ...data,
+                        instruments_series: prev.instruments_series,
+                        available_instruments: prev.available_instruments ?? data.available_instruments,
+                        hourly_series: prev.hourly_series,
+                    }
+                }
+                return data
+            })
             ok = true
             const first = data.portfolio_series?.[0]?.date
             if (first && !earliestSnapshotRef.current) {
                 earliestSnapshotRef.current = first.slice(0, 10)
             }
         } catch {
-            setChartData(null)
-            setChartError(true)
+            if (hourly) {
+                hourlyFetchRef.current = null
+            } else if (includeInstruments) {
+                instrumentsFetchRef.current = null
+            } else {
+                setChartData(null)
+                setChartError(true)
+            }
         }
 
         if (fromRetry && !ok) {
@@ -530,17 +558,23 @@ export default function PortfolioPage() {
         loadMoreOperations()
     }
 
+    const chartShowsHourly = chartMode === 'portfolio'
+        && chartZoom === 'day'
+        && (chartData?.hourly_series?.length ?? 0) > 0
+
     const chartHistory = useCallback(() => {
-        const src = chartData?.portfolio_series ?? []
+        const src = chartShowsHourly
+            ? (chartData?.hourly_series ?? [])
+            : (chartData?.portfolio_series ?? [])
         const points: Array<{ time: Time; value: number; timestamp: number }> = []
         for (const h of src) {
-            const ts = new Date(h.date).getTime()
-            const t = toChartTime(h.date)
+            const ts = chartShowsHourly ? new Date(h.date).getTime() : moscowDayStartMs(h.date)
+            const t = chartShowsHourly ? toChartTime(h.date) : toMoscowBusinessDay(h.date)
             if (t == null || Number.isNaN(ts)) continue
             points.push({ time: t, value: Number(h.value ?? 0), timestamp: ts })
         }
         return normalizeSeriesByTime(points)
-    }, [chartData?.portfolio_series])
+    }, [chartData?.portfolio_series, chartData?.hourly_series, chartShowsHourly])
 
     const applyChartZoom = useCallback((chart: IChartApi, zoom: ChartZoom) => {
         const data = chartHistory()
@@ -564,7 +598,7 @@ export default function PortfolioPage() {
             const windowMs = CHART_ZOOM_DAYS[zoom] * 86400000
             let center = maxTs
             try {
-                const range = chart.timeScale().getVisibleRange()
+                const range = zoom === 'day' ? null : chart.timeScale().getVisibleRange()
                 if (range?.from != null && range?.to != null) {
                     const fromMs = typeof range.from === 'number'
                         ? range.from * 1000
@@ -628,8 +662,9 @@ export default function PortfolioPage() {
     useEffect(() => {
         const chart = chartApiRef.current
         if (!chart || chartLoading || chartError) return
+        if (chartZoom === 'day' && !chartShowsHourly) return
         applyChartZoom(chart, chartZoom)
-    }, [chartZoom, applyChartZoom, chartLoading, chartError, chartData, chartMode])
+    }, [chartZoom, chartShowsHourly, applyChartZoom, chartLoading, chartError, chartData, chartMode])
 
     const onChartReady = useCallback((chart: IChartApi | null) => {
         if (!chart) {
@@ -647,9 +682,9 @@ export default function PortfolioPage() {
         const data = chartHistory()
         if (!data.length && chartMode === 'portfolio') return
 
-        const indexByTime = new Map<number, number>()
-        data.forEach((d, idx) => indexByTime.set(Number(d.time), idx))
-        const intraday = isIntradaySeries(data)
+        const indexByTime = new Map<string, number>()
+        data.forEach((d, idx) => indexByTime.set(chartTimeKey(d.time), idx))
+        const intraday = chartShowsHourly
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
 
         let series: ISeriesApi<any> | null = null
@@ -714,8 +749,8 @@ export default function PortfolioPage() {
                     const prepared = normalizeSeriesByTime(
                         (s.points || [])
                             .map(p => {
-                                const t = toChartTime(p.date)
-                                const ts = new Date(p.date).getTime()
+                                const t = toMoscowBusinessDay(p.date)
+                                const ts = moscowDayStartMs(p.date)
                                 if (t == null || Number.isNaN(ts)) return null
                                 return { time: t, value: Number(p.value || 0), timestamp: ts }
                             })
@@ -763,8 +798,7 @@ export default function PortfolioPage() {
             if (chartMode === 'portfolio' && series) {
                 const val = param.seriesData.get(series)
                 if (val && val.value != null) {
-                    const currTime = Number(param.time)
-                    const idx = indexByTime.get(currTime) ?? -1
+                    const idx = indexByTime.get(chartTimeKey(param.time as Time)) ?? -1
                     const prev = idx > 0 ? data[idx - 1]?.value : null
                     const delta = prev != null ? val.value - prev : null
                     const deltaPct = prev != null && prev !== 0 ? (delta! / prev) * 100 : null
@@ -797,7 +831,7 @@ export default function PortfolioPage() {
                 })
             }
         })
-    }, [chartHistory, chartMode, chartData?.instruments_series, selectedFigis, chartZoom, applyChartZoom, isMobile, accountCurrency])
+    }, [chartHistory, chartMode, chartData?.instruments_series, selectedFigis, chartZoom, chartShowsHourly, applyChartZoom, isMobile, accountCurrency])
 
     const handleSnapshotClick = (snapshot: PortfolioSnapshotSummary) => {
         if (selectedAccountId && snapshot.snapshot_id) {
@@ -1024,11 +1058,7 @@ export default function PortfolioPage() {
     if (loading) {
         return (
             <div className="page" data-page="portfolio">
-                <PageHero
-                    className="dashboard-hero--node"
-                    eyebrow="PORTFOLIO NODE"
-                    title="ПОРТФЕЛЬ"
-                />
+                <h1 className="dash-sr-only">Портфель</h1>
                 <PortfolioSkeleton isMobile={isMobile} />
             </div>
         )
@@ -1037,11 +1067,7 @@ export default function PortfolioPage() {
     if (accounts.length === 0) {
         return (
             <div className="page" data-page="portfolio">
-                <PageHero
-                    className="dashboard-hero--node"
-                    eyebrow="PORTFOLIO NODE"
-                    title="ПОРТФЕЛЬ"
-                />
+                <h1 className="dash-sr-only">Портфель</h1>
                 <Card className="dashboard-totals-card dashboard-error-card">
                     <div className="dashboard-error-card__robot" aria-hidden>
                         <RobotIllustration size={96} mode="inactive" interactive={false} />
@@ -1404,7 +1430,7 @@ export default function PortfolioPage() {
                 <Chart
                     height={chartHeight}
                     onReady={onChartReady}
-                    key={`${selectedAccountId}-${chartMode}-${selectedFigis.join(',')}`}
+                    key={`${selectedAccountId}-${chartMode}-${chartShowsHourly ? 'hourly' : 'daily'}-${selectedFigis.join(',')}`}
                 />
             )}
             {isMobile && (
@@ -1559,13 +1585,12 @@ export default function PortfolioPage() {
 
     return (
         <div className="page" data-page="portfolio">
-            <PageHero
-                className="dashboard-hero--node"
-                eyebrow="PORTFOLIO NODE"
-                title="ПОРТФЕЛЬ"
-                actions={(
-                    <Card className="dashboard-totals-card portfolio-toolbar">
-                        <div className="portfolio-toolbar__account">
+            <h1 className="dash-sr-only">Портфель</h1>
+            <div className="dashboard-layout">
+                <div className="dashboard-currency-grid">
+                    {summaryCard}
+                    <div className="portfolio-lead">
+                        <div className="portfolio-account-bar">
                             <Select
                                 options={accounts.map(a => ({
                                     value: String(a.id),
@@ -1577,14 +1602,8 @@ export default function PortfolioPage() {
                                 placeholder="Выберите счёт"
                             />
                         </div>
-                    </Card>
-                )}
-            />
-
-            <div className="dashboard-layout">
-                <div className="dashboard-currency-grid">
-                    {summaryCard}
-                    {chartCard}
+                        {chartCard}
+                    </div>
                 </div>
 
                 <PortfolioComposition
@@ -1981,19 +2000,44 @@ function toChartTime(value: string): Time | null {
     return Math.floor(ms / 1000) as Time
 }
 
-function normalizeSeriesByTime(data: Array<{ time: Time; value: number; timestamp: number }>) {
-    const byTime = new Map<number, { time: Time; value: number; timestamp: number }>()
-    for (const item of data) {
-        byTime.set(Number(item.time), item)
-    }
-    return Array.from(byTime.values()).sort((a, b) => Number(a.time) - Number(b.time))
+function moscowDateParts(value: string): { year: number; month: number; day: number } | null {
+    const ms = new Date(value).getTime()
+    if (Number.isNaN(ms)) return null
+    const key = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Europe/Moscow',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).format(ms)
+    const [year, month, day] = key.split('-').map(Number)
+    if (!year || !month || !day) return null
+    return { year, month, day }
 }
 
-function isIntradaySeries(data: Array<{ timestamp: number }>) {
-    return data.some(p => {
-        const d = new Date(p.timestamp)
-        return d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0
-    })
+function toMoscowBusinessDay(value: string): Time | null {
+    const parts = moscowDateParts(value)
+    return parts ? parts as Time : null
+}
+
+function moscowDayStartMs(value: string): number {
+    const parts = moscowDateParts(value)
+    if (!parts) return Number.NaN
+    return Date.UTC(parts.year, parts.month - 1, parts.day)
+}
+
+function chartTimeKey(time: Time): string {
+    if (typeof time === 'number') return String(time)
+    if (typeof time === 'string') return time
+    const parts = time as { year?: number; month?: number; day?: number }
+    return `${parts.year}-${parts.month}-${parts.day}`
+}
+
+function normalizeSeriesByTime(data: Array<{ time: Time; value: number; timestamp: number }>) {
+    const byTime = new Map<string, { time: Time; value: number; timestamp: number }>()
+    for (const item of data) {
+        byTime.set(chartTimeKey(item.time), item)
+    }
+    return Array.from(byTime.values()).sort((a, b) => a.timestamp - b.timestamp)
 }
 
 function formatCrosshairTime(time: Time): string {

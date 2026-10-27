@@ -111,9 +111,44 @@ def test_operations_response_uses_count_not_total() -> None:
 def test_snapshots_count_all_time_omits_dates() -> None:
     sql, params = queries.build_account_snapshots_count_query(42)
     assert "COUNT(*)" in sql
+    assert "MIN(snapshot_date)" in sql
     assert "from_date" not in params
     assert "to_date" not in params
     assert params["account_id"] == 42
+
+
+def test_daily_history_is_one_close_per_moscow_day() -> None:
+    sql, _ = queries.build_account_daily_history_query(
+        1,
+        datetime(2026, 1, 1, tzinfo=timezone.utc),
+        datetime(2026, 10, 12, tzinfo=timezone.utc),
+    )
+    assert "portfolio_snapshot_daily" in sql
+    assert "UNION ALL" not in sql
+
+
+def test_hourly_history_buckets_the_whole_window() -> None:
+    sql, params = queries.build_account_hourly_history_query(
+        1,
+        datetime(2026, 1, 1, tzinfo=timezone.utc),
+        datetime(2026, 10, 12, tzinfo=timezone.utc),
+    )
+    assert "date_trunc('hour'" in sql
+    assert "Europe/Moscow" in sql
+    assert "portfolio_snapshots" in sql
+    assert params["from_date"] < params["to_date"]
+
+
+def test_instrument_chart_reads_daily_closes() -> None:
+    sql, _ = queries.build_account_instrument_chart_query(
+        1,
+        datetime(2026, 1, 1, tzinfo=timezone.utc),
+        datetime(2026, 10, 12, tzinfo=timezone.utc),
+        [],
+        1,
+    )
+    assert "portfolio_snapshot_daily" in sql
+    assert "portfolio_snapshots ps" not in sql
 
 
 def test_snapshots_page_order_limit_offset() -> None:

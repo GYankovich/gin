@@ -38,9 +38,12 @@ export function Toggle({
 
     if (label == null) {
         return (
-            <span className={['dashboard-settings-toggle-wrap', className].filter(Boolean).join(' ')}>
+            <label
+                className={['dashboard-settings-toggle-wrap', className].filter(Boolean).join(' ')}
+                title={title}
+            >
                 {switchEl}
-            </span>
+            </label>
         )
     }
 

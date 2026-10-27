@@ -272,6 +272,8 @@ export type RobotV2AuditRequest = {
     offset?: number
     sessionId?: string | null
     types?: AuditDataType[]
+    from?: string | null
+    to?: string | null
 }
 
 export type RobotV2AuditSection<T> = {

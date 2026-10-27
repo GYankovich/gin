@@ -296,6 +296,28 @@ function tripPocketValue(row: RobotV2RoundTrip): number | null {
     return Number.isFinite(n) ? n : null
 }
 
+/** True when an instant falls on the current Moscow calendar day. Unix seconds or ms. */
+export function isMoscowToday(isoOrMs: string | number | null | undefined, dayKey = todayMoscowDayKey()): boolean {
+    if (isoOrMs == null || isoOrMs === '') return false
+    const raw = typeof isoOrMs === 'number' ? isoOrMs : Date.parse(String(isoOrMs))
+    if (!Number.isFinite(raw)) return false
+    const ms = raw < 1e12 ? raw * 1000 : raw
+    return moscowDayKey(ms) === dayKey
+}
+
+/** Live orders table: open work stays; closed trips only if they settled today. */
+export function tripOnLiveDay(trip: RobotV2RoundTrip, dayKey = todayMoscowDayKey()): boolean {
+    const status = String(trip.status || '').toLowerCase()
+    if (status === 'open' || status === 'resting' || status === 'submitted' || status === 'new') {
+        return true
+    }
+    const sellAt = pickRoundTripField<string | null>(trip, 'sellAt', 'sell_at')
+    const buyAt = pickRoundTripField<string | null>(trip, 'buyAt', 'buy_at')
+    const stamp = sellAt || buyAt
+    if (!stamp) return true
+    return isMoscowToday(stamp, dayKey)
+}
+
 /** Closed round-trips for the Moscow calendar day (by sell time). */
 export function computeDayTradeStats(trips: RobotV2RoundTrip[], dayKey = todayMoscowDayKey()): DayTradeStats {
     let trades = 0

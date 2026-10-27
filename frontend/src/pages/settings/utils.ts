@@ -30,6 +30,26 @@ export function detectBrokerKind(token: ApiKeyItem): BrokerKind {
     return 'other'
 }
 
+/** Map API broker code / account hints to UI BrokerKind. */
+export function normalizeBrokerKind(raw: string | null | undefined): BrokerKind {
+    const value = String(raw || '').trim().toLowerCase()
+    if (!value) return 'other'
+    if (
+        value === 'tinvest'
+        || value.includes('t-invest')
+        || value.includes('tinkoff')
+        || value.includes('t-bank')
+        || value.includes('tbank')
+    ) {
+        return 'tinvest'
+    }
+    if (value.includes('bybit')) return 'bybit'
+    if (value.includes('binance')) return 'binance'
+    return 'other'
+}
+
+export const BROKER_ORDER: BrokerKind[] = ['tinvest', 'bybit', 'binance', 'other']
+
 export function brokerLabel(kind: BrokerKind): string {
     if (kind === 'tinvest') return 'Т-Инвестиции'
     if (kind === 'bybit') return 'ByBit'

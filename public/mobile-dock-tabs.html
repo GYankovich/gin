@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Табы mobile-dock · варианты</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --card: #12161b;
+    --text: #eceff3;
+    --secondary: #b4bcc6;
+    --muted: #8b939e;
+    --border: rgba(255, 255, 255, 0.08);
+    --picker: #0e1114;
+  }
+  [data-theme='light'] {
+    --bg: #f4f6f8;
+    --card: #ffffff;
+    --text: #0f172a;
+    --secondary: #334155;
+    --muted: #64748b;
+    --border: rgba(15, 23, 42, 0.1);
+    --picker: #ffffff;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: Inter, system-ui, sans-serif;
+    background: #0b0d10;
+    color: #e8eaed;
+  }
+  [data-theme='light'] body { background: #e8eaed; color: #0f172a; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  .picker {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;
+    padding: 14px 22px;
+    background: var(--picker);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+  [data-theme='light'] .picker { border-bottom-color: rgba(15,23,42,.1); }
+  .picker h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .picker p { margin: 2px 0 0; font-size: 13px; color: #8b939c; max-width: 58ch; }
+  .theme-toggle {
+    margin-left: auto;
+    border: 1px solid rgba(255,255,255,.08);
+    background: #181c21;
+    color: #e8eaed;
+    border-radius: 9px;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  [data-theme='light'] .theme-toggle {
+    background: #fff; color: #0f172a; border-color: rgba(15,23,42,.12);
+  }
+
+  .gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 28px;
+    padding: 28px 22px 48px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .card h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  .card p { margin: 4px 0 12px; font-size: 13px; line-height: 1.45; color: #8b939c; max-width: 36ch; }
+
+  .phone {
+    position: relative;
+    width: 100%;
+    max-width: 360px;
+    aspect-ratio: 9 / 16;
+    margin: 0 auto;
+    border-radius: 36px;
+    border: 1px solid rgba(255,255,255,.12);
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,.45);
+  }
+  [data-theme='light'] .phone {
+    border-color: rgba(15,23,42,.14);
+    box-shadow: 0 18px 40px rgba(15,23,42,.1);
+  }
+  .phone__notch {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    width: 96px; height: 22px; border-radius: 999px; background: #0a0c0f; z-index: 3;
+  }
+  [data-theme='light'] .phone__notch { background: #cbd5e1; }
+
+  .screen {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 44px 16px 88px;
+  }
+  .screen__title { font-size: 20px; font-weight: 600; letter-spacing: -.03em; margin-bottom: 14px; }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 16px;
+  }
+  .panel .sub { margin: 0; color: var(--secondary); font-size: 13px; line-height: 1.4; }
+
+  .dock {
+    position: absolute;
+    left: 12px; right: 12px; bottom: 14px;
+    display: flex; align-items: center; gap: 6px;
+    height: 56px; padding: 6px;
+    border-radius: 18px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    box-shadow: 0 12px 32px rgba(0,0,0,.35);
+  }
+  [data-theme='light'] .dock { box-shadow: 0 10px 24px rgba(15,23,42,.08); }
+
+  .dock__logo {
+    width: 22px; height: 22px; margin: 0 8px;
+    filter: brightness(0) invert(1);
+    flex: 0 0 auto;
+  }
+  [data-theme='light'] .dock__logo { filter: brightness(0); }
+
+  .dock__avatar {
+    width: 36px; height: 36px; flex: 0 0 auto;
+    border: 0; background: transparent;
+    color: var(--muted); font-size: 11px; font-weight: 600;
+    border-radius: 999px;
+  }
+
+  .tabs {
+    flex: 1; min-width: 0; height: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .tab {
+    min-width: 0; border: 0; background: transparent;
+    color: var(--muted);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; padding: 4px 2px;
+    transition: color 160ms ease;
+  }
+  .tab.is-on { color: var(--text); }
+  .tab svg { width: 18px; height: 18px; display: block; flex: 0 0 auto; }
+  .tab span {
+    font-size: 10px; font-weight: 500; line-height: 1;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* A — current: icon + label */
+  /* default markup */
+
+  /* B — icons only */
+  .v-icons .tab span { display: none; }
+  .v-icons .tab { gap: 0; }
+
+  /* C — label only on active */
+  .v-label-active .tab:not(.is-on) span {
+    max-height: 0; opacity: 0; overflow: hidden;
+    transform: translateY(2px);
+  }
+  .v-label-active .tab span {
+    transition: opacity 160ms ease, max-height 160ms ease, transform 160ms ease;
+    max-height: 12px; opacity: 1;
+  }
+  .v-label-active .tab:not(.is-on) { gap: 0; }
+
+  /* D — text only */
+  .v-text .tab svg { display: none; }
+  .v-text .tab span { font-size: 12px; font-weight: 500; }
+  .v-text .tab.is-on span { font-weight: 600; }
+
+  /* E — active: icon+label, idle: icon; with weight bump */
+  .v-grow .tab:not(.is-on) span {
+    width: 0; max-width: 0; opacity: 0; overflow: hidden; margin: 0; padding: 0;
+  }
+  .v-grow .tab {
+    flex-direction: row;
+    gap: 6px;
+  }
+  .v-grow .tab.is-on span {
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  /* F — icons + active underline */
+  .v-underline .tab span { display: none; }
+  .v-underline .tab { position: relative; gap: 0; padding-bottom: 8px; }
+  .v-underline .tab::after {
+    content: '';
+    position: absolute; bottom: 4px; left: 50%;
+    width: 14px; height: 2px; border-radius: 1px;
+    background: var(--text);
+    transform: translateX(-50%) scaleX(0);
+    transition: transform 160ms ease;
+  }
+  .v-underline .tab.is-on::after { transform: translateX(-50%) scaleX(1); }
+</style>
+</head>
+<body>
+  <header class="picker">
+    <div>
+      <h1>Варианты табов</h1>
+      <p>Капсула как сейчас: favicon + без заливок. Меняется только блок табов. Тап по табу переключает активный.</p>
+    </div>
+    <button type="button" class="theme-toggle" id="themeToggle">Тема</button>
+  </header>
+
+  <div class="gallery">
+
+    <article class="card">
+      <h2>A. Иконка + текст</h2>
+      <p>Как сейчас. Активный светлее по цвету.</p>
+      <div class="phone" data-v="a">
+        <div class="phone__notch"></div>
+        <div class="screen">
+          <div class="screen__title">Портфель</div>
+          <div class="panel"><p class="sub">Оба сигнала всегда на экране.</p></div>
+        </div>
+        <nav class="dock">
+          <img class="dock__logo" src="/favicon.svg" alt="" />
+          <div class="tabs">
+            <button type="button" class="tab is-on" data-tab data-title="Портфель">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 9.5h16v9.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19V9.5Z" stroke="currentColor" stroke-width="1.5"/><path d="M8.5 9.5V7.2A1.7 1.7 0 0 1 10.2 5.5h3.6A1.7 1.7 0 0 1 15.5 7.2v2.3" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span>Портфель</span>
+            </button>
+            <button type="button" class="tab" data-tab data-title="Роботы">
+              <svg viewBox="0 0 24 24" fill="none"><rect x="5.5" y="7.5" width="13" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M12 4.5v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="4" r="1.25" fill="currentColor"/></svg>
+              <span>Роботы</span>
+            </button>
+            <button type="button" class="tab" data-tab data-title="Лаб">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M9 3.5h6M10 3.5v5.2L5.8 16.4A2.4 2.4 0 0 0 7.9 20h8.2a2.4 2.4 0 0 0 2.1-3.6L14 8.7V3.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              <span>Лаб</span>
+            </button>
+          </div>
+          <button type="button" class="dock__avatar">GY</button>
+        </nav>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>B. Только иконки</h2>
+      <p>Чище и спокойнее. Подписи не нужны, если иконки узнаваемы.</p>
+      <div class="phone" data-v="b">
+        <div class="phone__notch"></div>
+        <div class="screen">
+          <div class="screen__title">Портфель</div>
+          <div class="panel"><p class="sub">Минимум шума в капсуле.</p></div>
+        </div>
+        <nav class="dock v-icons">
+          <img class="dock__logo" src="/favicon.svg" alt="" />
+          <div class="tabs">
+            <button type="button" class="tab is-on" data-tab data-title="Портфель" aria-label="Портфель">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 9.5h16v9.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19V9.5Z" stroke="currentColor" stroke-width="1.5"/><path d="M8.5 9.5V7.2A1.7 1.7 0 0 1 10.2 5.5h3.6A1.7 1.7 0 0 1 15.5 7.2v2.3" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span>Портфель</span>
+            </button>
+            <button type="button" class="tab" data-tab data-title="Роботы" aria-label="Роботы">
+              <svg viewBox="0 0 24 24" fill="none"><rect x="5.5" y="7.5" width="13" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M12 4.5v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="4" r="1.25" fill="currentColor"/></svg>
+              <span>Роботы</span>
+            </button>
+            <button type="button" class="tab" data-tab data-title="Лаб" aria-label="Лаб">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M9 3.5h6M10 3.5v5.2L5.8 16.4A2.4 2.4 0 0 0 7.9 20h8.2a2.4 2.4 0 0 0 2.1-3.6L14 8.7V3.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              <span>Лаб</span>
+            </button>
+          </div>
+          <button type="button" class="dock__avatar">GY</button>
+        </nav>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>C. Текст только у активного</h2>
+      <p>Иконки всегда; подпись появляется у текущего таба.</p>
+      <div class="phone" data-v="c">
+        <div class="phone__notch"></div>
+        <div class="screen">
+          <div class="screen__title">Портфель</div>
+          <div class="panel"><p class="sub">Помогает сориентироваться без постоянного шума.</p></div>
+        </div>
+        <nav class="dock v-label-active">
+          <img class="dock__logo" src="/favicon.svg" alt="" />
+          <div class="tabs">
+            <button type="button" class="tab is-on" data-tab data-title="Портфель">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 9.5h16v9.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19V9.5Z" stroke="currentColor" stroke-width="1.5"/><path d="M8.5 9.5V7.2A1.7 1.7 0 0 1 10.2 5.5h3.6A1.7 1.7 0 0 1 15.5 7.2v2.3" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span>Портфель</span>
+            </button>
+            <button type="button" class="tab" data-tab data-title="Роботы">
+              <svg viewBox="0 0 24 24" fill="none"><rect x="5.5" y="7.5" width="13" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M12 4.5v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="4" r="1.25" fill="currentColor"/></svg>
+              <span>Роботы</span>
+            </button>
+            <button type="button" class="tab" data-tab data-title="Лаб">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M9 3.5h6M10 3.5v5.2L5.8 16.4A2.4 2.4 0 0 0 7.9 20h8.2a2.4 2.4 0 0 0 2.1-3.6L14 8.7V3.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              <span>Лаб</span>
+            </button>
+          </div>
+          <button type="button" class="dock__avatar">GY</button>
+        </nav>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>D. Только текст</h2>
+      <p>Без иконок. Как сегменты на логине, но в ряд.</p>
+      <div class="phone" data-v="d">
+        <div class="phone__notch"></div>
+        <div class="screen">
+          <div class="screen__title">Портфель</div>
+          <div class="panel"><p class="sub">Если иконки мешают — оставляем слова.</p></div>
+        </div>
+        <nav class="dock v-text">
+          <img class="dock__logo" src="/favicon.svg" alt="" />
+          <div class="tabs">
+            <button type="button" class="tab is-on" data-tab data-title="Портфель">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 9.5h16v9.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19V9.5Z" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span>Портфель</span>
+            </button>
+            <button type="button" class="tab" data-tab data-title="Роботы">
+              <svg viewBox="0 0 24 24" fill="none"><rect x="5.5" y="7.5" width="13" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span>Роботы</span>
+            </button>
+            <button type="button" class="tab" data-tab data-title="Лаб">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M9 3.5h6M10 3.5v5.2L5.8 16.4A2.4 2.4 0 0 0 7.9 20h8.2a2.4 2.4 0 0 0 2.1-3.6L14 8.7V3.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              <span>Лаб</span>
+            </button>
+          </div>
+          <button type="button" class="dock__avatar">GY</button>
+        </nav>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>E. Активный растёт в строку</h2>
+      <p>Idle — иконка; active — иконка + подпись в одну линию.</p>
+      <div class="phone" data-v="e">
+        <div class="phone__notch"></div>
+        <div class="screen">
+          <div class="screen__title">Портфель</div>
+          <div class="panel"><p class="sub">Чуть «живое», но без заливок.</p></div>
+        </div>
+        <nav class="dock v-grow">
+          <img class="dock__logo" src="/favicon.svg" alt="" />
+          <div class="tabs">
+            <button type="button" class="tab is-on" data-tab data-title="Портфель">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 9.5h16v9.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19V9.5Z" stroke="currentColor" stroke-width="1.5"/><path d="M8.5 9.5V7.2A1.7 1.7 0 0 1 10.2 5.5h3.6A1.7 1.7 0 0 1 15.5 7.2v2.3" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span>Портфель</span>
+            </button>
+            <button type="button" class="tab" data-tab data-title="Роботы">
+              <svg viewBox="0 0 24 24" fill="none"><rect x="5.5" y="7.5" width="13" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M12 4.5v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="4" r="1.25" fill="currentColor"/></svg>
+              <span>Роботы</span>
+            </button>
+            <button type="button" class="tab" data-tab data-title="Лаб">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M9 3.5h6M10 3.5v5.2L5.8 16.4A2.4 2.4 0 0 0 7.9 20h8.2a2.4 2.4 0 0 0 2.1-3.6L14 8.7V3.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              <span>Лаб</span>
+            </button>
+          </div>
+          <button type="button" class="dock__avatar">GY</button>
+        </nav>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>F. Иконки + чёрточка</h2>
+      <p>Только иконки; активный ещё с тонкой линией снизу.</p>
+      <div class="phone" data-v="f">
+        <div class="phone__notch"></div>
+        <div class="screen">
+          <div class="screen__title">Портфель</div>
+          <div class="panel"><p class="sub">Если цвета мало — лёгкий маркер.</p></div>
+        </div>
+        <nav class="dock v-underline">
+          <img class="dock__logo" src="/favicon.svg" alt="" />
+          <div class="tabs">
+            <button type="button" class="tab is-on" data-tab data-title="Портфель" aria-label="Портфель">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 9.5h16v9.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19V9.5Z" stroke="currentColor" stroke-width="1.5"/><path d="M8.5 9.5V7.2A1.7 1.7 0 0 1 10.2 5.5h3.6A1.7 1.7 0 0 1 15.5 7.2v2.3" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span>Портфель</span>
+            </button>
+            <button type="button" class="tab" data-tab data-title="Роботы" aria-label="Роботы">
+              <svg viewBox="0 0 24 24" fill="none"><rect x="5.5" y="7.5" width="13" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M12 4.5v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="4" r="1.25" fill="currentColor"/></svg>
+              <span>Роботы</span>
+            </button>
+            <button type="button" class="tab" data-tab data-title="Лаб" aria-label="Лаб">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M9 3.5h6M10 3.5v5.2L5.8 16.4A2.4 2.4 0 0 0 7.9 20h8.2a2.4 2.4 0 0 0 2.1-3.6L14 8.7V3.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              <span>Лаб</span>
+            </button>
+          </div>
+          <button type="button" class="dock__avatar">GY</button>
+        </nav>
+      </div>
+    </article>
+
+  </div>
+
+<script>
+  const root = document.documentElement
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    if (root.getAttribute('data-theme') === 'light') root.removeAttribute('data-theme')
+    else root.setAttribute('data-theme', 'light')
+  })
+
+  document.querySelectorAll('.phone').forEach(phone => {
+    phone.querySelectorAll('[data-tab]').forEach(tab => {
+      tab.addEventListener('click', () => {
+        phone.querySelectorAll('[data-tab]').forEach(t => t.classList.remove('is-on'))
+        tab.classList.add('is-on')
+        const title = phone.querySelector('.screen__title')
+        if (title && tab.dataset.title) title.textContent = tab.dataset.title
+      })
+    })
+  })
+</script>
+</body>
+</html>

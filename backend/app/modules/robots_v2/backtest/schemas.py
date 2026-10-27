@@ -54,6 +54,7 @@ class RobotV2BacktestTrade(BaseModel):
     price: float
     quantity: int
     commission: float = 0.0
+    tax: float | None = None
     pnl_net: float | None = None
     reason: str | None = None
     kind: str | None = None
@@ -81,6 +82,33 @@ class RobotV2BacktestObservability(BaseModel):
     signal_log_cap: int = 25_000
     reject_reason_counts: list[RobotV2BacktestRejectReasonCount] = Field(default_factory=list)
     status_counts: dict[str, int] = Field(default_factory=dict)
+    credibility: RobotV2BacktestCredibility | None = None
+
+
+class RobotV2BacktestCostStressCase(BaseModel):
+    final_equity: float = 0.0
+    total_return_percent: float = 0.0
+    extra_cost: float = 0.0
+
+
+class RobotV2BacktestCostStress(BaseModel):
+    commission_plus_50pct: RobotV2BacktestCostStressCase | None = None
+    slippage_x2: RobotV2BacktestCostStressCase | None = None
+    combined: RobotV2BacktestCostStressCase | None = None
+
+
+class RobotV2BacktestCredibility(BaseModel):
+    intrabar_sl_tp: bool = True
+    sl_before_tp: bool = True
+    ndfl: bool = False
+    tax_total: float | None = None
+    liquidity_participation: float = 0.10
+    cost_stress: RobotV2BacktestCostStress | None = None
+    avg_win: float | None = None
+    avg_loss: float | None = None
+    turnover: float | None = None
+    avg_exposure_pct: float | None = None
+    assumptions: str | None = None
 
 
 class RobotV2BacktestFeeSummary(BaseModel):
@@ -88,6 +116,12 @@ class RobotV2BacktestFeeSummary(BaseModel):
     funding_total: float = 0.0
     funding_events: int = 0
     tax_total: float | None = None
+    cost_stress: RobotV2BacktestCostStress | None = None
+    avg_win: float | None = None
+    avg_loss: float | None = None
+    turnover: float | None = None
+    avg_exposure_pct: float | None = None
+    assumptions: str | None = None
 
 
 class RobotV2BacktestResultPayload(BaseModel):
@@ -102,6 +136,7 @@ class RobotV2BacktestResultPayload(BaseModel):
     daily_summary: list[dict[str, Any]] = Field(default_factory=list)
     observability: RobotV2BacktestObservability | None = None
     fee_summary: RobotV2BacktestFeeSummary | None = None
+    credibility: RobotV2BacktestCredibility | None = None
     engine_version: str = "v2"
 
 
@@ -129,6 +164,8 @@ class RobotV2BacktestNarrativeStep(BaseModel):
     step: int
     text: str
     ts: str | None = None
+    cycle_id: str | None = None
+    ticker: str | None = None
 
 
 class RobotV2BacktestDetailsResponse(RobotV2BacktestStatusResponse):
@@ -140,6 +177,7 @@ class RobotV2BacktestDetailsResponse(RobotV2BacktestStatusResponse):
     calmar_ratio: float | None = None
     win_rate_percent: float | None = None
     trades_total: int = 0
+    config_snapshot: dict[str, Any] = Field(default_factory=dict)
     result_payload: dict[str, Any] = Field(default_factory=dict)
     signals: list[dict[str, Any]] = Field(default_factory=list)
     orders: list[dict[str, Any]] = Field(default_factory=list)
@@ -231,6 +269,8 @@ class RobotV2BacktestListItem(BaseModel):
     win_rate_percent: float | None = None
     final_equity: float | None = None
     trades_total: int = 0
+    signals_logged: int = 0
+    signals_truncated: bool = False
     error_message: str | None = None
 
 

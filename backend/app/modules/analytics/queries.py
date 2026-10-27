@@ -41,7 +41,7 @@ def build_accounts_summary_query(
                  """
 
     params = {"user_id": user_id}
-    conditions = []
+    conditions = ["COALESCE(pa.dashboard_hidden, 0) = 0"]
 
     if not include_inactive:
         conditions.append("UPPER(pa.account_status) = 'OPEN'")
@@ -219,7 +219,8 @@ def build_account_ownership_check_query(
     return """
            SELECT id, account_id, account_name, account_type, account_status
            FROM portfolio_accounts
-           WHERE id = :account_id AND user_id = :user_id \
+           WHERE id = :account_id AND user_id = :user_id
+             AND COALESCE(dashboard_hidden, 0) = 0 \
            """, {"account_id": account_id, "user_id": user_id}
 
 
@@ -440,7 +441,7 @@ def build_account_snapshots_count_query(
         _optional_date_range_clauses("snapshot_date", from_date, to_date, params)
     )
     query = f"""
-        SELECT COUNT(*)::int AS count
+        SELECT COUNT(*)::int AS count, MIN(snapshot_date) AS earliest_snapshot_date
         FROM portfolio_snapshots
         WHERE {' AND '.join(conditions)}
     """
@@ -572,6 +573,52 @@ def build_account_operations_query(
     return query, params
 
 
+def build_account_daily_history_query(
+        account_id: int,
+        from_date: datetime,
+        to_date: datetime,
+) -> tuple[str, Dict[str, Any]]:
+    """Last snapshot of each Moscow day inside the window."""
+    return """
+        SELECT id, snapshot_date, total_amount_portfolio, daily_yield, expected_yield
+        FROM portfolio_snapshot_daily
+        WHERE account_id = :account_id
+          AND snapshot_date >= :from_date
+          AND snapshot_date <= :to_date
+        ORDER BY snapshot_date ASC
+    """, {"account_id": account_id, "from_date": from_date, "to_date": to_date}
+
+
+def build_account_hourly_history_query(
+        account_id: int,
+        from_date: datetime,
+        to_date: datetime,
+) -> tuple[str, Dict[str, Any]]:
+    """Last snapshot of each Europe/Moscow hour inside the window."""
+    return """
+        SELECT id, snapshot_date, total_amount_portfolio, daily_yield, expected_yield
+        FROM (
+            SELECT DISTINCT ON (date_trunc('hour', timezone('Europe/Moscow', ps.snapshot_date)))
+                ps.id,
+                (
+                    date_trunc('hour', timezone('Europe/Moscow', ps.snapshot_date))
+                    AT TIME ZONE 'Europe/Moscow'
+                ) AS snapshot_date,
+                ps.total_amount_portfolio,
+                ps.daily_yield,
+                ps.expected_yield
+            FROM portfolio_snapshots ps
+            WHERE ps.account_id = :account_id
+              AND ps.snapshot_date >= :from_date
+              AND ps.snapshot_date <= :to_date
+            ORDER BY
+                date_trunc('hour', timezone('Europe/Moscow', ps.snapshot_date)),
+                ps.snapshot_date DESC
+        ) hourly
+        ORDER BY snapshot_date ASC
+    """, {"account_id": account_id, "from_date": from_date, "to_date": to_date}
+
+
 def build_available_instruments_query(account_id: int) -> tuple[str, Dict[str, Any]]:
     """Строит запрос доступных инструментов из последнего снимка."""
     return """
@@ -603,7 +650,7 @@ def build_account_instrument_chart_query(
             MAX(pp.ticker) AS ticker,
             MAX(COALESCE(ts.name, ts.shortname)) AS name,
             SUM(pp.quantity * pp.current_price) AS value
-        FROM portfolio_snapshots ps
+        FROM portfolio_snapshot_daily ps
         JOIN portfolio_positions pp ON pp.snapshot_id = ps.id
         LEFT JOIN tqbr_securities ts
             ON UPPER(TRIM(replace(pp.ticker, '@', ''))) = UPPER(TRIM(ts.secid))
@@ -704,9 +751,17 @@ def build_account_period_operations_query(
         from_date: datetime,
         to_date: datetime,
 ) -> tuple[str, Dict[str, Any]]:
-    """Строит запрос операций счета за отчетный период."""
+    """Суммы денежных потоков за период: ввод, вывод, дивиденды, комиссии, налоги."""
     return """
-        SELECT operation_type, payment
+        SELECT
+            COALESCE(SUM(payment) FILTER (WHERE operation_type = 'OPERATION_TYPE_INPUT'), 0),
+            COALESCE(SUM(payment) FILTER (WHERE operation_type = 'OPERATION_TYPE_OUTPUT'), 0),
+            COALESCE(SUM(payment) FILTER (WHERE operation_type = 'OPERATION_TYPE_DIVIDEND'), 0),
+            COALESCE(SUM(payment) FILTER (WHERE operation_type = 'OPERATION_TYPE_TRACK_MFEE'), 0),
+            COALESCE(SUM(payment) FILTER (WHERE operation_type = 'OPERATION_TYPE_TRACK_PFEE'), 0),
+            COALESCE(SUM(payment) FILTER (
+                WHERE operation_type IN ('OPERATION_TYPE_TAX', 'OPERATION_TYPE_DIVIDEND_TAX')
+            ), 0)
         FROM portfolio_operations
         WHERE account_id = :account_id
           AND operation_date >= :from_date

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Настройки — структурные варианты</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --card: #12161b;
+    --input: #181c22;
+    --elevated: #1b2027;
+    --text: #eceff3;
+    --secondary: #b4bcc6;
+    --muted: #8b939e;
+    --border: rgba(255,255,255,0.08);
+    --line: rgba(255,255,255,0.14);
+    --up: #3dbe7a;
+    --picker: #0e1114;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: Inter, system-ui, sans-serif;
+    background: var(--picker);
+    color: var(--text);
+  }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+
+  .picker {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 20px;
+    padding: 14px 22px;
+    background: var(--picker);
+    border-bottom: 1px solid var(--border);
+  }
+  .picker h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .picker p { margin: 4px 0 0; max-width: 70ch; font-size: 13px; color: var(--muted); line-height: 1.45; }
+  .modes {
+    display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; margin-left: auto;
+    background: var(--input); border-radius: 12px; max-width: 100%;
+  }
+  .modes button {
+    border: 1px solid transparent; background: transparent; color: var(--muted);
+    border-radius: 9px; padding: 8px 12px; font-size: 13px; font-weight: 500;
+  }
+  .modes button.is-on {
+    background: var(--elevated); color: var(--text); border-color: var(--line);
+  }
+
+  .stage { min-height: calc(100vh - 80px); padding: 24px 20px 48px; background: var(--bg); }
+  .wrap { width: min(960px, 100%); margin: 0 auto; }
+  .refs {
+    margin: 0 0 16px; padding: 12px 14px;
+    border: 1px solid var(--border); border-radius: 12px;
+    background: color-mix(in srgb, var(--card) 80%, transparent);
+    font-size: 13px; color: var(--secondary); line-height: 1.45;
+  }
+  .refs strong { color: var(--text); }
+
+  .screen { display: none; }
+  body[data-mode='now'] [data-screen='now'],
+  body[data-mode='stack'] [data-screen='stack'],
+  body[data-mode='tabs'] [data-screen='tabs'],
+  body[data-mode='rail'] [data-screen='rail'],
+  body[data-mode='tables'] [data-screen='tables'],
+  body[data-mode='accordion'] [data-screen='accordion'] { display: block; }
+
+  .top { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  }
+  .profile, .theme {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px; min-height: 56px;
+  }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 999px; display: grid; place-items: center;
+    background: var(--input); border: 1px solid var(--border); font-size: 12px; font-weight: 600;
+  }
+  .login { font-size: 14.5px; font-weight: 600; }
+  .meta { font-size: 12.5px; color: var(--muted); }
+  .theme-tabs {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px; width: 100%;
+    background: var(--input); border-radius: 10px;
+  }
+  .theme-tabs span {
+    text-align: center; padding: 7px 6px; border-radius: 7px; font-size: 13px; color: var(--muted);
+  }
+  .theme-tabs span.on {
+    background: var(--elevated); color: var(--text); border: 1px solid var(--line);
+  }
+
+  .toolbar {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 10px; padding: 0 2px; font-size: 13px; color: var(--muted);
+  }
+  .toolbar b { color: var(--secondary); font-weight: 500; }
+
+  .broker { padding: 10px 14px 12px; margin-bottom: 8px; }
+  .broker-h {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+    font-size: 13px; font-weight: 500; color: var(--secondary);
+  }
+  .dot { width: 14px; height: 14px; border-radius: 4px; background: #2a313a; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 28px; }
+  .label {
+    display: block; margin-bottom: 2px; font-size: 11px; font-weight: 500;
+    letter-spacing: 0.02em; text-transform: uppercase; color: var(--muted);
+  }
+  .row {
+    display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 10px; align-items: center;
+    min-height: 34px; padding: 4px 0; border-top: 1px solid var(--border); font-size: 13.5px;
+  }
+  .row:first-of-type { border-top: 0; }
+  .row .m { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  .row .m.up { color: var(--up); font-weight: 500; }
+  .tog {
+    width: 34px; height: 20px; border-radius: 999px; background: #e8eaed; position: relative;
+  }
+  .tog::after {
+    content: ''; position: absolute; top: 2px; right: 2px; width: 16px; height: 16px;
+    border-radius: 999px; background: #13161a;
+  }
+  .tog.off { background: var(--input); }
+  .tog.off::after { right: auto; left: 2px; background: var(--muted); }
+
+  /* STACK — one broker card, vertical sections */
+  .stack-sec { margin-top: 10px; }
+  .stack-sec + .stack-sec {
+    margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
+  }
+
+  /* TABS */
+  .seg {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; margin: 8px 0 10px;
+    background: var(--input); border-radius: 10px;
+  }
+  .seg span {
+    text-align: center; padding: 7px; border-radius: 7px; font-size: 13px; color: var(--muted);
+  }
+  .seg span.on {
+    background: var(--elevated); color: var(--text); border: 1px solid var(--line);
+  }
+
+  /* RAIL */
+  .rail {
+    display: grid; grid-template-columns: 200px minmax(0,1fr); gap: 12px; align-items: start;
+  }
+  .rail-nav {
+    padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--card);
+  }
+  .rail-nav button {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 9px 10px; border-radius: 8px; font-size: 13.5px; color: var(--muted); text-align: left;
+  }
+  .rail-nav button.on { background: var(--input); color: var(--text); }
+  .rail-main { padding: 12px 14px; }
+
+  /* TABLES */
+  .section-h {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin: 0 0 8px; padding: 0 2px; font-size: 13px; color: var(--muted);
+  }
+  .table {
+    width: 100%; border-collapse: collapse; font-size: 13.5px;
+  }
+  .table th {
+    text-align: left; font-size: 11px; font-weight: 500; letter-spacing: 0.02em;
+    text-transform: uppercase; color: var(--muted); padding: 8px 12px; border-bottom: 1px solid var(--border);
+  }
+  .table td {
+    padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle;
+  }
+  .table tr:last-child td { border-bottom: 0; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 2px 8px; border-radius: 999px; background: var(--input);
+    font-size: 12px; color: var(--secondary);
+  }
+  .table-wrap { padding: 0; overflow: hidden; margin-bottom: 14px; }
+
+  /* ACCORDION */
+  .acc {
+    border: 1px solid var(--border); border-radius: 12px; background: var(--card);
+    margin-bottom: 8px; overflow: hidden;
+  }
+  .acc-h {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; padding: 12px 14px; font-size: 13.5px; font-weight: 500; color: var(--text);
+  }
+  .acc-h .l { display: flex; align-items: center; gap: 8px; color: var(--secondary); font-weight: 500; }
+  .acc-h .c { font-size: 12.5px; color: var(--muted); font-weight: 400; }
+  .acc-b { display: none; padding: 0 14px 12px; border-top: 1px solid var(--border); }
+  .acc.open .acc-b { display: block; }
+  .acc.open .acc-h { padding-bottom: 10px; }
+
+  @media (max-width: 720px) {
+    .top, .cols, .rail { grid-template-columns: 1fr; }
+    .modes { margin-left: 0; }
+  }
+</style>
+</head>
+<body data-mode="now">
+  <div class="picker">
+    <div>
+      <h1>Структура брокеров</h1>
+      <p>Не плотность, а компоновка. Сейчас — «Now». Отменённый стек отдельных карточек сюда не включён.</p>
+    </div>
+    <div class="modes" role="tablist">
+      <button type="button" data-mode="now" class="is-on">Now</button>
+      <button type="button" data-mode="stack">Stack</button>
+      <button type="button" data-mode="tabs">Tabs</button>
+      <button type="button" data-mode="rail">Rail</button>
+      <button type="button" data-mode="tables">Tables</button>
+      <button type="button" data-mode="accordion">Accordion</button>
+    </div>
+  </div>
+
+  <div class="stage"><div class="wrap">
+
+    <!-- NOW -->
+    <div class="screen" data-screen="now">
+      <div class="refs"><strong>Сейчас.</strong> Одна карточка брокера, две колонки: токены | счета. Компактно по ширине, но глаз скачет влево–вправо.</div>
+      <div class="top">
+        <div class="card profile"><div class="avatar">GY</div><div><div class="login">gy <span class="meta">с 12.03.2024</span></div><div class="meta">gy@ginity.ru</div></div></div>
+        <div class="card theme"><div class="theme-tabs"><span class="on">Тёмная</span><span>Светлая</span><span>Система</span></div></div>
+      </div>
+      <div class="toolbar"><span>Брокеры</span><b>+ токен</b></div>
+      <div class="card broker">
+        <div class="broker-h"><span class="dot"></span> T-Invest</div>
+        <div class="cols">
+          <div>
+            <span class="label">Токены</span>
+            <div class="row"><span>Prod key</span><span class="m up">Активный · 2ч</span></div>
+            <div class="row"><span>Sandbox</span><span class="m">Неактивен</span></div>
+          </div>
+          <div>
+            <span class="label">Счета</span>
+            <div class="row"><span>Брокерский</span><span class="m">1 240 500 ₽</span><span class="tog"></span></div>
+            <div class="row"><span>ИИС</span><span class="m">312 000 ₽</span><span class="tog"></span></div>
+          </div>
+        </div>
+      </div>
+      <div class="card broker">
+        <div class="broker-h"><span class="dot"></span> Bybit</div>
+        <div class="cols">
+          <div><span class="label">Токены</span><div class="row"><span>Trading</span><span class="m up">Активный</span></div></div>
+          <div><span class="label">Счета</span><div class="row"><span>Unified</span><span class="m">$4 210</span><span class="tog"></span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STACK -->
+    <div class="screen" data-screen="stack">
+      <div class="refs"><strong>Stack · Notion / Linear section.</strong> Та же карточка брокера, но секции друг под другом: сначала все токены, ниже счета. Один поток чтения сверху вниз, без отдельных мини-карточек.</div>
+      <div class="top">
+        <div class="card profile"><div class="avatar">GY</div><div><div class="login">gy <span class="meta">с 12.03.2024</span></div><div class="meta">gy@ginity.ru</div></div></div>
+        <div class="card theme"><div class="theme-tabs"><span class="on">Тёмная</span><span>Светлая</span><span>Система</span></div></div>
+      </div>
+      <div class="toolbar"><span>Брокеры</span><b>+ токен</b></div>
+      <div class="card broker">
+        <div class="broker-h"><span class="dot"></span> T-Invest</div>
+        <div class="stack-sec">
+          <span class="label">Токены</span>
+          <div class="row"><span>Prod key</span><span class="m up">Активный · 2ч</span></div>
+          <div class="row"><span>Sandbox</span><span class="m">Неактивен</span></div>
+        </div>
+        <div class="stack-sec">
+          <span class="label">Счета</span>
+          <div class="row"><span>Брокерский</span><span class="m">1 240 500 ₽</span><span class="tog"></span></div>
+          <div class="row"><span>ИИС</span><span class="m">312 000 ₽</span><span class="tog"></span></div>
+        </div>
+      </div>
+      <div class="card broker">
+        <div class="broker-h"><span class="dot"></span> Bybit</div>
+        <div class="stack-sec">
+          <span class="label">Токены</span>
+          <div class="row"><span>Trading</span><span class="m up">Активный</span></div>
+        </div>
+        <div class="stack-sec">
+          <span class="label">Счета</span>
+          <div class="row"><span>Unified</span><span class="m">$4 210</span><span class="tog"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="screen" data-screen="tabs">
+      <div class="refs"><strong>Tabs · GitHub org settings.</strong> В карточке брокера сегмент Токены / Счета — виден только один список. Меньше шума, больше кликов.</div>
+      <div class="top">
+        <div class="card profile"><div class="avatar">GY</div><div><div class="login">gy <span class="meta">с 12.03.2024</span></div><div class="meta">gy@ginity.ru</div></div></div>
+        <div class="card theme"><div class="theme-tabs"><span class="on">Тёмная</span><span>Светлая</span><span>Система</span></div></div>
+      </div>
+      <div class="toolbar"><span>Брокеры</span><b>+ токен</b></div>
+      <div class="card broker">
+        <div class="broker-h"><span class="dot"></span> T-Invest</div>
+        <div class="seg"><span class="on">Токены</span><span>Счета</span></div>
+        <div class="row"><span>Prod key</span><span class="m up">Активный · 2ч</span></div>
+        <div class="row"><span>Sandbox</span><span class="m">Неактивен</span></div>
+      </div>
+      <div class="card broker">
+        <div class="broker-h"><span class="dot"></span> Bybit</div>
+        <div class="seg"><span class="on">Токены</span><span>Счета</span></div>
+        <div class="row"><span>Trading</span><span class="m up">Активный</span></div>
+      </div>
+    </div>
+
+    <!-- RAIL -->
+    <div class="screen" data-screen="rail">
+      <div class="refs"><strong>Rail · Vercel / Stripe settings.</strong> Слева список брокеров, справа контент выбранного. Масштабируется, если брокеров станет много; на мобилке — селект сверху.</div>
+      <div class="top">
+        <div class="card profile"><div class="avatar">GY</div><div><div class="login">gy <span class="meta">с 12.03.2024</span></div><div class="meta">gy@ginity.ru</div></div></div>
+        <div class="card theme"><div class="theme-tabs"><span class="on">Тёмная</span><span>Светлая</span><span>Система</span></div></div>
+      </div>
+      <div class="toolbar"><span>Брокеры</span><b>+ токен</b></div>
+      <div class="rail">
+        <nav class="rail-nav">
+          <button type="button" class="on"><span class="dot"></span> T-Invest</button>
+          <button type="button"><span class="dot"></span> Bybit</button>
+          <button type="button"><span class="dot"></span> Binance</button>
+        </nav>
+        <div class="card rail-main">
+          <div class="broker-h"><span class="dot"></span> T-Invest</div>
+          <div class="stack-sec">
+            <span class="label">Токены</span>
+            <div class="row"><span>Prod key</span><span class="m up">Активный · 2ч</span></div>
+            <div class="row"><span>Sandbox</span><span class="m">Неактивен</span></div>
+          </div>
+          <div class="stack-sec">
+            <span class="label">Счета</span>
+            <div class="row"><span>Брокерский</span><span class="m">1 240 500 ₽</span><span class="tog"></span></div>
+            <div class="row"><span>ИИС</span><span class="m">312 000 ₽</span><span class="tog"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABLES -->
+    <div class="screen" data-screen="tables">
+      <div class="refs"><strong>Tables · Stripe billing / Linear members.</strong> Два глобальных блока на всю ширину: все токены, потом все счета. Брокер — чип в строке. Лучший скан, слабее «по брокеру».</div>
+      <div class="top">
+        <div class="card profile"><div class="avatar">GY</div><div><div class="login">gy <span class="meta">с 12.03.2024</span></div><div class="meta">gy@ginity.ru</div></div></div>
+        <div class="card theme"><div class="theme-tabs"><span class="on">Тёмная</span><span>Светлая</span><span>Система</span></div></div>
+      </div>
+      <div class="section-h"><span>Токены</span><b>+ токен</b></div>
+      <div class="card table-wrap">
+        <table class="table">
+          <thead><tr><th>Имя</th><th>Брокер</th><th>Статус</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>Prod key</td><td><span class="chip"><span class="dot"></span>T-Invest</span></td><td class="m up" style="color:var(--up)">Активный</td><td class="m">2ч</td></tr>
+            <tr><td>Sandbox</td><td><span class="chip"><span class="dot"></span>T-Invest</span></td><td class="m">Неактивен</td><td class="m">—</td></tr>
+            <tr><td>Trading</td><td><span class="chip"><span class="dot"></span>Bybit</span></td><td style="color:var(--up)">Активный</td><td class="m">вчера</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="section-h"><span>Счета</span></div>
+      <div class="card table-wrap">
+        <table class="table">
+          <thead><tr><th>Счёт</th><th>Брокер</th><th>Стоимость</th><th>На дашборде</th></tr></thead>
+          <tbody>
+            <tr><td>Брокерский</td><td><span class="chip"><span class="dot"></span>T-Invest</span></td><td>1 240 500 ₽</td><td><span class="tog"></span></td></tr>
+            <tr><td>ИИС</td><td><span class="chip"><span class="dot"></span>T-Invest</span></td><td>312 000 ₽</td><td><span class="tog"></span></td></tr>
+            <tr><td>Unified</td><td><span class="chip"><span class="dot"></span>Bybit</span></td><td>$4 210</td><td><span class="tog"></span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ACCORDION -->
+    <div class="screen" data-screen="accordion">
+      <div class="refs"><strong>Accordion · Apple Settings / Cognito.</strong> Брокеры свёрнуты; открыт один. Спокойный экран, если брокеров много, но хуже обзор «всего сразу».</div>
+      <div class="top">
+        <div class="card profile"><div class="avatar">GY</div><div><div class="login">gy <span class="meta">с 12.03.2024</span></div><div class="meta">gy@ginity.ru</div></div></div>
+        <div class="card theme"><div class="theme-tabs"><span class="on">Тёмная</span><span>Светлая</span><span>Система</span></div></div>
+      </div>
+      <div class="toolbar"><span>Брокеры</span><b>+ токен</b></div>
+      <div class="acc open">
+        <button type="button" class="acc-h"><span class="l"><span class="dot"></span> T-Invest</span><span class="c">2 токена · 2 счёта</span></button>
+        <div class="acc-b">
+          <div class="stack-sec">
+            <span class="label">Токены</span>
+            <div class="row"><span>Prod key</span><span class="m up">Активный · 2ч</span></div>
+            <div class="row"><span>Sandbox</span><span class="m">Неактивен</span></div>
+          </div>
+          <div class="stack-sec">
+            <span class="label">Счета</span>
+            <div class="row"><span>Брокерский</span><span class="m">1 240 500 ₽</span><span class="tog"></span></div>
+            <div class="row"><span>ИИС</span><span class="m">312 000 ₽</span><span class="tog"></span></div>
+          </div>
+        </div>
+      </div>
+      <div class="acc">
+        <button type="button" class="acc-h"><span class="l"><span class="dot"></span> Bybit</span><span class="c">1 токен · 1 счёт</span></button>
+      </div>
+      <div class="acc">
+        <button type="button" class="acc-h"><span class="l"><span class="dot"></span> Binance</span><span class="c">пусто</span></button>
+      </div>
+    </div>
+
+  </div></div>
+
+  <script>
+    const body = document.body;
+    document.querySelectorAll('.modes button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.modes button').forEach((b) => b.classList.remove('is-on'));
+        btn.classList.add('is-on');
+        body.dataset.mode = btn.dataset.mode;
+      });
+    });
+  </script>
+</body>
+</html>

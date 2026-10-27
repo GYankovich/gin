@@ -249,10 +249,22 @@ class BacktestService:
     ) -> RobotV2BacktestStatusResponse:
         # DB is source of truth across API / compute processes.
         if db is not None:
-            row = fetch_db_run(db, run_id, user_id=user_id)
+            row = fetch_db_run(
+                db,
+                run_id,
+                user_id=user_id,
+                include_artifacts=False,
+            )
             if row is not None:
                 mem = await backtest_run_store.get(run_id, user_id=user_id)
-                if mem is not None and str(mem.status).upper() == "RUNNING":
+                db_status = str(row.get("status") or "").upper()
+                # A dead worker can leave in-process memory on RUNNING after the
+                # row is already FAILED/CANCELLED. Terminal DB status wins.
+                if (
+                    mem is not None
+                    and str(mem.status).upper() == "RUNNING"
+                    and db_status not in ("SUCCESS", "FAILED", "CANCELLED")
+                ):
                     row = {
                         **row,
                         "progress_percent": mem.progress_percent or row.get("progress_percent"),
@@ -904,32 +916,6 @@ class BacktestService:
                 sim_done = True
                 await pump_task
 
-            if self._is_cancelled(run_id):
-                finished = datetime.now(timezone.utc)
-                await backtest_run_store.update(
-                    run_id,
-                    status="CANCELLED",
-                    run_phase="cancelled",
-                    phase_label="Cancelled",
-                    finished_at=finished,
-                    progress_percent=100.0,
-                )
-                update_db_run_required(
-                    db, run_id,
-                    status="CANCELLED",
-                    run_phase="cancelled",
-                    finished_at=finished,
-                    progress_percent=100,
-                    cancel_requested=True,
-                    partial_result=True,
-                )
-                return
-
-            if result.history_stats.get("bars", 1) == 0 or (
-                result.stages and result.stages[0] == "No candle data in requested range"
-            ):
-                raise ValueError("No candle data in requested range after simulation host")
-
             payload = {
                 "initial_capital": result.initial_capital,
                 "final_equity": result.final_equity,
@@ -950,11 +936,58 @@ class BacktestService:
                     else "moex"
                 ),
                 "engine_version": "v2",
-                "observability": build_observability(
-                    result.signals,
-                    history_stats={**(result.history_stats or {}), **universe_stats},
-                ),
+                "credibility": result.credibility,
+                "observability": {
+                    **build_observability(
+                        result.signals,
+                        history_stats={**(result.history_stats or {}), **universe_stats},
+                    ),
+                    **({"credibility": result.credibility} if result.credibility else {}),
+                },
             }
+
+            if self._is_cancelled(run_id):
+                finished = datetime.now(timezone.utc)
+                risk_metrics = persist_result_payload(
+                    db,
+                    run_id,
+                    payload,
+                    orders=result.orders,
+                    portfolio_snapshots=result.portfolio_snapshots,
+                    signals=result.signals,
+                    universe_by_day=universe_by_day or result.universe_by_day,
+                    execution_events=result.execution_events,
+                )
+                payload.update(risk_metrics)
+                await backtest_run_store.update(
+                    run_id,
+                    status="CANCELLED",
+                    run_phase="cancelled",
+                    phase_label="Cancelled",
+                    finished_at=finished,
+                    progress_percent=100.0,
+                    result_payload=payload,
+                    portfolio_snapshots=result.portfolio_snapshots,
+                    orders=result.orders,
+                    signals=result.signals,
+                    daily_summary=result.daily_summary,
+                )
+                update_db_run_required(
+                    db, run_id,
+                    status="CANCELLED",
+                    run_phase="cancelled",
+                    finished_at=finished,
+                    progress_percent=100,
+                    cancel_requested=True,
+                    partial_result=True,
+                )
+                return
+
+            if result.history_stats.get("bars", 1) == 0 or (
+                result.stages and result.stages[0] == "No candle data in requested range"
+            ):
+                raise ValueError("No candle data in requested range after simulation host")
+
             finished = datetime.now(timezone.utc)
             await backtest_run_store.update(
                 run_id,
@@ -1022,11 +1055,6 @@ class BacktestService:
             return tickers[: u.max_assets]
 
         token_id = request.token_id
-        if token_id is None:
-            raise HTTPException(
-                status_code=422,
-                detail="tokenId is required for index/screener universe in backtest",
-            )
         resolved = await universe_service.resolve(
             db,
             user_id,

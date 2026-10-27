@@ -1,14 +1,98 @@
 #///EPIC Modules.ITEM Module.TOPIC BackendAppModulesAuthSchemas [1]
 #/// Исходный модуль `backend/app/modules/auth/schemas.py` — автоматическая разметка для Obsidian Source Scanner.
 
+import re
 from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel, Field, EmailStr, field_validator, model_validator
 
 class LoginRequest(BaseModel):
-    """Схема для запроса на вход"""
+    """Схема для запроса на вход. Поле login — почта или прежний логин."""
     login: str = Field(..., min_length=2, max_length=128)
     password: str = Field(..., min_length=3)
+
+
+class RegisterRequest(BaseModel):
+    """Саморегистрация: логин, почта и пароль. Аккаунт создаётся после кода из письма."""
+    login: str = Field(..., min_length=3, max_length=32)
+    email: EmailStr = Field(..., max_length=128)
+    password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("login", mode="before")
+    @classmethod
+    def normalize_login(cls, value):
+        if not isinstance(value, str):
+            return value
+        login = value.strip()
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{2,31}", login):
+            raise ValueError("Логин: 3–32 символа, латиница, цифры, точка, _ или -")
+        return login
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value):
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
+
+
+CONFIRMATION_CODE_REQUIRED = "confirmation_code_required"
+
+
+class RegisterPendingResponse(BaseModel):
+    """Пароль принят, сессии ещё нет. dev_code заполнен только в разработке без SMTP."""
+    status: str = CONFIRMATION_CODE_REQUIRED
+    email: str
+    dev_code: Optional[str] = None
+
+
+class ConfirmRegisterRequest(BaseModel):
+    email: EmailStr = Field(..., max_length=128)
+    code: str = Field(..., min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value):
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
+
+    @field_validator("code", mode="before")
+    @classmethod
+    def strip_code(cls, value):
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+
+class PasswordForgotRequest(BaseModel):
+    login: str = Field(..., min_length=2, max_length=128)
+
+
+class PasswordForgotResponse(BaseModel):
+    status: str = "accepted"
+    dev_link: Optional[str] = None
+
+
+class PasswordResetPreview(BaseModel):
+    login: str
+    email: str
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str = Field(..., min_length=20, max_length=256)
+    password: str = Field(..., min_length=8, max_length=128)
+
+
+class ResendRegisterRequest(BaseModel):
+    email: EmailStr = Field(..., max_length=128)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value):
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
 
 class TokenResponse(BaseModel):
     """Схема ответа с токеном"""

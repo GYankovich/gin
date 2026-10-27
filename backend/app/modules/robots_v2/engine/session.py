@@ -6,7 +6,7 @@ import asyncio
 import logging
 import time
 from collections import deque
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -30,10 +30,20 @@ from app.modules.robots_v2.engine.audit import (
 )
 from app.modules.robots_v2.engine.event_bus import event_bus
 from app.modules.robots_v2.engine.execution import ExecutionService, attach_ticker_warnings
+from app.modules.robots_v2.engine.live_bars import (
+    floor_bar_open,
+    closed_bars_ready,
+    interval_minutes,
+    merge_closed_candles,
+    series_needs_roll,
+    update_forming_bar,
+)
 from app.modules.robots_v2.engine.market_data import (
+    fetch_moex_recent_candles,
     fetch_prices_for_session,
     merge_ws_and_rest_prices,
     poll_interval_seconds,
+    rest_marks_to_store,
 )
 from app.modules.robots_v2.engine.order_flow import OrderFlowAggregator
 from app.modules.robots_v2.engine.paper_ledger import PaperLedger
@@ -109,6 +119,7 @@ class TradingSessionV2:
         self.execution: ExecutionService | None = None
         self.order_flow = OrderFlowAggregator(window_sec=30)
         self.candle_history: dict[str, list[Candle]] = {}
+        self._bar_close_open: datetime | None = None
         self.last_prices: dict[str, float] = {}
         self.last_prices_at: datetime | None = None
         self.last_cycle_at: datetime | None = None
@@ -121,6 +132,7 @@ class TradingSessionV2:
         self._ws_queue: asyncio.Queue | None = None
         self._broker = None
         self._instrument_map: dict[str, str] = {}
+        self._lot_sizes: dict[str, int] = {}
         self._ticker_by_instrument: dict[str, str] = {}
         self._parsed: TradingRobotConfigV4 | None = None
         self._eod_done = False
@@ -500,6 +512,45 @@ class TradingSessionV2:
         except Exception:
             logger.exception("ensure instrument map failed robot_id=%s", self.robot_id)
 
+    def _refresh_lot_sizes(self, tickers: list[str] | None = None) -> None:
+        """Load MOEX lot sizes so T-Invest orders are sent in lots, not shares."""
+        names = [
+            str(t).upper()
+            for t in (tickers if tickers is not None else self.universe)
+            if str(t or "").strip()
+        ]
+        missing = [t for t in names if t not in self._lot_sizes]
+        if not missing:
+            self._sync_execution_lot_sizes()
+            return
+        from app.core.config import settings as _settings
+        from app.modules.robots_v2.engine.lot_size import load_share_lot_sizes
+
+        schema = getattr(_settings, "DB_SCHEMA", None) or "public"
+        found: dict[str, int] = {}
+        db = SessionLocal()
+        try:
+            found = load_share_lot_sizes(db, missing, schema=schema)
+        except Exception:
+            logger.exception("lot size lookup failed robot_id=%s", self.robot_id)
+            return
+        finally:
+            db.close()
+        for ticker in missing:
+            self._lot_sizes[ticker] = int(found.get(ticker) or 1)
+        odd = [(t, n) for t, n in self._lot_sizes.items() if n > 1 and t in set(missing)]
+        if odd:
+            self._write_log(f"Lot sizes lot>1 n={len(odd)} sample={odd[:8]}")
+        self._sync_execution_lot_sizes()
+
+    def _sync_execution_lot_sizes(self) -> None:
+        exec_svc = getattr(self, "execution", None)
+        if exec_svc is None:
+            return
+        updater = getattr(exec_svc, "update_lot_sizes", None)
+        if callable(updater):
+            updater(self._lot_sizes)
+
     def _sync_execution_instrument_map(self) -> None:
         """Keep live order router on the same FIGI map as the session (universe refresh)."""
         exec_svc = getattr(self, "execution", None)
@@ -709,6 +760,7 @@ class TradingSessionV2:
 
         if added:
             await self._ensure_instrument_map(added)
+        self._refresh_lot_sizes(sorted(new_set))
         self._sync_execution_instrument_map()
 
         self._universe_resolve_pending = False
@@ -1252,6 +1304,7 @@ class TradingSessionV2:
             self._instrument_map = {str(k).upper(): str(v) for k, v in instrument_map.items()}
             self._ticker_by_instrument = {v.upper(): k for k, v in self._instrument_map.items()}
             self._broker = broker
+            self._refresh_lot_sizes(list(self.universe) + list(self._instrument_map))
 
             await self._set_stage("bootstrap", detail="seeding_candles")
             seeded = await self._await_or_stop(
@@ -1269,6 +1322,7 @@ class TradingSessionV2:
                 broker=broker,
                 account_id=account_id,
                 instrument_map=self._instrument_map,
+                lot_sizes=self._lot_sizes,
                 user_id=self.user_id,
                 token_id=self.token_id,
                 action_log=self._action_log,
@@ -1389,11 +1443,9 @@ class TradingSessionV2:
                 )
 
             while not self._stop_event.is_set():
-                # Spec: momentum/reversion entries only on bar_close; poll loop IS the
-                # timeframe bar wake for non-scalper archetypes.
-                arch = self._parsed.strategy.archetype if self._parsed else ""
-                wake = "bar_close" if arch in ("momentum", "reversion") else "poll"
-                await self._poll_cycle(triggered_by=wake)
+                # Poll is the heartbeat. Momentum/reversion entries fire only when
+                # _prepare_live_bars sees the strategy timeframe roll.
+                await self._poll_cycle(triggered_by="poll")
                 if self.risk and self.risk.session_state.halt_session:
                     break
                 # Outside MOEX hours keep a short heartbeat so monitor/WS don't look frozen
@@ -1926,6 +1978,115 @@ class TradingSessionV2:
         except Exception as exc:
             self._write_log(f"WARN candle seed failed: {exc}")
 
+    async def _prepare_live_bars(
+        self,
+        prices: dict[str, float],
+        now: datetime,
+        triggered_by: str,
+    ) -> tuple[str, bool]:
+        """Close the previous timeframe bar once, then keep a forming bar.
+
+        Returns the trigger the strategy should see and whether this cycle
+        rolled (forming bar must be appended only after the strategy runs).
+        """
+        if self._parsed is None or triggered_by == "price_tick":
+            return triggered_by, False
+        tf = self._parsed.strategy.timeframe or "5m"
+        minutes = interval_minutes(tf)
+        current = floor_bar_open(now, minutes)
+        arch = self._parsed.strategy.archetype
+        if not series_needs_roll(
+            self.candle_history,
+            now=now,
+            minutes=minutes,
+            committed_open=self._bar_close_open,
+        ):
+            self._bar_close_open = current
+            self._ensure_forming_bars(prices, now)
+            if triggered_by == "bar_close":
+                return "poll", False
+            return triggered_by, False
+
+        if self._market != "crypto":
+            with_volume = await self._merge_iss_closed_bars(now, current, minutes, tf)
+            # ISS often publishes the closed hour a few minutes late. Keep polling
+            # until that bar has volume, then run the single bar-close entry.
+            if not closed_bars_ready(
+                self.candle_history, forming_open=current, minutes=minutes,
+            ) and now - current < timedelta(minutes=20):
+                return "poll", False
+            self._write_log(f"BAR_CLOSE tf={tf} withVolume={with_volume}")
+        self._bar_close_open = current
+        if arch in ("momentum", "reversion"):
+            return "bar_close", True
+        return "poll", True
+
+    async def _merge_iss_closed_bars(
+        self,
+        now: datetime,
+        forming_open: datetime,
+        minutes: int,
+        timeframe: str,
+    ) -> int:
+        from app.modules.trading_core.intervals import resolve_strategy_interval
+
+        tickers = sorted({
+            str(t).upper()
+            for t in (*self.candle_history.keys(), *self.universe)
+            if t
+        })
+        if not tickers:
+            return 0
+        earliest = forming_open - timedelta(days=10)
+        for hist in self.candle_history.values():
+            if hist:
+                earliest = min(earliest, hist[-1].time)
+        interval = int(resolve_strategy_interval(timeframe).moex_interval_code)
+        try:
+            fetched = await fetch_moex_recent_candles(
+                tickers,
+                timeframe=timeframe,
+                interval=interval,
+                start=earliest,
+                end=now,
+            )
+        except Exception as exc:
+            self._write_log(f"WARN closed candles: {exc}")
+            fetched = {}
+        with_volume = 0
+        for ticker in tickers:
+            hist = list(self.candle_history.get(ticker) or [])
+            incoming = fetched.get(ticker) or []
+            if not hist and not incoming:
+                continue
+            merged = merge_closed_candles(
+                hist,
+                incoming,
+                forming_open=forming_open,
+                minutes=minutes,
+            )
+            self.candle_history[ticker] = merged
+            if merged and int(merged[-1].volume or 0) > 0:
+                with_volume += 1
+        return with_volume
+
+    def _ensure_forming_bars(self, prices: dict[str, float], now: datetime) -> None:
+        if self._parsed is None:
+            return
+        tf = self._parsed.strategy.timeframe or "5m"
+        minutes = interval_minutes(tf)
+        for ticker, px in prices.items():
+            key = str(ticker).upper()
+            hist = list(self.candle_history.get(key) or self.candle_history.get(ticker) or [])
+            self.candle_history[key] = update_forming_bar(
+                hist,
+                price=float(px),
+                now=now,
+                minutes=minutes,
+                timeframe=tf,
+                ticker=key,
+            )
+
     async def _poll_cycle(self, *, triggered_by: str) -> None:
         async with self._cycle_lock:
             if self._parsed is None or self.ledger is None or self.risk is None or self.execution is None:
@@ -1949,22 +2110,23 @@ class TradingSessionV2:
                         price_tickers.append(tu)
 
             # Scalper ticks: trade on live WS; REST only fills names the stream
-            # does not have. Poll cycles still let REST overwrite (SL/TP).
+            # does not have. Poll cycles refresh the whole universe and store it,
+            # including tickers that already have a price.
             seed_from_ws = triggered_by == "price_tick" and bool(self.last_prices)
-            held = [str(t).upper() for t in (self.ledger.positions if self.ledger else {})]
-            missing = [
-                t for t in price_tickers
-                if t not in self.last_prices
-            ]
-            refresh = list({*missing, *held})
+            if seed_from_ws:
+                held = [str(t).upper() for t in (self.ledger.positions if self.ledger else {})]
+                missing = [t for t in price_tickers if t not in self.last_prices]
+                refresh = list({*missing, *held})
+            else:
+                refresh = list(price_tickers)
             fetched: dict[str, float] = {}
-            if refresh or not self.last_prices:
+            if refresh:
                 db = SessionLocal()
                 try:
                     fetched = await fetch_prices_for_session(
                         db,
                         market=self._market,
-                        tickers=refresh if refresh else price_tickers,
+                        tickers=refresh,
                         token_id=self.token_id,
                         user_id=self.user_id,
                         instrument_type=self._parsed.core.instrument_type,
@@ -1978,8 +2140,13 @@ class TradingSessionV2:
                 tickers=price_tickers,
                 seed_from_ws=seed_from_ws,
             )
-            if gap_fill:
-                self._update_last_prices(gap_fill)
+            stored = rest_marks_to_store(
+                seed_from_ws=seed_from_ws,
+                fetched=fetched,
+                gap_fill=gap_fill,
+            )
+            if stored:
+                self._update_last_prices(stored)
 
             for t in price_tickers:
                 if t not in prices and t in self.last_prices:
@@ -2116,44 +2283,10 @@ class TradingSessionV2:
                         continue
                     self.order_flow.on_price(t, px, volume=1.0, now=now)
 
-            from app.modules.robots_v2.engine.candle_seed import warmup_bars_needed
-
-            need_warmup = warmup_bars_needed(self._parsed)
-            for t, px in prices.items():
-                hist = self.candle_history.setdefault(t, [])
-                tf = self._parsed.strategy.timeframe or "5m"
-                # Seeded history: only refresh the last bar on ticks.
-                # Live warmup (seed failed): grow one bar per bar_close until need met.
-                if not hist:
-                    hist.append(Candle(
-                        interval=tf,
-                        time=now,
-                        open=px, high=px, low=px, close=px, volume=0, secid=t,
-                    ))
-                elif len(hist) >= need_warmup:
-                    last = hist[-1]
-                    try:
-                        last.close = float(px)
-                        last.high = max(float(last.high or px), float(px))
-                        last.low = min(float(last.low or px), float(px))
-                    except (TypeError, ValueError):
-                        pass
-                elif triggered_by == "bar_close":
-                    hist.append(Candle(
-                        interval=tf,
-                        time=now,
-                        open=px, high=px, low=px, close=px, volume=0, secid=t,
-                    ))
-                else:
-                    last = hist[-1]
-                    try:
-                        last.close = float(px)
-                        last.high = max(float(last.high or px), float(px))
-                        last.low = min(float(last.low or px), float(px))
-                    except (TypeError, ValueError):
-                        pass
-                if len(hist) > 200:
-                    self.candle_history[t] = hist[-200:]
+            triggered_by, bars_rolled = await self._prepare_live_bars(
+                prices, now, triggered_by,
+            )
+            self._last_triggered_by = triggered_by
 
             self.cycle_number += 1
             await self._set_stage("schedule")
@@ -2221,6 +2354,8 @@ class TradingSessionV2:
                     **self._cycle_positions_payload(),
                 })
                 await self._set_stage("skipped", skip_reason="EOD_HOLD")
+                if bars_rolled:
+                    self._ensure_forming_bars(prices, now)
                 return
 
             if not is_within_trading_session(self._parsed.core.schedule):
@@ -2267,6 +2402,8 @@ class TradingSessionV2:
                     **self._cycle_positions_payload(),
                 })
                 await self._set_stage("skipped", skip_reason="OUTSIDE_SESSION")
+                if bars_rolled:
+                    self._ensure_forming_bars(prices, now)
                 return
 
             flow = None
@@ -2355,5 +2492,7 @@ class TradingSessionV2:
                 self._write_log("HALT session — risk hard stop")
             elif not self.risk.session_state.accept_new_entries:
                 self._write_log("ENTRIES paused by risk")
+            if bars_rolled:
+                self._ensure_forming_bars(prices, now)
             await self._set_stage("done")
             await self._set_stage("idle", publish=False)

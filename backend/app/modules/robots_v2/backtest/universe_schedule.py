@@ -100,6 +100,8 @@ async def build_universe_by_day(
 
     - fixed / on_session: resolve once (or take fixed list), then dividend-filter per day
     - index / screener daily|on_poll: resolve each trade date with as_of=day
+
+    token_id is optional. MOEX index/screener history does not need a broker key.
     """
     days = list_trade_dates(from_date, to_date, config.core.schedule)
     if not days:
@@ -114,8 +116,6 @@ async def build_universe_by_day(
         if u.mode == "fixed":
             tickers = [t.upper() for t in (u.fixed_list or []) if t]
         else:
-            if token_id is None:
-                raise ValueError("tokenId is required for index/screener universe in backtest")
             as_of_dt = datetime.combine(as_of, datetime.min.time(), tzinfo=timezone.utc)
             resolved = await universe_service.resolve(
                 db,

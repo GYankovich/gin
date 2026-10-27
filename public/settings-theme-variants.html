@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Тема · варианты без многослойности · GIN</title>
+<style>
+  :root {
+    --bg-page: #0a0a0f;
+    --bg-card: #12121a;
+    --bg-input: #0e0e16;
+    --bg-elevated: #181824;
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-medium: rgba(255, 255, 255, 0.12);
+    --text-primary: #e0e0e0;
+    --text-secondary: #888888;
+    --text-muted: #555555;
+    --radius-lg: 12px;
+    --picker-bg: #0e0e14;
+    --phone-w: 390px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    background: #07070b;
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+  button:focus-visible { outline: 2px solid rgba(255,255,255,0.28); outline-offset: 2px; }
+
+  .picker {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 20px;
+    padding: 14px 20px;
+    background: var(--picker-bg);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .picker h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .picker p { margin: 4px 0 0; max-width: 70ch; font-size: 13px; color: var(--text-secondary); line-height: 1.45; }
+  .picker__modes {
+    display: flex; flex-wrap: wrap; gap: 4px; padding: 4px;
+    margin-left: auto; background: var(--bg-input); border-radius: 12px;
+  }
+  .picker__modes button {
+    border: 1px solid transparent; border-radius: 9px;
+    padding: 8px 12px; min-height: 36px;
+    font-size: 13px; font-weight: 500; color: var(--text-muted);
+  }
+  .picker__modes button.is-on {
+    background: var(--bg-elevated); color: var(--text-primary);
+    border-color: var(--border-medium);
+  }
+  .picker__note {
+    flex: 1 1 100%; margin: 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.4;
+  }
+  .picker__note strong { color: var(--text-secondary); }
+
+  .stage { display: flex; justify-content: center; padding: 28px 16px 48px; }
+  .phone {
+    width: var(--phone-w); max-width: 100%;
+    border-radius: 28px; border: 1px solid var(--border-medium);
+    background: var(--bg-page); box-shadow: 0 24px 64px rgba(0,0,0,0.55);
+    overflow: hidden;
+  }
+  .phone__pad {
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 14px 12px 28px;
+  }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+  }
+  .profile {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; min-height: 64px;
+  }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 999px;
+    display: grid; place-items: center; flex-shrink: 0;
+    background: var(--bg-input); border: 1px solid var(--border-subtle);
+    font-size: 13px; font-weight: 700;
+  }
+  .profile__login { font-size: 15px; font-weight: 600; }
+  .profile__meta { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; }
+
+  .label {
+    display: flex; align-items: center; gap: 8px;
+    margin: 0 2px 8px; font-size: 13px; font-weight: 500; color: var(--text-muted);
+  }
+  .label svg { width: 14px; height: 14px; opacity: 0.8; }
+
+  .tabs {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;
+    padding: 3px; background: var(--bg-input); border-radius: 10px;
+  }
+  .tabs button {
+    min-height: 44px; border-radius: 7px; border: 1px solid transparent;
+    font-size: 13px; font-weight: 500; color: var(--text-muted);
+  }
+  .tabs button.is-on {
+    background: var(--bg-elevated); color: var(--text-primary);
+    border-color: var(--border-medium);
+  }
+
+  .variant { display: none; }
+  body[data-v='a'] .variant-a,
+  body[data-v='b'] .variant-b,
+  body[data-v='c'] .variant-c,
+  body[data-v='d'] .variant-d { display: block; }
+
+  /* A: current — label + card wrapping tabs */
+  .a-card { padding: 8px; }
+
+  /* B: bare — label + tabs on page, no card */
+  /* (uses .label + .tabs directly) */
+
+  /* C: inline — label and tabs on one row */
+  .c-row {
+    display: flex; align-items: center; gap: 12px;
+    min-height: 44px;
+  }
+  .c-row .label { margin: 0; flex-shrink: 0; }
+  .c-row .tabs { flex: 1; min-width: 0; }
+  .c-row .tabs button { min-height: 40px; font-size: 12.5px; padding: 0 4px; }
+
+  /* D: icon trio — no card, no text tabs */
+  .d-block .label { margin-bottom: 10px; }
+  .d-icons {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  }
+  .d-icons button {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; min-height: 64px; border-radius: 12px;
+    border: 1px solid var(--border-subtle); background: transparent;
+    color: var(--text-muted); font-size: 11.5px; font-weight: 500;
+  }
+  .d-icons button svg { width: 20px; height: 20px; }
+  .d-icons button.is-on {
+    color: var(--text-primary);
+    background: var(--bg-card);
+    border-color: var(--border-medium);
+  }
+
+  .ghost {
+    opacity: 0.35; pointer-events: none; user-select: none;
+  }
+  .ghost .label { margin-top: 4px; }
+</style>
+</head>
+<body data-v="b">
+
+<header class="picker">
+  <div>
+    <h1>Тема · без многослойности</h1>
+    <p>Сейчас: лейбл + card + tabs (фон в фоне). Ниже варианты с одним визуальным слоем.</p>
+  </div>
+  <div class="picker__modes" role="tablist">
+    <button type="button" data-pick="a" role="tab">A · Сейчас</button>
+    <button type="button" data-pick="b" class="is-on" role="tab" aria-selected="true">B · Bare</button>
+    <button type="button" data-pick="c" role="tab">C · Inline</button>
+    <button type="button" data-pick="d" role="tab">D · Icons</button>
+  </div>
+  <p class="picker__note" id="note">
+    <strong>B · Bare</strong> — лейбл + сегмент прямо на странице, без card. Один слой (как tabs уже есть).
+  </p>
+</header>
+
+<main class="stage">
+  <div class="phone">
+    <div class="phone__pad">
+      <div class="card profile">
+        <span class="avatar">GY</span>
+        <span>
+          <div class="profile__login">gy</div>
+          <div class="profile__meta">gy@ginity.ru</div>
+        </span>
+      </div>
+
+      <!-- A: current -->
+      <div class="variant variant-a">
+        <div class="label">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="1.5" opacity=".35"/></svg>
+          Тема
+        </div>
+        <div class="card a-card">
+          <div class="tabs" data-tabs>
+            <button type="button" class="is-on">Система</button>
+            <button type="button">Тёмная</button>
+            <button type="button">Светлая</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- B: bare -->
+      <div class="variant variant-b">
+        <div class="label">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="1.5" opacity=".35"/></svg>
+          Тема
+        </div>
+        <div class="tabs" data-tabs>
+          <button type="button" class="is-on">Система</button>
+          <button type="button">Тёмная</button>
+          <button type="button">Светлая</button>
+        </div>
+      </div>
+
+      <!-- C: inline -->
+      <div class="variant variant-c">
+        <div class="c-row">
+          <div class="label">
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="1.5" opacity=".35"/></svg>
+            Тема
+          </div>
+          <div class="tabs" data-tabs>
+            <button type="button" class="is-on">Сис</button>
+            <button type="button">Тём</button>
+            <button type="button">Св</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- D: icons -->
+      <div class="variant variant-d">
+        <div class="d-block">
+          <div class="label">
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="1.5" opacity=".35"/></svg>
+            Тема
+          </div>
+          <div class="d-icons" data-tabs>
+            <button type="button" class="is-on" aria-label="Система">
+              <svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="5" width="17" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M8 19h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              Система
+            </button>
+            <button type="button" aria-label="Тёмная">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M16 4.5A7.5 7.5 0 1 0 19.5 14 6 6 0 0 1 16 4.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              Тёмная
+            </button>
+            <button type="button" aria-label="Светлая">
+              <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3.5" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M5.8 5.8l1.4 1.4M16.8 16.8l1.4 1.4M5.8 18.2l1.4-1.4M16.8 7.2l1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              Светлая
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ghost">
+        <div class="label">Брокеры</div>
+        <div class="card" style="padding:14px;color:var(--text-muted);font-size:13px">T-Invest · свёрнуто</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+  const notes = {
+    a: '<strong>A · Сейчас</strong> — лейбл + card + tabs. Два фона подряд (card и bg-input) — ощущение «коробка в коробке».',
+    b: '<strong>B · Bare</strong> — лейбл + сегмент на странице, без card. Один слой. Ближе всего к «убрать многослойность».',
+    c: '<strong>C · Inline</strong> — «Тема» и сегмент в одну строку, без card. Компактнее, короткие лейблы.',
+    d: '<strong>D · Icons</strong> — три крупные кнопки-иконки на page bg. Нет nested tabs; выбор читается жестом.',
+  };
+  const note = document.getElementById('note');
+
+  document.querySelectorAll('[data-pick]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const v = btn.getAttribute('data-pick');
+      document.body.dataset.v = v;
+      document.querySelectorAll('[data-pick]').forEach((b) => {
+        const on = b === btn;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      note.innerHTML = notes[v];
+    });
+  });
+
+  document.querySelectorAll('[data-tabs]').forEach((group) => {
+    group.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn || !group.contains(btn)) return;
+      group.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', b === btn));
+    });
+  });
+</script>
+</body>
+</html>

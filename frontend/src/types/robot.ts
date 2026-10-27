@@ -319,6 +319,32 @@ export interface BacktestRejectReasonCount {
     count: number
 }
 
+export interface BacktestCostStressCase {
+    final_equity?: number | null
+    total_return_percent?: number | null
+    extra_cost?: number | null
+}
+
+export interface BacktestCostStress {
+    commission_plus_50pct?: BacktestCostStressCase | null
+    slippage_x2?: BacktestCostStressCase | null
+    combined?: BacktestCostStressCase | null
+}
+
+export interface BacktestCredibility {
+    intrabar_sl_tp?: boolean | null
+    sl_before_tp?: boolean | null
+    ndfl?: boolean | null
+    tax_total?: number | null
+    liquidity_participation?: number | null
+    cost_stress?: BacktestCostStress | null
+    avg_win?: number | null
+    avg_loss?: number | null
+    turnover?: number | null
+    avg_exposure_pct?: number | null
+    assumptions?: string | null
+}
+
 export interface BacktestObservability {
     execution_model?: BacktestObservabilityExecutionModel | null
     signals_logged?: number | null
@@ -332,6 +358,7 @@ export interface BacktestObservability {
         ignored?: number
         [k: string]: number | undefined
     } | null
+    credibility?: BacktestCredibility | null
 }
 
 export interface BacktestDecisionPacket {
@@ -411,6 +438,12 @@ export interface BacktestFeeSummary {
     funding_total?: number | null
     funding_events?: number | null
     tax_total?: number | null
+    cost_stress?: BacktestCostStress | null
+    avg_win?: number | null
+    avg_loss?: number | null
+    turnover?: number | null
+    avg_exposure_pct?: number | null
+    assumptions?: string | null
     /** Legacy aliases seen in older payloads. */
     maker_commission?: number | null
     taker_commission?: number | null
@@ -595,6 +628,8 @@ export interface RobotBacktestRunStatus {
 }
 
 export interface RobotBacktestRunDetails extends RobotBacktestRunStatus {
+    /** Trading config stored with the run. Empty when the row has no snapshot. */
+    config_snapshot?: Record<string, unknown> | null
     total_return_percent?: number | null
     max_drawdown_percent?: number | null
     final_equity?: number | null

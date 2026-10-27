@@ -6,9 +6,10 @@ import type { OrderDisplayRow } from '@/pages/robots-v2/monitorUtils'
 type MonitorOrdersCardProps = {
     rows: OrderDisplayRow[]
     openOrderCount: number
+    bare?: boolean
 }
 
-export function MonitorOrdersCard({ rows, openOrderCount }: MonitorOrdersCardProps) {
+export function MonitorOrdersCard({ rows, openOrderCount, bare = false }: MonitorOrdersCardProps) {
     const columns = useMemo<Column<OrderDisplayRow>[]>(() => [
         {
             key: 'ticker',
@@ -65,17 +66,8 @@ export function MonitorOrdersCard({ rows, openOrderCount }: MonitorOrdersCardPro
         },
     ], [])
 
-    return (
-        <Card className="dashboard-assets-card robots-v2-monitor-orders">
-            <div className="dashboard-assets-card__head">
-                <h3 className="dashboard-panel-title">Заявки</h3>
-                {rows.length > 0 ? (
-                    <span className="robots-v2-hint">
-                        {openOrderCount > 0 ? `${openOrderCount} открытых · ` : ''}
-                        {rows.length}
-                    </span>
-                ) : null}
-            </div>
+    const body = (
+        <>
             <p className="robots-v2-hint robots-v2-universe-caption">
                 Сделки: покупка → продажа. «Цена продажи выставленная» — лимит TP; «факт» — исполнение.
             </p>
@@ -102,6 +94,25 @@ export function MonitorOrdersCard({ rows, openOrderCount }: MonitorOrdersCardPro
                     </div>
                 )}
             />
+        </>
+    )
+
+    if (bare) {
+        return <div className="robots-v2-monitor-orders">{body}</div>
+    }
+
+    return (
+        <Card className="dashboard-assets-card robots-v2-monitor-orders">
+            <div className="dashboard-assets-card__head">
+                <h3 className="dashboard-panel-title">Заявки</h3>
+                {rows.length > 0 ? (
+                    <span className="robots-v2-hint">
+                        {openOrderCount > 0 ? `${openOrderCount} открытых · ` : ''}
+                        {rows.length}
+                    </span>
+                ) : null}
+            </div>
+            {body}
         </Card>
     )
 }

@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Button } from '@/components/ui/Button'
-import { Modal } from '@/components/ui/Modal'
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
+import { AccountVisibilityGear, AccountVisibilityModal } from '@/components/accounts/AccountVisibilityModal'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { dashboardService } from '@/services/dashboardService'
 import type {
@@ -13,8 +13,8 @@ import type {
     DashboardCurrencyTotals,
     DashboardDataResponse,
 } from '@/types/api'
-import { PageHero } from '@/components/ui/PageHero'
 import { RobotIllustration } from '@/components/ui/RobotIllustration'
+import './DashboardPage.css'
 
 ///@EPIC Frontend.ITEM Dashboard.TOPIC Accounts Summary View [1]
 ///@ Дашборд: сводка + структура по валюте, скрытые счета, настройка видимости.
@@ -25,8 +25,7 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true)
     const [retrying, setRetrying] = useState(false)
     const [settingsOpen, setSettingsOpen] = useState(false)
-    const [savingVisibility, setSavingVisibility] = useState(false)
-    const [draftHidden, setDraftHidden] = useState<Record<number, boolean>>({})
+    const [settingsCurrency, setSettingsCurrency] = useState<string | null>(null)
 
     const load = useCallback(async (opts?: { fromRetry?: boolean }) => {
         const fromRetry = Boolean(opts?.fromRetry)
@@ -39,7 +38,6 @@ export default function DashboardPage() {
             setData(res)
             succeeded = true
         } catch { /* interceptor */ }
-        // On retry failure keep the “alive robot” animation for ~1.5–2s.
         if (fromRetry && !succeeded) {
             const remain = DASHBOARD_RETRY_ANIM_MS - (Date.now() - startedAt)
             if (remain > 0) {
@@ -84,48 +82,19 @@ export default function DashboardPage() {
         return currencyRows.find((row) => row.currency === mobileView) ?? null
     }, [currencyRows, mobileView])
 
-    const settingsAccountGroups = useMemo(
-        () => buildSettingsAccountGroups(data?.accounts ?? [], data?.totals ?? []),
-        [data?.accounts, data?.totals],
-    )
-
-    const setGroupAccountsVisible = useCallback((accounts: DashboardAccountItem[], visible: boolean) => {
-        setDraftHidden((prev) => {
-            const next = { ...prev }
-            for (const a of accounts) {
-                next[a.account_id] = !visible
-            }
-            return next
-        })
-    }, [])
-
-    const openSettings = () => {
-        if (!data) return
-        const next: Record<number, boolean> = {}
-        for (const a of data.accounts) next[a.account_id] = Boolean(a.dashboard_hidden)
-        setDraftHidden(next)
+    const openSettings = (currency: string) => {
+        setSettingsCurrency(currency)
         setSettingsOpen(true)
     }
 
-    const saveVisibility = async () => {
-        if (!data) return
-        const payload = data.accounts.map((a) => ({
-            account_id: a.account_id,
-            hidden: Boolean(draftHidden[a.account_id]),
-        }))
-        setSavingVisibility(true)
-        try {
-            await dashboardService.updateVisibility(payload)
-            setSettingsOpen(false)
-            await load()
-        } catch { /* interceptor */ }
-        setSavingVisibility(false)
+    const closeSettings = () => {
+        setSettingsOpen(false)
     }
 
     if (loading) {
         return (
             <div className="page" data-page="dashboard">
-                <PageHero className="dashboard-hero--node" eyebrow="PORTFOLIO NODE" title="ДАШБОРД" />
+                <h1 className="dash-sr-only">Дашборд</h1>
                 <DashboardSkeleton />
             </div>
         )
@@ -134,7 +103,7 @@ export default function DashboardPage() {
     if (!data) {
         return (
             <div className="page" data-page="dashboard">
-                <PageHero className="dashboard-hero--node" eyebrow="PORTFOLIO NODE" title="ДАШБОРД" />
+                <h1 className="dash-sr-only">Дашборд</h1>
                 <Card className={`dashboard-totals-card dashboard-error-card${retrying ? ' dashboard-error-card--retrying' : ''}`}>
                     <div className="dashboard-error-card__robot" aria-hidden>
                         {/* Same default SVG animation as robots-empty-fleet while waiting for the response */}
@@ -170,43 +139,44 @@ export default function DashboardPage() {
 
     const hasContent = currencyRows.length > 0 || data.accounts.length > 0
     const stickyTotals = data.totals
+    const multiCurrency = stickyTotals.length > 1
+    const showMobileHeader = isMobile && hasContent && Boolean(mobileView)
+
+    const currencyHeader = showMobileHeader ? (
+        <header
+            className={[
+                'dashboard-mobile-header',
+                'dashboard-mobile-header--island',
+                multiCurrency ? '' : 'dashboard-mobile-header--solo',
+            ].filter(Boolean).join(' ')}
+        >
+            {multiCurrency ? (
+                <DashboardStickyStrip
+                    totals={stickyTotals}
+                    activeCurrency={mobileView}
+                    onSelect={setMobileView}
+                />
+            ) : (
+                <div className="dashboard-mobile-header__solo">
+                    <span className="dashboard-mobile-header__currency">{mobileView}</span>
+                </div>
+            )}
+            {mobileView ? <DashGear onClick={() => openSettings(mobileView)} /> : null}
+        </header>
+    ) : null
 
     return (
         <div className="page" data-page="dashboard">
-            <PageHero
-                className="dashboard-hero--node"
-                eyebrow="PORTFOLIO NODE"
-                title="ДАШБОРД"
-                actions={
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="dashboard-hero__cfg"
-                        onClick={openSettings}
-                        aria-label="Настроить"
-                    >
-                        <IconSliders />
-                        <span className="dashboard-hero__cfg-text">Настроить</span>
-                    </Button>
-                }
-            />
-
+            <h1 className="dash-sr-only">Дашборд</h1>
+            {currencyHeader}
             {!hasContent ? (
-                <Card>
+                <Card className="dashboard-totals-card">
                     <p className="dashboard-empty">
                         Нет открытых счетов (статус OPEN). Добавьте счёт в T‑Invest или проверьте синхронизацию.
                     </p>
                 </Card>
             ) : (
                 <div className="dashboard-layout">
-                    {isMobile && stickyTotals.length > 1 && (
-                        <DashboardStickyStrip
-                            totals={stickyTotals}
-                            activeCurrency={mobileView}
-                            onSelect={setMobileView}
-                        />
-                    )}
-
                     {isMobile ? (
                         activeCurrencyRow ? (
                             <CurrencyRowSection
@@ -218,7 +188,7 @@ export default function DashboardPage() {
                                 compact
                             />
                         ) : (
-                            <Card>
+                            <Card className="dashboard-totals-card">
                                 <p className="dashboard-empty">Нет данных по выбранной валюте.</p>
                             </Card>
                         )
@@ -231,194 +201,27 @@ export default function DashboardPage() {
                                 assets={assets}
                                 accounts={accounts}
                                 showTitle={currencyRows.length > 1}
+                                onSettings={() => openSettings(currency)}
                             />
                         ))
                     )}
                 </div>
             )}
-
-            <Modal
+            <AccountVisibilityModal
                 open={settingsOpen}
-                onClose={() => setSettingsOpen(false)}
-                title="Видимость счетов"
-                width="560px"
-                flush
-            >
-                <div className="dashboard-settings">
-                    <div className="dashboard-settings-list">
-                        {settingsAccountGroups.map(({ currency, accounts }) => (
-                            <DashboardSettingsGroup
-                                key={currency}
-                                currency={currency}
-                                accounts={accounts}
-                                draftHidden={draftHidden}
-                                onDraftHiddenChange={setDraftHidden}
-                                onSetGroupVisible={setGroupAccountsVisible}
-                            />
-                        ))}
-                    </div>
-                    <div className="dashboard-settings-actions">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="dashboard-settings-actions__cancel"
-                            onClick={() => setSettingsOpen(false)}
-                            disabled={savingVisibility}
-                        >
-                            Отмена
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="dashboard-settings-actions__apply"
-                            onClick={() => void saveVisibility()}
-                            loading={savingVisibility}
-                        >
-                            Применить
-                        </Button>
-                    </div>
-                </div>
-            </Modal>
+                onClose={closeSettings}
+                onApplied={() => load()}
+                currency={settingsCurrency}
+                kicker="Дашборд"
+                headline="Какие счета входят в сводку"
+                line="Скрытый счёт остаётся у брокера. Из стоимости и доходности он пропадает."
+            />
         </div>
     )
 }
 
-function DashboardSettingsGroup({
-    currency,
-    accounts,
-    draftHidden,
-    onDraftHiddenChange,
-    onSetGroupVisible,
-}: {
-    currency: string
-    accounts: DashboardAccountItem[]
-    draftHidden: Record<number, boolean>
-    onDraftHiddenChange: React.Dispatch<React.SetStateAction<Record<number, boolean>>>
-    onSetGroupVisible: (accounts: DashboardAccountItem[], visible: boolean) => void
-}) {
-    const allVisible = accounts.every((a) => !draftHidden[a.account_id])
-
-    return (
-        <section className="dashboard-settings-group">
-            <header className="dashboard-settings-group__head">
-                <div className="dashboard-settings-group__title-wrap">
-                    <span className="dashboard-settings-group__cur">{currency}</span>
-                </div>
-                <div className="dashboard-settings-group__head-actions">
-                    <button
-                        type="button"
-                        className={`dashboard-settings-group__bulk${allVisible ? '' : ' dashboard-settings-group__bulk--on'}`}
-                        onClick={() => onSetGroupVisible(accounts, !allVisible)}
-                    >
-                        {allVisible ? 'Снять все' : 'Выделить все'}
-                    </button>
-                </div>
-            </header>
-            <div className="dashboard-settings-group__rows">
-                {accounts.map((a) => (
-                    <DashboardSettingsRow
-                        key={a.account_id}
-                        account={a}
-                        included={!draftHidden[a.account_id]}
-                        onIncludedChange={(on) => {
-                            onDraftHiddenChange((prev) => ({
-                                ...prev,
-                                [a.account_id]: !on,
-                            }))
-                        }}
-                    />
-                ))}
-            </div>
-        </section>
-    )
-}
-
-function useOverflowMarquee(content: string) {
-    const wrapRef = useRef<HTMLElement>(null)
-    const textRef = useRef<HTMLSpanElement>(null)
-    const [marquee, setMarquee] = useState(false)
-
-    const sync = useCallback(() => {
-        const wrap = wrapRef.current
-        const text = textRef.current
-        if (!wrap || !text) {
-            setMarquee(false)
-            return
-        }
-        const truncated = text.scrollWidth > wrap.clientWidth + 1
-        if (!truncated) {
-            text.style.removeProperty('--marquee-shift')
-            text.style.removeProperty('--marquee-duration')
-            setMarquee(false)
-            return
-        }
-        const shift = wrap.clientWidth - text.scrollWidth
-        const durationSec = Math.min(14, Math.max(3, Math.abs(shift) / 24))
-        text.style.setProperty('--marquee-shift', `${shift}px`)
-        text.style.setProperty('--marquee-duration', `${durationSec}s`)
-        setMarquee(true)
-    }, [])
-
-    useEffect(() => {
-        sync()
-        const wrap = wrapRef.current
-        if (!wrap || typeof ResizeObserver === 'undefined') {
-            window.addEventListener('resize', sync)
-            return () => window.removeEventListener('resize', sync)
-        }
-        const ro = new ResizeObserver(() => sync())
-        ro.observe(wrap)
-        return () => ro.disconnect()
-    }, [sync, content])
-
-    return { wrapRef, textRef, marquee }
-}
-
-function DashboardSettingsRow({
-    account,
-    included,
-    onIncludedChange,
-}: {
-    account: DashboardAccountItem
-    included: boolean
-    onIncludedChange: (included: boolean) => void
-}) {
-    const title = account.account_name || account.external_account_id
-    const tag = formatAccountPlatformTag(account.account_type)
-    const accountCurrency = (account.summary?.currency || 'RUB').toUpperCase()
-    const titleMarquee = useOverflowMarquee(title)
-
-    return (
-        <label className={`dashboard-settings-row${included ? '' : ' dashboard-settings-row--off'}`}>
-            <input
-                type="checkbox"
-                className="dashboard-settings-row__check"
-                checked={included}
-                onChange={(e) => onIncludedChange(e.target.checked)}
-                aria-label={included ? `Скрыть ${title}` : `Показать ${title}`}
-            />
-            <div className="dashboard-settings-row__main">
-                <span
-                    ref={titleMarquee.wrapRef}
-                    className={`dashboard-settings-row__title${
-                        titleMarquee.marquee ? ' dashboard-settings-row__title--marquee' : ''
-                    }`}
-                >
-                    <span ref={titleMarquee.textRef} className="dashboard-settings-row__title-text">
-                        {title}
-                    </span>
-                </span>
-                <div className="dashboard-settings-row__meta">
-                    <span className="dashboard-settings-row__tag">{tag}</span>
-                    <span className="dashboard-settings-row__value mono">
-                        {formatMoney(account.summary.value, accountCurrency)}
-                    </span>
-                </div>
-            </div>
-        </label>
-    )
+function DashGear({ onClick }: { onClick: () => void }) {
+    return <AccountVisibilityGear onClick={onClick} />
 }
 
 function DashboardSkeleton() {
@@ -533,48 +336,25 @@ function DashboardStickyStrip({
     activeCurrency: string | null
     onSelect: (currency: string) => void
 }) {
-    const sentinelRef = useRef<HTMLDivElement>(null)
-    const [pinned, setPinned] = useState(false)
-
-    useEffect(() => {
-        const sentinel = sentinelRef.current
-        if (!sentinel || typeof IntersectionObserver === 'undefined') return
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                setPinned(!entry.isIntersecting)
-            },
-            { threshold: 0, rootMargin: '0px 0px 0px 0px' },
-        )
-        observer.observe(sentinel)
-        return () => observer.disconnect()
-    }, [])
-
     return (
-        <>
-            <div ref={sentinelRef} className="dashboard-sticky-strip-sentinel" aria-hidden />
-            <div
-                className={`dashboard-sticky-strip${pinned ? ' dashboard-sticky-strip--pinned' : ''}`}
-                role="tablist"
-                aria-label="Валюта дашборда"
-            >
-                {totals.map((t) => {
-                    const currency = (t.currency || 'RUB').toUpperCase()
-                    const active = activeCurrency === currency
-                    return (
-                        <button
-                            key={currency}
-                            type="button"
-                            role="tab"
-                            aria-selected={active}
-                            className={`dashboard-sticky-chip${active ? ' dashboard-sticky-chip--active' : ''}`}
-                            onClick={() => onSelect(currency)}
-                        >
-                            <span className="dashboard-sticky-chip__cur">{currency}</span>
-                        </button>
-                    )
-                })}
-            </div>
-        </>
+        <div className="dashboard-sticky-strip" role="tablist" aria-label="Валюта дашборда">
+            {totals.map((t) => {
+                const currency = (t.currency || 'RUB').toUpperCase()
+                const active = activeCurrency === currency
+                return (
+                    <button
+                        key={currency}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        className={`dashboard-sticky-chip${active ? ' dashboard-sticky-chip--active' : ''}`}
+                        onClick={() => onSelect(currency)}
+                    >
+                        <span className="dashboard-sticky-chip__cur">{currency}</span>
+                    </button>
+                )
+            })}
+        </div>
     )
 }
 
@@ -585,6 +365,7 @@ function CurrencyRowSection({
     accounts,
     showTitle,
     compact = false,
+    onSettings,
 }: {
     currency: string
     totals: DashboardCurrencyTotals | null
@@ -592,38 +373,47 @@ function CurrencyRowSection({
     accounts: DashboardAccountItem[]
     showTitle: boolean
     compact?: boolean
+    onSettings?: () => void
 }) {
+    const totalsNode = totals ? (
+        <TotalsBlock totals={totals} compact={compact} showCurrency={showTitle} onSettings={onSettings} />
+    ) : (
+        <Card className="dashboard-totals-card">
+            {showTitle || onSettings ? (
+                <div className="dashboard-totals-card__head">
+                    {showTitle ? (
+                        <>
+                            <h3 className="dashboard-panel-title">Сводка</h3>
+                            <span className="dashboard-panel-title">{currency}</span>
+                        </>
+                    ) : null}
+                    {onSettings ? <DashGear onClick={onSettings} /> : null}
+                </div>
+            ) : null}
+            <p className="dashboard-empty">Нет сводки по {currency}.</p>
+        </Card>
+    )
+
+    const assetsNode = assets.length > 0 ? (
+        <AssetsBlock currency={currency} items={assets} />
+    ) : (
+        <Card className="dashboard-assets-card dashboard-error-card">
+            <div className="dashboard-error-card__robot" aria-hidden>
+                <RobotIllustration size={96} mode="inactive" interactive={false} />
+            </div>
+            <p className="dashboard-empty">Нет позиций по {currency}.</p>
+        </Card>
+    )
+
+    const accountsNode = accounts.length > 0 ? <AccountsSection accounts={accounts} /> : null
+
     return (
         <section className="dashboard-currency-row" aria-label={`Сводка ${currency}`}>
-            <div className="dashboard-currency-grid">
-                {totals ? (
-                    <TotalsBlock totals={totals} compact={compact} showCurrency={showTitle} />
-                ) : (
-                    <Card className="dashboard-totals-card">
-                        {showTitle ? (
-                            <div className="dashboard-totals-card__head">
-                                <h3 className="dashboard-panel-title">Сводка</h3>
-                                <span className="dashboard-panel-title">{currency}</span>
-                            </div>
-                        ) : null}
-                        <p className="dashboard-empty">Нет сводки по {currency}.</p>
-                    </Card>
-                )}
-                {assets.length > 0 ? (
-                    <AssetsBlock currency={currency} items={assets} />
-                ) : (
-                    <Card className="dashboard-assets-card dashboard-error-card">
-                        <div className="dashboard-error-card__robot" aria-hidden>
-                            <RobotIllustration size={96} mode="inactive" interactive={false} />
-                        </div>
-                        <p className="dashboard-empty">Нет позиций по {currency}.</p>
-                    </Card>
-                )}
+            <div className={`dashboard-currency-grid${compact ? ' dashboard-currency-grid--compact' : ''}`}>
+                {totalsNode}
+                {assetsNode}
             </div>
-
-            {accounts.length > 0 && (
-                <AccountsSection accounts={accounts} />
-            )}
+            {accountsNode}
         </section>
     )
 }
@@ -678,10 +468,12 @@ function TotalsBlock({
     totals,
     compact = false,
     showCurrency = false,
+    onSettings,
 }: {
     totals: DashboardCurrencyTotals
     compact?: boolean
     showCurrency?: boolean
+    onSettings?: () => void
 }) {
     const d = totals.total_day_over_day_delta
     const dp = totals.total_day_over_day_delta_percent
@@ -694,6 +486,7 @@ function TotalsBlock({
             <div className="dashboard-totals-card__head">
                 <h3 className="dashboard-panel-title">Сводка</h3>
                 {showCurrency ? <span className="dashboard-panel-title">{currency}</span> : null}
+                {onSettings ? <DashGear onClick={onSettings} /> : null}
             </div>
             {compact ? (
                 <div className="dashboard-summary-metrics dashboard-summary-metrics--compact">
@@ -1002,17 +795,6 @@ function AccountsTable({
     )
 }
 
-function IconSliders() {
-    return (
-        <svg className="dashboard-icon" viewBox="0 0 24 24" aria-hidden>
-            <path fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" d="M5 4v16M12 4v16M19 4v16" />
-            <circle cx="5" cy="9" r="2.1" fill="var(--bg-card)" stroke="currentColor" strokeWidth="1.7" />
-            <circle cx="12" cy="15" r="2.1" fill="var(--bg-card)" stroke="currentColor" strokeWidth="1.7" />
-            <circle cx="19" cy="11" r="2.1" fill="var(--bg-card)" stroke="currentColor" strokeWidth="1.7" />
-        </svg>
-    )
-}
-
 function IconPie() {
     return (
         <svg className="dashboard-icon" viewBox="0 0 24 24" aria-hidden>
@@ -1030,41 +812,6 @@ function IconWallet() {
             <circle cx="16.4" cy="13.6" r="1.05" fill="currentColor" />
         </svg>
     )
-}
-
-function buildSettingsAccountGroups(
-    accounts: DashboardAccountItem[],
-    totals: DashboardCurrencyTotals[],
-): Array<{
-    currency: string
-    accounts: DashboardAccountItem[]
-    totalValue: number
-}> {
-    const totalsMap = new Map(
-        totals.map((t) => [(t.currency || 'RUB').toUpperCase(), Number(t.total_value ?? 0)] as const),
-    )
-    const groupsMap = new Map<string, DashboardAccountItem[]>()
-    for (const a of accounts) {
-        const cur = (a.summary?.currency || 'RUB').toUpperCase()
-        const list = groupsMap.get(cur)
-        if (list) list.push(a)
-        else groupsMap.set(cur, [a])
-    }
-
-    return Array.from(groupsMap.keys())
-        .sort((a, b) => a.localeCompare(b))
-        .map((currency) => {
-            const groupAccounts = groupsMap.get(currency) ?? []
-            const summed = groupAccounts.reduce(
-                (acc, a) => acc + Number(a.summary?.value ?? 0),
-                0,
-            )
-            return {
-                currency,
-                accounts: groupAccounts,
-                totalValue: totalsMap.get(currency) ?? summed,
-            }
-        })
 }
 
 function buildCurrencyRows(
@@ -1088,7 +835,8 @@ function buildCurrencyRows(
     const accountsMap = new Map<string, DashboardAccountItem[]>()
     for (const a of accounts) {
         if (a.dashboard_hidden) continue
-        const cur = (a.summary?.currency || 'RUB').toUpperCase()
+        const cur = (a.summary?.currency || '').trim().toUpperCase()
+        if (!cur) continue
         const list = accountsMap.get(cur)
         if (list) list.push(a)
         else accountsMap.set(cur, [a])
@@ -1098,8 +846,20 @@ function buildCurrencyRows(
         totals.map((t) => [(t.currency || 'RUB').toUpperCase(), t] as const),
     )
 
+    const hiddenCurrencies = new Set<string>()
+    for (const a of accounts) {
+        if (!a.dashboard_hidden) continue
+        const cur = (a.summary?.currency || '').trim().toUpperCase()
+        if (cur) hiddenCurrencies.add(cur)
+    }
+
     const currencies = Array.from(
-        new Set([...totalsMap.keys(), ...assetsMap.keys(), ...accountsMap.keys()]),
+        new Set([
+            ...totalsMap.keys(),
+            ...assetsMap.keys(),
+            ...accountsMap.keys(),
+            ...hiddenCurrencies,
+        ]),
     ).sort((a, b) => a.localeCompare(b))
 
     return currencies.map((currency) => ({
@@ -1128,17 +888,6 @@ function assetBarTone(type: string, index: number): 'cyan' | 'magenta' | 'violet
 function isAccountActive(row: DashboardAccountItem): boolean {
     const status = (row.account_status || '').toUpperCase()
     return status === 'OPEN' || status === 'ACTIVE'
-}
-
-function formatAccountPlatformTag(type: string | null | undefined): string {
-    const raw = String(type || '').trim()
-    const t = raw.toLowerCase().replace(/^account_type_/, '')
-    if (/tinkoff|t-bank|tbank|broker/.test(t)) return 'T-BANK'
-    if (/bybit|unified|contract|spot/.test(t)) return 'BYBIT'
-    if (/sber/.test(t)) return 'SBER'
-    if (/binance/.test(t)) return 'BINANCE'
-    if (!raw) return 'ACC'
-    return raw.replace(/_/g, ' ').slice(0, 12).toUpperCase()
 }
 
 function formatAccountOpenedText(iso: string | null | undefined): string {
@@ -1192,17 +941,17 @@ function formatAccountSyncCompact(iso: string | null | undefined): string {
     })
 }
 
-function formatMoney(val: any, currency = 'RUB'): string {
+function formatMoney(val: any, currency?: string | null): string {
     if (val == null || Number.isNaN(Number(val))) return '—'
     const n = Number(val ?? 0)
-    const sym = currency === 'RUB' ? '₽' : currency
+    const sym = !currency || currency === 'RUB' ? '₽' : currency
     return n.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + ' ' + sym
 }
 
-function formatMoneyCompact(val: any, currency = 'RUB'): string {
+function formatMoneyCompact(val: any, currency?: string | null): string {
     if (val == null || Number.isNaN(Number(val))) return '—'
     const n = Number(val)
-    const sym = currency === 'RUB' ? '₽' : currency
+    const sym = !currency || currency === 'RUB' ? '₽' : currency
     const abs = Math.abs(n)
     if (abs >= 1_000_000) {
         return `${(n / 1_000_000).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} млн ${sym}`
@@ -1213,9 +962,9 @@ function formatMoneyCompact(val: any, currency = 'RUB'): string {
     return n.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) + ' ' + sym
 }
 
-function formatMoneySigned(val: number, currency = 'RUB'): string {
+function formatMoneySigned(val: number, currency?: string | null): string {
     const n = Number(val)
-    const sym = currency === 'RUB' ? '₽' : currency
+    const sym = !currency || currency === 'RUB' ? '₽' : currency
     return `${n >= 0 ? '+' : ''}${n.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${sym}`
 }
 
@@ -1229,7 +978,7 @@ function formatPercent(val: number | null | undefined): string {
 function formatAbsWithPercent(
     abs: number | null | undefined,
     pct: number | null | undefined,
-    currency: string,
+    currency?: string | null,
 ): string {
     if (abs == null || Number.isNaN(Number(abs))) return '—'
     const money = formatMoneySigned(Number(abs), currency)

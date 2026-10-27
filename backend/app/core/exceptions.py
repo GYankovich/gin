@@ -27,6 +27,13 @@ def format_validation_error(errors: List[Dict[str, Any]]) -> Dict[str, Any]:
 
         # Получаем тип ошибки
         error_type = error.get("type", "unknown")
+        raw_msg = str(error.get("msg") or "")
+        if "email" in error_type or "email" in raw_msg.lower():
+            field_errors[field] = {
+                "code": "invalid_email",
+                "message": "Укажите почту, например you@example.com",
+            }
+            continue
 
         # Маппинг типов ошибок на понятные сообщения
         error_messages = {

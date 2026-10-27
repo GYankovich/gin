@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
+from app.modules.robots_v2.backtest.credibility import (
+    apply_liquidity_cap,
+    plan_intrabar_sl_tp_intents,
+)
 from app.modules.trading_core.contracts import Candle, OrderIntent
 from app.modules.trading_core.costs import calculate_take_profit_price
 from app.modules.trading_core.risk.manager import decide_take_profit_order
@@ -38,6 +43,21 @@ def _stamp_intent_cycle(
     return intent
 
 
+def _bar_volume(candle_history: dict[str, list[Candle]], ticker: str) -> float | None:
+    series = candle_history.get(ticker) or candle_history.get(str(ticker).upper()) or []
+    if not series:
+        return None
+    vol = float(getattr(series[-1], "volume", 0) or 0)
+    return vol if vol > 0 else None
+
+
+def _attach_fill_tax(row: dict[str, Any], ledger: PaperLedger) -> dict[str, Any]:
+    tax = float(getattr(ledger, "last_fill_tax", 0) or 0)
+    if tax:
+        row["tax"] = tax
+    return row
+
+
 def _submit_intent(
     exec_svc: ExecutionService,
     intent: OrderIntent,
@@ -47,11 +67,17 @@ def _submit_intent(
     deferred: list[OrderIntent],
     cycle_id: str | None = None,
     signal_time: str | None = None,
+    bar_volume: float | None = None,
 ):
     """Place non-marketable LIMIT now; defer marketable fills to the next bar open."""
     if cycle_id and signal_time:
         _stamp_intent_cycle(intent, cycle_id=cycle_id, signal_time=signal_time)
     if not defer_market:
+        if bar_volume is not None:
+            capped, rem_qty, _ = apply_liquidity_cap(intent, bar_volume)
+            if rem_qty > 0 and bool(getattr(intent, "reduce_only", False)):
+                deferred.append(replace(intent, quantity=float(rem_qty)))
+            intent = capped
         return exec_svc.execute_intent_sync(intent, last_price=last_price)
     order_type = str(getattr(intent, "order_type", None) or "MARKET").upper()
     if order_type == "LIMIT" and not exec_svc._limit_would_fill(
@@ -90,7 +116,18 @@ def run_paper_cycle_sync(
     deferred: list[OrderIntent] = []
     exec_svc = execution
 
-    for poll_result in exec_svc.poll_resting_fills_sync(last_prices=prices):
+    bars: dict[str, Candle] = {
+        str(t).upper(): series[-1]
+        for t, series in candle_history.items()
+        if series
+    }
+    bar_highs = {t: float(c.high) for t, c in bars.items()}
+    bar_lows = {t: float(c.low) for t, c in bars.items()}
+    for poll_result in exec_svc.poll_resting_fills_sync(
+        last_prices=prices,
+        bar_highs=bar_highs,
+        bar_lows=bar_lows,
+    ):
         if poll_result.status == "filled":
             risk.record_realized_pnl(poll_result.pnl)
             poll_meta = getattr(poll_result, "meta", None) or {}
@@ -107,11 +144,26 @@ def run_paper_cycle_sync(
                 "cycle_id": str(poll_meta.get("cycle_id") or cycle_id),
                 "signal_time": str(poll_meta.get("signal_time") or bar_iso),
             }
-            fills.append(fill_row)
+            fills.append(_attach_fill_tax(fill_row, ledger))
 
     positions_dict = ledger.positions_dict(prices)
     open_list = ledger.open_positions_list(prices)
-    exit_intents = risk.evaluate_exits(open_list, prices)
+    close_intents = risk.evaluate_exits(open_list, prices)
+    protective = plan_intrabar_sl_tp_intents(
+        open_list,
+        prices,
+        bars,
+        getattr(risk, "_risk_dict", {}) or {},
+        cost_kw={
+            "broker_commission_rate": float(config.risk.broker_commission_pct) / 100.0,
+            "ndfl_rate": float(config.risk.tax_pct) / 100.0,
+        },
+        now=clock,
+    )
+    hit_tickers = {str(i.figi or "").upper() for i in protective if i.figi}
+    exit_intents = list(protective) + [
+        i for i in close_intents if str(i.figi or "").upper() not in hit_tickers
+    ]
     exit_tickers = {
         str(getattr(i, "figi", "") or "").upper()
         for i in exit_intents
@@ -172,7 +224,7 @@ def run_paper_cycle_sync(
         if str(getattr(intent, "reason", "") or "") == "take_profit" and mark > 0:
             entry_m = float(meta.get("entry_price") or 0)
             tp_m = float(meta.get("take_profit") or 0)
-            if entry_m > 0 and tp_m > 0:
+            if entry_m > 0 and tp_m > 0 and not meta.get("intrabar"):
                 span = abs(tp_m - entry_m)
                 if span > 0 and (
                     mark > tp_m * 1.02
@@ -181,20 +233,25 @@ def run_paper_cycle_sync(
                     continue
                 if order_type == "MARKET" and mark < tp_m * 0.999:
                     continue
+        protective_now = (
+            str(intent.reason or "") in ("stop_loss", "take_profit")
+            and order_type == "MARKET"
+        )
         result = _submit_intent(
             exec_svc,
             intent,
             mark if mark > 0 else limit_or_intent_px,
-            defer_market=defer_market_fills,
+            defer_market=defer_market_fills and not protective_now,
             deferred=deferred,
             cycle_id=cycle_id,
             signal_time=bar_iso,
+            bar_volume=_bar_volume(candle_history, ticker_u) if protective_now else None,
         )
         if result is None:
             continue
         if result.status in ("filled", "submitted"):
             risk.record_realized_pnl(result.pnl)
-            fills.append({
+            fills.append(_attach_fill_tax({
                 "ticker": result.ticker,
                 "kind": "exit_sl_tp",
                 "side": result.side,
@@ -205,7 +262,8 @@ def run_paper_cycle_sync(
                 "status": result.status,
                 "cycle_id": cycle_id,
                 "signal_time": bar_iso,
-            })
+                "intent_id": result.intent_id,
+            }, ledger))
             if str(getattr(intent, "reason", "") or "") == "stop_loss":
                 runtime.notify_stop_loss(
                     session_id,
@@ -341,7 +399,7 @@ def run_paper_cycle_sync(
                 )
             elif result.status in ("filled", "submitted"):
                 risk.record_realized_pnl(result.pnl)
-                fills.append({
+                fills.append(_attach_fill_tax({
                     "ticker": ticker,
                     "kind": "exit_strategy",
                     "side": result.side,
@@ -353,7 +411,7 @@ def run_paper_cycle_sync(
                     "cycle_id": cycle_id,
                     "signal_time": bar_iso,
                     "intent_id": str((intent.meta or {}).get("intent_id") or "") or None,
-                })
+                }, ledger))
                 positions_dict = ledger.positions_dict(prices)
                 equity = ledger.mark_equity(prices)
                 _log_signal(
@@ -476,7 +534,7 @@ def run_paper_cycle_sync(
                 intent_id=str((intent.meta or {}).get("intent_id") or "") or None,
             )
         elif result.status in ("filled", "submitted"):
-            fills.append({
+            fills.append(_attach_fill_tax({
                 "ticker": ticker,
                 "kind": "entry",
                 "side": result.side,
@@ -488,7 +546,7 @@ def run_paper_cycle_sync(
                 "cycle_id": cycle_id,
                 "signal_time": bar_iso,
                 "intent_id": str((intent.meta or {}).get("intent_id") or "") or None,
-            })
+            }, ledger))
             positions_dict = ledger.positions_dict(prices)
             equity = ledger.mark_equity(prices)
             _log_signal(

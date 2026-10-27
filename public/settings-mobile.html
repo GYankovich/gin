@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Настройки · мобильные варианты · GIN</title>
+<style>
+  :root {
+    --bg-page: #0a0a0f;
+    --bg-card: #12121a;
+    --bg-card-hover: #181824;
+    --bg-input: #0e0e16;
+    --bg-elevated: #181824;
+    --bg-nav: rgba(10, 10, 15, 0.92);
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-medium: rgba(255, 255, 255, 0.12);
+    --text-primary: #e0e0e0;
+    --text-secondary: #888888;
+    --text-muted: #555555;
+    --color-up: #00ffaa;
+    --color-down: #ff3366;
+    --color-warn: #ffaa00;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --dock-h: 56px;
+    --dock-gap: 10px;
+    --safe-bottom: 72px;
+    --picker-bg: #0e0e14;
+    --phone-w: 390px;
+    --phone-h: 780px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    background: #07070b;
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+  button:focus-visible { outline: 2px solid rgba(255,255,255,0.28); outline-offset: 2px; }
+
+  /* —— Sticky picker —— */
+  .picker {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 20px;
+    padding: 14px 20px;
+    background: var(--picker-bg);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .picker h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0.01em; }
+  .picker p { margin: 4px 0 0; max-width: 72ch; font-size: 13px; color: var(--text-secondary); line-height: 1.45; }
+  .picker__modes {
+    display: flex; flex-wrap: wrap; gap: 4px; padding: 4px;
+    margin-left: auto; background: var(--bg-input); border-radius: 12px;
+  }
+  .picker__modes button {
+    border: 1px solid transparent; border-radius: 9px;
+    padding: 8px 12px; min-height: 36px;
+    font-size: 13px; font-weight: 500; color: var(--text-muted);
+  }
+  .picker__modes button.is-on {
+    background: var(--bg-elevated); color: var(--text-primary);
+    border-color: var(--border-medium);
+  }
+  .picker__note {
+    flex: 1 1 100%;
+    margin: 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.4;
+  }
+  .picker__note strong { color: var(--text-secondary); font-weight: 600; }
+
+  /* —— Stage + phone —— */
+  .stage {
+    display: flex; justify-content: center; align-items: flex-start;
+    padding: 28px 16px 48px; min-height: calc(100vh - 100px);
+  }
+  .phone {
+    width: var(--phone-w);
+    height: var(--phone-h);
+    max-width: 100%;
+    border-radius: 36px;
+    border: 1px solid var(--border-medium);
+    background: #050508;
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.03),
+      0 24px 64px rgba(0,0,0,0.55);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  .phone__notch {
+    flex: 0 0 auto;
+    height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg-page);
+    border-bottom: 1px solid var(--border-subtle);
+    position: relative; z-index: 5;
+  }
+  .phone__notch-pill {
+    width: 96px; height: 8px; border-radius: 999px;
+    background: #1a1a24;
+  }
+  .phone__body {
+    flex: 1; min-height: 0; position: relative;
+    background: var(--bg-page);
+  }
+  .variant { display: none; height: 100%; }
+  body[data-variant='a'] .variant-a,
+  body[data-variant='b'] .variant-b,
+  body[data-variant='c'] .variant-c,
+  body[data-variant='d'] .variant-d { display: flex; flex-direction: column; }
+
+  /* Shared chrome */
+  .app-top {
+    flex: 0 0 auto;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px 8px;
+    background: var(--bg-nav);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .app-top__title {
+    font-size: 16px; font-weight: 600; letter-spacing: 0.01em;
+  }
+  .app-top__back {
+    width: 40px; height: 40px; min-width: 40px;
+    display: grid; place-items: center;
+    border-radius: 10px; color: var(--text-secondary);
+  }
+  .app-top__back:hover { background: var(--bg-input); color: var(--text-primary); }
+  .app-top__back svg { width: 18px; height: 18px; }
+  .app-scroll {
+    flex: 1; min-height: 0;
+    overflow-y: auto; overflow-x: hidden;
+    padding: 12px 12px var(--safe-bottom);
+    -webkit-overflow-scrolling: touch;
+  }
+  .app-scroll--flush { padding-left: 0; padding-right: 0; }
+
+  /* Bottom dock */
+  .dock {
+    position: absolute; left: 12px; right: 12px; bottom: 10px;
+    height: var(--dock-h);
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    align-items: center;
+    background: color-mix(in srgb, var(--bg-card) 92%, #000);
+    border: 1px solid var(--border-subtle);
+    border-radius: 18px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+    z-index: 20;
+    pointer-events: none;
+  }
+  .dock__tab {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    color: var(--text-muted); font-size: 10px; font-weight: 500;
+  }
+  .dock__tab svg { width: 20px; height: 20px; opacity: 0.75; }
+  .dock__tab.is-active { color: var(--text-primary); }
+  .dock__tab.is-active svg { opacity: 1; }
+
+  /* Cards / rows */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+  }
+  .section-label {
+    display: flex; align-items: center; gap: 8px;
+    margin: 0 2px 8px;
+    font-size: 13px; font-weight: 500; color: var(--text-muted);
+  }
+  .section-label svg { width: 14px; height: 14px; opacity: 0.8; }
+  .section-label__end {
+    margin-left: auto; font-size: 12px; color: var(--text-secondary);
+  }
+
+  .profile-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; min-height: 64px; width: 100%; text-align: left;
+  }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 999px;
+    display: grid; place-items: center; flex-shrink: 0;
+    background: var(--bg-input); border: 1px solid var(--border-subtle);
+    font-size: 13px; font-weight: 700; letter-spacing: 0.02em;
+  }
+  .profile-row__id { min-width: 0; flex: 1; }
+  .profile-row__login {
+    font-size: 15px; font-weight: 600; line-height: 1.25;
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  }
+  .profile-row__since { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+  .profile-row__meta { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; }
+  .profile-row__chev { color: var(--text-muted); flex-shrink: 0; }
+  .icon-btn {
+    width: 44px; height: 44px; min-width: 44px;
+    display: grid; place-items: center;
+    border-radius: 10px; color: var(--text-secondary);
+  }
+  .icon-btn:hover { background: var(--bg-input); color: var(--text-primary); }
+  .icon-btn.is-danger { color: color-mix(in srgb, var(--color-down) 80%, var(--text-secondary)); }
+  .icon-btn.is-danger:hover { color: var(--color-down); }
+  .icon-btn svg { width: 16px; height: 16px; }
+
+  .theme-seg {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;
+    padding: 3px; background: var(--bg-input); border-radius: 10px;
+  }
+  .theme-seg button {
+    min-height: 44px; padding: 8px 6px; border-radius: 8px;
+    font-size: 13px; font-weight: 500; color: var(--text-muted);
+  }
+  .theme-seg button.is-on {
+    background: var(--bg-elevated); color: var(--text-primary);
+    border: 1px solid var(--border-medium);
+  }
+
+  .status-dot {
+    display: inline-block; width: 7px; height: 7px; border-radius: 999px;
+    background: var(--color-up); margin-right: 5px; vertical-align: middle;
+  }
+  .status-dot.is-warn { background: var(--color-warn); }
+  .status-dot.is-err { background: var(--color-down); }
+  .status-dot.is-mute { background: var(--text-muted); }
+
+  .token-line {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 4px 8px; align-items: center;
+    padding: 12px 12px; min-height: 56px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .token-line:first-child { border-top: 0; }
+  .token-line__name { font-size: 14px; font-weight: 600; line-height: 1.25; }
+  .token-line__meta { font-size: 12px; color: var(--text-secondary); line-height: 1.35; }
+  .token-line__mask {
+    font-size: 11.5px; color: var(--text-muted);
+    font-variant-numeric: tabular-nums; letter-spacing: 0.02em;
+  }
+
+  .acct-line {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 2px 10px; align-items: center;
+    padding: 12px 14px; min-height: 52px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .acct-line:first-child { border-top: 0; }
+  .acct-line__name { font-size: 14px; font-weight: 500; }
+  .acct-line__meta { font-size: 12px; color: var(--text-muted); }
+
+  .toggle {
+    width: 44px; height: 26px; border-radius: 999px;
+    background: #2a2a36; position: relative; flex-shrink: 0;
+    transition: background 160ms ease;
+  }
+  .toggle::after {
+    content: ''; position: absolute; top: 3px; left: 3px;
+    width: 20px; height: 20px; border-radius: 999px;
+    background: #c8c8d0; transition: transform 160ms ease, background 160ms ease;
+  }
+  .toggle.is-on { background: color-mix(in srgb, var(--color-up) 35%, #1a2a24); }
+  .toggle.is-on::after { transform: translateX(18px); background: var(--color-up); }
+
+  .logout-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; min-height: 48px; margin-top: 16px;
+    border-radius: 12px; border: 1px solid var(--border-subtle);
+    background: transparent; color: var(--color-down);
+    font-size: 15px; font-weight: 500;
+  }
+  .logout-btn:hover { background: color-mix(in srgb, var(--color-down) 8%, transparent); }
+
+  .add-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; min-height: 44px; margin-top: 8px;
+    border: 1px dashed color-mix(in srgb, var(--border-medium) 80%, transparent);
+    border-radius: 10px; color: var(--text-secondary); font-size: 13.5px; font-weight: 500;
+  }
+  .add-btn:hover { color: var(--text-primary); background: var(--bg-input); }
+
+  .collapse-h {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 12px 14px; min-height: 56px; text-align: left;
+  }
+  .collapse-h__icon {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: grid; place-items: center; flex-shrink: 0;
+    background: var(--bg-input); border: 1px solid var(--border-subtle);
+  }
+  .collapse-h__icon svg { width: 15px; height: 15px; }
+  .collapse-h__text { min-width: 0; flex: 1; }
+  .collapse-h__name { font-size: 14.5px; font-weight: 600; }
+  .collapse-h__meta { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .collapse-h__chev {
+    color: var(--text-muted); transition: transform 160ms ease; flex-shrink: 0;
+  }
+  .collapse.is-open .collapse-h__chev { transform: rotate(90deg); }
+  .collapse__body { display: none; border-top: 1px solid var(--border-subtle); }
+  .collapse.is-open .collapse__body { display: block; }
+  .collapse__sub {
+    padding: 8px 12px 4px;
+    font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--text-muted);
+  }
+
+  .toast {
+    position: absolute; left: 16px; right: 16px; bottom: 78px;
+    padding: 10px 14px; border-radius: 10px; z-index: 30;
+    background: var(--bg-elevated); border: 1px solid var(--border-medium);
+    font-size: 13px; color: var(--text-secondary);
+    opacity: 0; pointer-events: none; transform: translateY(6px);
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+  .toast.is-on { opacity: 1; transform: translateY(0); }
+
+  /* —— Variant B: segment tabs —— */
+  .seg-bar {
+    flex: 0 0 auto;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;
+    margin: 0 12px 0; padding: 3px;
+    background: var(--bg-input); border-radius: 10px;
+  }
+  .seg-bar button {
+    min-height: 40px; border-radius: 8px;
+    font-size: 13px; font-weight: 500; color: var(--text-muted);
+  }
+  .seg-bar button.is-on {
+    background: var(--bg-elevated); color: var(--text-primary);
+    border: 1px solid var(--border-medium);
+  }
+  .panel { display: none; flex: 1; min-height: 0; flex-direction: column; }
+  .panel.is-on { display: flex; }
+
+  /* —— Variant C: broker-first —— */
+  .compact-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; margin-bottom: 12px;
+  }
+  .compact-header .avatar { width: 32px; height: 32px; font-size: 11px; }
+  .compact-header__id { min-width: 0; flex: 1; }
+  .compact-header__login { font-size: 13.5px; font-weight: 600; }
+  .compact-header__meta { font-size: 11.5px; color: var(--text-muted); }
+  .compact-theme {
+    display: flex; gap: 2px; padding: 2px;
+    background: var(--bg-input); border-radius: 8px; flex-shrink: 0;
+  }
+  .compact-theme button {
+    min-width: 36px; min-height: 36px; padding: 0 8px;
+    border-radius: 6px; font-size: 11px; font-weight: 600; color: var(--text-muted);
+  }
+  .compact-theme button.is-on {
+    background: var(--bg-elevated); color: var(--text-primary);
+    border: 1px solid var(--border-medium);
+  }
+  .broker-list-item {
+    display: flex; align-items: center; gap: 12px;
+    width: 100%; padding: 14px; min-height: 64px; text-align: left;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .broker-list-item:last-child { border-bottom: 0; }
+  .broker-list-item:hover { background: var(--bg-card-hover); }
+  .push-layer {
+    position: absolute; inset: 0; z-index: 12;
+    display: flex; flex-direction: column;
+    background: var(--bg-page);
+    transform: translateX(100%);
+    transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .push-layer.is-open { transform: translateX(0); }
+
+  /* —— Variant D: iOS-like list —— */
+  .grouped {
+    margin: 0 12px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .grouped__caption {
+    margin: 0 16px 6px; font-size: 12px; font-weight: 500;
+    color: var(--text-muted); letter-spacing: 0.02em; text-transform: uppercase;
+  }
+  .list-row {
+    display: flex; align-items: center; gap: 12px;
+    width: 100%; padding: 0 14px; min-height: 48px; text-align: left;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .list-row:first-child { border-top: 0; }
+  .list-row:hover { background: var(--bg-card-hover); }
+  .list-row__icon {
+    width: 28px; height: 28px; border-radius: 7px;
+    display: grid; place-items: center; flex-shrink: 0;
+    background: var(--bg-input); border: 1px solid var(--border-subtle);
+  }
+  .list-row__icon svg { width: 14px; height: 14px; }
+  .list-row__label { flex: 1; font-size: 15px; font-weight: 500; }
+  .list-row__value { font-size: 13px; color: var(--text-muted); }
+  .list-row__chev { color: var(--text-muted); }
+  .sheet-scrim {
+    position: absolute; inset: 0; z-index: 14;
+    background: rgba(0,0,0,0.55);
+    opacity: 0; pointer-events: none; transition: opacity 200ms ease;
+  }
+  .sheet-scrim.is-open { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 15;
+    max-height: 88%;
+    background: var(--bg-card);
+    border-radius: 18px 18px 0 0;
+    border: 1px solid var(--border-subtle);
+    border-bottom: 0;
+    transform: translateY(105%);
+    transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    display: flex; flex-direction: column;
+  }
+  .sheet.is-open { transform: translateY(0); }
+  .sheet__handle {
+    flex: 0 0 auto; display: flex; justify-content: center; padding: 10px 0 4px;
+  }
+  .sheet__handle span {
+    width: 36px; height: 4px; border-radius: 999px; background: #2a2a36;
+  }
+  .sheet__head {
+    flex: 0 0 auto;
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 12px 10px; border-bottom: 1px solid var(--border-subtle);
+  }
+  .sheet__title { flex: 1; font-size: 16px; font-weight: 600; text-align: center; }
+  .sheet__body {
+    flex: 1; min-height: 0; overflow-y: auto;
+    padding: 12px 12px calc(var(--safe-bottom) + 8px);
+  }
+
+  .gap-stack { display: flex; flex-direction: column; gap: 10px; }
+  .muted { color: var(--text-muted); }
+  .secondary { color: var(--text-secondary); }
+  .hint {
+    margin: 0 2px 10px; font-size: 12.5px; color: var(--text-muted); line-height: 1.4;
+  }
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 2px 7px; border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+    background: var(--bg-input); color: var(--text-secondary);
+    border: 1px solid var(--border-subtle);
+  }
+</style>
+</head>
+<body data-variant="a">
+
+<header class="picker">
+  <div>
+    <h1>Настройки · мобильные варианты</h1>
+    <p>Телефон ~390×780. Нижний док зафиксирован (~72px safe). Переключайте IA — кликайте внутри фрейма.</p>
+  </div>
+  <div class="picker__modes" role="tablist" aria-label="Вариант раскладки">
+    <button type="button" data-pick="a" class="is-on" role="tab" aria-selected="true">A · Sheet</button>
+    <button type="button" data-pick="b" role="tab" aria-selected="false">B · Segments</button>
+    <button type="button" data-pick="c" role="tab" aria-selected="false">C · Broker-first</button>
+    <button type="button" data-pick="d" role="tab" aria-selected="false">D · List / sheet</button>
+  </div>
+  <p class="picker__note" id="pickerNote">
+    <strong>A · Stacked sheet</strong> — один скролл: профиль → тема → аккордеон брокеров.
+  </p>
+</header>
+
+<main class="stage">
+  <div class="phone" aria-label="Превью телефона">
+    <div class="phone__notch"><span class="phone__notch-pill" aria-hidden="true"></span></div>
+    <div class="phone__body">
+
+      <!-- ========== VARIANT A: Stacked sheet ========== -->
+      <div class="variant variant-a" data-screen="a">
+        <div class="app-top">
+          <div class="app-top__title">Настройки</div>
+        </div>
+        <div class="app-scroll">
+          <div class="gap-stack">
+            <div class="card">
+              <button type="button" class="profile-row" data-toast="Редактирование профиля">
+                <span class="avatar">GY</span>
+                <span class="profile-row__id">
+                  <span class="profile-row__login">gy <span class="profile-row__since">с 12.03.2024</span></span>
+                  <span class="profile-row__meta">gy@ginity.ru</span>
+                </span>
+                <span class="icon-btn" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M4 16.5V20h3.5L18 9.5 14.5 6 4 16.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                </span>
+              </button>
+            </div>
+
+            <div>
+              <div class="section-label">
+                <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="1.5" opacity=".35"/></svg>
+                Тема
+              </div>
+              <div class="card" style="padding:8px">
+                <div class="theme-seg" role="radiogroup" aria-label="Тема">
+                  <button type="button" class="is-on" data-theme-opt>Система</button>
+                  <button type="button" data-theme-opt>Тёмная</button>
+                  <button type="button" data-theme-opt>Светлая</button>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="section-label">
+                <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="7" width="16" height="11" rx="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 7V5.5A2 2 0 0 1 10 3.5h4A2 2 0 0 1 16 5.5V7" stroke="currentColor" stroke-width="1.5"/></svg>
+                Брокеры
+                <span class="section-label__end">2</span>
+              </div>
+
+              <div class="gap-stack">
+                <div class="card collapse is-open" data-collapse>
+                  <button type="button" class="collapse-h" data-collapse-toggle>
+                    <span class="collapse-h__icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none"><path d="M4 8h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z" stroke="currentColor" stroke-width="1.5"/><path d="M8 8V6h8v2" stroke="currentColor" stroke-width="1.5"/></svg>
+                    </span>
+                    <span class="collapse-h__text">
+                      <span class="collapse-h__name">T-Invest</span>
+                      <span class="collapse-h__meta"><span class="status-dot"></span>1 токен · 2 счёта</span>
+                    </span>
+                    <svg class="collapse-h__chev" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                  </button>
+                  <div class="collapse__body">
+                    <div class="collapse__sub">Токены</div>
+                    <div class="token-line">
+                      <div>
+                        <div class="token-line__name">Основной API</div>
+                        <div class="token-line__meta"><span class="status-dot"></span>Активен · 2 ч назад</div>
+                        <div class="token-line__mask">t.••••••••••••a7f2</div>
+                      </div>
+                      <button type="button" class="icon-btn is-danger" data-toast="Удалить токен" aria-label="Удалить токен">
+                        <svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 11v6M14 11v6M8 7V5h8v2M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                      </button>
+                    </div>
+                    <div class="collapse__sub">Счета</div>
+                    <div class="acct-line">
+                      <div>
+                        <div class="acct-line__name">Брокерский</div>
+                        <div class="acct-line__meta">2000123456 · ₽ 1 240 500</div>
+                      </div>
+                      <button type="button" class="toggle is-on" data-toggle aria-label="Видимость счёта"></button>
+                    </div>
+                    <div class="acct-line">
+                      <div>
+                        <div class="acct-line__name">ИИС</div>
+                        <div class="acct-line__meta">2000987654 · ₽ 320 100</div>
+                      </div>
+                      <button type="button" class="toggle is-on" data-toggle aria-label="Видимость счёта"></button>
+                    </div>
+                    <div style="padding:8px 12px 12px">
+                      <button type="button" class="add-btn" data-toast="Добавить токен T-Invest">+ Добавить токен</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card collapse" data-collapse>
+                  <button type="button" class="collapse-h" data-collapse-toggle>
+                    <span class="collapse-h__icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="1.5"/></svg>
+                    </span>
+                    <span class="collapse-h__text">
+                      <span class="collapse-h__name">Bybit</span>
+                      <span class="collapse-h__meta"><span class="status-dot is-warn"></span>1 токен · 1 счёт</span>
+                    </span>
+                    <svg class="collapse-h__chev" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                  </button>
+                  <div class="collapse__body">
+                    <div class="collapse__sub">Токены</div>
+                    <div class="token-line">
+                      <div>
+                        <div class="token-line__name">Trading key</div>
+                        <div class="token-line__meta"><span class="status-dot is-warn"></span>Ошибка · проверьте права</div>
+                        <div class="token-line__mask">••••••••••••9c21</div>
+                      </div>
+                      <button type="button" class="icon-btn is-danger" data-toast="Удалить токен" aria-label="Удалить токен">
+                        <svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 11v6M14 11v6M8 7V5h8v2M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                      </button>
+                    </div>
+                    <div class="collapse__sub">Счета</div>
+                    <div class="acct-line">
+                      <div>
+                        <div class="acct-line__name">Unified</div>
+                        <div class="acct-line__meta">USDT · 4 820.15</div>
+                      </div>
+                      <button type="button" class="toggle" data-toggle aria-label="Видимость счёта"></button>
+                    </div>
+                    <div style="padding:8px 12px 12px">
+                      <button type="button" class="add-btn" data-toast="Добавить токен Bybit">+ Добавить токен</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button type="button" class="logout-btn" data-toast="Выход из аккаунта">Выйти</button>
+          </div>
+        </div>
+        <nav class="dock" aria-hidden="true">
+          <span class="dock__tab"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="8" width="17" height="11.5" rx="3" stroke="currentColor" stroke-width="1.5"/></svg>Портфель</span>
+          <span class="dock__tab"><svg viewBox="0 0 24 24" fill="none"><rect x="5.5" y="7" width="13" height="12" rx="4" stroke="currentColor" stroke-width="1.5"/></svg>Роботы</span>
+          <span class="dock__tab"><svg viewBox="0 0 24 24" fill="none"><path d="M9 3h6M10 3v5.5L6 16.2A2.4 2.4 0 0 0 8.1 20h7.8A2.4 2.4 0 0 0 18 16.2L14 8.5V3" stroke="currentColor" stroke-width="1.5"/></svg>Лаб</span>
+        </nav>
+        <div class="toast" data-toast-el></div>
+      </div>
+
+      <!-- ========== VARIANT B: Segment tabs ========== -->
+      <div class="variant variant-b" data-screen="b">
+        <div class="app-top">
+          <div class="app-top__title">Настройки</div>
+        </div>
+        <div class="seg-bar" role="tablist" style="margin-top:8px">
+          <button type="button" class="is-on" data-seg="profile" role="tab">Профиль</button>
+          <button type="button" data-seg="theme" role="tab">Тема</button>
+          <button type="button" data-seg="brokers" role="tab">Брокеры</button>
+        </div>
+
+        <div class="panel is-on" data-seg-panel="profile">
+          <div class="app-scroll">
+            <p class="hint">Данные аккаунта и выход.</p>
+            <div class="card">
+              <div class="profile-row" style="cursor:default">
+                <span class="avatar">GY</span>
+                <span class="profile-row__id">
+                  <span class="profile-row__login">gy <span class="profile-row__since">с 12.03.2024</span></span>
+                  <span class="profile-row__meta">gy@ginity.ru</span>
+                </span>
+              </div>
+            </div>
+            <button type="button" class="add-btn" style="margin-top:12px" data-toast="Редактирование профиля">Изменить профиль</button>
+            <button type="button" class="logout-btn" data-toast="Выход из аккаунта">Выйти</button>
+          </div>
+        </div>
+
+        <div class="panel" data-seg-panel="theme">
+          <div class="app-scroll">
+            <p class="hint">Оформление приложения. На телефоне удобнее полный экран.</p>
+            <div class="card" style="padding:12px">
+              <div class="theme-seg" role="radiogroup">
+                <button type="button" class="is-on" data-theme-opt>Система</button>
+                <button type="button" data-theme-opt>Тёмная</button>
+                <button type="button" data-theme-opt>Светлая</button>
+              </div>
+            </div>
+            <p class="hint" style="margin-top:14px">«Система» следует за ОС. Тёмная — дефолт GIN.</p>
+          </div>
+        </div>
+
+        <div class="panel" data-seg-panel="brokers">
+          <div class="app-scroll">
+            <div class="section-label" style="margin-top:0">
+              Брокеры <span class="section-label__end">2</span>
+            </div>
+            <div class="card" style="overflow:hidden;margin-bottom:10px">
+              <button type="button" class="broker-list-item" data-b-open="tinvest">
+                <span class="collapse-h__icon">
+                  <svg viewBox="0 0 24 24" fill="none"><path d="M4 8h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z" stroke="currentColor" stroke-width="1.5"/></svg>
+                </span>
+                <span class="collapse-h__text">
+                  <span class="collapse-h__name">T-Invest</span>
+                  <span class="collapse-h__meta"><span class="status-dot"></span>1 токен · 2 счёта</span>
+                </span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="muted"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </button>
+              <button type="button" class="broker-list-item" data-b-open="bybit">
+                <span class="collapse-h__icon">
+                  <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5"/></svg>
+                </span>
+                <span class="collapse-h__text">
+                  <span class="collapse-h__name">Bybit</span>
+                  <span class="collapse-h__meta"><span class="status-dot is-warn"></span>1 токен · 1 счёт</span>
+                </span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="muted"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </button>
+            </div>
+            <button type="button" class="add-btn" data-toast="Подключить брокера">+ Подключить брокера</button>
+          </div>
+        </div>
+
+        <!-- push detail inside B -->
+        <div class="push-layer" data-b-detail>
+          <div class="app-top">
+            <button type="button" class="app-top__back" data-b-close aria-label="Назад">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <div class="app-top__title" data-b-title>T-Invest</div>
+          </div>
+          <div class="app-scroll" data-b-body></div>
+        </div>
+
+        <nav class="dock" aria-hidden="true">
+          <span class="dock__tab"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="8" width="17" height="11.5" rx="3" stroke="currentColor" stroke-width="1.5"/></svg>Портфель</span>
+          <span class="dock__tab"><svg viewBox="0 0 24 24" fill="none"><rect x="5.5" y="7" width="13" height="12" rx="4" stroke="currentColor" stroke-width="1.5"/></svg>Роботы</span>
+          <span class="dock__tab"><svg viewBox="0 0 24 24" fill="none"><path d="M9 3h6M10 3v5.5L6 16.2A2.4 2.4 0 0 0 8.1 20h7.8A2.4 2.4 0 0 0 18 16.2L14 8.5V3" stroke="currentColor" stroke-width="1.5"/></svg>Лаб</span>
+        </nav>
+        <div class="toast" data-toast-el></div>
+      </div>
+
+      <!-- ========== VARIANT C: Broker-first ========== -->
+      <div class="variant variant-c" data-screen="c">
+        <div class="app-top">
+          <div class="app-top__title">Настройки</div>
+        </div>
+        <div class="app-scroll" style="position:relative">
+          <div class="card compact-header">
+            <button type="button" class="avatar" data-toast="Редактирование профиля" style="cursor:pointer">GY</button>
+            <div class="compact-header__id">
+              <div class="compact-header__login">gy</div>
+              <div class="compact-header__meta">gy@ginity.ru</div>
+            </div>
+            <div class="compact-theme" role="radiogroup" aria-label="Тема">
+              <button type="button" class="is-on" data-theme-opt title="Система">Сис</button>
+              <button type="button" data-theme-opt title="Тёмная">Тём</button>
+              <button type="button" data-theme-opt title="Светлая">Св</button>
+            </div>
+          </div>
+
+          <div class="section-label">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="7" width="16" height="11" rx="2.5" stroke="currentColor" stroke-width="1.5"/></svg>
+            Брокеры
+            <span class="section-label__end">основное</span>
+          </div>
+          <div class="card" style="overflow:hidden">
+            <button type="button" class="broker-list-item" data-c-open="tinvest">
+              <span class="collapse-h__icon">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M4 8h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z" stroke="currentColor" stroke-width="1.5"/></svg>
+              </span>
+              <span class="collapse-h__text">
+                <span class="collapse-h__name">T-Invest</span>
+                <span class="collapse-h__meta"><span class="status-dot"></span>ОК · 2 счёта</span>
+              </span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="muted"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <button type="button" class="broker-list-item" data-c-open="bybit">
+              <span class="collapse-h__icon">
+                <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5"/></svg>
+              </span>
+              <span class="collapse-h__text">
+                <span class="collapse-h__name">Bybit</span>
+                <span class="collapse-h__meta"><span class="status-dot is-warn"></span>Ошибка токена</span>
+              </span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="muted"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <button type="button" class="add-btn" data-toast="Подключить брокера">+ Подключить брокера</button>
+          <button type="button" class="logout-btn" data-toast="Выход из аккаунта">Выйти</button>
+        </div>
+
+        <div class="push-layer" data-c-detail>
+          <div class="app-top">
+            <button type="button" class="app-top__back" data-c-close aria-label="Назад">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <div class="app-top__title" data-c-title>T-Invest</div>
+          </div>
+          <div class="app-scroll" data-c-body></div>
+        </div>
+
+        <nav class="dock" aria-hidden="true">
+          <span class="dock__tab"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="8" width="17" height="11.5" rx="3" stroke="currentColor" stroke-width="1.5"/></svg>Портфель</span>
+          <span class="dock__tab"><svg viewBox="0 0 24 24" fill="none"><rect x="5.5" y="7" width="13" height="12" rx="4" stroke="currentColor" stroke-width="1.5"/></svg>Роботы</span>
+          <span class="dock__tab"><svg viewBox="0 0 24 24" fill="none"><path d="M9 3h6M10 3v5.5L6 16.2A2.4 2.4 0 0 0 8.1 20h7.8A2.4 2.4 0 0 0 18 16.2L14 8.5V3" stroke="currentColor" stroke-width="1.5"/></svg>Лаб</span>
+        </nav>
+        <div class="toast" data-toast-el></div>
+      </div>
+
+      <!-- ========== VARIANT D: List / sheet ========== -->
+      <div class="variant variant-d" data-screen="d">
+        <div class="app-top">
+          <div class="app-top__title">Настройки</div>
+        </div>
+        <div class="app-scroll app-scroll--flush">
+          <p class="grouped__caption" style="margin-top:4px">Аккаунт</p>
+          <div class="grouped">
+            <button type="button" class="list-row" data-d-open="profile">
+              <span class="list-row__icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="9" r="3.2" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 19c1.6-3 4-4.5 6.5-4.5S17 16 18.5 19" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
+              <span class="list-row__label">Профиль</span>
+              <span class="list-row__value">gy</span>
+              <svg class="list-row__chev" width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <button type="button" class="list-row" data-d-open="theme">
+              <span class="list-row__icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5"/><path d="M12 4v16" stroke="currentColor" stroke-width="1.5" opacity=".4"/></svg></span>
+              <span class="list-row__label">Оформление</span>
+              <span class="list-row__value">Система</span>
+              <svg class="list-row__chev" width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+
+          <p class="grouped__caption">Брокеры</p>
+          <div class="grouped">
+            <button type="button" class="list-row" data-d-open="tinvest">
+              <span class="list-row__icon"><svg viewBox="0 0 24 24" fill="none"><path d="M4 8h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z" stroke="currentColor" stroke-width="1.5"/></svg></span>
+              <span class="list-row__label">T-Invest</span>
+              <span class="list-row__value"><span class="status-dot"></span>ОК</span>
+              <svg class="list-row__chev" width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <button type="button" class="list-row" data-d-open="bybit">
+              <span class="list-row__icon"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.5"/></svg></span>
+              <span class="list-row__label">Bybit</span>
+              <span class="list-row__value"><span class="status-dot is-warn"></span>Ошибка</span>
+              <svg class="list-row__chev" width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <button type="button" class="list-row" data-toast="Подключить брокера">
+              <span class="list-row__icon"><svg viewBox="0 0 24 24" fill="none"><path d="M12 7v10M7 12h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+              <span class="list-row__label">Подключить брокера</span>
+              <svg class="list-row__chev" width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+
+          <div class="grouped">
+            <button type="button" class="list-row" data-toast="Выход из аккаунта" style="color:var(--color-down)">
+              <span class="list-row__label" style="padding-left:4px">Выйти</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="sheet-scrim" data-d-scrim></div>
+        <div class="sheet" data-d-sheet>
+          <div class="sheet__handle"><span></span></div>
+          <div class="sheet__head">
+            <button type="button" class="icon-btn" data-d-close aria-label="Закрыть">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </button>
+            <div class="sheet__title" data-d-title>Профиль</div>
+            <span style="width:44px"></span>
+          </div>
+          <div class="sheet__body" data-d-body></div>
+        </div>
+
+        <nav class="dock" aria-hidden="true">
+          <span class="dock__tab"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="8" width="17" height="11.5" rx="3" stroke="currentColor" stroke-width="1.5"/></svg>Портфель</span>
+          <span class="dock__tab"><svg viewBox="0 0 24 24" fill="none"><rect x="5.5" y="7" width="13" height="12" rx="4" stroke="currentColor" stroke-width="1.5"/></svg>Роботы</span>
+          <span class="dock__tab"><svg viewBox="0 0 24 24" fill="none"><path d="M9 3h6M10 3v5.5L6 16.2A2.4 2.4 0 0 0 8.1 20h7.8A2.4 2.4 0 0 0 18 16.2L14 8.5V3" stroke="currentColor" stroke-width="1.5"/></svg>Лаб</span>
+        </nav>
+        <div class="toast" data-toast-el></div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  const NOTES = {
+    a: '<strong>A · Stacked sheet</strong> — один скролл: компактный профиль → сегмент темы → аккордеон брокеров (токены/счета внутри).',
+    b: '<strong>B · Segment tabs</strong> — липкие сегменты Профиль | Тема | Брокеры; у брокера — push-деталь.',
+    c: '<strong>C · Broker-first</strong> — профиль+тема в одной шапке; главный список брокеров → drill-in.',
+    d: '<strong>D · List / sheet</strong> — grouped list как iOS Settings; подстраницы в bottom sheet.',
+  };
+
+  const BROKER_HTML = {
+    tinvest: `
+      <div class="section-label" style="margin-top:0">Токены</div>
+      <div class="card" style="overflow:hidden;margin-bottom:12px">
+        <div class="token-line">
+          <div>
+            <div class="token-line__name">Основной API</div>
+            <div class="token-line__meta"><span class="status-dot"></span>Активен · 2 ч назад</div>
+            <div class="token-line__mask">t.••••••••••••a7f2</div>
+          </div>
+          <button type="button" class="icon-btn is-danger" data-toast="Удалить токен" aria-label="Удалить">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 11v6M14 11v6M8 7V5h8v2M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="section-label">Счета</div>
+      <div class="card" style="overflow:hidden;margin-bottom:12px">
+        <div class="acct-line">
+          <div><div class="acct-line__name">Брокерский</div><div class="acct-line__meta">2000123456 · ₽ 1 240 500</div></div>
+          <button type="button" class="toggle is-on" data-toggle aria-label="Видимость"></button>
+        </div>
+        <div class="acct-line">
+          <div><div class="acct-line__name">ИИС</div><div class="acct-line__meta">2000987654 · ₽ 320 100</div></div>
+          <button type="button" class="toggle is-on" data-toggle aria-label="Видимость"></button>
+        </div>
+      </div>
+      <button type="button" class="add-btn" data-toast="Добавить токен">+ Добавить токен</button>`,
+    bybit: `
+      <div class="section-label" style="margin-top:0">Токены</div>
+      <div class="card" style="overflow:hidden;margin-bottom:12px">
+        <div class="token-line">
+          <div>
+            <div class="token-line__name">Trading key</div>
+            <div class="token-line__meta"><span class="status-dot is-warn"></span>Ошибка · проверьте права</div>
+            <div class="token-line__mask">••••••••••••9c21</div>
+          </div>
+          <button type="button" class="icon-btn is-danger" data-toast="Удалить токен" aria-label="Удалить">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 11v6M14 11v6M8 7V5h8v2M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="section-label">Счета</div>
+      <div class="card" style="overflow:hidden;margin-bottom:12px">
+        <div class="acct-line">
+          <div><div class="acct-line__name">Unified</div><div class="acct-line__meta">USDT · 4 820.15</div></div>
+          <button type="button" class="toggle" data-toggle aria-label="Видимость"></button>
+        </div>
+      </div>
+      <button type="button" class="add-btn" data-toast="Добавить токен">+ Добавить токен</button>`,
+  };
+
+  const SHEET_HTML = {
+    profile: `
+      <div class="card">
+        <div class="profile-row" style="cursor:default">
+          <span class="avatar">GY</span>
+          <span class="profile-row__id">
+            <span class="profile-row__login">gy <span class="profile-row__since">с 12.03.2024</span></span>
+            <span class="profile-row__meta">gy@ginity.ru</span>
+          </span>
+        </div>
+      </div>
+      <button type="button" class="add-btn" style="margin-top:12px" data-toast="Редактирование профиля">Изменить</button>`,
+    theme: `
+      <p class="hint">Оформление приложения</p>
+      <div class="card" style="padding:10px">
+        <div class="theme-seg" role="radiogroup">
+          <button type="button" class="is-on" data-theme-opt>Система</button>
+          <button type="button" data-theme-opt>Тёмная</button>
+          <button type="button" data-theme-opt>Светлая</button>
+        </div>
+      </div>`,
+    tinvest: BROKER_HTML.tinvest,
+    bybit: BROKER_HTML.bybit,
+  };
+
+  const TITLES = { profile: 'Профиль', theme: 'Оформление', tinvest: 'T-Invest', bybit: 'Bybit' };
+
+  /* Picker */
+  document.querySelectorAll('[data-pick]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const v = btn.getAttribute('data-pick');
+      document.body.setAttribute('data-variant', v);
+      document.querySelectorAll('[data-pick]').forEach((b) => {
+        const on = b === btn;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      document.getElementById('pickerNote').innerHTML = NOTES[v];
+      // reset layers
+      document.querySelectorAll('.push-layer').forEach((el) => el.classList.remove('is-open'));
+      document.querySelector('[data-d-sheet]')?.classList.remove('is-open');
+      document.querySelector('[data-d-scrim]')?.classList.remove('is-open');
+    });
+  });
+
+  /* Theme segments */
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-theme-opt]');
+    if (!t) return;
+    const group = t.parentElement;
+    group.querySelectorAll('[data-theme-opt]').forEach((b) => b.classList.remove('is-on'));
+    t.classList.add('is-on');
+  });
+
+  /* Toggles */
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-toggle]');
+    if (!t) return;
+    t.classList.toggle('is-on');
+  });
+
+  /* Toast */
+  function showToast(root, msg) {
+    const el = root.querySelector('[data-toast-el]');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('is-on');
+    clearTimeout(el._tm);
+    el._tm = setTimeout(() => el.classList.remove('is-on'), 1600);
+  }
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-toast]');
+    if (!t) return;
+    const root = t.closest('.variant');
+    if (root) showToast(root, t.getAttribute('data-toast'));
+  });
+
+  /* Accordion A */
+  document.querySelectorAll('[data-collapse-toggle]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      btn.closest('[data-collapse]')?.classList.toggle('is-open');
+    });
+  });
+
+  /* Variant B segments */
+  const bRoot = document.querySelector('.variant-b');
+  bRoot.querySelectorAll('[data-seg]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      bRoot.querySelectorAll('[data-seg]').forEach((b) => b.classList.remove('is-on'));
+      btn.classList.add('is-on');
+      const id = btn.getAttribute('data-seg');
+      bRoot.querySelectorAll('[data-seg-panel]').forEach((p) => {
+        p.classList.toggle('is-on', p.getAttribute('data-seg-panel') === id);
+      });
+    });
+  });
+  function openB(id) {
+    bRoot.querySelector('[data-b-title]').textContent = TITLES[id] || id;
+    bRoot.querySelector('[data-b-body]').innerHTML = BROKER_HTML[id] || '';
+    bRoot.querySelector('[data-b-detail]').classList.add('is-open');
+  }
+  bRoot.querySelectorAll('[data-b-open]').forEach((btn) => {
+    btn.addEventListener('click', () => openB(btn.getAttribute('data-b-open')));
+  });
+  bRoot.querySelector('[data-b-close]')?.addEventListener('click', () => {
+    bRoot.querySelector('[data-b-detail]').classList.remove('is-open');
+  });
+
+  /* Variant C */
+  const cRoot = document.querySelector('.variant-c');
+  function openC(id) {
+    cRoot.querySelector('[data-c-title]').textContent = TITLES[id] || id;
+    cRoot.querySelector('[data-c-body]').innerHTML = BROKER_HTML[id] || '';
+    cRoot.querySelector('[data-c-detail]').classList.add('is-open');
+  }
+  cRoot.querySelectorAll('[data-c-open]').forEach((btn) => {
+    btn.addEventListener('click', () => openC(btn.getAttribute('data-c-open')));
+  });
+  cRoot.querySelector('[data-c-close]')?.addEventListener('click', () => {
+    cRoot.querySelector('[data-c-detail]').classList.remove('is-open');
+  });
+
+  /* Variant D sheets */
+  const dRoot = document.querySelector('.variant-d');
+  const sheet = dRoot.querySelector('[data-d-sheet]');
+  const scrim = dRoot.querySelector('[data-d-scrim]');
+  function openD(id) {
+    dRoot.querySelector('[data-d-title]').textContent = TITLES[id] || id;
+    dRoot.querySelector('[data-d-body]').innerHTML = SHEET_HTML[id] || '';
+    sheet.classList.add('is-open');
+    scrim.classList.add('is-open');
+  }
+  function closeD() {
+    sheet.classList.remove('is-open');
+    scrim.classList.remove('is-open');
+  }
+  dRoot.querySelectorAll('[data-d-open]').forEach((btn) => {
+    btn.addEventListener('click', () => openD(btn.getAttribute('data-d-open')));
+  });
+  dRoot.querySelector('[data-d-close]')?.addEventListener('click', closeD);
+  scrim.addEventListener('click', closeD);
+})();
+</script>
+</body>
+</html>

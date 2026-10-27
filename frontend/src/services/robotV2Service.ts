@@ -173,6 +173,10 @@ export const robotV2Service = {
         offset?: number
         sessionId?: string | null
         types?: AuditDataType[]
+        /** Inclusive UTC start. */
+        from?: string | null
+        /** Exclusive UTC end. */
+        to?: string | null
     }): Promise<RobotV2AuditResponse> {
         const { data } = await api.post<RobotV2AuditResponse>('/v2/robots/audit', {
             robotId: payload.robotId,
@@ -180,6 +184,8 @@ export const robotV2Service = {
             offset: payload.offset ?? 0,
             sessionId: payload.sessionId ?? undefined,
             types: payload.types,
+            from: payload.from ?? undefined,
+            to: payload.to ?? undefined,
         })
         return data
     },
@@ -411,6 +417,8 @@ export const robotV2Service = {
             sharpe_ratio?: number | null
             final_equity?: number | null
             trades_total: number
+            signals_logged?: number
+            signals_truncated?: boolean
             error_message?: string | null
         }>
         total: number

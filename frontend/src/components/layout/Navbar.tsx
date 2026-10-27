@@ -2,52 +2,27 @@
 ///@ Исходный модуль `frontend/src/components/layout/Navbar.tsx` — автоматическая разметка для Obsidian Source Scanner.
 
 import React from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { DropdownMenu } from '@/components/ui/DropdownMenu'
 import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
-import { api } from '@/services/api'
+import logo from '@/assets/ginity-logo-infinity-g.png'
 
-export function Navbar() {
+export function Navbar({ hasExpiredToken }: { hasExpiredToken: boolean }) {
     const navigate = useNavigate()
     const logout = useAuthStore(s => s.logout)
     const user = useAuthStore(s => s.user)
     const { theme, toggle } = useThemeStore()
     const [dropdownOpen, setDropdownOpen] = React.useState(false)
-    const [hasExpiredToken, setHasExpiredToken] = React.useState(false)
 
     const initials = user?.login?.slice(0, 2).toUpperCase() || 'U'
 
-    React.useEffect(() => {
-        let active = true
-        const load = async () => {
-            try {
-                const { data } = await api.post('/apikey/data', {})
-                const keys = Array.isArray(data?.keys) ? data.keys : []
-                const hasExpired = keys.some((k: any) => Number(k?.status || 0) === 3)
-                if (active) setHasExpiredToken(hasExpired)
-            } catch {
-                if (active) setHasExpiredToken(false)
-            }
-        }
-        void load()
-        return () => {
-            active = false
-        }
-    }, [])
-
     return (
         <header className="navbar" role="navigation" aria-label="Главная навигация">
-            <div className="navbar__scanline" aria-hidden />
             <div className="navbar__left">
-                <div className="navbar__brand" onClick={() => navigate('/dashboard')}>
-                    <div className="navbar__logo" aria-label="GIN">
-                        <span className="logo-g">G</span>
-                        <span className="logo-i">I</span>
-                        <span className="logo-n">N</span>
-                    </div>
-                    <span className="navbar__brand-tag">NODE // ONLINE</span>
-                </div>
+                <Link to="/dashboard" className="navbar__brand" aria-label="ginity">
+                    <img className="navbar__logo" src={logo} alt="" />
+                </Link>
                 <nav className="navbar__links">
                     <NavLink to="/dashboard" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Дашборд</NavLink>
                     <NavLink to="/portfolio" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Портфель</NavLink>

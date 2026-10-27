@@ -49,6 +49,18 @@ def test_fetch_moex_index_candles_uses_index_market_url():
     assert float(rows[1][6]) == 102.0
 
 
+def test_imoex_tail_is_current_for_the_open_session():
+    latest = datetime(2026, 10, 12, tzinfo=timezone.utc)
+    requested_end = datetime(2026, 10, 13, 20, 59, tzinfo=timezone.utc)
+    assert market_service._imoex_tail_is_current(latest, requested_end) is True
+
+
+def test_imoex_tail_is_stale_when_two_sessions_are_missing():
+    latest = datetime(2026, 10, 10, tzinfo=timezone.utc)
+    requested_end = datetime(2026, 10, 13, 20, 59, tzinfo=timezone.utc)
+    assert market_service._imoex_tail_is_current(latest, requested_end) is False
+
+
 def test_get_imoex_benchmark_builds_return_series():
     db = object()
     closes = [

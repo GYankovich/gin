@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faGlobe } from '@fortawesome/free-solid-svg-icons'
+import { faGlobe, faList, faTowerBroadcast } from '@fortawesome/free-solid-svg-icons'
 import { Button } from '@/components/ui/Button'
-import { Badge } from '@/components/ui/Badge'
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
 import { useToast } from '@/components/ui/Toast'
 import { useWebSocket } from '@/hooks/useWebSocket'
@@ -17,7 +16,6 @@ import { MonitorSummaryCard } from '@/pages/robots-v2/components/MonitorSummaryC
 import { MonitorUniverseCard } from '@/pages/robots-v2/components/MonitorUniverseCard'
 import { RobotConfirmModal } from '@/pages/robots-v2/components/RobotConfirmModal'
 import { RobotPageChrome } from '@/pages/robots-v2/components/RobotPageChrome'
-import { RobotStageCard } from '@/pages/robots-v2/components/RobotStageCard'
 import { fmtErr, fmtNum, readCssColor, sessionStateLabel } from '@/pages/robots-v2/formatters'
 import {
     appendEquityPoint,
@@ -32,6 +30,7 @@ import {
     mergeLiveRoundTrips,
     mergeUniverseTickers,
     normalizeEquityPoints,
+    isMoscowToday,
     parseBalanceSource,
     pick,
     pickOpenPositions,
@@ -43,6 +42,7 @@ import {
     sortByTickerName,
     stageDetailLabel,
     stageLabel,
+    tripOnLiveDay,
     toOrderDisplayRow,
     SKIP_LABELS,
 } from '@/pages/robots-v2/monitorUtils'
@@ -178,7 +178,7 @@ export default function RobotV2MonitorPage() {
                     })
                     .filter((x): x is { time: Time; value: number } => x != null)
                 if (points.length) {
-                    setEquityPoints(normalizeEquityPoints(points))
+                    setEquityPoints(normalizeEquityPoints(points).filter(p => isMoscowToday(p.time as number)))
                 }
             } else {
                 const eq = pick<number>(s, 'equity', 'equity')
@@ -236,10 +236,12 @@ export default function RobotV2MonitorPage() {
                         return { time: tSec as Time, value: eq }
                     })
                     .filter((x): x is { time: Time; value: number } => x != null)
-                if (points.length) setEquityPoints(normalizeEquityPoints(points))
+                if (points.length) {
+                    setEquityPoints(normalizeEquityPoints(points).filter(p => isMoscowToday(p.time as number)))
+                }
                 return
             }
-            if (type === 'cycle' && typeof msg.equity === 'number') {
+            if (type === 'cycle' && typeof msg.equity === 'number' && isMoscowToday(msg.ts ? String(msg.ts) : Date.now())) {
                 setEquityPoints(prev => appendEquityPoint(prev, Number(msg.equity)))
             }
             if (type === 'cycle' && Array.isArray(msg.tickerScan)) {
@@ -437,9 +439,13 @@ export default function RobotV2MonitorPage() {
         () => mergeLiveRoundTrips(roundTrips, liveOrders),
         [roundTrips, liveOrders],
     )
-    const openOrderCount = useMemo(
-        () => orderRows.filter(r => ['open', 'resting'].includes(String(r.status).toLowerCase())).length,
+    const dayOrderRows = useMemo(
+        () => orderRows.filter(trip => tripOnLiveDay(trip)),
         [orderRows],
+    )
+    const openOrderCount = useMemo(
+        () => dayOrderRows.filter(r => ['open', 'resting'].includes(String(r.status).toLowerCase())).length,
+        [dayOrderRows],
     )
     const dayStats = useMemo(() => computeDayTradeStats(roundTrips), [roundTrips])
     const dayDelta = fmtNetPnl(dayStats.delta)
@@ -455,8 +461,12 @@ export default function RobotV2MonitorPage() {
         return null
     }, [statusLoaded, showSessionOps, isSyncing, isActive])
     const orderDisplayRows = useMemo(
-        () => orderRows.map(toOrderDisplayRow),
-        [orderRows],
+        () => dayOrderRows.map(toOrderDisplayRow),
+        [dayOrderRows],
+    )
+    const todayEvents = useMemo(
+        () => events.filter(ev => isMoscowToday(ev.ts)),
+        [events],
     )
     const decisions = pick<Array<Record<string, unknown>>>(status || ({} as RobotV2Status), 'decisions', 'decisions') || []
     const universeRaw = pick<string[]>(status || ({} as RobotV2Status), 'universe', 'universe') || []
@@ -499,7 +509,7 @@ export default function RobotV2MonitorPage() {
     )
     const positionsUpdatedAt = pick<string>(status || ({} as RobotV2Status), 'positionsUpdatedAt', 'positions_updated_at')
         || pick<string>(status || ({} as RobotV2Status), 'lastCycleAt', 'last_cycle_at')
-    const title = (robot?.name || `РОБОТ #${robotId}`).toUpperCase()
+    const title = robot?.name || `Робот #${robotId}`
 
     const heroBadge = (() => {
         if (!statusLoaded) return { label: '…', variant: 'neutral' as const }
@@ -527,27 +537,35 @@ export default function RobotV2MonitorPage() {
     const triggeredBy = liveStage?.triggeredBy ?? statusTriggered ?? null
     const archetype = String((robot?.config?.strategy as Record<string, unknown> | undefined)?.archetype || '')
 
+    const stagePct = Math.round(stageProgress * 100)
+    const stageDetailLine = [
+        stageDetailText,
+        triggeredBy ? `триггер: ${triggeredBy}` : null,
+        skipReason ? (SKIP_LABELS[skipReason] || skipReason) : null,
+    ].filter(Boolean).join(' · ')
+    const headerMeta = [
+        Number.isFinite(robotId) ? `#${robotId}` : null,
+        statusMode || null,
+        archetype || null,
+        cycle ? `цикл ${cycle}` : null,
+        statusLoaded && !streamConnected ? 'стрим офлайн' : null,
+        statusMessage || null,
+    ].filter(Boolean).join(' · ')
+
     return (
-        <div className="page" data-page="robots">
+        <div className="page" data-page="robots" data-robots-view="monitor">
             <RobotPageChrome
-                eyebrow="LIVE COCKPIT"
+                variant="quiet"
+                eyebrow=""
                 title={title}
                 robotId={robotId}
                 active="monitor"
-                subtitle={
-                    <p className="dashboard-hero__sub robots-v2-hero-sub">
-                        Монитор · сессия{' '}
-                        <Badge variant={heroBadge.variant}>{heroBadge.label}</Badge>
-                        {' '}
-                        <Badge variant={streamConnected ? 'up' : 'neutral'}>
-                            {streamConnected ? 'стрим' : 'стрим офлайн'}
-                        </Badge>
-                        {statusMode ? (
-                            <span className="muted"> · {statusMode}{archetype ? ` · ${archetype}` : ''}{cycle ? ` · цикл ${cycle}` : ''}</span>
-                        ) : null}
-                        {statusMessage ? ` · ${statusMessage}` : ''}
-                    </p>
-                }
+                status={(
+                    <span className={`robots-quiet-chrome__status robots-quiet-chrome__status--${heroBadge.variant}`}>
+                        {heroBadge.label}
+                    </span>
+                )}
+                subtitle={headerMeta ? <p className="robots-quiet-chrome__meta">{headerMeta}</p> : undefined}
                 actions={
                     !statusLoaded ? (
                         <Button type="button" size="sm" loading disabled>
@@ -563,7 +581,7 @@ export default function RobotV2MonitorPage() {
                                 disabled={isStopping}
                                 onClick={() => void onStop('soft')}
                             >
-                                Мягкая остановка
+                                Пауза
                             </Button>
                             <Button
                                 type="button"
@@ -573,7 +591,7 @@ export default function RobotV2MonitorPage() {
                                 disabled={isStopping}
                                 onClick={() => void onStop('hard')}
                             >
-                                Жёсткая остановка
+                                Стоп
                             </Button>
                         </>
                     ) : (
@@ -585,7 +603,7 @@ export default function RobotV2MonitorPage() {
             />
 
             <div className="dashboard-layout">
-                <div className="robots-v2-cockpit">
+                <div className="dashboard-currency-grid robots-monitor-lead">
                     <MonitorSummaryCard
                         dayLabel={dayLabel}
                         statusLoaded={statusLoaded}
@@ -603,104 +621,104 @@ export default function RobotV2MonitorPage() {
                         positionsCount={positions.length}
                         openOrderCount={openOrderCount}
                         sessionHint={sessionHint}
+                        stageLabel={statusLoaded && stageText && stageText !== '—' ? stageText : null}
+                        stageProgress={stagePct}
+                        stageDetail={stageDetailLine || null}
                     />
-
-                    <div className="robots-v2-cockpit__stage">
-                        <RobotStageCard
-                            title="Этап"
-                            progress={stageProgress}
-                            badge={stageText}
-                            badgeVariant={stageKey === 'skipped' ? 'down' : isRunning ? 'cyan' : 'neutral'}
-                            ariaLabel="Прогресс этапа цикла"
-                            meta={
-                                <>
-                                    <span className="mono">{Math.round(stageProgress * 100)}%</span>
-                                    {stageDetailText ? (
-                                        <span className="mono robots-v2-stage-detail">{stageDetailText}</span>
-                                    ) : null}
-                                    {triggeredBy ? (
-                                        <span className="mono robots-v2-stage-trigger">триггер: {triggeredBy}</span>
-                                    ) : null}
-                                    {archetype ? <span className="mono robots-v2-stage-arch">{archetype}</span> : null}
-                                    {skipReason ? (
-                                        <span className="robots-v2-stage-skip">
-                                            {SKIP_LABELS[skipReason] || skipReason}
-                                        </span>
-                                    ) : null}
-                                </>
+                    <MonitorEquityChart
+                        onReady={chart => {
+                            if (!chart) {
+                                chartRef.current = null
+                                seriesRef.current = null
+                                return
                             }
-                        />
-                    </div>
+                            chartRef.current = chart
+                            const series = chart.addSeries(LineSeries, {
+                                color: readCssColor('--color-up', '#3dbe7a'),
+                                lineWidth: 2,
+                            })
+                            seriesRef.current = series
+                            if (equityPoints.length) series.setData(equityPoints)
+                        }}
+                    />
+                </div>
 
-                    <div className="robots-v2-cockpit__chart">
-                        <MonitorEquityChart
-                            onReady={chart => {
-                                if (!chart) {
-                                    chartRef.current = null
-                                    seriesRef.current = null
-                                    return
-                                }
-                                chartRef.current = chart
-                                const series = chart.addSeries(LineSeries, {
-                                    color: readCssColor('--color-up', '#00ffaa'),
-                                    lineWidth: 2,
-                                })
-                                seriesRef.current = series
-                                if (equityPoints.length) series.setData(equityPoints)
-                            }}
-                        />
-                    </div>
+                <div className="robots-monitor-panels">
+                    <MonitorPositionsCard
+                        rows={positionTableRows}
+                        positionsCount={positions.length}
+                        positionsUpdatedAt={positionsUpdatedAt}
+                        brokerSoftStopHint={
+                            !isRunning
+                            && pick<string>(status || ({} as RobotV2Status), 'positionsSource', 'positions_source') === 'broker'
+                            && positions.length > 0
+                        }
+                        isRunning={isRunning}
+                    />
+                    <MonitorDecisionsCard decisions={Array.isArray(decisions) ? decisions : []} />
+                </div>
 
-                    <aside className="robots-v2-cockpit__feed">
+                <div className="robots-v2-fleet-groups">
+                    <CollapsibleSection
+                        className="robots-v2-fleet-collapse"
+                        title={(
+                            <span className="dashboard-collapse__label">
+                                <FontAwesomeIcon icon={faList} className="dashboard-icon" />
+                                Заявки
+                            </span>
+                        )}
+                        badge={<span className="robots-v2-fleet-collapse__count">{orderDisplayRows.length}</span>}
+                        defaultOpen={false}
+                    >
+                        <MonitorOrdersCard bare rows={orderDisplayRows} openOrderCount={openOrderCount} />
+                    </CollapsibleSection>
+
+                    <CollapsibleSection
+                        className="robots-v2-fleet-collapse"
+                        title={(
+                            <span className="dashboard-collapse__label">
+                                <FontAwesomeIcon icon={faTowerBroadcast} className="dashboard-icon" />
+                                Лента
+                            </span>
+                        )}
+                        badge={<span className="robots-v2-fleet-collapse__count">{todayEvents.length}</span>}
+                        defaultOpen={false}
+                    >
                         <MonitorEventsCard
-                            events={events}
+                            bare
+                            events={todayEvents}
                             streamConnected={streamConnected}
                             isRunning={isRunning}
                             hasToken={Boolean(token)}
                         />
-                        <MonitorDecisionsCard decisions={decisions} />
-                    </aside>
+                    </CollapsibleSection>
 
-                    <div className="robots-v2-cockpit__tables">
-                        <MonitorPositionsCard
-                            rows={positionTableRows}
-                            positionsCount={positions.length}
-                            positionsUpdatedAt={positionsUpdatedAt}
-                            brokerSoftStopHint={
-                                !isRunning
-                                && pick<string>(status || ({} as RobotV2Status), 'positionsSource', 'positions_source') === 'broker'
-                                && positions.length > 0
-                            }
-                            isRunning={isRunning}
+                    <CollapsibleSection
+                        className="robots-v2-fleet-collapse"
+                        title={(
+                            <span className="dashboard-collapse__label">
+                                <FontAwesomeIcon icon={faGlobe} className="dashboard-icon" />
+                                Пул активов
+                            </span>
+                        )}
+                        badge={(
+                            <span className="robots-v2-fleet-collapse__count">
+                                {displayTickerScan.length || displayUniverse.length || 0}
+                            </span>
+                        )}
+                        defaultOpen={false}
+                    >
+                        <MonitorUniverseCard
+                            bare
+                            displayTickerScan={displayTickerScan}
+                            displayUniverse={displayUniverse}
+                            tickerScanAt={tickerScanAt}
+                            canRefreshUniverse={canRefreshUniverse}
+                            universeBusy={universeBusy}
+                            onRefreshUniverse={() => void onRefreshUniverse()}
                         />
-                        <MonitorOrdersCard rows={orderDisplayRows} openOrderCount={openOrderCount} />
-                    </div>
+                    </CollapsibleSection>
                 </div>
-
-                <CollapsibleSection
-                    className="robots-v2-fleet-collapse robots-v2-cockpit-universe"
-                    title={(
-                        <span className="dashboard-collapse__label">
-                            <FontAwesomeIcon icon={faGlobe} className="dashboard-icon" />
-                            Пул активов / скан
-                        </span>
-                    )}
-                    badge={(
-                        <span className="robots-v2-fleet-collapse__count">
-                            {displayTickerScan.length || displayUniverse.length || 0}
-                        </span>
-                    )}
-                    defaultOpen={false}
-                >
-                    <MonitorUniverseCard
-                        displayTickerScan={displayTickerScan}
-                        displayUniverse={displayUniverse}
-                        tickerScanAt={tickerScanAt}
-                        canRefreshUniverse={canRefreshUniverse}
-                        universeBusy={universeBusy}
-                        onRefreshUniverse={() => void onRefreshUniverse()}
-                    />
-                </CollapsibleSection>
             </div>
 
             <RobotConfirmModal

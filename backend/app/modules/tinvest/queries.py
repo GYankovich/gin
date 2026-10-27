@@ -182,12 +182,12 @@ def build_create_snapshot_query() -> str:
            INSERT INTO portfolio_snapshots
            (account_id, snapshot_date, total_amount_portfolio, total_amount_shares,
             total_amount_bonds, total_amount_etf, total_amount_currencies,
-            total_amount_futures, total_amount_options, expected_yield,
+            total_amount_futures, total_amount_options, total_amount_sp, expected_yield,
             daily_yield, daily_yield_relative, currency)
            VALUES
                (:account_id, :snapshot_date, :total_amount_portfolio, :total_amount_shares,
                 :total_amount_bonds, :total_amount_etf, :total_amount_currencies,
-                :total_amount_futures, :total_amount_options, :expected_yield,
+                :total_amount_futures, :total_amount_options, :total_amount_sp, :expected_yield,
                 :daily_yield, :daily_yield_relative, :currency)
                RETURNING id \
            """
@@ -246,6 +246,7 @@ def build_get_accounts_list_query() -> str:
                created_at
            FROM portfolio_accounts
            WHERE user_id = :user_id AND is_active = 1
+             AND COALESCE(dashboard_hidden, 0) = 0
            ORDER BY created_at DESC \
            """
 
@@ -279,7 +280,7 @@ def build_get_token_stats_query() -> str:
 def build_get_account_row_query() -> str:
     """Получить запись portfolio_accounts по внутреннему id и user_id."""
     return """
-           SELECT id, account_id
+           SELECT id, account_id, COALESCE(dashboard_hidden, 0)
            FROM portfolio_accounts
            WHERE id = :account_db_id AND user_id = :user_id
            LIMIT 1 \

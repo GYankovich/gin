@@ -2,14 +2,27 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any
 
+import httpx
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.modules.moex.http_gate import moex_http_acquire
+from app.modules.robots_v2.engine.live_bars import parse_moex_candle_begin
+from app.modules.trading_core.contracts import Candle
+
 logger = logging.getLogger(__name__)
+
+_MOEX_TQBR_MARKETDATA = (
+    "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities.json"
+)
+_MOEX_CANDLES = (
+    "https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/{ticker}/candles.json"
+)
 
 
 def fetch_tqbr_prices(db: Session, tickers: list[str]) -> dict[str, float]:
@@ -125,7 +138,175 @@ async def fetch_prices_for_session(
             token_id=token_id,
             robot_id=robot_id,
         )
-    return fetch_tqbr_prices(db, tickers)
+    wanted = [str(t).upper() for t in tickers if t]
+    live: dict[str, float] = {}
+    try:
+        live = await fetch_moex_last_prices(wanted)
+    except Exception as exc:
+        logger.warning("MOEX ISS last prices failed: %s", exc)
+    missing = [t for t in wanted if t not in live]
+    if missing:
+        for ticker, px in fetch_tqbr_prices(db, missing).items():
+            live.setdefault(str(ticker).upper(), float(px))
+    return live
+
+
+def parse_moex_marketdata_last(payload: dict[str, Any], tickers: list[str]) -> dict[str, float]:
+    """LAST from an ISS marketdata block. LCLOSEPRICE covers a quiet print."""
+    wanted = {str(t).upper() for t in tickers if t}
+    md = payload.get("marketdata") or {}
+    cols = md.get("columns") or []
+    idx = {str(name): i for i, name in enumerate(cols)}
+    sec_i = idx.get("SECID")
+    if sec_i is None:
+        return {}
+    price_indexes = [idx[name] for name in ("LAST", "LCLOSEPRICE", "MARKETPRICE") if name in idx]
+    out: dict[str, float] = {}
+    for row in md.get("data") or []:
+        if sec_i >= len(row) or row[sec_i] is None:
+            continue
+        ticker = str(row[sec_i]).upper()
+        if ticker not in wanted:
+            continue
+        for price_i in price_indexes:
+            if price_i >= len(row) or row[price_i] is None:
+                continue
+            try:
+                val = float(row[price_i])
+            except (TypeError, ValueError):
+                continue
+            if val > 0:
+                out[ticker] = val
+                break
+    return out
+
+
+async def fetch_moex_last_prices(tickers: list[str]) -> dict[str, float]:
+    """Live TQBR last prices for the robot universe. One ISS call."""
+    wanted = [str(t).upper() for t in tickers if t]
+    if not wanted:
+        return {}
+    params = {
+        "iss.meta": "off",
+        "iss.only": "marketdata",
+        "securities": ",".join(wanted),
+    }
+    async with moex_http_acquire():
+        async with httpx.AsyncClient(timeout=12, verify=False) as client:
+            resp = await client.get(_MOEX_TQBR_MARKETDATA, params=params)
+    if resp.status_code != 200:
+        raise RuntimeError(f"MOEX ISS marketdata HTTP {resp.status_code}")
+    return parse_moex_marketdata_last(resp.json(), wanted)
+
+
+def parse_moex_candles_payload(payload: dict[str, Any], *, ticker: str, timeframe: str) -> list[Candle]:
+    candles = payload.get("candles") or {}
+    cols = candles.get("columns") or []
+    idx = {str(name): i for i, name in enumerate(cols)}
+    begin_i = idx.get("begin")
+    if begin_i is None:
+        return []
+    out: list[Candle] = []
+    for row in candles.get("data") or []:
+        if begin_i >= len(row):
+            continue
+        opened = parse_moex_candle_begin(row[begin_i])
+        if opened is None:
+            continue
+
+        def _num(name: str) -> float:
+            i = idx.get(name)
+            if i is None or i >= len(row) or row[i] is None:
+                return 0.0
+            try:
+                return float(row[i])
+            except (TypeError, ValueError):
+                return 0.0
+
+        close = _num("close")
+        if close <= 0:
+            continue
+        vol_i = idx.get("volume")
+        try:
+            volume = int(row[vol_i]) if vol_i is not None and vol_i < len(row) and row[vol_i] is not None else 0
+        except (TypeError, ValueError):
+            volume = 0
+        out.append(Candle(
+            interval=timeframe,
+            time=opened,
+            open=_num("open") or close,
+            high=_num("high") or close,
+            low=_num("low") or close,
+            close=close,
+            volume=volume,
+            secid=ticker.upper(),
+        ))
+    out.sort(key=lambda c: c.time)
+    return out
+
+
+async def fetch_moex_recent_candles(
+    tickers: list[str],
+    *,
+    timeframe: str,
+    interval: int,
+    start: datetime,
+    end: datetime,
+) -> dict[str, list[Candle]]:
+    """Closed TQBR candles for a short window. `begin` is converted from Moscow to UTC."""
+    wanted = [str(t).upper() for t in tickers if t]
+    if not wanted:
+        return {}
+    params = {
+        "from": start.date().isoformat(),
+        "till": end.date().isoformat(),
+        "interval": int(interval),
+        "iss.meta": "off",
+    }
+
+    async def _one(ticker: str) -> tuple[str, list[Candle]]:
+        url = _MOEX_CANDLES.format(ticker=ticker)
+        try:
+            async with moex_http_acquire():
+                async with httpx.AsyncClient(timeout=12, verify=False) as client:
+                    resp = await client.get(url, params=params)
+            if resp.status_code != 200:
+                logger.warning("MOEX candles %s HTTP %s", ticker, resp.status_code)
+                return ticker, []
+            return ticker, parse_moex_candles_payload(resp.json(), ticker=ticker, timeframe=timeframe)
+        except Exception as exc:
+            logger.warning("MOEX candles %s failed: %s", ticker, exc)
+            return ticker, []
+
+    rows = await asyncio.gather(*[_one(t) for t in wanted])
+    return {ticker: candles for ticker, candles in rows}
+
+
+def rest_marks_to_store(
+    *,
+    seed_from_ws: bool,
+    fetched: dict[str, float],
+    gap_fill: dict[str, float],
+) -> dict[str, float]:
+    """What a cycle may write into ``last_prices``.
+
+    Scalper ticks keep the websocket tape and only store names the stream
+    missed. Poll cycles store every fresh REST print, including tickers that
+    already had a price — otherwise the session freezes on the bootstrap print.
+    """
+    if seed_from_ws:
+        source = gap_fill
+    else:
+        source = fetched
+    out: dict[str, float] = {}
+    for ticker, px in source.items():
+        try:
+            val = float(px)
+        except (TypeError, ValueError):
+            continue
+        if val > 0:
+            out[str(ticker).upper()] = val
+    return out
 
 
 def merge_ws_and_rest_prices(

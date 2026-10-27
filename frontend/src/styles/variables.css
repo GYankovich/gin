@@ -49,6 +49,8 @@
 
     /* Navbar / mobile chrome */
     --navbar-h: 64px;
+    /* Space from the fixed navbar to the top of .main-content */
+    --content-top: calc(var(--navbar-h) + 20px);
     --dock-h: 56px;
     --dock-gap: 10px;
     /* Effective bottom chrome height (capsule + float gap), without safe-area */

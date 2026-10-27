@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Мобильная навигация · ginity</title>
+<style>
+  :root {
+    --auth-bg: #13161a;
+    --auth-panel: #181c21;
+    --auth-input: #1c2025;
+    --auth-elevated: #22272e;
+    --auth-text: #e8eaed;
+    --auth-secondary: #b7bdc6;
+    --auth-muted: #8b939c;
+    --auth-border: rgba(255, 255, 255, 0.08);
+    --auth-line: rgba(255, 255, 255, 0.22);
+    --auth-accent: #e8eaed;
+    --auth-on-accent: #13161a;
+    --auth-focus: rgba(255, 255, 255, 0.14);
+    --auth-grid: rgba(255, 255, 255, 0.055);
+    --auth-inset: inset 0 1px 2px rgba(0, 0, 0, 0.45);
+    --up: #3dbe7a;
+    --picker: #0e1114;
+  }
+  [data-theme='light'] {
+    --auth-bg: #f8f9fa;
+    --auth-panel: #ffffff;
+    --auth-input: #f1f3f5;
+    --auth-elevated: #ffffff;
+    --auth-text: #0f172a;
+    --auth-secondary: #334155;
+    --auth-muted: #64748b;
+    --auth-border: rgba(15, 23, 42, 0.12);
+    --auth-line: rgba(15, 23, 42, 0.28);
+    --auth-accent: #0f172a;
+    --auth-on-accent: #ffffff;
+    --auth-focus: rgba(15, 23, 42, 0.12);
+    --auth-grid: rgba(15, 23, 42, 0.075);
+    --auth-inset: inset 0 1px 1px rgba(15, 23, 42, 0.04);
+    --up: #0e9f6e;
+    --picker: #ffffff;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: Inter, system-ui, sans-serif;
+    background: #0b0d10;
+    color: #e8eaed;
+  }
+  [data-theme='light'] body { background: #e8eaed; color: #0f172a; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  .picker {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px 24px;
+    padding: 14px 22px;
+    background: var(--picker);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  [data-theme='light'] .picker { border-bottom-color: rgba(15, 23, 42, 0.1); }
+  .picker h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .picker p { margin: 2px 0 0; font-size: 13px; color: #8b939c; max-width: 62ch; }
+  .picker__modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px;
+    background: #1c2025;
+    border-radius: 12px;
+    margin-left: auto;
+  }
+  [data-theme='light'] .picker__modes { background: #f1f3f5; }
+  .picker__modes button, .theme-toggle {
+    border: 1px solid transparent;
+    background: transparent;
+    color: #8b939c;
+    border-radius: 9px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .picker__modes button.is-on {
+    background: #22272e;
+    color: #e8eaed;
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+  [data-theme='light'] .picker__modes button.is-on {
+    background: #fff;
+    color: #0f172a;
+    border-color: rgba(15, 23, 42, 0.28);
+  }
+  .theme-toggle {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: #181c21;
+    color: #e8eaed;
+  }
+  [data-theme='light'] .theme-toggle {
+    background: #fff;
+    color: #0f172a;
+    border-color: rgba(15, 23, 42, 0.12);
+  }
+
+  .gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 28px;
+    padding: 28px 22px 48px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .gallery[data-show='capsule'] .card:not([data-id='capsule']),
+  .gallery[data-show='rail'] .card:not([data-id='rail']),
+  .gallery[data-show='island'] .card:not([data-id='island']),
+  .gallery[data-show='split'] .card:not([data-id='split']),
+  .gallery[data-show='sheet'] .card:not([data-id='sheet']) { display: none; }
+  .gallery[data-show='all'] { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .card__meta h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .card__meta p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #8b939c;
+    max-width: 36ch;
+  }
+
+  .phone {
+    position: relative;
+    width: 100%;
+    max-width: 360px;
+    aspect-ratio: 9 / 17.5;
+    margin: 0 auto;
+    border-radius: 36px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--auth-bg);
+    color: var(--auth-text);
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  }
+  [data-theme='light'] .phone {
+    border-color: rgba(15, 23, 42, 0.14);
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.1);
+  }
+  .phone__grid {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(var(--auth-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--auth-grid) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at center, #000 40%, transparent 78%);
+    opacity: 0.85;
+  }
+  .phone__notch {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 96px;
+    height: 22px;
+    border-radius: 999px;
+    background: #0a0c0f;
+    z-index: 3;
+  }
+  [data-theme='light'] .phone__notch { background: #cbd5e1; }
+
+  .screen {
+    position: relative;
+    z-index: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 44px 16px 0;
+  }
+  .screen__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .brand {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.04em;
+  }
+  .chip {
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--auth-border);
+    background: var(--auth-panel);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .screen__body { flex: 1; min-height: 0; overflow: hidden; }
+  .panel {
+    background: var(--auth-panel);
+    border: 1px solid var(--auth-border);
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.22);
+  }
+  [data-theme='light'] .panel { box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06); }
+  .panel h3 {
+    margin: 0 0 4px;
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .panel .sub {
+    margin: 0 0 14px;
+    color: var(--auth-secondary);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .kpis {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .kpi {
+    background: var(--auth-input);
+    border-radius: 12px;
+    padding: 12px;
+  }
+  .kpi span {
+    display: block;
+    color: var(--auth-muted);
+    font-size: 11px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .kpi b {
+    font-size: 15px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .kpi b.up { color: var(--up); }
+
+  .icon {
+    width: 20px;
+    height: 20px;
+    display: block;
+  }
+
+  /* —— 1. Capsule (auth-tabs language) —— */
+  .nav-capsule {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 14px;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px;
+    border-radius: 18px;
+    background: var(--auth-panel);
+    border: 1px solid var(--auth-border);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  }
+  [data-theme='light'] .nav-capsule { box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08); }
+  .nav-capsule__brand {
+    flex: 0 0 auto;
+    padding: 0 10px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    color: var(--auth-text);
+  }
+  .nav-capsule__tabs {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3px;
+    padding: 3px;
+    background: var(--auth-input);
+    border-radius: 12px;
+  }
+  .nav-capsule__tabs button {
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--auth-muted);
+    border-radius: 9px;
+    padding: 8px 4px 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .nav-capsule__tabs button.is-on {
+    background: var(--auth-elevated);
+    color: var(--auth-text);
+    border-color: var(--auth-line);
+  }
+  .nav-capsule__avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    border: 1px solid var(--auth-border);
+    background: var(--auth-input);
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  /* —— 2. Flush rail —— */
+  .nav-rail {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 4;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    padding: 8px 8px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--auth-panel) 92%, transparent);
+    border-top: 1px solid var(--auth-border);
+    backdrop-filter: blur(14px);
+  }
+  .nav-rail button {
+    border: 0;
+    background: transparent;
+    color: var(--auth-muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 4px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .nav-rail button.is-on {
+    color: var(--auth-text);
+    background: var(--auth-input);
+  }
+  .nav-rail button.is-on .rail-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--auth-accent);
+    margin-top: 1px;
+  }
+
+  /* —— 3. Center island —— */
+  .nav-island-wrap {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 16px;
+    z-index: 4;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .nav-island {
+    pointer-events: auto;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2px;
+    padding: 5px;
+    width: min(292px, calc(100% - 48px));
+    background: var(--auth-input);
+    border: 1px solid var(--auth-border);
+    border-radius: 16px;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.32);
+  }
+  [data-theme='light'] .nav-island { box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08); }
+  .nav-island button {
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--auth-muted);
+    border-radius: 12px;
+    padding: 10px 6px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .nav-island button.is-on {
+    background: var(--auth-elevated);
+    color: var(--auth-text);
+    border-color: var(--auth-line);
+  }
+
+  /* —— 4. Split: top brand bar + bottom icons —— */
+  .nav-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: -8px -4px 14px;
+    padding: 0 4px 12px;
+    border-bottom: 1px solid var(--auth-border);
+  }
+  .nav-bottom-icons {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    z-index: 4;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 14px;
+    background: var(--auth-panel);
+    border: 1px solid var(--auth-border);
+    border-radius: 999px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
+  }
+  .nav-bottom-icons button {
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--auth-muted);
+    display: grid;
+    place-items: center;
+  }
+  .nav-bottom-icons button.is-on {
+    background: var(--auth-input);
+    color: var(--auth-text);
+    box-shadow: inset 0 0 0 1px var(--auth-line);
+  }
+
+  /* —— 5. Primary three + sheet —— */
+  .nav-sheet-bar {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 14px;
+    z-index: 4;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    padding: 6px;
+    background: var(--auth-panel);
+    border: 1px solid var(--auth-border);
+    border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
+  }
+  .nav-sheet-bar button {
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--auth-muted);
+    border-radius: 11px;
+    padding: 8px 4px 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .nav-sheet-bar button.is-on {
+    background: var(--auth-elevated);
+    color: var(--auth-text);
+    border-color: var(--auth-line);
+  }
+  .sheet {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 78px;
+    z-index: 5;
+    padding: 8px;
+    background: var(--auth-panel);
+    border: 1px solid var(--auth-border);
+    border-radius: 16px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+    display: none;
+  }
+  .phone[data-sheet='open'] .sheet { display: block; animation: rise 180ms ease both; }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .sheet button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 0;
+    background: transparent;
+    color: var(--auth-text);
+    padding: 12px 10px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: left;
+  }
+  .sheet button:hover,
+  .sheet button:focus-visible {
+    background: var(--auth-input);
+    outline: none;
+  }
+  .sheet button span {
+    color: var(--auth-muted);
+    font-size: 12px;
+    margin-left: auto;
+  }
+  .sheet__rule {
+    height: 1px;
+    margin: 4px 8px;
+    background: var(--auth-border);
+  }
+
+  .screen--pad-bottom { padding-bottom: 88px; }
+  .hint-tap {
+    margin-top: 10px;
+    color: var(--auth-muted);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+</style>
+</head>
+<body>
+  <header class="picker">
+    <div>
+      <h1>Мобильная навигация</h1>
+      <p>Варианты в токенах страницы входа: те же панели, сегменты и нейтральный акцент — без cyan-glow текущего dock.</p>
+    </div>
+    <div class="picker__modes" role="tablist" aria-label="Вариант">
+      <button type="button" data-show="all" class="is-on">Все</button>
+      <button type="button" data-show="capsule">Капсула</button>
+      <button type="button" data-show="rail">Рельс</button>
+      <button type="button" data-show="island">Остров</button>
+      <button type="button" data-show="split">Сплит</button>
+      <button type="button" data-show="sheet">Ещё</button>
+    </div>
+    <button type="button" class="theme-toggle" id="themeToggle" aria-label="Тема">Тема</button>
+  </header>
+
+  <div class="gallery" data-show="all" id="gallery">
+
+    <!-- 1 -->
+    <article class="card" data-id="capsule">
+      <div class="card__meta">
+        <h2>1. Капсула как auth-tabs</h2>
+        <p>Ближе всего к логину: сегментный переключатель + бренд + аватар. Один объект у низа, как панель входа.</p>
+      </div>
+      <div class="phone" data-nav="capsule">
+        <div class="phone__grid" aria-hidden="true"></div>
+        <div class="phone__notch" aria-hidden="true"></div>
+        <div class="screen screen--pad-bottom">
+          <div class="screen__head">
+            <div class="brand">Портфель</div>
+            <div class="chip" title="Тема">◐</div>
+          </div>
+          <div class="screen__body">
+            <div class="panel">
+              <h3>Сводка</h3>
+              <p class="sub">Те же поверхности, что на /login.</p>
+              <div class="kpis">
+                <div class="kpi"><span>Стоимость</span><b>1 840 000 ₽</b></div>
+                <div class="kpi"><span>К своим</span><b class="up">+22,7%</b></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <nav class="nav-capsule" aria-label="Навигация">
+          <div class="nav-capsule__brand">ginity</div>
+          <div class="nav-capsule__tabs">
+            <button type="button" class="is-on" data-tab>
+              <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M4 9.5h16v9.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19V9.5Z" stroke="currentColor" stroke-width="1.5"/><path d="M8.5 9.5V7.2A1.7 1.7 0 0 1 10.2 5.5h3.6A1.7 1.7 0 0 1 15.5 7.2v2.3" stroke="currentColor" stroke-width="1.5"/></svg>
+              Портфель
+            </button>
+            <button type="button" data-tab>
+              <svg class="icon" viewBox="0 0 24 24" fill="none"><rect x="5.5" y="7.5" width="13" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M12 4.5v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="12" cy="4" r="1.25" fill="currentColor"/></svg>
+              Роботы
+            </button>
+            <button type="button" data-tab>
+              <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M9 3.5h6M10 3.5v5.2L5.8 16.4A2.4 2.4 0 0 0 7.9 20h8.2a2.4 2.4 0 0 0 2.1-3.6L14 8.7V3.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              Лаб
+            </button>
+          </div>
+          <button type="button" class="nav-capsule__avatar" aria-label="Профиль">GY</button>
+        </nav>
+      </div>
+    </article>
+
+    <!-- 2 -->
+    <article class="card" data-id="rail">
+      <div class="card__meta">
+        <h2>2. Нижний рельс</h2>
+        <p>На всю ширину, без «парения». Активный таб — как выбранный сегмент на логине. Больше места контенту.</p>
+      </div>
+      <div class="phone" data-nav="rail">
+        <div class="phone__grid" aria-hidden="true"></div>
+        <div class="phone__notch" aria-hidden="true"></div>
+        <div class="screen screen--pad-bottom">
+          <div class="screen__head">
+            <div class="brand">ginity</div>
+            <div class="chip">GY</div>
+          </div>
+          <div class="screen__body">
+            <div class="panel">
+              <h3>Роботы</h3>
+              <p class="sub">Бренд сверху — как на экране входа.</p>
+              <div class="kpis">
+                <div class="kpi"><span>Активны</span><b>3</b></div>
+                <div class="kpi"><span>День</span><b class="up">+1,4%</b></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <nav class="nav-rail" aria-label="Навигация">
+          <button type="button" data-tab>
+            <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M4 9.5h16v9.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19V9.5Z" stroke="currentColor" stroke-width="1.5"/></svg>
+            Портфель
+          </button>
+          <button type="button" class="is-on" data-tab>
+            <svg class="icon" viewBox="0 0 24 24" fill="none"><rect x="5.5" y="7.5" width="13" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/></svg>
+            Роботы
+            <i class="rail-dot" aria-hidden="true"></i>
+          </button>
+          <button type="button" data-tab>
+            <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M9 3.5h6M10 3.5v5.2L5.8 16.4A2.4 2.4 0 0 0 7.9 20h8.2a2.4 2.4 0 0 0 2.1-3.6L14 8.7V3.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            Лаб
+          </button>
+          <button type="button" data-tab>
+            <svg class="icon" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.25" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 19.2c1.6-3 4-4.5 6.5-4.5s4.9 1.5 6.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Ещё
+          </button>
+        </nav>
+      </div>
+    </article>
+
+    <!-- 3 -->
+    <article class="card" data-id="island">
+      <div class="card__meta">
+        <h2>3. Остров-сегмент</h2>
+        <p>Четыре равных вкладки в одном «auth-input» блоке. Профиль и тема — сверху, как кнопка темы на логине.</p>
+      </div>
+      <div class="phone" data-nav="island">
+        <div class="phone__grid" aria-hidden="true"></div>
+        <div class="phone__notch" aria-hidden="true"></div>
+        <div class="screen screen--pad-bottom">
+          <div class="screen__head">
+            <div class="brand">ginity</div>
+            <div style="display:flex;gap:8px">
+              <div class="chip" title="Тема">◐</div>
+              <div class="chip">GY</div>
+            </div>
+          </div>
+          <div class="screen__body">
+            <div class="panel">
+              <h3>Лаб</h3>
+              <p class="sub">Минимум chrome снизу — больше воздуха.</p>
+              <div class="kpis">
+                <div class="kpi"><span>После издержек</span><b class="up">+18,2%</b></div>
+                <div class="kpi"><span>IMOEX</span><b>+9,1%</b></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="nav-island-wrap">
+          <nav class="nav-island" aria-label="Навигация">
+            <button type="button" data-tab>
+              <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M4 9.5h16v9.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19V9.5Z" stroke="currentColor" stroke-width="1.5"/></svg>
+              Портфель
+            </button>
+            <button type="button" data-tab>
+              <svg class="icon" viewBox="0 0 24 24" fill="none"><rect x="5.5" y="7.5" width="13" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/></svg>
+              Роботы
+            </button>
+            <button type="button" class="is-on" data-tab>
+              <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M9 3.5h6M10 3.5v5.2L5.8 16.4A2.4 2.4 0 0 0 7.9 20h8.2a2.4 2.4 0 0 0 2.1-3.6L14 8.7V3.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+              Лаб
+            </button>
+            <button type="button" data-tab>
+              <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M4 12h16M12 4v16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              Дашборд
+            </button>
+          </nav>
+        </div>
+      </div>
+    </article>
+
+    <!-- 4 -->
+    <article class="card" data-id="split">
+      <div class="card__meta">
+        <h2>4. Сплит: бренд сверху</h2>
+        <p>Слово ginity остаётся hero в шапке (как на логине). Снизу — только иконки в пилюле, без подписей.</p>
+      </div>
+      <div class="phone" data-nav="split">
+        <div class="phone__grid" aria-hidden="true"></div>
+        <div class="phone__notch" aria-hidden="true"></div>
+        <div class="screen screen--pad-bottom">
+          <div class="nav-top">
+            <div class="brand">ginity</div>
+            <div class="chip">GY</div>
+          </div>
+          <div class="screen__body">
+            <div class="panel">
+              <h3>Портфель</h3>
+              <p class="sub">Навигация не спорит с брендом.</p>
+              <div class="kpis">
+                <div class="kpi"><span>Свои деньги</span><b>1 500 000 ₽</b></div>
+                <div class="kpi"><span>Просадка</span><b>−11,4%</b></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <nav class="nav-bottom-icons" aria-label="Навигация">
+          <button type="button" class="is-on" data-tab aria-label="Портфель">
+            <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M4 9.5h16v9.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19V9.5Z" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
+          <button type="button" data-tab aria-label="Роботы">
+            <svg class="icon" viewBox="0 0 24 24" fill="none"><rect x="5.5" y="7.5" width="13" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/></svg>
+          </button>
+          <button type="button" data-tab aria-label="Лаб">
+            <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M9 3.5h6M10 3.5v5.2L5.8 16.4A2.4 2.4 0 0 0 7.9 20h8.2a2.4 2.4 0 0 0 2.1-3.6L14 8.7V3.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          </button>
+          <button type="button" data-tab aria-label="Профиль">
+            <svg class="icon" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.25" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 19.2c1.6-3 4-4.5 6.5-4.5s4.9 1.5 6.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+        </nav>
+      </div>
+    </article>
+
+    <!-- 5 -->
+    <article class="card" data-id="sheet">
+      <div class="card__meta">
+        <h2>5. Три главных + «Ещё»</h2>
+        <p>Редкие пункты (настройки, тема, выход) в панели как auth-panel — не раздувает таббар.</p>
+      </div>
+      <div class="phone" data-nav="sheet" data-sheet="open">
+        <div class="phone__grid" aria-hidden="true"></div>
+        <div class="phone__notch" aria-hidden="true"></div>
+        <div class="screen screen--pad-bottom">
+          <div class="screen__head">
+            <div class="brand">Портфель</div>
+            <div class="chip">◐</div>
+          </div>
+          <div class="screen__body">
+            <div class="panel">
+              <h3>Счета</h3>
+              <p class="sub">Тап по «Ещё» открывает лист.</p>
+              <div class="kpis">
+                <div class="kpi"><span>Видимых</span><b>4</b></div>
+                <div class="kpi"><span>Токен</span><b class="up">OK</b></div>
+              </div>
+              <p class="hint-tap">Лист уже открыт для превью.</p>
+            </div>
+          </div>
+        </div>
+        <div class="sheet" role="menu">
+          <button type="button">Дашборд <span>сводка</span></button>
+          <button type="button">Настройки <span>токены</span></button>
+          <button type="button">Светлая тема</button>
+          <div class="sheet__rule"></div>
+          <button type="button">Выход</button>
+        </div>
+        <nav class="nav-sheet-bar" aria-label="Навигация">
+          <button type="button" class="is-on" data-tab>
+            <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M4 9.5h16v9.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19V9.5Z" stroke="currentColor" stroke-width="1.5"/></svg>
+            Портфель
+          </button>
+          <button type="button" data-tab>
+            <svg class="icon" viewBox="0 0 24 24" fill="none"><rect x="5.5" y="7.5" width="13" height="11" rx="2" stroke="currentColor" stroke-width="1.5"/></svg>
+            Роботы
+          </button>
+          <button type="button" data-tab>
+            <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M9 3.5h6M10 3.5v5.2L5.8 16.4A2.4 2.4 0 0 0 7.9 20h8.2a2.4 2.4 0 0 0 2.1-3.6L14 8.7V3.5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            Лаб
+          </button>
+          <button type="button" id="sheetMore" aria-expanded="true">
+            <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M6 12h.01M12 12h.01M18 12h.01" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+            Ещё
+          </button>
+        </nav>
+      </div>
+    </article>
+
+  </div>
+
+<script>
+  const root = document.documentElement
+  const gallery = document.getElementById('gallery')
+  const themeToggle = document.getElementById('themeToggle')
+
+  themeToggle.addEventListener('click', () => {
+    const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light'
+    if (next === 'dark') root.removeAttribute('data-theme')
+    else root.setAttribute('data-theme', 'light')
+  })
+
+  document.querySelectorAll('.picker__modes button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.picker__modes button').forEach(b => b.classList.remove('is-on'))
+      btn.classList.add('is-on')
+      gallery.setAttribute('data-show', btn.dataset.show)
+    })
+  })
+
+  document.querySelectorAll('[data-nav]').forEach(phone => {
+    phone.querySelectorAll('[data-tab]').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const group = tab.closest('nav') || tab.parentElement
+        group.querySelectorAll('[data-tab]').forEach(t => t.classList.remove('is-on'))
+        tab.classList.add('is-on')
+        if (phone.dataset.nav === 'sheet') {
+          phone.dataset.sheet = 'closed'
+          const more = phone.querySelector('#sheetMore')
+          if (more) more.setAttribute('aria-expanded', 'false')
+        }
+      })
+    })
+  })
+
+  const sheetPhone = document.querySelector('[data-nav="sheet"]')
+  const sheetMore = document.getElementById('sheetMore')
+  if (sheetMore && sheetPhone) {
+    sheetMore.addEventListener('click', () => {
+      const open = sheetPhone.dataset.sheet !== 'open'
+      sheetPhone.dataset.sheet = open ? 'open' : 'closed'
+      sheetMore.setAttribute('aria-expanded', String(open))
+      if (open) {
+        sheetPhone.querySelectorAll('[data-tab]').forEach(t => t.classList.remove('is-on'))
+      }
+    })
+  }
+</script>
+</body>
+</html>

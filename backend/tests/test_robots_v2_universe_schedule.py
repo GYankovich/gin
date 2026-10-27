@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from datetime import date, datetime, timedelta, timezone
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 os.environ.setdefault("DB_HOST", "localhost")
 os.environ.setdefault("DB_PORT", "5432")
@@ -132,3 +133,56 @@ def test_host_respects_universe_by_day():
     assert result.history_stats.get("universe_days") == 1
     traded_tickers = {str(t.get("figi") or "").upper() for t in result.trades}
     assert "BBB" not in traded_tickers
+
+
+def _screener_config() -> TradingRobotConfigV4:
+    cfg = _sample_config(["SBER"])
+    cfg.universe.mode = "screener"
+    cfg.universe.fixed_list = None
+    from app.modules.robots_v2.config.v4_schema import ScreenerConfig
+
+    cfg.universe.screener = ScreenerConfig.model_validate({
+        "preset": "high_liquidity",
+        "filters": [],
+        "filterMode": "all",
+        "refreshPolicy": "daily",
+    })
+    return cfg
+
+
+def test_screener_schedule_resolves_without_token():
+    class _Inst:
+        def __init__(self, ticker: str) -> None:
+            self.ticker = ticker
+
+    class _Resolved:
+        instruments = [_Inst("SBER"), _Inst("GAZP")]
+
+    resolve = AsyncMock(return_value=_Resolved())
+
+    async def _run():
+        with patch(
+            "app.modules.robots_v2.backtest.universe_schedule.universe_service.resolve",
+            resolve,
+        ), patch(
+            "app.modules.robots_v2.backtest.universe_schedule.DividendCalendarService",
+        ) as div:
+            div.return_value.preload_exclusion_index.return_value = {}
+            div.return_value.exclusion_reason_for_day_cached.return_value = None
+            from app.modules.robots_v2.backtest.universe_schedule import build_universe_by_day
+
+            return await build_universe_by_day(
+                MagicMock(),
+                user_id=1,
+                config=_screener_config(),
+                from_date=date(2025, 1, 6),
+                to_date=date(2025, 1, 6),
+                token_id=None,
+                robot_id=None,
+            )
+
+    union, by_day, stats = asyncio.run(_run())
+    assert union == ["GAZP", "SBER"]
+    assert by_day[date(2025, 1, 6)] == ["SBER", "GAZP"]
+    assert stats["resolve_calls"] == 1
+    assert resolve.await_args.kwargs["token_id"] is None

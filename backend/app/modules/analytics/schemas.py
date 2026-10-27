@@ -190,6 +190,7 @@ class AnalyticsSnapshotsResponse(BaseModel):
     count: int
     limit: int
     offset: int
+    earliest_snapshot_date: Optional[datetime] = None
     history: List[PortfolioSnapshotSummary]
 
 
@@ -297,6 +298,8 @@ class PortfolioStatisticsExtendedResponse(BaseModel):
 
 class AnalyticsChartSeriesRequest(AnalyticsRangeRequest):
     figis: List[str] = []
+    include_instruments: bool = False
+    include_hourly: bool = False
 
 
 class ChartPoint(BaseModel):
@@ -321,6 +324,7 @@ class AnalyticsChartSeriesResponse(BaseModel):
     from_date: datetime
     to_date: datetime
     portfolio_series: List[ChartPoint] = []
+    hourly_series: List[ChartPoint] = []
     drawdown_series: List[DrawdownPoint] = []
     instruments_series: List[ChartInstrumentSeries] = []
     available_instruments: List[ChartAvailableInstrument] = []

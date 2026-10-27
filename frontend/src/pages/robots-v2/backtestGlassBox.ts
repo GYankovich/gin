@@ -122,7 +122,7 @@ export function resolveObservability(args: {
         execution_model: {
             code: honestCode,
             label: honestLabel,
-            look_ahead: lookAhead === true ? true : false,
+            look_ahead: honestCode === 'NEXT_BAR_OPEN' ? false : lookAhead === true,
             signal_on: pickStr(execObj.signal_on, execObj.signalOn),
             fill_on: pickStr(execObj.fill_on, execObj.fillOn) || 'NEXT_BAR_OPEN',
             model: pickStr(execObj.model),
@@ -369,6 +369,12 @@ export function resolveFeeSummary(
         funding_total: funding,
         funding_events: events,
         tax_total: tax,
+        cost_stress: raw.cost_stress ?? null,
+        avg_win: pickNum(raw.avg_win),
+        avg_loss: pickNum(raw.avg_loss),
+        turnover: pickNum(raw.turnover),
+        avg_exposure_pct: pickNum(raw.avg_exposure_pct),
+        assumptions: pickStr(raw.assumptions),
     }
 }
 
@@ -383,6 +389,8 @@ export function feeSummaryVisible(fee: BacktestFeeSummary | null | undefined): b
         || (Number.isFinite(f) && f !== 0)
         || (Number.isFinite(e) && e > 0)
         || (tax != null && Number.isFinite(Number(tax)) && Number(tax) !== 0)
+        || Boolean(fee.cost_stress)
+        || (fee.assumptions != null && String(fee.assumptions).trim() !== '')
 }
 
 export function snapshotTimeIso(snap: BacktestPortfolioSnapshot): string | null {

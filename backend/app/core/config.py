@@ -62,6 +62,27 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
+    # ---- Почта (код подтверждения регистрации) ----
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = Field(default=587, ge=1, le=65535)
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+    SMTP_TLS: bool = True
+    SMTP_SSL: bool = False
+    # Ящик кодов. Если задан, письма входа и регистрации идут через него.
+    SMTP_CODES_HOST: str = ""
+    SMTP_CODES_PORT: int = Field(default=465, ge=1, le=65535)
+    SMTP_CODES_USER: str = ""
+    SMTP_CODES_PASSWORD: str = ""
+    SMTP_CODES_FROM: str = ""
+    SMTP_CODES_TLS: bool = False
+    SMTP_CODES_SSL: bool = True
+    # База ссылки из письма. Пусто — в development берётся Origin, в production https://ginity.ru.
+    PUBLIC_APP_URL: str = ""
+    MAIL_SENDER_ENABLED: bool = True
+    MAIL_SENDER_POLL_SECONDS: float = Field(default=2.0, ge=0.5, le=60.0)
+
     # ---- CORS ----
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",
@@ -192,6 +213,13 @@ class Settings(BaseSettings):
         description=(
             "При старте API: поднять OsEngine.exe (если OSENGINE_ENABLED). "
             "ARCH-05 B: по умолчанию false — OsEngine поднимает compute worker."
+        ),
+    )
+    OSENGINE_START_ON_DEMAND: bool = Field(
+        default=True,
+        description=(
+            "Если MCP недоступен в момент запроса свечей — поднять OsEngine.exe "
+            "и дождаться порта. Повтор после неудачи не чаще чем раз в 30 с."
         ),
     )
     OSENGINE_AUTO_START_ON_COMPUTE: bool = Field(

@@ -338,6 +338,16 @@ class RobotV2AuditRequest(BaseModel):
     limit: int = Field(default=100, ge=1, le=500)
     offset: int = Field(default=0, ge=0)
     session_id: str | None = Field(default=None, alias="sessionId")
+    from_at: datetime | None = Field(
+        default=None,
+        alias="from",
+        description="Inclusive start of the history window (UTC)",
+    )
+    to_at: datetime | None = Field(
+        default=None,
+        alias="to",
+        description="Exclusive end of the history window (UTC)",
+    )
     types: list[AuditDataType] | None = Field(
         default=None,
         description="Requested audit sections; omit to return all",

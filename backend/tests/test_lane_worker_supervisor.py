@@ -19,7 +19,7 @@ def test_plan_worker_heal_conflict_backoff_only_once():
         conflict_backoff_sec=95.0,
         restart_backoff_sec=3.0,
     )
-    assert force is True
+    assert force is False
     assert spawn is False
     assert nxt == 195.0
 
@@ -28,11 +28,11 @@ def test_plan_worker_heal_conflict_backoff_only_once():
         newly_exited=False,
         now=101.0,
         next_restart_at=nxt,
-        force_lease=force,
+        force_lease=True,
         conflict_backoff_sec=95.0,
         restart_backoff_sec=3.0,
     )
-    assert force2 is True
+    assert force2 is False
     assert spawn2 is False
     assert nxt2 == 195.0
 
@@ -41,11 +41,11 @@ def test_plan_worker_heal_conflict_backoff_only_once():
         newly_exited=False,
         now=195.0,
         next_restart_at=nxt2,
-        force_lease=force2,
+        force_lease=True,
         conflict_backoff_sec=95.0,
         restart_backoff_sec=3.0,
     )
-    assert force3 is True
+    assert force3 is False
     assert spawn3 is True
     assert nxt3 == 195.0
 
@@ -60,7 +60,7 @@ def test_plan_worker_heal_lease_lost_restarts_quickly():
         conflict_backoff_sec=95.0,
         restart_backoff_sec=3.0,
     )
-    assert force is True
+    assert force is False
     assert spawn is False
     assert nxt == 13.0
 

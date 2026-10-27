@@ -8,6 +8,18 @@ interface LoginPayload {
     password: string
 }
 
+interface RegisterPayload {
+    login: string
+    email: string
+    password: string
+}
+
+interface RegisterPending {
+    status: string
+    email: string
+    dev_code?: string | null
+}
+
 interface UserOut {
     id: number
     login: string
@@ -23,15 +35,65 @@ interface TokenResponse {
     user?: UserOut | null
 }
 
+function sessionFromToken(tokenData: TokenResponse): Promise<{ token: string; user: UserOut }> {
+    localStorage.setItem('gin-token', tokenData.access_token)
+    if (tokenData.user) {
+        return Promise.resolve({ token: tokenData.access_token, user: tokenData.user })
+    }
+    return api.get<UserOut>('/auth/me').then(({ data: user }) => ({
+        token: tokenData.access_token,
+        user,
+    }))
+}
+
 export const authService = {
     async login(payload: LoginPayload): Promise<{ token: string; user: UserOut }> {
         const { data: tokenData } = await api.post<TokenResponse>('/auth/login', payload)
-        localStorage.setItem('gin-token', tokenData.access_token)
-        if (tokenData.user) {
-            return { token: tokenData.access_token, user: tokenData.user }
-        }
-        const { data: user } = await api.get<UserOut>('/auth/me')
-        return { token: tokenData.access_token, user }
+        return sessionFromToken(tokenData)
+    },
+
+    async requestLoginCode(payload: LoginPayload): Promise<RegisterPending> {
+        const { data } = await api.post<RegisterPending>('/auth', payload)
+        return data
+    },
+
+    async confirmLogin(payload: { email: string; code: string }): Promise<{ token: string; user: UserOut }> {
+        const { data: tokenData } = await api.post<TokenResponse>('/auth/confirm', payload)
+        return sessionFromToken(tokenData)
+    },
+
+    async resendLoginCode(email: string): Promise<RegisterPending> {
+        const { data } = await api.post<RegisterPending>('/auth/resend', { email })
+        return data
+    },
+
+    async register(payload: RegisterPayload): Promise<RegisterPending> {
+        const { data } = await api.post<RegisterPending>('/registration', payload)
+        return data
+    },
+
+    async confirmRegistration(payload: { email: string; code: string }): Promise<{ token: string; user: UserOut }> {
+        const { data: tokenData } = await api.post<TokenResponse>('/registration/confirm', payload)
+        return sessionFromToken(tokenData)
+    },
+
+    async resendRegistrationCode(email: string): Promise<RegisterPending> {
+        const { data } = await api.post<RegisterPending>('/registration/resend', { email })
+        return data
+    },
+
+    async requestPasswordReset(login: string): Promise<{ status: string; dev_link?: string | null }> {
+        const { data } = await api.post<{ status: string; dev_link?: string | null }>('/change_pass_request', { login })
+        return data
+    },
+
+    async previewPasswordReset(token: string): Promise<{ login: string; email: string }> {
+        const { data } = await api.get<{ login: string; email: string }>('/change_pass', { params: { token } })
+        return data
+    },
+
+    async resetPassword(payload: { token: string; password: string }): Promise<void> {
+        await api.post('/change_pass', payload)
     },
 
     async me(): Promise<UserOut> {

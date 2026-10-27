@@ -100,7 +100,14 @@ export const analyticsService = {
         return data
     },
 
-    async getAccountChartSeries(payload: { account_id: number; from_date: string; to_date: string; figis?: string[] }): Promise<AnalyticsChartSeriesResponse> {
+    async getAccountChartSeries(payload: {
+        account_id: number
+        from_date: string
+        to_date: string
+        figis?: string[]
+        include_instruments?: boolean
+        include_hourly?: boolean
+    }): Promise<AnalyticsChartSeriesResponse> {
         const { data } = await api.post<AnalyticsChartSeriesResponse>('/analytics/chart_series', payload)
         return data
     },

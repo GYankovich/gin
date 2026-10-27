@@ -163,7 +163,9 @@ export function BacktestResultsPanel({
     const chartCardRef = useRef<HTMLDivElement | null>(null)
 
     const [rejectFilter, setRejectFilter] = useState<string | null>(null)
-    const [decisionFilter, setDecisionFilter] = useState<'all' | 'filled' | 'rejected' | 'ignored'>('all')
+    const [decisionFilter, setDecisionFilter] = useState<
+        'all' | 'filled' | 'rejected' | 'deferred' | 'ignored'
+    >('all')
     const [signalsOpen, setSignalsOpen] = useState(false)
     const [pagedSignals, setPagedSignals] = useState<SignalRow[] | null>(null)
     const [signalsPage, setSignalsPage] = useState(0)
@@ -212,6 +214,8 @@ export function BacktestResultsPanel({
     const signalsTotal = signalsFetchTotal ?? runSignalsTotal
 
     const needServerPagination = runSignalsTotal > SIGNAL_PAGINATE_THRESHOLD && signalsEndpointOk
+    const paginationUnavailable =
+        runSignalsTotal > SIGNAL_PAGINATE_THRESHOLD && !signalsEndpointOk
 
     const filteredSignals = useMemo(() => {
         return baseSignals.filter(s => {
@@ -380,7 +384,7 @@ export function BacktestResultsPanel({
     const loadSignalsPage = useCallback(async (
         page: number,
         reject: string | null,
-        status: 'all' | 'filled' | 'rejected' | 'ignored',
+        status: 'all' | 'filled' | 'rejected' | 'deferred' | 'ignored',
     ) => {
         if (runId == null || !needServerPagination) return
         setSignalsLoading(true)
@@ -757,6 +761,12 @@ export function BacktestResultsPanel({
                         Статистика отказов — по залогированному окну.
                     </div>
                 )}
+                {paginationUnavailable && (
+                    <div className="robots-v2-banner robots-v2-banner--warn">
+                        Полный журнал решений временно недоступен: не удалось загрузить
+                        постраничный список сигналов.
+                    </div>
+                )}
                 {isPartial && (
                     <div className="robots-v2-banner robots-v2-banner--warn">
                         Прогон частичный / отменён — метрики и решения только по доступному интервалу.
@@ -989,6 +999,7 @@ export function BacktestResultsPanel({
                         ['all', 'Все решения', runSignalsTotal],
                         ['filled', 'Исполнены', statusCounts.filled ?? 0],
                         ['rejected', 'Отклонены', statusCounts.rejected ?? 0],
+                        ['deferred', 'Отложены', statusCounts.deferred ?? 0],
                         ['ignored', 'Без сигнала', statusCounts.ignored ?? 0],
                     ] as const).map(([value, label, count]) => (
                         <button
@@ -1099,7 +1110,6 @@ export function BacktestResultsPanel({
                 seedSteps={narrativeProp}
                 highlightedTs={playheadTs}
                 onStepClick={onNarrativeStep}
-                defaultOpen
             />
 
             {/* Orders — de-emphasized */}

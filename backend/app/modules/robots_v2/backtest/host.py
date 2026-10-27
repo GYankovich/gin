@@ -8,6 +8,7 @@ from typing import Any, Callable
 from uuid import uuid4
 
 from app.modules.trading_core.contracts import Candle, OrderIntent
+from app.modules.robots_v2.backtest.credibility import build_credibility_report
 from app.modules.robots_v2.backtest.funding import apply_funding_charges_for_bar
 from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
 from app.modules.robots_v2.engine.cycle_sync import run_paper_cycle_sync
@@ -69,7 +70,7 @@ def _flatten_all_positions(ledger: PaperLedger, prices: dict[str, float]) -> lis
             price=px,
             reduce_only=True,
         )
-        fills.append({
+        row: dict[str, Any] = {
             "ticker": ticker,
             "kind": "flatten",
             "side": side,
@@ -77,7 +78,11 @@ def _flatten_all_positions(ledger: PaperLedger, prices: dict[str, float]) -> lis
             "price": px,
             "pnl": pnl,
             "reason": "eod_flatten",
-        })
+        }
+        tax = float(getattr(ledger, "last_fill_tax", 0) or 0)
+        if tax:
+            row["tax"] = tax
+        fills.append(row)
     return fills
 
 
@@ -132,6 +137,19 @@ def build_fee_summary(
         "funding_total": round(float(funding_total or 0), 6),
         "funding_events": int(funding_events or 0),
     }
+    if tax_total is None:
+        tax_from_trades = 0.0
+        saw_tax = False
+        for t in trades:
+            if t.get("tax") is None:
+                continue
+            try:
+                tax_from_trades += float(t.get("tax") or 0)
+                saw_tax = True
+            except (TypeError, ValueError):
+                continue
+        if saw_tax:
+            tax_total = tax_from_trades
     if tax_total is not None:
         out["tax_total"] = round(float(tax_total), 6)
     return out
@@ -228,6 +246,11 @@ def _record_fills(
             trade_row["signal_time"] = str(signal_time)
         if intent_id:
             trade_row["intent_id"] = str(intent_id)
+        if fill.get("tax") is not None:
+            try:
+                trade_row["tax"] = round(float(fill.get("tax") or 0), 2)
+            except (TypeError, ValueError):
+                pass
         fill["trade_id"] = trade_id
         trades.append(trade_row)
         order_row = {
@@ -261,11 +284,17 @@ def _apply_deferred_intents(
     session_id: int,
     archetype: str,
     clock: datetime,
+    volumes: dict[str, float] | None = None,
 ) -> tuple[list[dict[str, Any]], list[OrderIntent], list[dict[str, Any]]]:
     """Fill yesterday's close signals at this bar's open. Unpriced names stay queued."""
+    from dataclasses import replace as _replace
+
+    from app.modules.robots_v2.backtest.credibility import apply_liquidity_cap
+
     fills: list[dict[str, Any]] = []
     leftover: list[OrderIntent] = []
     events: list[dict[str, Any]] = []
+    vols = volumes or {}
     for intent in intents:
         _ensure_intent_id(intent)
         ticker = str(intent.figi or "").upper()
@@ -275,6 +304,12 @@ def _apply_deferred_intents(
             continue
         if str(getattr(intent, "order_type", None) or "MARKET").upper() != "LIMIT":
             intent.price = px
+        vol = vols.get(ticker)
+        rem_qty = 0
+        if vol is not None:
+            intent, rem_qty, _capped = apply_liquidity_cap(intent, vol)
+            if rem_qty > 0 and bool(getattr(intent, "reduce_only", False)):
+                leftover.append(_replace(intent, quantity=float(rem_qty)))
         result = exec_svc.execute_intent_sync(intent, last_price=px)
         meta = getattr(intent, "meta", None) or {}
         kind = str(getattr(intent, "kind", None) or "entry")
@@ -291,6 +326,9 @@ def _apply_deferred_intents(
                 "status": result.status,
                 "intent_id": str(meta.get("intent_id") or ""),
             }
+            tax = float(getattr(exec_svc.ledger, "last_fill_tax", 0) or 0)
+            if tax:
+                fill_row["tax"] = tax
             if meta.get("cycle_id"):
                 fill_row["cycle_id"] = str(meta["cycle_id"])
             if meta.get("signal_time"):
@@ -348,6 +386,7 @@ def build_run_narrative(
     dropped = int(history_stats.get("dropped_deferred") or 0)
     funding_events = int(history_stats.get("funding_events") or 0)
     fee = fee_summary or {}
+    tax_total = fee.get("tax_total")
 
     steps: list[dict[str, Any]] = [
         {
@@ -377,14 +416,31 @@ def build_run_narrative(
             "ts": ts,
         },
     ]
-    if funding_events or float(fee.get("funding_total") or 0):
+    if (
+        funding_events
+        or float(fee.get("funding_total") or 0)
+        or float(fee.get("commission_total") or 0)
+        or tax_total is not None
+    ):
+        tax_bit = ""
+        if tax_total is not None:
+            tax_bit = f"; НДФЛ: {tax_total}"
         steps.append({
             "section": "издержки",
             "step": 4,
             "text": (
                 f"Комиссия: {fee.get('commission_total', 0)}; "
-                f"фандинг: {fee.get('funding_total', 0)} ({funding_events} событий)."
+                f"фандинг: {fee.get('funding_total', 0)} ({funding_events} событий)"
+                f"{tax_bit}."
             ),
+            "ts": ts,
+        })
+    assumptions = str(fee.get("assumptions") or "").strip()
+    if assumptions:
+        steps.append({
+            "section": "достоверность",
+            "step": len(steps) + 1,
+            "text": assumptions,
             "ts": ts,
         })
     steps.append({
@@ -484,6 +540,7 @@ class BacktestHostResult:
     universe_by_day: dict[date, list[str]] = field(default_factory=dict)
     execution_events: list[dict[str, Any]] = field(default_factory=list)
     narrative: list[dict[str, Any]] = field(default_factory=list)
+    credibility: dict[str, Any] = field(default_factory=dict)
 
 
 class BacktestHost:
@@ -537,7 +594,13 @@ class BacktestHost:
 
         commission = config.risk.broker_commission_pct / 100.0
         allow_short = config.core.instrument_type in ("perpetual", "coin_futures")
-        ledger = PaperLedger(cash=initial_capital, commission_rate=commission, allow_short=allow_short)
+        tax_rate = 0.0 if allow_short else float(config.risk.tax_pct or 0) / 100.0
+        ledger = PaperLedger(
+            cash=initial_capital,
+            commission_rate=commission,
+            allow_short=allow_short,
+            tax_rate=tax_rate,
+        )
         risk = RiskEngine(config.risk, allow_short=allow_short)
         risk.begin_session(initial_capital)
         exec_svc = ExecutionService(
@@ -609,6 +672,11 @@ class BacktestHost:
                 continue
 
             if deferred and opens:
+                volumes = {
+                    t: float(bar.volume)
+                    for t in tickers
+                    if (bar := idx_by_ticker[t].get(bar_time)) is not None and bar.volume
+                }
                 open_fills, deferred, fill_events = _apply_deferred_intents(
                     deferred,
                     opens=opens,
@@ -618,6 +686,7 @@ class BacktestHost:
                     session_id=session_id,
                     archetype=archetype,
                     clock=bar_time,
+                    volumes=volumes,
                 )
                 trade_id = _record_fills(
                     open_fills,
@@ -692,7 +761,7 @@ class BacktestHost:
                             price=px,
                             reduce_only=True,
                         )
-                        flat_drop.append({
+                        drop_row: dict[str, Any] = {
                             "ticker": t,
                             "kind": "flatten",
                             "side": side,
@@ -700,7 +769,11 @@ class BacktestHost:
                             "price": px,
                             "pnl": pnl,
                             "reason": "universe_drop",
-                        })
+                        }
+                        drop_tax = float(getattr(ledger, "last_fill_tax", 0) or 0)
+                        if drop_tax:
+                            drop_row["tax"] = drop_tax
+                        flat_drop.append(drop_row)
                     if flat_drop:
                         trade_id = _record_fills(
                             flat_drop,
@@ -932,11 +1005,31 @@ class BacktestHost:
         runtime.drop_session(session_id)
 
         daily_summary = _build_daily_summary(signal_events, trades)
+        credibility = build_credibility_report(
+            trades=trades,
+            snapshots=portfolio_snapshots,
+            initial_capital=initial_capital,
+            final_equity=final_equity,
+            slippage_pct=float(config.risk.slippage_pct or 0),
+            ndfl=tax_rate > 0,
+            tax_total=float(getattr(ledger, "tax_paid", 0) or 0),
+        )
         fee_summary = build_fee_summary(
             trades,
             funding_total=funding_charges_total,
             funding_events=funding_events_applied,
+            tax_total=float(getattr(ledger, "tax_paid", 0) or 0),
         )
+        for key in (
+            "cost_stress",
+            "avg_win",
+            "avg_loss",
+            "turnover",
+            "avg_exposure_pct",
+            "assumptions",
+        ):
+            if key in credibility:
+                fee_summary[key] = credibility[key]
         history_stats = {
             "bars": len(timeline),
             "tickers": len(tickers),
@@ -969,6 +1062,8 @@ class BacktestHost:
             f"Signals logged: {len(signal_events)}"
             + (" (truncated)" if signals_truncated else ""),
             "Fills at next bar open (no look-ahead)",
+            "Intrabar SL/TP (high/low, stop before take); NDFL on profitable closes; "
+            "10% bar-volume participation; cost stress overlay",
         ]
         if funding_by_symbol:
             stages.append(
@@ -994,4 +1089,5 @@ class BacktestHost:
             universe_by_day=dict(day_universe),
             execution_events=execution_events,
             narrative=narrative,
+            credibility=credibility,
         )

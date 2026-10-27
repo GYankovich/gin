@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Настройки — варианты плотности</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --card: #12161b;
+    --input: #181c22;
+    --elevated: #1b2027;
+    --text: #eceff3;
+    --secondary: #b4bcc6;
+    --muted: #8b939e;
+    --border: rgba(255,255,255,0.08);
+    --line: rgba(255,255,255,0.14);
+    --accent: #e8eaed;
+    --on-accent: #13161a;
+    --up: #3dbe7a;
+    --picker: #0e1114;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: Inter, system-ui, sans-serif;
+    background: var(--picker);
+    color: var(--text);
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+
+  .picker {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px 24px;
+    padding: 14px 22px;
+    background: var(--picker);
+    border-bottom: 1px solid var(--border);
+  }
+  .picker h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .picker p { margin: 4px 0 0; max-width: 62ch; font-size: 13px; color: var(--muted); line-height: 1.45; }
+  .modes { display: flex; gap: 4px; padding: 4px; margin-left: auto; background: var(--input); border-radius: 12px; }
+  .modes button {
+    border: 1px solid transparent; background: transparent; color: var(--muted);
+    border-radius: 9px; padding: 8px 14px; font-size: 13px; font-weight: 500;
+  }
+  .modes button.is-on {
+    background: var(--elevated); color: var(--text); border-color: var(--line);
+  }
+
+  .stage {
+    min-height: calc(100vh - 72px);
+    padding: 28px 24px 48px;
+    background: var(--bg);
+  }
+  .wrap { width: min(920px, 100%); margin: 0 auto; }
+  .refs {
+    margin: 0 0 18px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--card) 80%, transparent);
+    font-size: 13px; color: var(--secondary); line-height: 1.45;
+  }
+  .refs strong { color: var(--text); font-weight: 600; }
+  .refs a { color: var(--text); }
+
+  .screen { display: none; }
+  body[data-mode='linear'] [data-screen='linear'],
+  body[data-mode='stripe'] [data-screen='stripe'],
+  body[data-mode='ledger'] [data-screen='ledger'] { display: block; }
+
+  .top {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+
+  /* ——— A. Linear-dense ——— */
+  .a-card { padding: 12px 14px; }
+  .a-profile { display: flex; align-items: center; gap: 10px; }
+  .a-avatar {
+    width: 36px; height: 36px; border-radius: 999px; display: grid; place-items: center;
+    background: var(--input); border: 1px solid var(--border); font-size: 12px; font-weight: 600;
+  }
+  .a-name { font-size: 14px; font-weight: 600; }
+  .a-meta { font-size: 12px; color: var(--muted); }
+  .a-theme {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px;
+    background: var(--input); border-radius: 10px;
+  }
+  .a-theme button {
+    border: 1px solid transparent; background: transparent; color: var(--muted);
+    border-radius: 8px; padding: 8px 6px; font-size: 12px; font-weight: 500;
+  }
+  .a-theme button.is-on { background: var(--elevated); color: var(--text); border-color: var(--line); }
+  .a-toolbar {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin: 0 0 8px; font-size: 12px; color: var(--muted);
+  }
+  .a-toolbar button { border: 0; background: none; padding: 0; color: var(--text); font-size: 13px; font-weight: 500; }
+  .a-broker { padding: 10px 12px; margin-bottom: 8px; }
+  .a-broker h2 {
+    margin: 0 0 8px; font-size: 12px; font-weight: 500; color: var(--muted);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .a-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .a-label { display: block; margin-bottom: 4px; font-size: 11px; color: var(--muted); }
+  .a-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 5px 0; border-top: 1px solid var(--border); font-size: 13px;
+  }
+  .a-row:first-of-type { border-top: 0; }
+  .a-row small { color: var(--muted); font-size: 11px; }
+  .a-sw {
+    width: 34px; height: 18px; border-radius: 999px; background: var(--accent); position: relative; flex-shrink: 0;
+  }
+  .a-sw::after {
+    content: ''; position: absolute; top: 2px; left: 18px;
+    width: 14px; height: 14px; border-radius: 999px; background: var(--on-accent);
+  }
+
+  /* ——— B. Stripe / Vercel section rows ——— */
+  .b-card { padding: 0; overflow: hidden; }
+  .b-sec {
+    display: grid; grid-template-columns: minmax(160px, 0.9fr) minmax(0, 1.4fr);
+    gap: 16px 24px; padding: 18px 20px; border-bottom: 1px solid var(--border);
+  }
+  .b-sec:last-child { border-bottom: 0; }
+  .b-sec h3 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+  .b-sec p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.4; }
+  .b-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+  .b-field:last-child { margin-bottom: 0; }
+  .b-field span { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .b-field input, .b-choice {
+    background: var(--input); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; font-size: 14px;
+  }
+  .b-choice { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .b-choice.is-on { border-color: var(--line); background: var(--elevated); }
+  .b-broker { margin-top: 12px; }
+  .b-broker .card { padding: 0; }
+  .b-broker-h {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+  }
+  .b-broker-h strong { font-size: 14px; }
+  .b-broker-h button { border: 0; background: none; color: var(--secondary); font-size: 13px; }
+  .b-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .b-table th {
+    text-align: left; font-size: 11px; font-weight: 500; color: var(--muted);
+    padding: 8px 16px; border-bottom: 1px solid var(--border);
+  }
+  .b-table td { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .b-table tr:last-child td { border-bottom: 0; }
+  .b-ok { color: var(--up); font-weight: 500; }
+
+  /* ——— C. Ledger / one list ——— */
+  .c-hero {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
+    margin-bottom: 14px;
+  }
+  .c-hero h2 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+  .c-hero p { margin: 6px 0 0; font-size: 14px; color: var(--secondary); max-width: 36ch; }
+  .c-hero button {
+    border: 0; border-radius: 10px; background: var(--accent); color: var(--on-accent);
+    font-weight: 600; font-size: 14px; padding: 10px 14px;
+  }
+  .c-card { padding: 0; overflow: hidden; }
+  .c-group-title {
+    padding: 10px 14px 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--muted); background: color-mix(in srgb, var(--input) 70%, transparent);
+    border-bottom: 1px solid var(--border);
+  }
+  .c-line {
+    display: grid; grid-template-columns: 18px minmax(0, 1.2fr) minmax(0, 1fr) auto;
+    gap: 12px; align-items: center; padding: 9px 14px; border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .c-line:last-child { border-bottom: 0; }
+  .c-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--up); }
+  .c-dot.off { background: var(--muted); opacity: 0.55; }
+  .c-line em { font-style: normal; color: var(--muted); font-size: 12px; }
+  .c-line button { border: 0; background: none; color: var(--muted); font-size: 12px; }
+  .c-split { display: grid; grid-template-columns: 1fr 280px; gap: 12px; margin-bottom: 12px; }
+  .c-side { padding: 14px; }
+  .c-side .who { font-size: 16px; font-weight: 600; margin-bottom: 2px; }
+  .c-side .mail { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .c-side .seg {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px;
+    background: var(--input); border-radius: 10px;
+  }
+  .c-side .seg button {
+    border: 1px solid transparent; background: transparent; color: var(--muted);
+    border-radius: 8px; padding: 8px; font-size: 12px;
+  }
+  .c-side .seg button.is-on { background: var(--elevated); color: var(--text); border-color: var(--line); }
+
+  @media (max-width: 760px) {
+    .top, .a-cols, .b-sec, .c-split { grid-template-columns: 1fr; }
+    .modes { margin-left: 0; width: 100%; }
+    .modes button { flex: 1; }
+    .c-line { grid-template-columns: 18px 1fr auto; }
+    .c-line em { display: none; }
+  }
+</style>
+</head>
+<body data-mode="linear">
+  <header class="picker">
+    <div>
+      <h1>Варианты плотности настроек</h1>
+      <p id="blurb"></p>
+    </div>
+    <div class="modes">
+      <button type="button" data-mode="linear" class="is-on">A · Dense</button>
+      <button type="button" data-mode="stripe">B · Sections</button>
+      <button type="button" data-mode="ledger">C · Ledger</button>
+    </div>
+  </header>
+
+  <div class="stage">
+    <div class="wrap">
+      <p class="refs" id="refs"></p>
+
+      <!-- A -->
+      <section class="screen" data-screen="linear">
+        <div class="top">
+          <div class="card a-card">
+            <div class="a-profile">
+              <div class="a-avatar">GY</div>
+              <div>
+                <div class="a-name">gy <span class="a-meta">· с 28.02.2026</span></div>
+                <div class="a-meta">germanyankovich@gmail.com</div>
+              </div>
+            </div>
+          </div>
+          <div class="card a-card">
+            <div class="a-theme">
+              <button type="button">Тёмная</button>
+              <button type="button" class="is-on">Светлая</button>
+              <button type="button">Авто</button>
+            </div>
+          </div>
+        </div>
+        <div class="a-toolbar">
+          <span>Брокеры</span>
+          <button type="button">+ токен</button>
+        </div>
+        <div class="card a-broker">
+          <h2>▣ Т-Инвестиции</h2>
+          <div class="a-cols">
+            <div>
+              <span class="a-label">Токены</span>
+              <div class="a-row"><span>брокерский 3<br><small>Активный · вчера</small></span></div>
+              <div class="a-row"><span>Опросник<br><small>Активный · 2 мин</small></span></div>
+            </div>
+            <div>
+              <span class="a-label">Счета</span>
+              <div class="a-row"><span>Pinkin<br><small>837 035 ₽</small></span><span class="a-sw"></span></div>
+              <div class="a-row"><span>Брокерский 6<br><small>8 900 ₽</small></span><span class="a-sw"></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="card a-broker">
+          <h2>▣ ByBit</h2>
+          <div class="a-cols">
+            <div>
+              <span class="a-label">Токены</span>
+              <div class="a-row"><span>ByBit TST<br><small>Активный · 2 мин</small></span></div>
+            </div>
+            <div>
+              <span class="a-label">Счета</span>
+              <div class="a-row"><span>Unified<br><small>9,63 USDT</small></span><span class="a-sw"></span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- B -->
+      <section class="screen" data-screen="stripe">
+        <div class="card b-card">
+          <div class="b-sec">
+            <div>
+              <h3>Профиль</h3>
+              <p>Логин и почта. Правка в модалке.</p>
+            </div>
+            <div>
+              <div class="b-field"><span>Логин</span><input value="gy" readonly /></div>
+              <div class="b-field"><span>Почта</span><input value="germanyankovich@gmail.com" readonly /></div>
+            </div>
+          </div>
+          <div class="b-sec">
+            <div>
+              <h3>Оформление</h3>
+              <p>Тема интерфейса.</p>
+            </div>
+            <div>
+              <button type="button" class="b-choice">Тёмная</button>
+              <button type="button" class="b-choice is-on">Светлая</button>
+              <button type="button" class="b-choice">Авто</button>
+            </div>
+          </div>
+        </div>
+        <div class="b-broker">
+          <div class="card">
+            <div class="b-broker-h">
+              <strong>Т-Инвестиции</strong>
+              <button type="button">+ токен</button>
+            </div>
+            <table class="b-table">
+              <thead><tr><th>Токен</th><th>Статус</th><th></th></tr></thead>
+              <tbody>
+                <tr><td>брокерский 3</td><td class="b-ok">Активный</td><td>вчера</td></tr>
+                <tr><td>Опросник</td><td class="b-ok">Активный</td><td>2 мин</td></tr>
+              </tbody>
+            </table>
+            <table class="b-table">
+              <thead><tr><th>Счёт</th><th>Сумма</th><th></th></tr></thead>
+              <tbody>
+                <tr><td>Pinkin</td><td>837 035 ₽</td><td><span class="a-sw"></span></td></tr>
+                <tr><td>Брокерский 6</td><td>8 900 ₽</td><td><span class="a-sw"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- C -->
+      <section class="screen" data-screen="ledger">
+        <div class="c-split">
+          <div class="c-hero">
+            <div>
+              <h2>Настройки</h2>
+              <p>Профиль, тема и ключи брокеров в одном потоке.</p>
+            </div>
+            <button type="button">Добавить токен</button>
+          </div>
+          <div class="card c-side">
+            <div class="who">gy</div>
+            <div class="mail">germanyankovich@gmail.com · с 28.02.2026</div>
+            <div class="seg">
+              <button type="button">Тёмная</button>
+              <button type="button" class="is-on">Светлая</button>
+              <button type="button">Авто</button>
+            </div>
+          </div>
+        </div>
+        <div class="card c-card">
+          <div class="c-group-title">Т-Инвестиции · токены</div>
+          <div class="c-line"><span class="c-dot"></span><span>брокерский 3</span><em>вчера</em><button type="button">Удалить</button></div>
+          <div class="c-line"><span class="c-dot"></span><span>Опросник</span><em>2 мин</em><button type="button">Удалить</button></div>
+          <div class="c-group-title">Т-Инвестиции · счета</div>
+          <div class="c-line"><span class="c-dot"></span><span>Pinkin</span><em>837 035 ₽</em><span class="a-sw"></span></div>
+          <div class="c-line"><span class="c-dot off"></span><span>Брокерский</span><em>722 ₽</em><span class="a-sw" style="background:var(--input)"></span></div>
+          <div class="c-group-title">ByBit · токены</div>
+          <div class="c-line"><span class="c-dot"></span><span>ByBit TST</span><em>2 мин</em><button type="button">Удалить</button></div>
+          <div class="c-group-title">ByBit · счета</div>
+          <div class="c-line"><span class="c-dot"></span><span>Unified</span><em>9,63 USDT</em><span class="a-sw"></span></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+<script>
+  const blurbs = {
+    linear: 'Плотнее, как Linear: 12–13px, короткие отступы, две колонки токены/счета внутри компактной карточки. Меньше «воздуха», больше строк на экран.',
+    stripe: 'Секции как Vercel/Stripe Settings: слева заголовок + пояснение, справа контролы. Брокер — таблица. Читаемее на десктопе, чуть просторнее.',
+    ledger: 'Один ledger-поток: профиль сбоку, ниже единый список групп. Хорошо, если брокеров много и важнее сканировать строки, а не карточки.',
+  }
+  const refs = {
+    linear: '<strong>Референс:</strong> Linear settings — одна секция = заголовок + контролы, 4px-grid, restraint. <a href="https://linear.app/now/settings-are-not-a-design-failure" target="_blank" rel="noreferrer">linear.app</a>',
+    stripe: '<strong>Референс:</strong> Vercel Account Settings / Stripe Dashboard — label слева, поле справа; токены как lifecycle-таблица. <a href="https://vercel.com/changelog/improved-user-experience-for-account-settings" target="_blank" rel="noreferrer">vercel</a> · <a href="https://www.saasui.design/blog/saas-api-keys-tokens-ux-patterns" target="_blank" rel="noreferrer">API keys UX</a>',
+    ledger: '<strong>Референс:</strong> Notion-openness + broker ledger: один скролл, group headers, dense rows — ближе к терминалу/портфелю, чем к «карточкам настроек».',
+  }
+  const body = document.body
+  const blurb = document.getElementById('blurb')
+  const refsEl = document.getElementById('refs')
+  const buttons = document.querySelectorAll('.modes button')
+  function setMode(mode) {
+    body.dataset.mode = mode
+    blurb.textContent = blurbs[mode]
+    refsEl.innerHTML = refs[mode]
+    buttons.forEach(btn => btn.classList.toggle('is-on', btn.dataset.mode === mode))
+  }
+  buttons.forEach(btn => btn.addEventListener('click', () => setMode(btn.dataset.mode)))
+  setMode('linear')
+</script>
+</body>
+</html>

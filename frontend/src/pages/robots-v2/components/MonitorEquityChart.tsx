@@ -11,10 +11,10 @@ export function MonitorEquityChart({ onReady }: MonitorEquityChartProps) {
     return (
         <Card className="dashboard-assets-card robots-v2-monitor-chart robots-v2-cockpit-chart-card">
             <div className="dashboard-assets-card__head">
-                <h3 className="dashboard-panel-title">Equity сессии</h3>
+                <h3 className="dashboard-panel-title">Стоимость</h3>
             </div>
             <div className="robots-v2-cockpit-chart-card__body">
-                <Chart height={188} onReady={onReady} />
+                <Chart height={260} onReady={onReady} />
             </div>
         </Card>
     )

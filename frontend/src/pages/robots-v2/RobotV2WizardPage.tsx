@@ -14,6 +14,7 @@ import { brokerFromTokenType, brokerLabelFromToken } from '@/modules/robots/conf
 import { useToast } from '@/components/ui/Toast'
 import { RobotConfirmModal } from '@/pages/robots-v2/components/RobotConfirmModal'
 import { RobotPageChrome } from '@/pages/robots-v2/components/RobotPageChrome'
+import { ScreenerCustomFilters } from '@/pages/robots-v2/components/ScreenerCustomFilters'
 import { fmtErr } from '@/pages/robots-v2/formatters'
 import {
     ARCHETYPE_CARDS,
@@ -22,6 +23,7 @@ import {
     clearDraftLocal,
     configToDraft,
     configToPortfolioDraft,
+    customScreenerFieldDefaults,
     defaultWizardDraft,
     draftToPortfolioV4Config,
     draftToV4Config,
@@ -747,7 +749,7 @@ export default function RobotV2WizardPage() {
                                     onChange={mode => patch({ mode })}
                                 />
                                 <small className="robots-v2-hint">
-                                    Бэктест на исторических свечах запускается с карточки робота после сохранения.
+                                    Бэктест на исторических свечах запускается в лаборатории.
                                 </small>
                             </label>
                             <div className="robots-v2-field">
@@ -828,23 +830,36 @@ export default function RobotV2WizardPage() {
                             </label>
                         )}
                         {draft.universeMode === 'screener' && (
-                            <label className="robots-v2-field">
-                                <span>Пресет</span>
-                                <Select
-                                    className="robots-v2-select"
-                                    value={draft.screenerPreset}
-                                    searchable={false}
-                                    options={[
-                                        { value: 'high_liquidity', label: 'Высокая ликвидность' },
-                                        { value: 'volatile', label: 'Волатильные' },
-                                        { value: 'low_price', label: 'Низкая цена' },
-                                        { value: 'custom', label: 'Custom' },
-                                    ]}
-                                    onChange={value =>
-                                        patch({ screenerPreset: value as RobotV2WizardDraft['screenerPreset'] })
-                                    }
-                                />
-                            </label>
+                            <>
+                                <label className="robots-v2-field">
+                                    <span>Пресет</span>
+                                    <Select
+                                        className="robots-v2-select"
+                                        value={draft.screenerPreset}
+                                        searchable={false}
+                                        options={[
+                                            { value: 'high_liquidity', label: 'Высокая ликвидность' },
+                                            { value: 'volatile', label: 'Волатильные' },
+                                            { value: 'low_price', label: 'Низкая цена' },
+                                            { value: 'custom', label: 'Свой' },
+                                        ]}
+                                        onChange={value => {
+                                            const screenerPreset = value as RobotV2WizardDraft['screenerPreset']
+                                            if (screenerPreset === 'custom' && draft.screenerPreset !== 'custom') {
+                                                patch({
+                                                    screenerPreset,
+                                                    ...customScreenerFieldDefaults(draft.instrumentType),
+                                                })
+                                                return
+                                            }
+                                            patch({ screenerPreset })
+                                        }}
+                                    />
+                                </label>
+                                {draft.screenerPreset === 'custom' && (
+                                    <ScreenerCustomFilters draft={draft} patch={patch} />
+                                )}
+                            </>
                         )}
                         <div className="robots-v2-inline">
                             <label className="robots-v2-field">

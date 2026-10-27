@@ -2,7 +2,7 @@
 ///@ Исходный модуль `frontend/src/services/dashboardService.ts` — автоматическая разметка для Obsidian Source Scanner.
 
 import { api } from './api'
-import type { DashboardDataResponse } from '@/types/api'
+import type { DashboardDataResponse, DashboardAccountItem } from '@/types/api'
 
 export type DashboardSortColumn =
     | 'account_name'
@@ -27,6 +27,14 @@ export const dashboardService = {
             sort: sort ?? [{ columnName: 'account_name', sortType: 'asc' }],
         })
         return data
+    },
+
+    async fetchSettingsAccounts(filters?: { broker?: string; currency?: string }): Promise<DashboardAccountItem[]> {
+        const params: { broker?: string; currency?: string } = {}
+        if (filters?.broker) params.broker = filters.broker
+        if (filters?.currency) params.currency = filters.currency
+        const { data } = await api.get<{ accounts: DashboardAccountItem[] }>('/dashboard/accounts', { params })
+        return data.accounts
     },
 
     async updateVisibility(accounts: DashboardVisibilityItem[]): Promise<{ updated: number }> {

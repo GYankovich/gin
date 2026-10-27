@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>settings-sheet-feed · варианты · GIN</title>
+<style>
+  :root {
+    --bg-page: #0a0a0f;
+    --bg-card: #12121a;
+    --bg-input: #0e0e16;
+    --bg-elevated: #181824;
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-medium: rgba(255, 255, 255, 0.12);
+    --text-primary: #e0e0e0;
+    --text-secondary: #888888;
+    --text-muted: #555555;
+    --color-up: #00ffaa;
+    --color-down: #ff3366;
+    --color-warn: #ffaa00;
+    --radius-lg: 12px;
+    --picker-bg: #0e0e14;
+    --phone-w: 390px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    background: #07070b;
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+  button:focus-visible { outline: 2px solid rgba(255,255,255,0.28); outline-offset: 2px; }
+
+  .picker {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 20px;
+    padding: 14px 20px;
+    background: var(--picker-bg);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .picker h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .picker p { margin: 4px 0 0; max-width: 68ch; font-size: 13px; color: var(--text-secondary); line-height: 1.45; }
+  .picker__modes {
+    display: flex; flex-wrap: wrap; gap: 4px; padding: 4px;
+    margin-left: auto; background: var(--bg-input); border-radius: 12px;
+  }
+  .picker__modes button {
+    border: 1px solid transparent; border-radius: 9px;
+    padding: 8px 12px; min-height: 36px;
+    font-size: 13px; font-weight: 500; color: var(--text-muted);
+  }
+  .picker__modes button.is-on {
+    background: var(--bg-elevated); color: var(--text-primary);
+    border-color: var(--border-medium);
+  }
+  .picker__note {
+    flex: 1 1 100%;
+    margin: 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.4;
+  }
+  .picker__note strong { color: var(--text-secondary); }
+
+  .stage {
+    display: flex; justify-content: center;
+    padding: 28px 16px 48px; min-height: calc(100vh - 100px);
+  }
+  .phone {
+    width: var(--phone-w); max-width: 100%;
+    border-radius: 28px;
+    border: 1px solid var(--border-medium);
+    background: var(--bg-page);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.55);
+    overflow: hidden;
+  }
+  .phone__pad { padding: 14px 12px 24px; }
+
+  .section-label {
+    display: flex; align-items: center; gap: 8px;
+    margin: 0 2px 8px; font-size: 13px; font-weight: 500; color: var(--text-muted);
+  }
+  .section-label__action {
+    margin-left: auto; font-size: 13px; font-weight: 500; color: var(--text-secondary);
+  }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .broker-h {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; min-height: 56px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .broker-h__icon {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: grid; place-items: center;
+    background: var(--bg-input); border: 1px solid var(--border-subtle);
+    font-size: 11px; font-weight: 700; color: var(--text-secondary);
+  }
+  .broker-h__name { font-size: 14.5px; font-weight: 600; }
+  .broker-h__meta { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .dot {
+    display: inline-block; width: 7px; height: 7px; border-radius: 999px;
+    background: var(--color-up); margin-right: 5px; vertical-align: middle;
+  }
+  .dot.is-warn { background: var(--color-warn); }
+  .dot.is-err { background: var(--color-down); }
+
+  .variant { display: none; }
+  body[data-v='a'] .variant-a,
+  body[data-v='b'] .variant-b,
+  body[data-v='c'] .variant-c,
+  body[data-v='d'] .variant-d { display: block; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    padding: 10px 14px; border-radius: 10px; z-index: 50;
+    background: var(--bg-elevated); border: 1px solid var(--border-medium);
+    font-size: 13px; color: var(--text-secondary);
+    opacity: 0; pointer-events: none; transition: opacity 160ms ease;
+  }
+  .toast.is-on { opacity: 1; }
+
+  /* ——— shared feed bits ——— */
+  .sub {
+    padding: 8px 12px 4px;
+    font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--text-muted);
+  }
+  .sub-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 8px 12px 4px;
+  }
+  .sub-row .sub { padding: 0; }
+  .icon-add {
+    width: 32px; height: 32px; display: grid; place-items: center;
+    border-radius: 8px; color: var(--text-muted);
+  }
+  .icon-add:hover { color: var(--text-primary); background: var(--bg-input); }
+
+  .add-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: calc(100% - 24px); margin: 8px 12px 12px; min-height: 44px;
+    border: 1px dashed color-mix(in srgb, var(--border-medium) 80%, transparent);
+    border-radius: 10px; color: var(--text-secondary);
+    font-size: 13.5px; font-weight: 500;
+  }
+  .add-btn:hover { color: var(--text-primary); background: var(--bg-input); }
+
+  .del {
+    width: 44px; height: 44px; display: grid; place-items: center;
+    border-radius: 10px;
+    color: color-mix(in srgb, var(--color-down) 80%, var(--text-secondary));
+  }
+  .del:hover { color: var(--color-down); background: color-mix(in srgb, var(--color-down) 10%, transparent); }
+  .del svg { width: 15px; height: 15px; }
+
+  .toggle {
+    width: 44px; height: 26px; border-radius: 999px;
+    background: #2a2a36; position: relative; flex-shrink: 0;
+  }
+  .toggle.is-on { background: color-mix(in srgb, var(--color-up) 35%, #1a2a24); }
+  .toggle::after {
+    content: ''; position: absolute; top: 3px; left: 3px;
+    width: 20px; height: 20px; border-radius: 999px; background: #c8c8d0;
+    transition: transform 160ms ease;
+  }
+  .toggle.is-on::after { transform: translateX(18px); background: var(--color-up); }
+
+  /* ===== A · Now ===== */
+  .a-token {
+    display: grid; grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 4px 8px; align-items: center;
+    padding: 12px; min-height: 56px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .a-token:first-of-type { border-top: 0; }
+  .a-token__name { display: block; font-size: 14px; font-weight: 600; }
+  .a-token__meta { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .a-token__mask {
+    display: block; font-size: 11.5px; color: var(--text-muted);
+    font-variant-numeric: tabular-nums; margin-top: 2px;
+  }
+  .a-acct {
+    display: grid; grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 2px 10px; align-items: center;
+    padding: 12px 14px; min-height: 52px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .a-acct__name { font-size: 14px; font-weight: 500; color: var(--text-secondary); }
+  .a-acct__meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ===== B · Segments ===== */
+  .b-seg {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 3px;
+    margin: 10px 12px 0; padding: 3px;
+    background: var(--bg-input); border-radius: 10px;
+  }
+  .b-seg button {
+    min-height: 36px; border-radius: 8px;
+    font-size: 13px; font-weight: 500; color: var(--text-muted);
+  }
+  .b-seg button.is-on {
+    background: var(--bg-elevated); color: var(--text-primary);
+    border: 1px solid var(--border-medium);
+  }
+  .b-panel { display: none; }
+  .b-panel.is-on { display: block; }
+  .b-token {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; min-height: 52px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .b-token:first-child { border-top: 0; }
+  .b-token__body { min-width: 0; flex: 1; }
+  .b-token__name { font-size: 14px; font-weight: 600; }
+  .b-token__meta { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .b-pill {
+    flex-shrink: 0; padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+    background: color-mix(in srgb, var(--color-up) 14%, transparent);
+    color: var(--color-up);
+  }
+  .b-pill.is-warn {
+    background: color-mix(in srgb, var(--color-warn) 14%, transparent);
+    color: var(--color-warn);
+  }
+  .b-acct {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; min-height: 52px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .b-acct:first-child { border-top: 0; }
+  .b-acct__body { min-width: 0; flex: 1; }
+  .b-acct__name { font-size: 14px; font-weight: 500; }
+  .b-acct__meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  /* ===== C · Dense ledger ===== */
+  .c-table { padding: 4px 0 8px; }
+  .c-row {
+    display: grid;
+    grid-template-columns: 10px minmax(0, 1fr) auto 44px;
+    align-items: center; column-gap: 10px;
+    min-height: 44px; padding: 8px 12px;
+  }
+  .c-row:hover { background: color-mix(in srgb, var(--bg-input) 70%, transparent); }
+  .c-row__name {
+    font-size: 13.5px; font-weight: 500; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .c-row__meta {
+    font-size: 12px; color: var(--text-muted);
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .c-row .del { width: 36px; height: 36px; }
+  .c-row .toggle { transform: scale(0.92); transform-origin: right center; }
+  .c-foot {
+    display: flex; gap: 8px; padding: 4px 12px 12px;
+  }
+  .c-foot button {
+    flex: 1; min-height: 40px; border-radius: 10px;
+    border: 1px solid var(--border-subtle);
+    font-size: 13px; font-weight: 500; color: var(--text-secondary);
+  }
+  .c-foot button:hover { color: var(--text-primary); background: var(--bg-input); }
+
+  /* ===== D · Nested cards ===== */
+  .d-stack { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+  .d-mini {
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px; padding: 12px;
+  }
+  .d-mini__top {
+    display: flex; align-items: flex-start; gap: 10px;
+  }
+  .d-mini__title { flex: 1; min-width: 0; }
+  .d-mini__name { font-size: 14px; font-weight: 600; }
+  .d-mini__meta { font-size: 12px; color: var(--text-secondary); margin-top: 3px; line-height: 1.35; }
+  .d-mini__mask {
+    margin-top: 8px; padding: 8px 10px; border-radius: 8px;
+    background: color-mix(in srgb, var(--bg-page) 70%, transparent);
+    font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+  .d-mini__actions {
+    display: flex; gap: 14px; justify-content: flex-end;
+    margin-top: 10px; padding-top: 8px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .d-mini__actions button {
+    font-size: 13px; font-weight: 500; color: var(--text-secondary);
+  }
+  .d-mini__actions button:hover { color: var(--text-primary); }
+  .d-mini__actions button.is-danger:hover { color: var(--color-down); }
+  .d-acct {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .d-acct__body { flex: 1; min-width: 0; }
+  .d-acct__name { font-size: 14px; font-weight: 500; }
+  .d-acct__meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .d-cap {
+    margin: 0 2px 2px; font-size: 11.5px; font-weight: 600;
+    letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted);
+  }
+</style>
+</head>
+<body data-v="a">
+
+<header class="picker">
+  <div>
+    <h1>settings-sheet-feed · варианты</h1>
+    <p>Контент внутри открытого аккордеона брокера. Переключай A–D — кликай строки и тумблеры.</p>
+  </div>
+  <div class="picker__modes" role="tablist" aria-label="Вариант feed">
+    <button type="button" data-pick="a" class="is-on" role="tab" aria-selected="true">A · Сейчас</button>
+    <button type="button" data-pick="b" role="tab" aria-selected="false">B · Сегменты</button>
+    <button type="button" data-pick="c" role="tab" aria-selected="false">C · Ledger</button>
+    <button type="button" data-pick="d" role="tab" aria-selected="false">D · Мини-карточки</button>
+  </div>
+  <p class="picker__note" id="note">
+    <strong>A · Сейчас</strong> — секции «Токены / Счета», строка с маской и delete, dashed «+ Добавить токен».
+  </p>
+</header>
+
+<main class="stage">
+  <div class="phone" aria-label="Превью feed">
+    <div class="phone__pad">
+      <div class="section-label">
+        Брокеры
+        <button type="button" class="section-label__action" data-toast="+ брокер">+ брокер</button>
+      </div>
+
+      <div class="card">
+        <div class="broker-h">
+          <span class="broker-h__icon">T</span>
+          <span>
+            <div class="broker-h__name">T-Invest</div>
+            <div class="broker-h__meta"><span class="dot"></span>1 токен · 2 счёта</div>
+          </span>
+        </div>
+
+        <!-- A: current -->
+        <div class="variant variant-a">
+          <div class="sub">Токены</div>
+          <div class="a-token">
+            <button type="button" style="text-align:left;width:100%" data-toast="Детали токена">
+              <span class="a-token__name">Основной API</span>
+              <span class="a-token__meta"><span class="dot"></span>Активен · 2 ч назад</span>
+              <span class="a-token__mask">t.••••••••••••a7f2</span>
+            </button>
+            <button type="button" class="del" data-toast="Удалить токен" aria-label="Удалить">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 11v6M14 11v6M8 7V5h8v2M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <div class="sub">Счета</div>
+          <div class="a-acct">
+            <div>
+              <div class="a-acct__name">Брокерский</div>
+              <div class="a-acct__meta">2000123456 · ₽ 1 240 500</div>
+            </div>
+            <button type="button" class="toggle is-on" data-toggle aria-label="Видимость"></button>
+          </div>
+          <div class="a-acct">
+            <div>
+              <div class="a-acct__name">ИИС</div>
+              <div class="a-acct__meta">2000987654 · ₽ 320 100</div>
+            </div>
+            <button type="button" class="toggle is-on" data-toggle aria-label="Видимость"></button>
+          </div>
+          <button type="button" class="add-btn" data-toast="Добавить токен">+ Добавить токен</button>
+        </div>
+
+        <!-- B: segments -->
+        <div class="variant variant-b">
+          <div class="b-seg" role="tablist">
+            <button type="button" class="is-on" data-bseg="tokens" role="tab">Токены</button>
+            <button type="button" data-bseg="accounts" role="tab">Счета</button>
+          </div>
+          <div class="b-panel is-on" data-bpanel="tokens">
+            <div class="sub-row">
+              <div class="sub">Ключи API</div>
+              <button type="button" class="icon-add" data-toast="Добавить токен" aria-label="Добавить">+</button>
+            </div>
+            <div class="b-token">
+              <div class="b-token__body">
+                <div class="b-token__name">Основной API</div>
+                <div class="b-token__meta">t.••••••••••••a7f2 · 2 ч назад</div>
+              </div>
+              <span class="b-pill">OK</span>
+              <button type="button" class="del" data-toast="Удалить" aria-label="Удалить">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 11v6M14 11v6M8 7V5h8v2M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              </button>
+            </div>
+            <div class="b-token">
+              <div class="b-token__body">
+                <div class="b-token__name">Readonly</div>
+                <div class="b-token__meta">t.••••••••••••91c0 · вчера</div>
+              </div>
+              <span class="b-pill is-warn">Warn</span>
+              <button type="button" class="del" data-toast="Удалить" aria-label="Удалить">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 11v6M14 11v6M8 7V5h8v2M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              </button>
+            </div>
+            <button type="button" class="add-btn" data-toast="Добавить токен">+ Добавить токен</button>
+          </div>
+          <div class="b-panel" data-bpanel="accounts">
+            <div class="sub">Видимость в сводке</div>
+            <div class="b-acct">
+              <div class="b-acct__body">
+                <div class="b-acct__name">Брокерский</div>
+                <div class="b-acct__meta">2000123456 · ₽ 1 240 500</div>
+              </div>
+              <button type="button" class="toggle is-on" data-toggle></button>
+            </div>
+            <div class="b-acct">
+              <div class="b-acct__body">
+                <div class="b-acct__name">ИИС</div>
+                <div class="b-acct__meta">2000987654 · ₽ 320 100</div>
+              </div>
+              <button type="button" class="toggle is-on" data-toggle></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- C: dense ledger -->
+        <div class="variant variant-c">
+          <div class="sub-row">
+            <div class="sub">Токены</div>
+            <button type="button" class="icon-add" data-toast="Добавить токен">+</button>
+          </div>
+          <div class="c-table">
+            <div class="c-row">
+              <span class="dot" aria-hidden></span>
+              <span class="c-row__name">Основной API</span>
+              <span class="c-row__meta">2 ч</span>
+              <button type="button" class="del" data-toast="Удалить" aria-label="Удалить">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 11v6M14 11v6M8 7V5h8v2M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              </button>
+            </div>
+            <div class="c-row">
+              <span class="dot is-warn" aria-hidden></span>
+              <span class="c-row__name">Readonly</span>
+              <span class="c-row__meta">вчера</span>
+              <button type="button" class="del" data-toast="Удалить" aria-label="Удалить">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M5 7h14M10 11v6M14 11v6M8 7V5h8v2M7 7l1 13h8l1-13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="sub">Счета</div>
+          <div class="c-table">
+            <div class="c-row">
+              <span class="dot" aria-hidden></span>
+              <span class="c-row__name">Брокерский</span>
+              <span class="c-row__meta">₽ 1.24M</span>
+              <button type="button" class="toggle is-on" data-toggle aria-label="Видимость"></button>
+            </div>
+            <div class="c-row">
+              <span class="dot" aria-hidden></span>
+              <span class="c-row__name">ИИС</span>
+              <span class="c-row__meta">₽ 320K</span>
+              <button type="button" class="toggle is-on" data-toggle aria-label="Видимость"></button>
+            </div>
+          </div>
+          <div class="c-foot">
+            <button type="button" data-toast="Добавить токен">+ токен</button>
+            <button type="button" data-toast="Проверить все">Проверить</button>
+          </div>
+        </div>
+
+        <!-- D: nested mini cards -->
+        <div class="variant variant-d">
+          <div class="d-stack">
+            <div class="d-cap">Токены</div>
+            <div class="d-mini">
+              <div class="d-mini__top">
+                <div class="d-mini__title">
+                  <div class="d-mini__name">Основной API</div>
+                  <div class="d-mini__meta"><span class="dot"></span>Активен · права: trade · создан 12.03.2024</div>
+                </div>
+              </div>
+              <div class="d-mini__mask">t.••••••••••••a7f2</div>
+              <div class="d-mini__actions">
+                <button type="button" data-toast="Проверить">Проверить</button>
+                <button type="button" data-toast="Копировать">Копировать</button>
+                <button type="button" class="is-danger" data-toast="Удалить">Удалить</button>
+              </div>
+            </div>
+            <div class="d-cap">Счета</div>
+            <div class="d-mini">
+              <div class="d-acct">
+                <div class="d-acct__body">
+                  <div class="d-acct__name">Брокерский</div>
+                  <div class="d-acct__meta">2000123456 · ₽ 1 240 500</div>
+                </div>
+                <button type="button" class="toggle is-on" data-toggle></button>
+              </div>
+            </div>
+            <div class="d-mini">
+              <div class="d-acct">
+                <div class="d-acct__body">
+                  <div class="d-acct__name">ИИС</div>
+                  <div class="d-acct__meta">2000987654 · ₽ 320 100</div>
+                </div>
+                <button type="button" class="toggle is-on" data-toggle></button>
+              </div>
+            </div>
+            <button type="button" class="add-btn" style="margin:0;width:100%" data-toast="Добавить токен">+ Добавить токен</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const notes = {
+    a: '<strong>A · Сейчас</strong> — секции «Токены / Счета», строка с маской и delete, dashed «+ Добавить токен».',
+    b: '<strong>B · Сегменты</strong> — табы Токены | Счета внутри аккордеона; статус-pill; маска в meta-строке.',
+    c: '<strong>C · Ledger</strong> — плотная таблица: точка статуса · имя · meta · действие. Маска скрыта до tap.',
+    d: '<strong>D · Мини-карточки</strong> — каждый токен/счёт в отдельной nested-card; действия текстом внизу.',
+  };
+  const note = document.getElementById('note');
+  const toast = document.getElementById('toast');
+  let toastTimer;
+
+  document.querySelectorAll('[data-pick]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const v = btn.getAttribute('data-pick');
+      document.body.dataset.v = v;
+      document.querySelectorAll('[data-pick]').forEach((b) => {
+        const on = b === btn;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      note.innerHTML = notes[v] || '';
+    });
+  });
+
+  document.querySelectorAll('[data-bseg]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-bseg');
+      btn.parentElement.querySelectorAll('[data-bseg]').forEach((b) => b.classList.toggle('is-on', b === btn));
+      document.querySelectorAll('[data-bpanel]').forEach((p) => {
+        p.classList.toggle('is-on', p.getAttribute('data-bpanel') === id);
+      });
+    });
+  });
+
+  document.body.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-toast]');
+    if (t) {
+      toast.textContent = t.getAttribute('data-toast');
+      toast.classList.add('is-on');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('is-on'), 1400);
+    }
+    const tog = e.target.closest('[data-toggle]');
+    if (tog) tog.classList.toggle('is-on');
+  });
+</script>
+</body>
+</html>

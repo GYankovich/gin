@@ -90,6 +90,7 @@ class TInvestFacade(PriceParsingMixin):
             "total_amount_currencies": self.parse_money_value(portfolio.get("totalAmountCurrencies")),
             "total_amount_futures": self.parse_money_value(portfolio.get("totalAmountFutures")),
             "total_amount_options": self.parse_money_value(portfolio.get("totalAmountOptions")),
+            "total_amount_sp": self.parse_money_value(portfolio.get("totalAmountSp")),
             "futures_margin": self.parse_money_value(portfolio.get("futuresMargin")),
             "expected_yield": self.parse_quotation(portfolio.get("expectedYield")),
             "daily_yield": self.parse_money_value(portfolio.get("dailyYield")),

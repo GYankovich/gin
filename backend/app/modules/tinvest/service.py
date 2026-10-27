@@ -29,6 +29,16 @@ def _json_for_pg(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, default=str)
 
 
+def _optional_decimal(money: Any) -> Optional[float]:
+    """MoneyValue.decimal, либо None если брокер поле не прислал."""
+    if not isinstance(money, dict) or money.get("decimal") is None:
+        return None
+    try:
+        return float(money["decimal"])
+    except (TypeError, ValueError):
+        return None
+
+
 class TInvestService:
     """Сервис для работы с T-Invest API"""
 
@@ -143,6 +153,41 @@ class TInvestService:
         )
         db.commit()
 
+    def _hidden_external_ids(self, db: Session, user_id: int) -> set:
+        rows = db.execute(
+            text(
+                """
+                SELECT account_id
+                FROM portfolio_accounts
+                WHERE user_id = :user_id
+                  AND COALESCE(dashboard_hidden, 0) = 1
+                """
+            ),
+            {"user_id": user_id},
+        ).fetchall()
+        return {str(row[0]) for row in rows if row[0] is not None}
+
+    @staticmethod
+    def _empty_portfolio() -> dict:
+        return {
+            "account": None,
+            "portfolio": {
+                "total_amount_portfolio": None,
+                "total_amount_shares": None,
+                "total_amount_bonds": None,
+                "total_amount_etf": None,
+                "total_amount_currencies": None,
+                "total_amount_futures": None,
+                "total_amount_options": None,
+                "total_amount_sp": None,
+                "expected_yield": None,
+                "daily_yield": None,
+                "daily_yield_relative": None,
+                "positions": [],
+            },
+            "last_updated": datetime.utcnow().isoformat() + "Z",
+        }
+
     async def get_user_token(self, db: Session, user_id: int) -> Optional[str]:
         """
         Получение активного токена пользователя
@@ -211,7 +256,8 @@ class TInvestService:
             *,
             db: Optional[Session] = None,
             token_id: Optional[int] = None,
-            user_id: Optional[int] = None
+            user_id: Optional[int] = None,
+            respect_hidden: bool = False,
     ) -> dict:
         """
         Получение данных портфеля
@@ -233,6 +279,17 @@ class TInvestService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="У пользователя нет счетов в Т-Банке. Откройте счет в приложении Т-Инвестиции."
                 )
+
+            hidden_ids = (
+                self._hidden_external_ids(db, user_id)
+                if respect_hidden and db is not None and user_id is not None
+                else set()
+            )
+            if account_id and str(account_id) in hidden_ids:
+                return self._empty_portfolio()
+            accounts = [acc for acc in accounts if str(acc.get("id")) not in hidden_ids]
+            if not accounts:
+                return self._empty_portfolio()
 
             if not account_id:
                 account_id = accounts[0].get("id")
@@ -263,6 +320,7 @@ class TInvestService:
                 "total_amount_currencies": utils.parse_money_value(portfolio_result.get("totalAmountCurrencies")),
                 "total_amount_futures": utils.parse_money_value(portfolio_result.get("totalAmountFutures")),
                 "total_amount_options": utils.parse_money_value(portfolio_result.get("totalAmountOptions")),
+                "total_amount_sp": utils.parse_money_value(portfolio_result.get("totalAmountSp")),
                 "expected_yield": utils.parse_quotation(portfolio_result.get("expectedYield")),
                 "daily_yield": utils.parse_money_value(portfolio_result.get("dailyYield")),
                 "daily_yield_relative": utils.parse_quotation(portfolio_result.get("dailyYieldRelative")),
@@ -389,8 +447,9 @@ class TInvestService:
                     "total_amount_currencies": utils.safe_float((portfolio.get("total_amount_currencies") or {}).get("decimal")),
                     "total_amount_futures": utils.safe_float((portfolio.get("total_amount_futures") or {}).get("decimal")),
                     "total_amount_options": utils.safe_float((portfolio.get("total_amount_options") or {}).get("decimal")),
+                    "total_amount_sp": _optional_decimal(portfolio.get("total_amount_sp")),
                     "expected_yield": utils.safe_float((portfolio.get("expected_yield") or {}).get("decimal")),
-                    "daily_yield": utils.safe_float((portfolio.get("daily_yield") or {}).get("decimal")),
+                    "daily_yield": _optional_decimal(portfolio.get("daily_yield")),
                     "daily_yield_relative": utils.safe_float((portfolio.get("daily_yield_relative") or {}).get("decimal")),
                     "currency": portfolio["total_amount_portfolio"]["currency"] if portfolio["total_amount_portfolio"] else "RUB"
                 },
@@ -567,12 +626,22 @@ class TInvestService:
             self,
             db: Session,
             account_id: int,
-            limit: int = 10
+            limit: int = 10,
+            user_id: Optional[int] = None,
     ) -> List[dict]:
         """
-        Получение последних снимков портфеля из БД
+        Получение последних снимков портфеля из БД.
+        Скрытый из кабинета счёт отдаёт пустую историю.
         """
         self.db = db
+        if user_id is not None:
+            hidden = self._execute(
+                queries.build_get_account_row_query(),
+                {"account_db_id": account_id, "user_id": user_id},
+                fetch_one=True,
+            )
+            if not hidden or int(hidden[2] or 0) == 1:
+                return []
         query, params = queries.build_get_last_snapshots_query(account_id, limit)
         results = self._execute(query, params).fetchall()
 
@@ -844,6 +913,8 @@ class TInvestService:
         )
         if not account_row:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Счет не найден")
+        if int(account_row[2] or 0) == 1:
+            return []
         rows = self._execute(
             queries.build_get_operations_for_account_query(),
             {

@@ -214,7 +214,9 @@ def run_all(skip_migrate: bool = False, kill_ports: bool = False):
     worker_labels = {"Heavy worker", "Portfolio worker"}
     # worker завершился -> перезапуск не чаще чем раз в N секунд
     worker_restart_backoff_sec = 3.0
-    # после конфликта lease (exit_code=2) даём heartbeat стать stale, затем перезапуск с --force-lease
+    # после конфликта lease (exit_code=2) ждём, пока heartbeat держателя протухнет.
+    # --force-lease здесь не ставим: иначе второй supervisor отбирает живой lane
+    # и обрывает бэктест.
     worker_conflict_backoff_sec = 95.0
     worker_force_on_restart = {"Heavy worker": False, "Portfolio worker": False}
     worker_next_restart_at = {"Heavy worker": 0.0, "Portfolio worker": 0.0}
@@ -349,11 +351,21 @@ def run_worker(lane: str, *, force_lease: bool = False):
     from app.core.background_jobs.worker import LANE_HEAVY, LANE_PORTFOLIO, run_standalone_lane_worker
     from app.core.background_jobs.worker_lease import WorkerLeaseConflictError, WorkerLeaseLostError
     from app.core.background_jobs.supervisor import WORKER_EXIT_LEASE_LOST
+    from app.core.mail_sender import run_mail_sender_forever
 
     setup_logging()
+    if lane == "mail":
+        print("\n[START] Starting mail sender")
+        print("Press Ctrl+C to stop\n")
+        try:
+            run_mail_sender_forever()
+        except KeyboardInterrupt:
+            print("\n[STOP] Mail sender stopped")
+        return
+
     allowed = {LANE_PORTFOLIO, LANE_HEAVY}
     if lane not in allowed:
-        print(f"[ERR] Unknown lane {lane!r}. Use: portfolio, heavy")
+        print(f"[ERR] Unknown lane {lane!r}. Use: portfolio, heavy, mail")
         sys.exit(1)
 
     print(f"\n[START] Starting standalone worker lane={lane}")
@@ -393,7 +405,7 @@ def main():
     worker_parser.add_argument(
         "--lane",
         required=True,
-        choices=["portfolio", "heavy"],
+        choices=["portfolio", "heavy", "mail"],
         help="Worker lane to process"
     )
     worker_parser.add_argument(

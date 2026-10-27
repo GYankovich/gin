@@ -856,6 +856,8 @@ class RobotsV2Service:
         limit: int,
         offset: int,
         session_id: UUID | None,
+        from_at: datetime | None = None,
+        to_at: datetime | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
         query, params = audit_queries.build_list_fills_query(
             robot_id=robot_id,
@@ -863,12 +865,16 @@ class RobotsV2Service:
             limit=limit,
             offset=offset,
             session_id=session_id,
+            from_at=from_at,
+            to_at=to_at,
             schema=self.schema,
         )
         count_q, count_p = audit_queries.build_count_fills_query(
             robot_id=robot_id,
             user_id=user_id,
             session_id=session_id,
+            from_at=from_at,
+            to_at=to_at,
             schema=self.schema,
         )
         rows = db.execute(text(query), params).fetchall()
@@ -899,6 +905,7 @@ class RobotsV2Service:
         user_id: int,
         robot_id: int,
         session_id: UUID | None,
+        to_at: datetime | None = None,
     ) -> list[dict[str, Any]]:
         query, params = audit_queries.build_list_fills_query(
             robot_id=robot_id,
@@ -906,6 +913,7 @@ class RobotsV2Service:
             limit=10_000,
             offset=0,
             session_id=session_id,
+            to_at=to_at,
             schema=self.schema,
         )
         query = query.replace("ORDER BY f.filled_at DESC", "ORDER BY f.filled_at ASC")
@@ -944,6 +952,8 @@ class RobotsV2Service:
         limit: int,
         offset: int,
         session_id: UUID | None,
+        from_at: datetime | None = None,
+        to_at: datetime | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
         query, params = audit_queries.build_list_cycles_query(
             robot_id=robot_id,
@@ -951,12 +961,16 @@ class RobotsV2Service:
             limit=limit,
             offset=offset,
             session_id=session_id,
+            from_at=from_at,
+            to_at=to_at,
             schema=self.schema,
         )
         count_q, count_p = audit_queries.build_count_cycles_query(
             robot_id=robot_id,
             user_id=user_id,
             session_id=session_id,
+            from_at=from_at,
+            to_at=to_at,
             schema=self.schema,
         )
         rows = db.execute(text(query), params).fetchall()
@@ -1075,6 +1089,8 @@ class RobotsV2Service:
         limit: int,
         offset: int,
         session_id: UUID | None,
+        from_at: datetime | None = None,
+        to_at: datetime | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
         query, params = audit_queries.build_list_orders_query(
             robot_id=robot_id,
@@ -1082,12 +1098,16 @@ class RobotsV2Service:
             limit=limit,
             offset=offset,
             session_id=session_id,
+            from_at=from_at,
+            to_at=to_at,
             schema=self.schema,
         )
         count_q, count_p = audit_queries.build_count_orders_query(
             robot_id=robot_id,
             user_id=user_id,
             session_id=session_id,
+            from_at=from_at,
+            to_at=to_at,
             schema=self.schema,
         )
         rows = db.execute(text(query), params).fetchall()
@@ -1209,6 +1229,13 @@ class RobotsV2Service:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid sessionId UUID",
                 ) from exc
+        from_at = request.from_at
+        to_at = request.to_at
+        if from_at is not None and to_at is not None and from_at >= to_at:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Audit range 'from' must be earlier than 'to'",
+            )
 
         unknown = [t for t in types if t not in audit_queries.AUDIT_TYPES]
         if unknown:
@@ -1227,9 +1254,11 @@ class RobotsV2Service:
             items, total = self._audit_fills(
                 db, user_id=user_id, robot_id=request.robot_id,
                 limit=limit, offset=offset, session_id=session_id,
+                from_at=from_at, to_at=to_at,
             )
             timeline = self._audit_fills_all_chronological(
                 db, user_id=user_id, robot_id=request.robot_id, session_id=session_id,
+                to_at=to_at,
             )
             comm, tax = self._risk_rates_for_robot(db, user_id, request.robot_id)
             items = enrich_fills_realized_pnl(
@@ -1243,6 +1272,7 @@ class RobotsV2Service:
             items, total = self._audit_cycles(
                 db, user_id=user_id, robot_id=request.robot_id,
                 limit=limit, offset=offset, session_id=session_id,
+                from_at=from_at, to_at=to_at,
             )
             payload["cycles"] = {"items": items, "total": total}
         if "decisions" in types:
@@ -1261,6 +1291,7 @@ class RobotsV2Service:
             items, total = self._audit_orders(
                 db, user_id=user_id, robot_id=request.robot_id,
                 limit=limit, offset=offset, session_id=session_id,
+                from_at=from_at, to_at=to_at,
             )
             payload["orders"] = {"items": items, "total": total}
         if "roundTrips" in types:

@@ -15,6 +15,7 @@ import { RobotPageChrome } from '@/pages/robots-v2/components/RobotPageChrome'
 import { RobotStageCard } from '@/pages/robots-v2/components/RobotStageCard'
 import { RobotV2OptimizationCard } from '@/pages/robots-v2/components/RobotV2OptimizationCard'
 import { collectReasonCodes } from '@/pages/robots-v2/backtestGuide'
+import { backtestRunPath } from '@/pages/robots-v2/backtestLabShared'
 import { fmtErr, sessionStateLabel } from '@/pages/robots-v2/formatters'
 import { formatBacktestPhaseUnits } from '@/pages/robots-v2/formatBacktestPhaseUnits'
 import { robotV2Service } from '@/services/robotV2Service'
@@ -118,16 +119,7 @@ export default function RobotV2BacktestPage() {
         final_equity?: number | null
         trades_total: number
     }>>([])
-    const [selectedIds, setSelectedIds] = useState<number[]>([])
     const [saveAsOpen, setSaveAsOpen] = useState(false)
-    const [compare, setCompare] = useState<{
-        metrics_base: Record<string, number | null>
-        metrics_compare: Record<string, number | null>
-        metrics_diff: Record<string, number | null>
-        config_diff: Record<string, { base: unknown; compare: unknown }>
-        base_run_id: number
-        compare_run_id: number
-    } | null>(null)
 
     const chartRef = useRef<IChartApi | null>(null)
     const seriesRef = useRef<ISeriesApi<'Line'> | null>(null)
@@ -300,18 +292,13 @@ export default function RobotV2BacktestPage() {
                 tokenId: tokenIdOf(robot),
                 asyncExecution: true,
             })
-            if (wrap.status === 202) {
-                const rid = wrap.data.run_id
-                setRunId(rid)
-                syncRunQuery(rid)
+            const rid = wrap.status === 202 ? wrap.data.run_id : wrap.data.run_id ?? null
+            if (rid != null && Number.isFinite(rid) && rid > 0) {
                 toast.show(`Прогон #${rid} запущен`, 'success')
-            } else {
-                const rid = wrap.data.run_id ?? null
-                setRunId(rid)
-                syncRunQuery(rid)
-                setStatus(wrap.data)
-                setRunning(false)
+                navigate(backtestRunPath(rid))
+                return
             }
+            setRunning(false)
         } catch (e) {
             setRunning(false)
             setError(fmtErr(e))
@@ -336,25 +323,6 @@ export default function RobotV2BacktestPage() {
             toast.show(fmtErr(e), 'error')
         } finally {
             setCancelling(false)
-        }
-    }
-
-    const toggleSelect = (id: number) => {
-        setSelectedIds(prev => {
-            if (prev.includes(id)) return prev.filter(x => x !== id)
-            if (prev.length >= 2) return [prev[1], id]
-            return [...prev, id]
-        })
-        setCompare(null)
-    }
-
-    const onCompare = async () => {
-        if (selectedIds.length !== 2) return
-        try {
-            const data = await robotV2Service.compareBacktestRuns(selectedIds[0], selectedIds[1])
-            setCompare(data)
-        } catch (e) {
-            toast.show(fmtErr(e), 'error')
         }
     }
 
@@ -656,7 +624,7 @@ export default function RobotV2BacktestPage() {
                         toDate={toDate}
                         initialCapital={capital}
                         disabled={scalperBlocked || isActive}
-                        onOpenRun={id => void openHistoryRun(id)}
+                        onOpenRun={id => navigate(backtestRunPath(id))}
                     />
                 )}
 
@@ -664,13 +632,10 @@ export default function RobotV2BacktestPage() {
                     history={history}
                     historyLoading={historyLoading}
                     historyError={historyError}
-                    selectedIds={selectedIds}
                     activeRunId={runId}
-                    compare={compare}
                     onRefresh={() => void loadHistory()}
-                    onCompare={() => void onCompare()}
-                    onToggleSelect={toggleSelect}
-                    onOpenRun={id => void openHistoryRun(id)}
+                    onOpenRun={id => navigate(backtestRunPath(id))}
+                    runHref={backtestRunPath}
                     statusVariant={statusVariant}
                     footer={(
                         <p className="robots-v2-hint robots-v2-lab-escape">

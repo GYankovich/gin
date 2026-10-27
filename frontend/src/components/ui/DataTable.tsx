@@ -178,7 +178,7 @@ export function DataTable<T extends Record<string, any>>({
     return (
         <div
             className="data-table-wrap"
-            style={maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}
+            style={maxHeight ? { maxHeight, overflow: 'auto' } : undefined}
             onScroll={onScroll}
         >
             <table className="data-table">
@@ -206,7 +206,11 @@ export function DataTable<T extends Record<string, any>>({
                         <tr
                             key={row[keyField]}
                             className={`${onRowClick ? 'data-table__row--clickable' : ''} ${rowClassName ? rowClassName(row) : ''}`.trim()}
-                            onClick={() => onRowClick?.(row)}
+                            onClick={event => {
+                                const target = event.target as HTMLElement | null
+                                if (target?.closest('button, a, input, textarea, select, [data-row-stop]')) return
+                                onRowClick?.(row)
+                            }}
                         >
                             {columns.map(col => (
                                 <td key={col.key} style={{ textAlign: col.align || 'left' }}>

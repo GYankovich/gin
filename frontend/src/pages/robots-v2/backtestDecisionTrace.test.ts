@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { deriveStatusCounts, packetFromSignal } from './backtestGlassBox'
+import {
+    deriveStatusCounts,
+    mergeCycleBundle,
+    packetFromSignal,
+    resolveObservability,
+} from './backtestGlassBox'
 
 describe('backtest decision trace', () => {
     it('keeps the explanation and measured conditions for an ignored signal', () => {
@@ -33,5 +38,33 @@ describe('backtest decision trace', () => {
         })
         expect(packet.decision_code).toBe('LOW_VOLUME')
         expect(packet.decision_metrics?.volumeThreshold).toBe(20)
+    })
+
+    it('rewrites legacy execution metadata and keeps truncation honest', () => {
+        const obs = resolveObservability({
+            signals: [],
+            executionModel: { model: 'BAR_CLOSE', look_ahead: true },
+            historyStats: { signals: 25_000, signals_truncated: 1 },
+        })
+
+        expect(obs.execution_model?.code).toBe('NEXT_BAR_OPEN')
+        expect(obs.execution_model?.look_ahead).toBe(false)
+        expect(obs.execution_model?.label).toContain('следующего бара')
+        expect(obs.signals_logged).toBe(25_000)
+        expect(obs.signals_truncated).toBe(true)
+    })
+
+    it('preserves cycle links and risk context from the inspector bundle', () => {
+        const packet = mergeCycleBundle(
+            packetFromSignal({ figi: 'SBER', cycle_id: 'cycle-2', status: 'deferred' }),
+            {
+                cycle_id: 'cycle-2',
+                trades: [{ id: 17, figi: 'SBER', status: 'filled' }],
+                config_risk_excerpt: { stopLossPct: 2 },
+            },
+        )
+
+        expect(packet.linked_trade_ids).toEqual([17])
+        expect(packet.config_risk_excerpt).toEqual({ stopLossPct: 2 })
     })
 })

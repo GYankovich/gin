@@ -55,6 +55,7 @@ async def get_portfolio(
             db=db,
             token_id=token_id,
             user_id=current_user.id,
+            respect_hidden=True,
         )
 
         logger.info(f"Portfolio data retrieved successfully for user {current_user.id}")
@@ -98,7 +99,8 @@ async def get_accounts(
             token_id=token_id,
             user_id=current_user.id,
         )
-        return accounts
+        hidden = tinvest_service._hidden_external_ids(db, current_user.id)
+        return [acc for acc in accounts if str(acc.get("id")) not in hidden]
 
     except HTTPException:
         raise
@@ -228,7 +230,9 @@ async def get_account_snapshots(
     Получение истории снимков портфеля из БД
     """
     try:
-        snapshots = await tinvest_service.get_last_snapshots(db, account_id, limit)
+        snapshots = await tinvest_service.get_last_snapshots(
+            db, account_id, limit, user_id=current_user.id,
+        )
         return {
             "account_id": account_id,
             "total": len(snapshots),

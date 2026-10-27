@@ -13,12 +13,46 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from fastapi import HTTPException, status
 
+from app.core.mail import (
+    MailDeliveryError,
+    confirmation_letter,
+    reset_letter,
+    smtp_configured,
+)
 from app.core.security import verify_password, get_password_hash, create_access_token, decode_token
 from app.core.config import settings
 from . import schemas
 from . import queries
+from .confirmation import (
+    CODE_TTL,
+    MAX_ATTEMPTS,
+    PURPOSE_LOGIN,
+    PURPOSE_REGISTER,
+    PURPOSE_RESET,
+    RESET_TTL,
+    as_utc,
+    codes_match,
+    hash_code,
+    hash_token,
+    new_code,
+    new_reset_token,
+    resend_allowed,
+)
 
 logger = logging.getLogger(__name__)
+
+ACTOR_REGISTRATION = "POST /api/registration"
+ACTOR_REGISTRATION_RESEND = "POST /api/registration/resend"
+ACTOR_AUTH = "POST /api/auth"
+ACTOR_AUTH_RESEND = "POST /api/auth/resend"
+ACTOR_CHANGE_PASS_REQUEST = "POST /api/change_pass_request"
+
+
+def mail_contact(email: str, email_row: tuple | None) -> dict:
+    """Вход и сброс ссылаются на карточку. Регистрация хранит адрес, карточки ещё нет."""
+    if email_row is None:
+        return {"user_id": None, "email_id": None, "to_email": email}
+    return {"user_id": email_row[1], "email_id": email_row[0], "to_email": None}
 
 
 class AuthService:
@@ -91,8 +125,15 @@ class AuthService:
         """
         self.db = db
 
+        identifier = (login or "").strip()
         query = queries.build_get_user_by_login_query()
-        result = self._execute(query, {"login": login}, fetch_one=True)
+        result = self._execute(query, {"login": identifier}, fetch_one=True)
+        if not result and "@" in identifier:
+            result = self._execute(
+                queries.build_get_user_by_email_query(),
+                {"email": identifier.lower()},
+                fetch_one=True,
+            )
 
         if not result:
             return None
@@ -198,6 +239,524 @@ class AuthService:
             "login": user_data.login,
             "email": user_data.email,
             "phone": user_data.phone,
+            "created_at": now,
+        }
+
+    def _registration_email_taken(self, email: str) -> bool:
+        login_taken = self._execute(
+            queries.build_check_login_exists_query(),
+            {"login": email},
+            fetch_one=True,
+        )
+        email_taken = self._execute(
+            queries.build_check_email_exists_query(),
+            {"email": email},
+            fetch_one=True,
+        )
+        return bool(login_taken or email_taken)
+
+    def _login_taken(self, login: str) -> bool:
+        return bool(self._execute(queries.build_check_login_exists_query(), {"login": login}, fetch_one=True))
+
+    def _email_taken(self, email: str) -> bool:
+        return bool(self._execute(queries.build_check_email_exists_query(), {"email": email}, fetch_one=True))
+
+    def _require_fresh_identity(self, login: str, email: str) -> None:
+        if len(email) > 128:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Почта длиннее 128 символов",
+            )
+        if self._login_taken(login):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Этот логин уже занят",
+            )
+        if self._email_taken(email) or self._login_taken(email):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Эта почта уже зарегистрирована",
+            )
+
+    def _require_fresh_email(self, email: str) -> None:
+        if len(email) > 128:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Почта длиннее 128 символов",
+            )
+        if self._registration_email_taken(email):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Эта почта уже зарегистрирована",
+            )
+
+    def _pending_confirmation(self, email: str, purpose: str = PURPOSE_REGISTER):
+        return self._execute(
+            queries.build_get_email_confirmation_query(),
+            {"email": email, "purpose": purpose},
+            fetch_one=True,
+        )
+
+    def _delete_confirmation(self, email: str, purpose: str) -> None:
+        self._execute(
+            queries.build_delete_email_confirmation_query(),
+            {"email": email, "purpose": purpose},
+        )
+
+    def _accept_code(self, email: str, code: str, purpose: str) -> str:
+        """Сверяет код. Возвращает сохранённый хеш пароля и не удаляет строку."""
+        pending = self._pending_confirmation(email, purpose)
+        if pending is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Сначала запросите код.",
+            )
+
+        code_hash, password_hash, attempts, expires_at = pending[0], pending[1], pending[2], pending[3]
+        now = datetime.now(timezone.utc)
+        if as_utc(expires_at) <= now:
+            self._delete_confirmation(email, purpose)
+            self.db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Код истёк. Запросите новый.",
+            )
+        if int(attempts or 0) >= MAX_ATTEMPTS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Слишком много попыток. Запросите новый код.",
+            )
+        if not codes_match(email, code, str(code_hash)):
+            self._execute(
+                queries.build_increment_email_confirmation_attempts_query(),
+                {"email": email, "purpose": purpose},
+            )
+            self.db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Неверный код.",
+            )
+        return str(password_hash)
+
+    def _active_email(self, email: str) -> tuple | None:
+        row = self._execute(
+            queries.build_get_active_email_query(),
+            {"email": email},
+            fetch_one=True,
+        )
+        return tuple(row) if row is not None else None
+
+    def _queue_mail(self, *, email: str, purpose: str, subject: str, body: str, actor: str, now: datetime) -> int:
+        contact = mail_contact(email, self._active_email(email))
+        row = self._execute(
+            queries.build_insert_outbound_message_query(),
+            {
+                **contact,
+                "subject": subject,
+                "body": body,
+                "purpose": purpose,
+                "now": now,
+                "actor": actor,
+            },
+            fetch_one=True,
+        )
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Не удалось поставить письмо в очередь",
+            )
+        return int(row[0])
+
+    def _finish_mail(
+        self,
+        mail_id: int,
+        *,
+        status_name: str,
+        actor: str,
+        now: datetime,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> None:
+        self._execute(
+            queries.build_finish_outbound_message_query(),
+            {
+                "id": mail_id,
+                "status": status_name,
+                "error_code": error_code,
+                "error_message": (error_message or "")[:2000] or None,
+                "sent_at": now if status_name == "sent" else None,
+                "now": now,
+                "actor": actor,
+            },
+        )
+
+    def _fail_mail(self, mail_id: int, *, actor: str, now: datetime, exc: MailDeliveryError) -> None:
+        unconfigured = "not configured" in str(exc).lower()
+        self._finish_mail(
+            mail_id,
+            status_name="failed",
+            actor=actor,
+            now=now,
+            error_code="smtp_unconfigured" if unconfigured else "smtp",
+            error_message=str(exc),
+        )
+        self.db.commit()
+
+    def _send_registration_code(
+        self,
+        email: str,
+        code: str,
+        purpose: str = PURPOSE_REGISTER,
+        *,
+        actor: str,
+    ) -> str | None:
+        now = datetime.now(timezone.utc)
+        subject, body = confirmation_letter(code, purpose)
+        mail_id = self._queue_mail(
+            email=email,
+            purpose=purpose,
+            subject=subject,
+            body=body,
+            actor=actor,
+            now=now,
+        )
+        if not smtp_configured() and settings.is_production:
+            self._fail_mail(mail_id, actor=actor, now=now, exc=MailDeliveryError("SMTP is not configured"))
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Почтовый сервер не настроен",
+            )
+        if not smtp_configured():
+            return code
+        return None
+
+    def _store_registration_code(
+        self,
+        email: str,
+        code: str,
+        password_hash: str,
+        now: datetime,
+        purpose: str = PURPOSE_REGISTER,
+        login: str | None = None,
+    ) -> None:
+        self._execute(
+            queries.build_upsert_email_confirmation_query(),
+            {
+                "email": email,
+                "purpose": purpose,
+                "code_hash": hash_code(email, code),
+                "password_hash": password_hash,
+                "expires_at": now + CODE_TTL,
+                "now": now,
+                "login": login,
+            },
+        )
+        self.db.commit()
+
+    def register_with_email(self, db: Session, payload: schemas.RegisterRequest) -> schemas.RegisterPendingResponse:
+        """Кладёт логин, пароль и код, отправляет письмо. Пользователь появится после подтверждения."""
+        email = str(payload.email).strip().lower()
+        login = payload.login.strip()
+        self.db = db
+        self._require_fresh_identity(login, email)
+
+        now = datetime.now(timezone.utc)
+        pending = self._pending_confirmation(email)
+        if pending is not None and not resend_allowed(pending[4], now):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Код уже отправлен на эту почту. Повторите через минуту.",
+            )
+
+        code = new_code()
+        dev_code = self._send_registration_code(email, code, actor=ACTOR_REGISTRATION)
+        self._store_registration_code(email, code, get_password_hash(payload.password), now, login=login)
+        return schemas.RegisterPendingResponse(email=email, dev_code=dev_code)
+
+    def resend_registration_code(self, db: Session, payload: schemas.ResendRegisterRequest) -> schemas.RegisterPendingResponse:
+        email = str(payload.email).strip().lower()
+        self.db = db
+        self._require_fresh_email(email)
+        pending = self._pending_confirmation(email)
+        if pending is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Сначала укажите почту и пароль.",
+            )
+
+        now = datetime.now(timezone.utc)
+        if not resend_allowed(pending[4], now):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Код уже отправлен на эту почту. Повторите через минуту.",
+            )
+
+        code = new_code()
+        dev_code = self._send_registration_code(email, code, actor=ACTOR_REGISTRATION_RESEND)
+        self._execute(
+            queries.build_refresh_email_confirmation_query(),
+            {
+                "email": email,
+                "purpose": PURPOSE_REGISTER,
+                "code_hash": hash_code(email, code),
+                "expires_at": now + CODE_TTL,
+                "now": now,
+            },
+        )
+        self.db.commit()
+        return schemas.RegisterPendingResponse(email=email, dev_code=dev_code)
+
+    def confirm_registration(self, db: Session, payload: schemas.ConfirmRegisterRequest) -> schemas.TokenResponse:
+        email = str(payload.email).strip().lower()
+        self.db = db
+        password_hash = self._accept_code(email, payload.code, PURPOSE_REGISTER)
+        pending = self._pending_confirmation(email, PURPOSE_REGISTER)
+        login = str(pending[5]).strip() if pending is not None and pending[5] else email
+        try:
+            self._require_fresh_identity(login, email)
+        except HTTPException:
+            self._delete_confirmation(email, PURPOSE_REGISTER)
+            self.db.commit()
+            raise
+
+        user = self._persist_user(login=login, password_hash=password_hash, email=email, now=datetime.utcnow())
+        self._delete_confirmation(email, PURPOSE_REGISTER)
+        self.db.commit()
+        return self.create_user_token(db, user)
+
+    def start_email_login(self, db: Session, credentials: schemas.LoginRequest) -> schemas.RegisterPendingResponse:
+        """Пароль верный — на почту аккаунта уходит код. Сессия после /auth/confirm."""
+        user = self.authenticate_user(db, credentials.login, credentials.password)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Неверный логин или пароль",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        email = str(user.get("email") or "").strip().lower()
+        if "@" not in email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Для входа нужен код на почту, а у аккаунта почта не указана.",
+            )
+
+        now = datetime.now(timezone.utc)
+        pending = self._pending_confirmation(email, PURPOSE_LOGIN)
+        if pending is not None and not resend_allowed(pending[4], now):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Код уже отправлен на эту почту. Повторите через минуту.",
+            )
+
+        code = new_code()
+        dev_code = self._send_registration_code(email, code, PURPOSE_LOGIN, actor=ACTOR_AUTH)
+        self._store_registration_code(email, code, "", now, PURPOSE_LOGIN)
+        return schemas.RegisterPendingResponse(email=email, dev_code=dev_code)
+
+    def resend_login_code(self, db: Session, payload: schemas.ResendRegisterRequest) -> schemas.RegisterPendingResponse:
+        email = str(payload.email).strip().lower()
+        self.db = db
+        pending = self._pending_confirmation(email, PURPOSE_LOGIN)
+        if pending is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Сначала введите почту и пароль.",
+            )
+
+        now = datetime.now(timezone.utc)
+        if not resend_allowed(pending[4], now):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Код уже отправлен на эту почту. Повторите через минуту.",
+            )
+
+        code = new_code()
+        dev_code = self._send_registration_code(email, code, PURPOSE_LOGIN, actor=ACTOR_AUTH_RESEND)
+        self._execute(
+            queries.build_refresh_email_confirmation_query(),
+            {
+                "email": email,
+                "purpose": PURPOSE_LOGIN,
+                "code_hash": hash_code(email, code),
+                "expires_at": now + CODE_TTL,
+                "now": now,
+            },
+        )
+        self.db.commit()
+        return schemas.RegisterPendingResponse(email=email, dev_code=dev_code)
+
+    def confirm_email_login(self, db: Session, payload: schemas.ConfirmRegisterRequest) -> schemas.TokenResponse:
+        email = str(payload.email).strip().lower()
+        self.db = db
+        self._accept_code(email, payload.code, PURPOSE_LOGIN)
+        user = self._user_from_email(email)
+        self._delete_confirmation(email, PURPOSE_LOGIN)
+        self.db.commit()
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Аккаунт не найден.",
+            )
+        return self.create_user_token(db, user)
+
+    def _user_from_email(self, email: str) -> Optional[dict]:
+        row = self._execute(
+            queries.build_get_user_by_email_query(),
+            {"email": email},
+            fetch_one=True,
+        )
+        if not row:
+            return None
+        user = self.get_user_by_id_full(self.db, row[0])
+        if user is None:
+            return {
+                "id": row[0],
+                "login": row[1],
+                "email": email,
+                "phone": None,
+                "created_at": row[3],
+            }
+        return user
+
+    def request_password_reset(self, db: Session, payload: schemas.PasswordForgotRequest, app_base: str) -> schemas.PasswordForgotResponse:
+        """Всегда один и тот же ответ. Письмо уходит только если аккаунт с почтой найден."""
+        self.db = db
+        user = self._user_for_reset(payload.login)
+        if user is None:
+            return schemas.PasswordForgotResponse()
+
+        email = str(user.get("email") or "").strip().lower()
+        if "@" not in email:
+            return schemas.PasswordForgotResponse()
+
+        now = datetime.now(timezone.utc)
+        pending = self._pending_confirmation(email, PURPOSE_RESET)
+        if pending is not None and not resend_allowed(pending[4], now):
+            return schemas.PasswordForgotResponse()
+
+        token = new_reset_token()
+        link = f"{app_base.rstrip('/')}/reset?token={token}"
+        subject, body = reset_letter(link)
+        mail_id = self._queue_mail(
+            email=email,
+            purpose=PURPOSE_RESET,
+            subject=subject,
+            body=body,
+            actor=ACTOR_CHANGE_PASS_REQUEST,
+            now=now,
+        )
+        dev_link = None
+        if not smtp_configured():
+            if settings.is_production:
+                self._fail_mail(
+                    mail_id,
+                    actor=ACTOR_CHANGE_PASS_REQUEST,
+                    now=now,
+                    exc=MailDeliveryError("SMTP is not configured"),
+                )
+                return schemas.PasswordForgotResponse()
+            dev_link = link
+
+        self._execute(
+            queries.build_upsert_email_confirmation_query(),
+            {
+                "email": email,
+                "purpose": PURPOSE_RESET,
+                "code_hash": hash_token(token),
+                "password_hash": "",
+                "expires_at": now + RESET_TTL,
+                "now": now,
+                "login": user.get("login"),
+            },
+        )
+        self.db.commit()
+        return schemas.PasswordForgotResponse(dev_link=dev_link)
+
+    def preview_password_reset(self, db: Session, token: str) -> schemas.PasswordResetPreview:
+        self.db = db
+        user = self._user_from_reset_token(token)
+        return schemas.PasswordResetPreview(login=str(user["login"]), email=str(user.get("email") or ""))
+
+    def reset_password(self, db: Session, payload: schemas.PasswordResetConfirm) -> None:
+        self.db = db
+        user = self._user_from_reset_token(payload.token)
+        email = str(user.get("email") or "").strip().lower()
+        self._execute(
+            queries.build_update_password_query(),
+            {"user_id": user["id"], "password_hash": get_password_hash(payload.password)},
+        )
+        if email:
+            self._delete_confirmation(email, PURPOSE_RESET)
+        self.db.commit()
+
+    def _user_for_reset(self, identifier: str) -> Optional[dict]:
+        ident = (identifier or "").strip()
+        if not ident:
+            return None
+        row = self._execute(queries.build_get_user_by_login_query(), {"login": ident}, fetch_one=True)
+        if not row and "@" in ident:
+            row = self._execute(
+                queries.build_get_user_by_email_query(),
+                {"email": ident.lower()},
+                fetch_one=True,
+            )
+        if not row:
+            return None
+        user = self.get_user_by_id_full(self.db, row[0])
+        if user is None:
+            return {"id": row[0], "login": row[1], "email": None}
+        return user
+
+    def _user_from_reset_token(self, token: str) -> dict:
+        row = self._execute(
+            queries.build_get_reset_by_hash_query(),
+            {"purpose": PURPOSE_RESET, "code_hash": hash_token(token)},
+            fetch_one=True,
+        )
+        if not row:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ссылка недействительна или устарела.",
+            )
+        email, expires_at = row[0], row[1]
+        if as_utc(expires_at) <= datetime.now(timezone.utc):
+            self._delete_confirmation(str(email), PURPOSE_RESET)
+            self.db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ссылка недействительна или устарела.",
+            )
+        user = self._user_from_email(str(email))
+        if user is None or not user.get("email"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ссылка недействительна или устарела.",
+            )
+        return user
+
+    def _persist_user(self, *, login: str, password_hash: str, email: str, now: datetime) -> dict:
+        result = self._execute(
+            queries.build_create_user_query(),
+            {"login": login, "password_hash": password_hash, "created_at": now},
+            fetch_one=True,
+        )
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create user",
+            )
+        user_id = result[0]
+        self._execute(
+            queries.build_create_email_query(),
+            {"user_id": user_id, "email": email, "is_primary": True, "valid_from": now},
+        )
+        self.db.commit()
+        return {
+            "id": user_id,
+            "login": login,
+            "email": email,
+            "phone": None,
             "created_at": now,
         }
 

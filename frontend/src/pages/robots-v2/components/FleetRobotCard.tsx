@@ -2,7 +2,6 @@ import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
-    faChartLine,
     faClone,
     faEllipsisVertical,
     faList,
@@ -305,16 +304,10 @@ export function FleetRobotCard({
                         {!isPortfolio && (
                             <>
                                 <MobileDockDropdown.Item
-                                    icon={<FontAwesomeIcon icon={faChartLine} className="mobile-dock__dropdown-icon" />}
-                                    onClick={() => navigate(`/robots/${robot.id}/backtest`)}
-                                >
-                                    Бэктест
-                                </MobileDockDropdown.Item>
-                                <MobileDockDropdown.Item
                                     icon={<FontAwesomeIcon icon={faList} className="mobile-dock__dropdown-icon" />}
                                     onClick={() => navigate(`/robots/${robot.id}/logs`)}
                                 >
-                                    Логи
+                                    История
                                 </MobileDockDropdown.Item>
                                 <MobileDockDropdown.Divider />
                                 <MobileDockDropdown.Item

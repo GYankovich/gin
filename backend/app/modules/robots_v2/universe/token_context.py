@@ -32,6 +32,46 @@ def _market_for_broker(broker: str, instrument_type: str) -> Market:
     return "moex"
 
 
+def market_for_instrument(instrument_type: str) -> Market:
+    if instrument_type in ("perpetual", "coin_futures"):
+        return "crypto"
+    return "moex"
+
+
+def token_context_for_resolve(
+    db: Session | None,
+    *,
+    user_id: int,
+    token_id: int | None,
+    instrument_type: str = "stock",
+    schema: str = "public",
+) -> TokenContext:
+    """Broker context for universe resolve.
+
+    A real API token is optional. Lab backtests of a MOEX index or screener
+    read historical boards and ISS, so they run without tokenId. Crypto live
+    screens still need a key and fail later when api_key is empty.
+    """
+    if token_id is not None and int(token_id) > 0:
+        if db is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Database session required")
+        return load_token_context(
+            db,
+            user_id=user_id,
+            token_id=int(token_id),
+            instrument_type=instrument_type,
+            schema=schema,
+        )
+    market = market_for_instrument(instrument_type)
+    return TokenContext(
+        token_id=0,
+        user_id=user_id,
+        token_type=0,
+        broker="bybit" if market == "crypto" else "tinvest",
+        market=market,
+    )
+
+
 def load_token_context(
     db: Session,
     *,

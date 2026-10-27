@@ -1278,7 +1278,19 @@ def _parse_json(raw: Any) -> Any:
     return None
 
 
-def fetch_db_run(db: Session, run_id: int, *, user_id: int) -> dict[str, Any] | None:
+def fetch_db_run(
+    db: Session,
+    run_id: int,
+    *,
+    user_id: int,
+    include_artifacts: bool = True,
+) -> dict[str, Any] | None:
+    """Load a user-scoped run, optionally without heavy glass-box child rows.
+
+    Status polling and ownership checks only need the run metadata/summary. Keeping
+    child loading opt-in at those call sites avoids repeatedly hydrating up to
+    25k signals plus orders, snapshots and execution events.
+    """
     row = db.execute(
         text("""
             SELECT id, robot_id, user_id, status, requested_from, requested_to, started_at, finished_at,
@@ -1293,6 +1305,8 @@ def fetch_db_run(db: Session, run_id: int, *, user_id: int) -> dict[str, Any] | 
     if row is None:
         return None
     out = _row_to_dict(row)
+    if not include_artifacts:
+        return out
     children = load_child_artifacts(db, run_id)
     if children["signals"]:
         out["signals"] = children["signals"]
@@ -1362,10 +1376,18 @@ def enrich_run_observability(out: dict[str, Any]) -> dict[str, Any]:
     # Always rebuild status_counts from (possibly promoted) signals so reject-lens
     # «Исполнено» matches trades / filled execution events on legacy runs.
     obs = build_observability(signals, history_stats=history_stats or {})
+    stored_obs = payload.get("observability") if isinstance(payload, dict) else None
+    cred = None
+    if isinstance(stored_obs, dict) and isinstance(stored_obs.get("credibility"), dict):
+        cred = stored_obs["credibility"]
+    elif isinstance(payload, dict) and isinstance(payload.get("credibility"), dict):
+        cred = payload["credibility"]
     obs = {
         **obs,
         "execution_model": _honest_execution_model_banner(stored_em),
     }
+    if cred:
+        obs["credibility"] = cred
     if isinstance(payload, dict):
         payload = {**payload, "observability": obs}
         out["result_payload"] = payload
@@ -1531,6 +1553,15 @@ def _row_to_dict(row: Any) -> dict[str, Any]:
         "calmar_ratio": payload.get("calmar_ratio"),
         "win_rate_percent": payload.get("win_rate_percent"),
         "trades_total": int(payload.get("trades_total") or len(payload.get("trades") or [])),
+        "signals_logged": int(
+            (payload.get("observability") or {}).get("signals_logged")
+            or (payload.get("history_stats") or {}).get("signals")
+            or 0
+        ),
+        "signals_truncated": bool(
+            (payload.get("observability") or {}).get("signals_truncated")
+            or (payload.get("history_stats") or {}).get("signals_truncated")
+        ),
         "result_payload": payload,
         "signals": [],
         "orders": payload.get("trades") or [],

@@ -46,13 +46,37 @@ class PaperPosition:
 
 
 class PaperLedger:
-    def __init__(self, *, cash: float, commission_rate: float = 0.0005, allow_short: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        cash: float,
+        commission_rate: float = 0.0005,
+        allow_short: bool = False,
+        tax_rate: float = 0.0,
+    ) -> None:
         self.initial_cash = float(cash)
         self.cash = float(cash)
         self.commission_rate = commission_rate
         self.allow_short = allow_short
+        self.tax_rate = max(float(tax_rate or 0), 0.0)
+        self.tax_paid: float = 0.0
+        self.last_fill_tax: float = 0.0
         self.positions: dict[str, PaperPosition] = {}
         self.realized_pnl: float = 0.0
+
+    def _apply_close_tax(self, pnl: float) -> float:
+        """NDFL on profitable closes (after commission). Crypto path uses tax_rate=0."""
+        self.last_fill_tax = 0.0
+        if pnl <= 0 or self.tax_rate <= 0:
+            return pnl
+        tax = round(pnl * self.tax_rate, 2)
+        if tax <= 0:
+            return pnl
+        self.cash -= tax
+        self.tax_paid += tax
+        self.realized_pnl -= tax
+        self.last_fill_tax = tax
+        return pnl - tax
 
     def mark_equity(self, prices: dict[str, float]) -> float:
         total = self.cash
@@ -96,6 +120,7 @@ class PaperLedger:
     ) -> float:
         t = ticker.upper()
         qty = int(quantity)
+        self.last_fill_tax = 0.0
         if qty <= 0 or price <= 0:
             return 0.0
         notional = price * qty
@@ -118,7 +143,7 @@ class PaperLedger:
                 pos.quantity -= close_qty
                 if pos.quantity <= 0:
                     del self.positions[t]
-                return pnl
+                return self._apply_close_tax(pnl)
 
             if reduce_only:
                 return 0.0
@@ -146,7 +171,7 @@ class PaperLedger:
             pos.quantity -= close_qty
             if pos.quantity <= 0:
                 del self.positions[t]
-            return pnl
+            return self._apply_close_tax(pnl)
 
         if reduce_only:
             return 0.0

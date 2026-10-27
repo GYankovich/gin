@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Модалка — варианты от экрана логина</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            --bg: #13161a;
+            --panel: #181c21;
+            --input: #1c2025;
+            --elevated: #22272e;
+            --text: #e8eaed;
+            --secondary: #b7bdc6;
+            --muted: #8b939c;
+            --border: rgba(255, 255, 255, 0.08);
+            --line: rgba(255, 255, 255, 0.22);
+            --grid: rgba(255, 255, 255, 0.055);
+            --up: #3ddc84;
+            --down: #ff5c7a;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            background: #0c0e11;
+            color: var(--text);
+            font-family: Inter, system-ui, sans-serif;
+        }
+
+        .frame {
+            position: relative;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            overflow: hidden;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .cap {
+            position: absolute;
+            top: 22px;
+            left: 28px;
+            z-index: 5;
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+            margin: 0;
+            pointer-events: none;
+        }
+
+        .cap b {
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+        }
+
+        .cap span {
+            color: var(--secondary);
+            font-size: 13px;
+            font-weight: 400;
+        }
+
+        .dash {
+            position: absolute;
+            inset: 0;
+            padding: 88px 48px 40px;
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 16px;
+            opacity: 0.55;
+            filter: blur(0px);
+            pointer-events: none;
+        }
+
+        .dash__card {
+            background: #161a1f;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px 18px 8px;
+        }
+
+        .dash__title {
+            margin: 0 0 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--secondary);
+        }
+
+        .dash__metric {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 10px 0;
+            border-top: 1px solid var(--border);
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .dash__metric strong {
+            color: var(--text);
+            font-weight: 500;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .scrim {
+            position: absolute;
+            inset: 0;
+        }
+
+        .scrim--dim {
+            background: rgba(0, 0, 0, 0.62);
+        }
+
+        .scrim--login {
+            background: var(--bg);
+        }
+
+        .scrim--login::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(var(--grid) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+            background-size: 48px 48px;
+            mask-image: radial-gradient(ellipse at center, #000 42%, transparent 82%);
+        }
+
+        .scrim--veil {
+            background:
+                radial-gradient(ellipse at center, rgba(19, 22, 26, 0.55) 0%, rgba(19, 22, 26, 0.82) 70%);
+        }
+
+        .scrim--veil::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(var(--grid) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+            background-size: 48px 48px;
+            mask-image: radial-gradient(ellipse at center, #000 38%, transparent 78%);
+            opacity: 0.85;
+        }
+
+        .modal {
+            position: relative;
+            z-index: 2;
+            width: min(480px, calc(100% - 40px));
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+            padding: 22px 22px 18px;
+        }
+
+        .head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 0;
+        }
+
+        .x {
+            width: 28px;
+            height: 28px;
+            border: 0;
+            background: transparent;
+            color: var(--muted);
+            font: inherit;
+            font-size: 20px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .round {
+            width: 40px;
+            height: 40px;
+            display: grid;
+            place-items: center;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: var(--panel);
+            color: var(--text);
+            font: inherit;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        .group-label {
+            margin: 0 0 8px;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .rows {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 16px minmax(0, 1fr) auto;
+            align-items: center;
+            column-gap: 12px;
+            padding: 12px 14px;
+            background: var(--input);
+            border-radius: 10px;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.45);
+        }
+
+        .row--off { opacity: 0.45; }
+
+        .box {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            border: 1.5px solid rgba(255, 255, 255, 0.28);
+            background: transparent;
+        }
+
+        .box--on {
+            background: var(--text);
+            border-color: var(--text);
+            box-shadow: inset 0 0 0 3px var(--panel);
+        }
+
+        .row__name {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .row__meta {
+            display: block;
+            margin-top: 2px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .row__value {
+            font-size: 13px;
+            font-variant-numeric: tabular-nums;
+            color: var(--secondary);
+        }
+
+        .foot {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 8px;
+            margin-top: 16px;
+            padding-top: 14px;
+            border-top: 1px solid var(--border);
+        }
+
+        .ghost {
+            border: 0;
+            background: none;
+            color: var(--secondary);
+            font: inherit;
+            font-size: 14px;
+            padding: 10px 12px;
+            cursor: pointer;
+        }
+
+        .solid {
+            border: 0;
+            background: var(--text);
+            color: var(--bg);
+            font: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 10px;
+            padding: 10px 16px;
+            cursor: pointer;
+        }
+
+        .solid--block {
+            width: 100%;
+            margin-top: 16px;
+            padding: 12px 14px;
+        }
+
+        .links {
+            display: flex;
+            justify-content: center;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .hint {
+            margin: 0 0 16px;
+            color: var(--secondary);
+            font-size: 14px;
+            line-height: 1.45;
+        }
+
+        .modal--form .head {
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .modal--form .title {
+            font-size: 22px;
+            margin-top: 2px;
+        }
+
+        .modal--form .round {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+        }
+
+        .stage {
+            position: relative;
+            z-index: 2;
+            width: min(880px, calc(100% - 48px));
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+            gap: 48px;
+            align-items: center;
+        }
+
+        .brand__kicker {
+            margin: 0 0 10px;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .brand__title {
+            margin: 0 0 12px;
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: 0;
+            line-height: 1.15;
+        }
+
+        .brand__line {
+            margin: 0;
+            max-width: 28ch;
+            color: var(--secondary);
+            font-size: 16px;
+            line-height: 1.45;
+        }
+
+        .modal--stage {
+            width: auto;
+        }
+
+        .frame--phone {
+            background: #0c0e11;
+        }
+
+        .phone {
+            position: relative;
+            z-index: 2;
+            width: 390px;
+            height: 844px;
+            max-height: calc(100vh - 96px);
+            border-radius: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            background: var(--bg);
+            box-shadow: 0 28px 80px rgba(0, 0, 0, 0.55);
+            overflow: hidden;
+        }
+
+        .phone__screen {
+            position: relative;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 54px 20px 36px;
+            background: var(--bg);
+        }
+
+        .phone__screen::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(var(--grid) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+            background-size: 48px 48px;
+            mask-image: radial-gradient(ellipse at center, #000 42%, transparent 82%);
+        }
+
+        .phone__status {
+            position: absolute;
+            top: 14px;
+            left: 22px;
+            right: 22px;
+            z-index: 3;
+            display: flex;
+            justify-content: space-between;
+            color: var(--secondary);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .phone__home {
+            position: absolute;
+            left: 50%;
+            bottom: 8px;
+            z-index: 3;
+            width: 128px;
+            height: 5px;
+            margin-left: -64px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.72);
+        }
+
+        .phone .stage {
+            width: 100%;
+            grid-template-columns: 1fr;
+            gap: 22px;
+            text-align: center;
+        }
+
+        .phone .brand__title {
+            font-size: 22px;
+        }
+
+        .phone .brand__line {
+            margin-inline: auto;
+            font-size: 15px;
+        }
+
+        .phone .modal {
+            width: 100%;
+            text-align: left;
+        }
+
+        html.is-phone .frame { display: none; }
+        html.is-phone #c-mobile {
+            display: grid;
+            min-height: 100dvh;
+            border: 0;
+            background: var(--bg);
+        }
+        html.is-phone .cap { display: none; }
+        html.is-phone .phone {
+            width: 100%;
+            height: 100dvh;
+            max-height: none;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        @media (max-width: 800px) {
+            .dash { display: none; }
+            .stage {
+                grid-template-columns: 1fr;
+                gap: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <script>
+        if (new URLSearchParams(location.search).has('phone')) {
+            document.documentElement.classList.add('is-phone')
+        }
+    </script>
+    <section class="frame" id="a">
+        <p class="cap"><b>A · Панель</b><span>карточка логина на затемнённом дашборде</span></p>
+        <div class="dash" aria-hidden="true">
+            <div class="dash__card">
+                <h3 class="dash__title">Сводка</h3>
+                <div class="dash__metric"><span>Собственные средства</span><strong>1 500 000 ₽</strong></div>
+                <div class="dash__metric"><span>Текущая стоимость</span><strong>1 840 000 ₽</strong></div>
+                <div class="dash__metric"><span>Общее изменение</span><strong style="color:var(--up)">+22,7%</strong></div>
+            </div>
+            <div class="dash__card">
+                <h3 class="dash__title">Структура</h3>
+                <div class="dash__metric"><span>Акции</span><strong>65%</strong></div>
+                <div class="dash__metric"><span>Облигации</span><strong>25%</strong></div>
+                <div class="dash__metric"><span>Кэш</span><strong>10%</strong></div>
+            </div>
+        </div>
+        <div class="scrim scrim--dim"></div>
+        <div class="modal" role="dialog" aria-label="Счета ₽">
+            <div class="head">
+                <h2 class="title">Счета ₽</h2>
+                <button class="x" type="button" aria-label="Закрыть">×</button>
+            </div>
+            <p class="group-label">Рубли</p>
+            <div class="rows">
+                <div class="row">
+                    <span class="box box--on"></span>
+                    <span><span class="row__name">Брокерский</span><span class="row__meta">T-Invest · основной</span></span>
+                    <span class="row__value">1 240 000 ₽</span>
+                </div>
+                <div class="row">
+                    <span class="box box--on"></span>
+                    <span><span class="row__name">ИИС</span><span class="row__meta">T-Invest</span></span>
+                    <span class="row__value">600 000 ₽</span>
+                </div>
+                <div class="row row--off">
+                    <span class="box"></span>
+                    <span><span class="row__name">Инвесткопилка</span><span class="row__meta">скрыт из сводки</span></span>
+                    <span class="row__value">—</span>
+                </div>
+            </div>
+            <div class="foot">
+                <button class="ghost" type="button">Отмена</button>
+                <button class="solid" type="button">Применить</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="frame" id="b">
+        <p class="cap"><b>B · Сетка</b><span>подложка целиком как фон логина, дашборд не просвечивает</span></p>
+        <div class="scrim scrim--login"></div>
+        <div class="modal" role="dialog" aria-label="Счета ₽">
+            <div class="head">
+                <h2 class="title">Счета ₽</h2>
+                <button class="x" type="button" aria-label="Закрыть">×</button>
+            </div>
+            <p class="group-label">Рубли</p>
+            <div class="rows">
+                <div class="row">
+                    <span class="box box--on"></span>
+                    <span><span class="row__name">Брокерский</span><span class="row__meta">T-Invest · основной</span></span>
+                    <span class="row__value">1 240 000 ₽</span>
+                </div>
+                <div class="row">
+                    <span class="box box--on"></span>
+                    <span><span class="row__name">ИИС</span><span class="row__meta">T-Invest</span></span>
+                    <span class="row__value">600 000 ₽</span>
+                </div>
+                <div class="row row--off">
+                    <span class="box"></span>
+                    <span><span class="row__name">Инвесткопилка</span><span class="row__meta">скрыт из сводки</span></span>
+                    <span class="row__value">—</span>
+                </div>
+            </div>
+            <div class="foot">
+                <button class="ghost" type="button">Отмена</button>
+                <button class="solid" type="button">Применить</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="frame" id="c">
+        <p class="cap"><b>C · Сцена</b><span>как логин: слева фраза, справа карточка, вокруг сетка</span></p>
+        <div class="scrim scrim--login"></div>
+        <div class="stage">
+            <div class="brand">
+                <p class="brand__kicker">Дашборд</p>
+                <h2 class="brand__title">Какие счета входят в сводку</h2>
+                <p class="brand__line">Скрытый счёт остаётся у брокера. Из стоимости и доходности он пропадает.</p>
+            </div>
+            <div class="modal modal--stage" role="dialog" aria-label="Счета ₽">
+                <div class="head">
+                    <h2 class="title">Счета ₽</h2>
+                    <button class="round" type="button" aria-label="Закрыть">×</button>
+                </div>
+                <div class="rows">
+                    <div class="row">
+                        <span class="box box--on"></span>
+                        <span><span class="row__name">Брокерский</span><span class="row__meta">T-Invest · основной</span></span>
+                        <span class="row__value">1 240 000 ₽</span>
+                    </div>
+                    <div class="row">
+                        <span class="box box--on"></span>
+                        <span><span class="row__name">ИИС</span><span class="row__meta">T-Invest</span></span>
+                        <span class="row__value">600 000 ₽</span>
+                    </div>
+                    <div class="row row--off">
+                        <span class="box"></span>
+                        <span><span class="row__name">Инвесткопилка</span><span class="row__meta">скрыт из сводки</span></span>
+                        <span class="row__value">—</span>
+                    </div>
+                </div>
+                <button class="solid solid--block" type="button">Применить</button>
+            </div>
+        </div>
+    </section>
+
+    <section class="frame frame--phone" id="c-mobile">
+        <p class="cap"><b>C · Телефон</b><span>фраза по центру, карточка под ней, как логин на узком экране</span></p>
+        <div class="phone">
+            <div class="phone__status" aria-hidden="true"><span>15:22</span><span>5G</span></div>
+            <div class="phone__screen">
+                <div class="stage">
+                    <div class="brand">
+                        <p class="brand__kicker">Дашборд</p>
+                        <h2 class="brand__title">Какие счета входят в сводку</h2>
+                        <p class="brand__line">Скрытый счёт остаётся у брокера. Из стоимости и доходности он пропадает.</p>
+                    </div>
+                    <div class="modal modal--stage" role="dialog" aria-label="Счета ₽">
+                        <div class="head">
+                            <h2 class="title">Счета ₽</h2>
+                            <button class="round" type="button" aria-label="Закрыть">×</button>
+                        </div>
+                        <div class="rows">
+                            <div class="row">
+                                <span class="box box--on"></span>
+                                <span><span class="row__name">Брокерский</span><span class="row__meta">T-Invest · основной</span></span>
+                                <span class="row__value">1 240 000 ₽</span>
+                            </div>
+                            <div class="row">
+                                <span class="box box--on"></span>
+                                <span><span class="row__name">ИИС</span><span class="row__meta">T-Invest</span></span>
+                                <span class="row__value">600 000 ₽</span>
+                            </div>
+                            <div class="row row--off">
+                                <span class="box"></span>
+                                <span><span class="row__name">Инвесткопилка</span><span class="row__meta">скрыт из сводки</span></span>
+                                <span class="row__value">—</span>
+                            </div>
+                        </div>
+                        <button class="solid solid--block" type="button">Применить</button>
+                    </div>
+                </div>
+            </div>
+            <div class="phone__home" aria-hidden="true"></div>
+        </div>
+    </section>
+
+    <section class="frame" id="d">
+        <p class="cap"><b>D · Форма</b><span>узкая карточка как код из письма: заголовок, подсказка, кнопка на всю ширину</span></p>
+        <div class="dash" aria-hidden="true">
+            <div class="dash__card">
+                <h3 class="dash__title">Сводка</h3>
+                <div class="dash__metric"><span>Собственные средства</span><strong>1 500 000 ₽</strong></div>
+                <div class="dash__metric"><span>Текущая стоимость</span><strong>1 840 000 ₽</strong></div>
+                <div class="dash__metric"><span>Общее изменение</span><strong style="color:var(--up)">+22,7%</strong></div>
+            </div>
+            <div class="dash__card">
+                <h3 class="dash__title">Структура</h3>
+                <div class="dash__metric"><span>Акции</span><strong>65%</strong></div>
+                <div class="dash__metric"><span>Облигации</span><strong>25%</strong></div>
+                <div class="dash__metric"><span>Кэш</span><strong>10%</strong></div>
+            </div>
+        </div>
+        <div class="scrim scrim--veil"></div>
+        <div class="modal modal--form" role="dialog" aria-label="Счета ₽">
+            <button class="round" type="button" aria-label="Закрыть">×</button>
+            <div class="head">
+                <h2 class="title">Счета ₽</h2>
+            </div>
+            <p class="hint">Отмеченные счета входят в стоимость и доходность. Остальные остаются у брокера.</p>
+            <div class="rows">
+                <div class="row">
+                    <span class="box box--on"></span>
+                    <span><span class="row__name">Брокерский</span><span class="row__meta">T-Invest · основной</span></span>
+                    <span class="row__value">1 240 000 ₽</span>
+                </div>
+                <div class="row">
+                    <span class="box box--on"></span>
+                    <span><span class="row__name">ИИС</span><span class="row__meta">T-Invest</span></span>
+                    <span class="row__value">600 000 ₽</span>
+                </div>
+                <div class="row row--off">
+                    <span class="box"></span>
+                    <span><span class="row__name">Инвесткопилка</span><span class="row__meta">скрыт из сводки</span></span>
+                    <span class="row__value">—</span>
+                </div>
+            </div>
+            <button class="solid solid--block" type="button">Применить</button>
+            <div class="links">
+                <button class="ghost" type="button">Отмена</button>
+            </div>
+        </div>
+    </section>
+</body>
+</html>

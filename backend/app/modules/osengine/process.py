@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 
 _owned_proc: Optional[subprocess.Popen] = None
 _mcp_wait_task: Optional[asyncio.Task] = None
+_ensure_lock: Optional[asyncio.Lock] = None
+_ensure_failed_until: float = 0.0
+_ON_DEMAND_FAIL_COOLDOWN_SECONDS = 30.0
 
 
 def resolve_osengine_exe_path(
@@ -116,6 +119,32 @@ def _proc_alive(proc: Optional[subprocess.Popen]) -> bool:
     return proc is not None and proc.poll() is None
 
 
+def external_osengine_running() -> bool:
+    """True if OsEngine.exe is already running outside this process."""
+    exe = resolve_osengine_exe_path()
+    name = exe.name if exe is not None else "OsEngine.exe"
+    if sys.platform == "win32":
+        try:
+            probe = subprocess.run(
+                ["tasklist", "/FI", f"IMAGENAME eq {name}", "/NH"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        return name.lower() in (probe.stdout or "").lower()
+    return False
+
+
+def _ensure_lock_for_loop() -> asyncio.Lock:
+    global _ensure_lock
+    if _ensure_lock is None:
+        _ensure_lock = asyncio.Lock()
+    return _ensure_lock
+
+
 async def _wait_until_mcp_ready(*, timeout: Optional[float] = None) -> bool:
     """Poll MCP until ready or timeout. Does not block API if run as a background task."""
     limit = float(timeout if timeout is not None else settings.OSENGINE_STARTUP_TIMEOUT_SECONDS)
@@ -161,20 +190,58 @@ def _schedule_mcp_wait() -> None:
     _mcp_wait_task = loop.create_task(_runner(), name="osengine_mcp_ready")
 
 
-async def start_osengine_process(*, wait_for_mcp: bool = False) -> bool:
-    """Start OsEngine if enabled/auto-start and MCP is not already up.
+async def ensure_osengine_running() -> bool:
+    """Start OsEngine when a caller needs MCP and nothing is listening.
+
+    One flight at a time. A failed wait cools down so a screener does not
+    block 90s on every ticker.
+    """
+    global _ensure_failed_until
+
+    if not settings.OSENGINE_ENABLED or not settings.OSENGINE_START_ON_DEMAND:
+        return False
+    if await mcp_endpoint_reachable():
+        return True
+    if time.monotonic() < _ensure_failed_until:
+        return False
+
+    async with _ensure_lock_for_loop():
+        if await mcp_endpoint_reachable():
+            return True
+        if time.monotonic() < _ensure_failed_until:
+            return False
+        ok = await start_osengine_process(wait_for_mcp=True, require_auto_start=False)
+        if ok and await mcp_endpoint_reachable():
+            _ensure_failed_until = 0.0
+            return True
+        _ensure_failed_until = time.monotonic() + _ON_DEMAND_FAIL_COOLDOWN_SECONDS
+        logger.warning(
+            "osengine on-demand start did not bring MCP up; next try in %.0fs",
+            _ON_DEMAND_FAIL_COOLDOWN_SECONDS,
+        )
+        return False
+
+
+async def start_osengine_process(
+    *,
+    wait_for_mcp: bool = False,
+    require_auto_start: bool = True,
+) -> bool:
+    """Start OsEngine if enabled and MCP is not already up.
 
     By default does **not** block on MCP readiness (so FastAPI lifespan can finish).
     A background task logs when MCP becomes ready (or times out).
 
-    Returns True if MCP is already up, or the process was spawned / already owned.
+    ``require_auto_start=False`` is the on-demand path: OSENGINE_ENABLED is enough.
+    Returns True if MCP is already up, or the process was spawned / already owned
+    (and, when ``wait_for_mcp``, MCP answered).
     """
     global _owned_proc
 
     if not settings.OSENGINE_ENABLED:
         logger.info("osengine auto-start skipped (OSENGINE_ENABLED=false)")
         return False
-    if not settings.OSENGINE_AUTO_START:
+    if require_auto_start and not settings.OSENGINE_AUTO_START:
         logger.info("osengine auto-start skipped (OSENGINE_AUTO_START=false)")
         return False
 
@@ -197,6 +264,8 @@ async def start_osengine_process(*, wait_for_mcp: bool = False) -> bool:
 
     if _proc_alive(_owned_proc):
         logger.info("osengine auto-start: already spawned pid=%s", _owned_proc.pid)
+    elif external_osengine_running():
+        logger.info("osengine already running outside GIN — wait for MCP, do not spawn a second copy")
     else:
         creationflags = 0
         if sys.platform == "win32":
@@ -276,12 +345,16 @@ async def stop_osengine_process() -> None:
 
 
 def reset_osengine_process_for_tests() -> None:
-    global _owned_proc, _mcp_wait_task
+    global _owned_proc, _mcp_wait_task, _ensure_lock, _ensure_failed_until
     _owned_proc = None
     _mcp_wait_task = None
+    _ensure_lock = None
+    _ensure_failed_until = 0.0
 
 
 __all__ = [
+    "ensure_osengine_running",
+    "external_osengine_running",
     "mcp_endpoint_reachable",
     "reset_osengine_process_for_tests",
     "resolve_osengine_exe_path",

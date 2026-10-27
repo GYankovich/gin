@@ -240,7 +240,12 @@ def test_row_to_dict_bound_and_config_label():
             "cancel_requested": False,
             "error_message": None,
             "config_snapshot": {"strategy": {"archetype": "grid"}, "v2RobotId": 55},
-            "metrics_summary": {},
+            "metrics_summary": {
+                "observability": {
+                    "signals_logged": 25_000,
+                    "signals_truncated": True,
+                },
+            },
         }
     )
     assert bound["bound"] is True
@@ -248,6 +253,8 @@ def test_row_to_dict_bound_and_config_label():
     item = RobotV2BacktestListItem.model_validate(bound)
     assert item.bound is True
     assert item.config_label == "grid"
+    assert item.signals_logged == 25_000
+    assert item.signals_truncated is True
 
 
 def test_config_label_helper():

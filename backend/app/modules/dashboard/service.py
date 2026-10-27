@@ -3,27 +3,204 @@ from __future__ import annotations
 #///EPIC Modules.ITEM Module.TOPIC BackendAppModulesDashboardService [1]
 #/// Исходный модуль `backend/app/modules/dashboard/service.py` — автоматическая разметка для Obsidian Source Scanner.
 
-from datetime import datetime
+from datetime import date, datetime, timedelta, timezone
 from functools import cmp_to_key
 from typing import Any, Dict, List, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.modules.dashboard.queries import (
-    build_account_opened_query,
-    build_assets_query,
-    build_latest_snapshot_query,
-    build_own_funds_query,
-    build_previous_day_total_query,
-    get_account_for_visibility,
-    list_open_accounts,
-)
 from app.modules.dashboard.schemas import (
     DashboardAccountSummaryKpi,
     DashboardAssetItem,
     DashboardCurrencyTotals,
 )
+from app.modules.dashboard.queries import (
+    build_account_opened_query,
+    build_assets_query,
+    build_latest_snapshot_query,
+    build_own_funds_query,
+    build_yesterday_total_query,
+    get_account_for_visibility,
+    list_open_account_token_types,
+    list_open_accounts,
+)
+from app.modules.trading_core.brokers.routing import broker_from_token_type, normalize_broker_type
+
+MOSCOW = ZoneInfo("Europe/Moscow")
+_ASSET_GAP = 0.01
+
+
+def resolve_account_broker(external_account_id: Optional[str], token_type: Optional[str]) -> str:
+    """Брокер счёта: префикс bybit: важнее типа токена, иначе tinvest."""
+    ext = str(external_account_id or "").strip().lower()
+    if ext.startswith("bybit:"):
+        return "bybit"
+    raw = str(token_type or "").strip()
+    if not raw:
+        return "tinvest"
+    if raw.isdigit():
+        return broker_from_token_type(int(raw))
+    return normalize_broker_type(raw)
+
+
+def account_currency_code(item: Dict[str, Any]) -> Optional[str]:
+    summary = item.get("summary")
+    raw = summary.get("currency") if isinstance(summary, dict) else getattr(summary, "currency", None)
+    code = str(raw or "").strip().upper()
+    return code or None
+
+
+def filter_settings_accounts(
+    items: List[Dict[str, Any]],
+    *,
+    broker: Optional[str] = None,
+    currency: Optional[str] = None,
+    token_types: Optional[Dict[int, Optional[str]]] = None,
+) -> List[Dict[str, Any]]:
+    """Опциональные фильтры списка настройки. Оба заданы — пересечение."""
+    broker_raw = str(broker or "").strip()
+    broker_code = normalize_broker_type(broker_raw) if broker_raw else None
+    currency_code = str(currency or "").strip().upper() or None
+    if broker_code is None and currency_code is None:
+        return items
+    types = token_types or {}
+    out: List[Dict[str, Any]] = []
+    for item in items:
+        if currency_code and account_currency_code(item) != currency_code:
+            continue
+        if broker_code:
+            token_type = types.get(int(item["account_id"]))
+            if resolve_account_broker(item.get("external_account_id"), token_type) != broker_code:
+                continue
+        out.append(item)
+    return out
+
+
+def moscow_date(value: datetime) -> date:
+    """Calendar date of a timestamp in Europe/Moscow. Naive values are UTC."""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(MOSCOW).date()
+
+
+def resolve_day_change(
+    latest_at: Optional[datetime],
+    yesterday_total: Optional[float],
+    latest_total: float,
+    now: Optional[datetime] = None,
+) -> Tuple[Optional[float], Optional[float]]:
+    """
+    Change versus the previous Moscow day's close.
+
+    yesterday_total is the last snapshot on the Moscow day before the latest
+    snapshot. The latest snapshot must be from today or from yesterday (no
+    snapshot has arrived today yet). Anything older is not a day change.
+    Returns (delta, yesterday_total).
+    """
+    if latest_at is None or yesterday_total is None:
+        return None, None
+    current = now or datetime.now(MOSCOW)
+    latest_day = moscow_date(latest_at)
+    today = moscow_date(current)
+    if latest_day != today and latest_day != today - timedelta(days=1):
+        return None, None
+    return latest_total - float(yesterday_total), float(yesterday_total)
+
+
+def percent_vs_base(delta: Optional[float], base: Optional[float]) -> Optional[float]:
+    if delta is None or base is None or abs(base) <= 1e-9:
+        return None
+    return (delta / base) * 100.0
+
+
+def gain_vs_deposits_percent(
+    minus_own_funds: Optional[float],
+    own_funds: Optional[float],
+) -> Optional[float]:
+    if minus_own_funds is None or own_funds is None or abs(own_funds) <= 1e-9:
+        return None
+    return (minus_own_funds / own_funds) * 100.0
+
+
+def _asset_day_percent(value: float, day_delta: Optional[float]) -> Optional[float]:
+    if day_delta is None:
+        return None
+    if abs(day_delta) <= 1e-9:
+        return 0.0
+    prev = value - day_delta
+    if abs(prev) <= 1e-9:
+        return None
+    return (day_delta / prev) * 100.0
+
+
+def shape_asset_allocation(rows: List[Dict[str, Any]]) -> List[DashboardAssetItem]:
+    """
+    Percents are shares of portfolio value. If type buckets diverge from that
+    value by more than 1% (notional stuffed into a bucket), collapse to cash
+    and the residual position value.
+    """
+    grouped: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        currency = str(row.get("currency") or "RUB").upper()
+        bucket = grouped.setdefault(currency, {"total": float(row.get("portfolio_total") or 0.0), "rows": []})
+        bucket["total"] = float(row.get("portfolio_total") or 0.0)
+        if row.get("type") is None or row.get("value") is None:
+            continue
+        bucket["rows"].append(row)
+
+    out: List[DashboardAssetItem] = []
+    for currency in sorted(grouped):
+        total = float(grouped[currency]["total"])
+        items: List[Dict[str, Any]] = grouped[currency]["rows"]
+        if abs(total) <= 1e-9:
+            continue
+        bucket_sum = sum(float(item["value"] or 0.0) for item in items)
+        gap = abs(bucket_sum - total) / abs(total)
+        if gap > _ASSET_GAP:
+            cash = sum(
+                float(item["value"] or 0.0)
+                for item in items
+                if item.get("instrument_type") == "currency"
+            )
+            if cash * total > 0 and abs(cash) > abs(total):
+                money = total
+            else:
+                money = cash
+            positions = total - money
+            if abs(money) > 1e-9:
+                out.append(_asset_item("Деньги", money, total, currency, None))
+            if abs(positions) > 1e-9:
+                out.append(_asset_item("Позиции", positions, total, currency, None))
+            continue
+
+        for item in items:
+            value = float(item["value"] or 0.0)
+            day_raw = item.get("day_over_day_delta")
+            day_delta = float(day_raw) if day_raw is not None else None
+            out.append(_asset_item(str(item["type"]), value, total, currency, day_delta))
+        residual = total - bucket_sum
+        if abs(residual) >= 1.0:
+            out.append(_asset_item("Прочее", residual, total, currency, None))
+    return out
+
+
+def _asset_item(
+    asset_type: str,
+    value: float,
+    total: float,
+    currency: str,
+    day_delta: Optional[float],
+) -> DashboardAssetItem:
+    return DashboardAssetItem(
+        type=asset_type,
+        value=value,
+        percent=(value / total) * 100.0,
+        currency=currency,
+        day_over_day_delta=day_delta,
+        day_over_day_delta_percent=_asset_day_percent(value, day_delta),
+    )
 
 
 class DashboardService:
@@ -35,27 +212,27 @@ class DashboardService:
         "own_funds",
         "day_over_day_delta",
         "last_account_sync",
+        "dashboard_hidden",
         # legacy alias from older clients
         "total_value",
     })
 
-    def _own_funds(self, db: Session, account_pk: int) -> float:
-        # INPUT обычно > 0; OUTPUT в БД часто уже < 0 — вычитаем ABS(payment).
-        query, params = build_own_funds_query(account_pk)
+    def _own_funds(self, db: Session, account_pk: int, currency: str) -> Optional[float]:
+        query, params = build_own_funds_query(account_pk, currency)
         row = db.execute(text(query), params).first()
         if not row or row[0] is None:
-            return 0.0
+            return None
         try:
             return float(row[0])
         except (TypeError, ValueError):
-            return 0.0
+            return None
 
     def _latest_snapshot_row(self, db: Session, account_pk: int):
         query, params = build_latest_snapshot_query(account_pk)
         return db.execute(text(query), params).first()
 
-    def _prev_day_total(self, db: Session, account_pk: int, latest_snapshot_date: datetime) -> Optional[float]:
-        query, params = build_previous_day_total_query(account_pk, latest_snapshot_date)
+    def _yesterday_total(self, db: Session, account_pk: int, yesterday: date) -> Optional[float]:
+        query, params = build_yesterday_total_query(account_pk, yesterday)
         row = db.execute(text(query), params).first()
         if not row or row[0] is None:
             return None
@@ -79,77 +256,60 @@ class DashboardService:
             return row[0]
         return created_at
 
-    @staticmethod
-    def _gain_vs_deposits_percent(
-        minus_own_funds: float,
-        own_funds: float,
-        value: float,
-    ) -> Optional[float]:
-        if abs(minus_own_funds) <= 1e-9:
-            return None
-        if abs(own_funds) > 1e-9:
-            return (minus_own_funds / own_funds) * 100.0
-        if abs(value) > 1e-9:
-            return (minus_own_funds / value) * 100.0
-        return None
-
     def _build_summary_kpi(
         self,
         db: Session,
         account_pk: int,
         last_sync_pa: Optional[datetime],
-    ) -> Tuple[DashboardAccountSummaryKpi, Optional[datetime]]:
-        own = self._own_funds(db, account_pk)
+    ) -> Tuple[DashboardAccountSummaryKpi, Optional[datetime], Optional[float]]:
         latest = self._latest_snapshot_row(db, account_pk)
         if not latest:
-            last_sync = last_sync_pa
             return (
                 DashboardAccountSummaryKpi(
-                    own_funds=own,
-                    value=0.0,
-                    minus_own_funds=-own,
-                    minus_own_funds_percent=self._gain_vs_deposits_percent(-own, own, 0.0),
+                    own_funds=None,
+                    value=None,
+                    minus_own_funds=None,
+                    minus_own_funds_percent=None,
                     day_over_day_delta=None,
                     day_over_day_delta_percent=None,
-                    currency="RUB",
+                    currency=None,
                 ),
-                last_sync,
+                last_sync_pa,
+                None,
             )
 
         total = float(latest[0] or 0.0)
         snap_date = latest[1]
-        daily_yield = float(latest[2]) if latest[2] is not None else None
-        currency = str(latest[3] or "RUB")
+        currency = str(latest[2] or "").strip().upper() or None
+        own = self._own_funds(db, account_pk, currency) if currency else None
+        minus = None if own is None else total - own
 
-        prev_total = self._prev_day_total(db, account_pk, snap_date)
-
+        yesterday_total: Optional[float] = None
         day_delta: Optional[float] = None
-        if daily_yield is not None:
-            day_delta = daily_yield
-        elif prev_total is not None:
-            day_delta = total - prev_total
-
-        day_pct: Optional[float] = None
-        if day_delta is not None and abs(day_delta) > 1e-9 and prev_total is not None and abs(prev_total) > 1e-9:
-            day_pct = (day_delta / prev_total) * 100.0
+        if snap_date is not None:
+            latest_day = moscow_date(snap_date)
+            today = moscow_date(datetime.now(MOSCOW))
+            if latest_day == today or latest_day == today - timedelta(days=1):
+                yesterday_total = self._yesterday_total(db, account_pk, latest_day - timedelta(days=1))
+                day_delta, yesterday_total = resolve_day_change(snap_date, yesterday_total, total)
 
         last_account_sync: Optional[datetime] = None
         candidates = [x for x in (last_sync_pa, snap_date) if x is not None]
         if candidates:
             last_account_sync = max(candidates)
 
-        minus = total - own
         return (
             DashboardAccountSummaryKpi(
                 own_funds=own,
                 value=total,
                 minus_own_funds=minus,
-                minus_own_funds_percent=self._gain_vs_deposits_percent(minus, own, total),
+                minus_own_funds_percent=gain_vs_deposits_percent(minus, own),
                 day_over_day_delta=day_delta,
-                day_over_day_delta_percent=day_pct,
+                day_over_day_delta_percent=percent_vs_base(day_delta, yesterday_total),
                 currency=currency,
             ),
             last_account_sync,
+            yesterday_total if day_delta is not None else None,
         )
 
     def _sort_accounts(
@@ -167,6 +327,9 @@ class DashboardService:
                 if col == "account_name":
                     va = (a.get("account_name") or "").lower()
                     vb = (b.get("account_name") or "").lower()
+                elif col == "dashboard_hidden":
+                    va = 1 if a.get("dashboard_hidden") else 0
+                    vb = 1 if b.get("dashboard_hidden") else 0
                 elif col == "last_account_sync":
                     ta = a.get("last_account_sync")
                     tb = b.get("last_account_sync")
@@ -183,11 +346,11 @@ class DashboardService:
                     sb = b.get("summary")
                     sort_col = "value" if col == "total_value" else col
                     if sort_col == "value":
-                        va = float(sa.value) if sa else 0.0
-                        vb = float(sb.value) if sb else 0.0
+                        va = float(sa.value) if sa and sa.value is not None else 0.0
+                        vb = float(sb.value) if sb and sb.value is not None else 0.0
                     elif sort_col == "own_funds":
-                        va = float(sa.own_funds) if sa else 0.0
-                        vb = float(sb.own_funds) if sb else 0.0
+                        va = float(sa.own_funds) if sa and sa.own_funds is not None else 0.0
+                        vb = float(sb.own_funds) if sb and sb.own_funds is not None else 0.0
                     elif sort_col == "day_over_day_delta":
                         da = sa.day_over_day_delta if sa else None
                         dbv = sb.day_over_day_delta if sb else None
@@ -221,7 +384,7 @@ class DashboardService:
 
         out: List[Dict[str, Any]] = []
         for pa in rows:
-            summary, last_sync = self._build_summary_kpi(db, pa.id, pa.last_sync_at)
+            summary, last_sync, yesterday_value = self._build_summary_kpi(db, pa.id, pa.last_sync_at)
             out.append(
                 {
                     "account_id": pa.id,
@@ -232,7 +395,13 @@ class DashboardService:
                     "account_opened": self._resolve_account_opened(db, pa.id, pa.opened_date, pa.created_at),
                     "last_account_sync": last_sync,
                     "dashboard_hidden": bool(getattr(pa, "dashboard_hidden", 0) or 0),
+                    "last_token_id": (
+                        int(pa.last_token_id)
+                        if getattr(pa, "last_token_id", None) is not None
+                        else None
+                    ),
                     "summary": summary,
+                    "_yesterday_value": yesterday_value,
                 }
             )
 
@@ -242,52 +411,54 @@ class DashboardService:
     def _build_totals(accounts: List[Dict[str, Any]]) -> List[DashboardCurrencyTotals]:
         buckets: Dict[str, Dict[str, Any]] = {}
         for item in accounts:
+            yesterday = item.pop("_yesterday_value", None)
             if item.get("dashboard_hidden"):
                 continue
             summary: DashboardAccountSummaryKpi = item["summary"]
-            cur = (summary.currency or "RUB").upper()
+            if not summary.currency or summary.value is None:
+                continue
+            cur = summary.currency.upper()
             bucket = buckets.setdefault(
                 cur,
                 {
-                    "total_own_funds": 0.0,
                     "total_value": 0.0,
-                    "total_minus_own_funds": 0.0,
-                    "total_day_over_day_delta": 0.0,
-                    "has_day_delta": False,
+                    "own_parts": [],
+                    "minus_parts": [],
+                    "own_complete": True,
+                    "day_deltas": [],
+                    "yesterday_values": [],
+                    "valued_accounts": 0,
                 },
             )
-            bucket["total_own_funds"] += float(summary.own_funds or 0.0)
-            bucket["total_value"] += float(summary.value or 0.0)
-            bucket["total_minus_own_funds"] += float(summary.minus_own_funds or 0.0)
-            if summary.day_over_day_delta is not None:
-                bucket["total_day_over_day_delta"] += float(summary.day_over_day_delta)
-                bucket["has_day_delta"] = True
+            bucket["total_value"] += float(summary.value)
+            bucket["valued_accounts"] += 1
+            if summary.own_funds is None or summary.minus_own_funds is None:
+                if abs(float(summary.value)) > 1e-9:
+                    bucket["own_complete"] = False
+            else:
+                bucket["own_parts"].append(float(summary.own_funds))
+                bucket["minus_parts"].append(float(summary.minus_own_funds))
+            if summary.day_over_day_delta is not None and yesterday is not None:
+                bucket["day_deltas"].append(float(summary.day_over_day_delta))
+                bucket["yesterday_values"].append(float(yesterday))
 
         result: List[DashboardCurrencyTotals] = []
         for currency in sorted(buckets.keys()):
             b = buckets[currency]
-            own = b["total_own_funds"]
-            value = b["total_value"]
-            minus = b["total_minus_own_funds"]
-            day_delta = b["total_day_over_day_delta"] if b["has_day_delta"] else None
-
-            day_pct: Optional[float] = None
-            if day_delta is not None and abs(day_delta) > 1e-9:
-                prev_total = value - day_delta
-                if abs(prev_total) > 1e-9:
-                    day_pct = (day_delta / prev_total) * 100.0
-
+            own = sum(b["own_parts"]) if b["own_complete"] else None
+            minus = sum(b["minus_parts"]) if b["own_complete"] else None
+            day_ready = len(b["day_deltas"]) == b["valued_accounts"] and b["valued_accounts"] > 0
+            day_delta = sum(b["day_deltas"]) if day_ready else None
+            day_base = sum(b["yesterday_values"]) if day_ready else None
             result.append(
                 DashboardCurrencyTotals(
                     currency=currency,
                     total_own_funds=own,
-                    total_value=value,
+                    total_value=b["total_value"],
                     total_minus_own_funds=minus,
-                    total_minus_own_funds_percent=DashboardService._gain_vs_deposits_percent(
-                        minus, own, value
-                    ),
+                    total_minus_own_funds_percent=gain_vs_deposits_percent(minus, own),
                     total_day_over_day_delta=day_delta,
-                    total_day_over_day_delta_percent=day_pct,
+                    total_day_over_day_delta_percent=percent_vs_base(day_delta, day_base),
                 )
             )
         return result
@@ -301,37 +472,15 @@ class DashboardService:
         """
         Структура портфеля по последним снимкам OPEN-счетов.
 
-        value — из агрегатов снимка (total_amount_*), чтобы совпадало с «Текущая стоимость»;
-        day_over_day_delta — SUM(daily_yield) по позициям того же типа;
-        имена типов — из dictionary PORTFOLIO_POSITIONS / INSTRUMENT_TYPE.
+        Доли считаются от total_amount_portfolio. Если сумма бакетов расходится
+        со стоимостью больше чем на 1%, вместо них отдаются «Деньги» и «Позиции».
         """
         if included_account_ids is not None and len(included_account_ids) == 0:
             return []
 
         query, params = build_assets_query(user_id, included_account_ids)
         rows = db.execute(text(query), params).mappings().all()
-
-        out: List[DashboardAssetItem] = []
-        for r in rows:
-            value = float(r["value"] or 0.0)
-            day_raw = r["day_over_day_delta"]
-            day_delta: Optional[float] = float(day_raw) if day_raw is not None else None
-            day_pct: Optional[float] = None
-            if day_delta is not None and abs(day_delta) > 1e-9:
-                prev = value - day_delta
-                if abs(prev) > 1e-9:
-                    day_pct = (day_delta / prev) * 100.0
-            out.append(
-                DashboardAssetItem(
-                    type=str(r["type"]),
-                    value=value,
-                    percent=float(r["percent"] or 0),
-                    currency=str(r["currency"] or "RUB"),
-                    day_over_day_delta=day_delta,
-                    day_over_day_delta_percent=day_pct,
-                )
-            )
-        return out
+        return shape_asset_allocation([dict(r) for r in rows])
 
     def update_visibility(
         self,
@@ -352,18 +501,50 @@ class DashboardService:
             db.commit()
         return updated
 
+    def list_settings_accounts(
+        self,
+        db: Session,
+        user_id: int,
+        *,
+        broker: Optional[str] = None,
+        currency: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """OPEN-счета с флагом скрытия. Сначала включённые, внутри группы по имени."""
+        accounts = self._build_accounts(
+            db,
+            user_id,
+            [("dashboard_hidden", "asc"), ("account_name", "asc")],
+        )
+        for item in accounts:
+            item.pop("_yesterday_value", None)
+        token_types = list_open_account_token_types(db, user_id)
+        for item in accounts:
+            item["broker"] = resolve_account_broker(
+                item.get("external_account_id"),
+                token_types.get(int(item["account_id"])),
+            )
+        return filter_settings_accounts(
+            accounts,
+            broker=broker,
+            currency=currency,
+            token_types=token_types,
+        )
+
     def build_dashboard(
         self,
         db: Session,
         user_id: int,
         sort_specs: List[Tuple[str, str]],
     ) -> Dict[str, Any]:
-        accounts = self._build_accounts(db, user_id, sort_specs)
-        included_ids = [int(a["account_id"]) for a in accounts if not a.get("dashboard_hidden")]
+        visible = [
+            item for item in self._build_accounts(db, user_id, sort_specs)
+            if not item.get("dashboard_hidden")
+        ]
+        included_ids = [int(item["account_id"]) for item in visible]
         return {
-            "totals": self._build_totals(accounts),
+            "totals": self._build_totals(visible),
             "assets": self._build_assets(db, user_id, included_ids),
-            "accounts": accounts,
+            "accounts": visible,
         }
 
 

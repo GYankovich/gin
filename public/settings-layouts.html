@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Макеты настроек</title>
+<style>
+  :root {
+    --auth-bg: #13161a;
+    --auth-panel: #181c21;
+    --auth-input: #1c2025;
+    --auth-elevated: #22272e;
+    --auth-text: #e8eaed;
+    --auth-secondary: #b7bdc6;
+    --auth-muted: #8b939c;
+    --auth-border: rgba(255, 255, 255, 0.08);
+    --auth-line: rgba(255, 255, 255, 0.22);
+    --auth-accent: #e8eaed;
+    --auth-on-accent: #13161a;
+    --auth-focus: rgba(255, 255, 255, 0.14);
+    --auth-grid: rgba(255, 255, 255, 0.055);
+    --auth-inset: inset 0 1px 2px rgba(0, 0, 0, 0.45);
+    --up: #3dbe7a;
+    --picker: #0e1114;
+  }
+  [data-theme='light'] {
+    --auth-bg: #f8f9fa;
+    --auth-panel: #ffffff;
+    --auth-input: #f1f3f5;
+    --auth-elevated: #ffffff;
+    --auth-text: #0f172a;
+    --auth-secondary: #334155;
+    --auth-muted: #64748b;
+    --auth-border: rgba(15, 23, 42, 0.12);
+    --auth-line: rgba(15, 23, 42, 0.28);
+    --auth-accent: #0f172a;
+    --auth-on-accent: #ffffff;
+    --auth-focus: rgba(15, 23, 42, 0.12);
+    --auth-grid: rgba(15, 23, 42, 0.075);
+    --auth-inset: inset 0 1px 1px rgba(15, 23, 42, 0.04);
+    --up: #0e9f6e;
+    --picker: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: Inter, system-ui, sans-serif;
+    background: #0b0d10;
+    color: #e8eaed;
+  }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+
+  .picker {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 14px 22px;
+    background: var(--picker);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  [data-theme='light'] .picker { border-bottom-color: rgba(15, 23, 42, 0.1); color: #0f172a; }
+  .picker h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .picker p { margin: 2px 0 0; font-size: 13px; color: #8b939c; max-width: 52ch; }
+  .picker__modes { display: flex; gap: 4px; padding: 4px; background: #1c2025; border-radius: 12px; margin-left: auto; }
+  [data-theme='light'] .picker__modes { background: #f1f3f5; }
+  .picker__modes button, .theme-toggle {
+    border: 1px solid transparent;
+    background: transparent;
+    color: #8b939c;
+    border-radius: 9px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .picker__modes button.is-on {
+    background: #22272e;
+    color: #e8eaed;
+    border-color: rgba(255, 255, 255, 0.22);
+  }
+  [data-theme='light'] .picker__modes button.is-on {
+    background: #fff;
+    color: #0f172a;
+    border-color: rgba(15, 23, 42, 0.28);
+  }
+  .theme-toggle {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: #181c21;
+    color: #e8eaed;
+  }
+  [data-theme='light'] .theme-toggle {
+    background: #fff;
+    color: #0f172a;
+    border-color: rgba(15, 23, 42, 0.12);
+  }
+
+  .app { min-height: calc(100vh - 64px); display: flex; flex-direction: column; background: var(--auth-bg); color: var(--auth-text); position: relative; }
+  .nav {
+    height: 64px;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--auth-border);
+    background: var(--auth-bg);
+  }
+  .brand { font-weight: 600; letter-spacing: -0.03em; font-size: 18px; }
+  .links { display: flex; gap: 4px; padding: 4px; background: var(--auth-input); border-radius: 12px; }
+  .links span { padding: 8px 14px; border-radius: 9px; color: var(--auth-muted); font-size: 13px; font-weight: 500; }
+  .nav__right { justify-self: end; display: flex; align-items: center; gap: 10px; }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 999px;
+    display: grid; place-items: center;
+    background: var(--auth-panel); border: 1px solid var(--auth-border);
+    font-size: 12px; font-weight: 600;
+  }
+  .stage {
+    position: relative;
+    flex: 1;
+    padding: 36px 24px 64px;
+  }
+  .stage__grid {
+    position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(var(--auth-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--auth-grid) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at center, #000 42%, transparent 82%);
+  }
+  .screen { position: relative; z-index: 1; }
+  .app[data-layout='card'] [data-screen='stage'],
+  .app[data-layout='card'] [data-screen='stack'],
+  .app[data-layout='stage'] [data-screen='card'],
+  .app[data-layout='stage'] [data-screen='stack'],
+  .app[data-layout='stack'] [data-screen='card'],
+  .app[data-layout='stack'] [data-screen='stage'] { display: none; }
+
+  .panel {
+    background: var(--auth-panel);
+    border: 1px solid var(--auth-border);
+    border-radius: 18px;
+    padding: 22px 22px 20px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  }
+  [data-theme='light'] .panel { box-shadow: 0 12px 32px rgba(15, 23, 42, 0.06); }
+  .title { margin: 2px 0 4px; font-size: 22px; font-weight: 600; }
+  .sub { margin: 0 0 16px; color: var(--auth-secondary); font-size: 14px; line-height: 1.45; }
+  .tabs {
+    display: grid; gap: 4px; padding: 4px; margin-bottom: 18px;
+    background: var(--auth-input); border-radius: 12px;
+  }
+  .tabs--3 { grid-template-columns: repeat(3, 1fr); }
+  .tabs--2 { grid-template-columns: repeat(2, 1fr); }
+  .tabs button {
+    border: 1px solid transparent; background: transparent; color: var(--auth-muted);
+    border-radius: 9px; padding: 10px 8px; font-size: 13px; font-weight: 500;
+  }
+  .tabs button.is-on { background: var(--auth-elevated); color: var(--auth-text); border-color: var(--auth-line); }
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .field span, .label { color: var(--auth-muted); font-size: 12px; font-weight: 500; }
+  .field input, .choice {
+    width: 100%; text-align: left;
+    background: var(--auth-input); border: 1px solid var(--auth-border); border-radius: 10px;
+    padding: 12px 14px; box-shadow: var(--auth-inset); font-size: 15px;
+  }
+  .choice { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .choice.is-on { border-color: var(--auth-line); background: var(--auth-elevated); }
+  .choice small { color: var(--auth-muted); font-size: 12px; }
+  .link {
+    border: 0; background: none; padding: 0; color: var(--auth-text); font-size: 14px;
+  }
+  .links-row {
+    display: flex; justify-content: center; margin-top: 4px; padding-top: 12px;
+    border-top: 1px solid var(--auth-border);
+  }
+  .submit {
+    width: 100%; margin-top: 8px; border: 0; border-radius: 10px;
+    background: var(--auth-accent); color: var(--auth-on-accent);
+    font-weight: 600; font-size: 15px; padding: 12px 14px;
+  }
+  .who { margin-bottom: 16px; }
+  .who strong { display: block; font-size: 18px; font-weight: 600; }
+  .who em { display: block; margin-top: 4px; font-style: normal; color: var(--auth-muted); font-size: 13px; }
+
+  .line {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 2px; border-bottom: 1px solid var(--auth-border);
+  }
+  .line:last-child { border-bottom: 0; }
+  .line--dim { opacity: 0.45; }
+  .line input { width: 16px; height: 16px; accent-color: var(--auth-accent); margin: 0; }
+  .line__main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .line__name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .line__meta { font-size: 12px; color: var(--auth-muted); }
+  .line__meta b { font-weight: 500; color: var(--up); }
+  .line__value { font-size: 15px; font-variant-numeric: tabular-nums; }
+  .hint { margin: 0 0 8px; color: var(--auth-secondary); font-size: 14px; line-height: 1.45; }
+  .group { margin: 14px 0 4px; color: var(--auth-muted); font-size: 12px; font-weight: 500; }
+
+  .card-wrap { width: min(440px, 100%); margin: 28px auto; }
+  .pane { display: none; }
+  .card-wrap[data-tab='profile'] .pane-profile,
+  .card-wrap[data-tab='accounts'] .pane-accounts,
+  .card-wrap[data-tab='tokens'] .pane-tokens,
+  .work[data-tab='accounts'] .pane-accounts,
+  .work[data-tab='tokens'] .pane-tokens { display: block; }
+
+  .scene {
+    width: min(880px, 100%);
+    margin: 12px auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+    gap: 48px;
+    align-items: start;
+  }
+  .identity { padding-top: 8px; }
+  .identity h2 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+  .identity .lead { margin: 10px 0 22px; max-width: 28ch; color: var(--auth-secondary); font-size: 18px; line-height: 1.45; }
+  .facts { display: flex; flex-direction: column; gap: 14px; margin-bottom: 22px; }
+  .facts div { display: flex; flex-direction: column; gap: 2px; }
+  .facts b { font-weight: 500; font-size: 15px; }
+  .stack { width: min(520px, 100%); margin: 8px auto; display: flex; flex-direction: column; gap: 16px; }
+  .panel h3 { margin: 0 0 14px; font-size: 18px; font-weight: 600; }
+
+  @media (max-width: 800px) {
+    .picker { flex-wrap: wrap; }
+    .picker__modes { margin-left: 0; }
+    .scene { grid-template-columns: 1fr; gap: 22px; }
+    .identity .lead { font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+  <header class="picker">
+    <div>
+      <h1>Настройки с нуля</h1>
+      <p id="blurb"></p>
+    </div>
+    <div class="picker__modes">
+      <button type="button" data-layout="card">Карточка</button>
+      <button type="button" data-layout="stage">Сцена</button>
+      <button type="button" data-layout="stack">Колонка</button>
+    </div>
+    <button type="button" class="theme-toggle" id="theme">Светлая</button>
+  </header>
+
+  <div class="app" id="app" data-layout="card" data-theme="dark">
+    <header class="nav">
+      <div class="brand">Ginity</div>
+      <nav class="links">
+        <span>Дашборд</span><span>Портфель</span><span>Роботы</span><span>Лаборатория</span>
+      </nav>
+      <div class="nav__right"><span class="avatar">gy</span></div>
+    </header>
+    <div class="stage">
+      <div class="stage__grid"></div>
+
+      <section class="screen" data-screen="card">
+        <div class="panel card-wrap" id="card" data-tab="profile">
+          <h2 class="title">Настройки</h2>
+          <p class="sub">Профиль, счета и токены.</p>
+          <div class="tabs tabs--3" data-for="card">
+            <button type="button" data-tab="profile" class="is-on">Профиль</button>
+            <button type="button" data-tab="accounts">Счета</button>
+            <button type="button" data-tab="tokens">Токены</button>
+          </div>
+          <div class="pane pane-profile">
+            <div class="who">
+              <strong>gy</strong>
+              <em>вход сегодня, 09:57</em>
+            </div>
+            <label class="field"><span>Логин</span><input value="gy" readonly /></label>
+            <label class="field"><span>Почта</span><input value="germanyankovich@gmail.com" readonly /></label>
+            <label class="field"><span>Телефон</span><input value="+79998346928" readonly /></label>
+            <div class="label" style="margin-bottom:8px">Оформление</div>
+            <div class="tabs tabs--3" style="margin-bottom:16px">
+              <button type="button">Тёмная</button>
+              <button type="button" class="is-on">Светлая</button>
+              <button type="button">Авто</button>
+            </div>
+            <div class="links-row"><button type="button" class="link">Изменить профиль</button></div>
+          </div>
+          <div class="pane pane-accounts">
+            <p class="hint">Скрытый счёт остаётся у брокера и пропадает из сводки.</p>
+            <div class="group">Рубли</div>
+            <label class="line"><input type="checkbox" checked /><span class="line__main"><span class="line__name">Pinkin</span><span class="line__meta">T-Bank</span></span><span class="line__value">837 035,59 ₽</span></label>
+            <label class="line"><input type="checkbox" checked /><span class="line__main"><span class="line__name">Анти-мейнстрим Aggressive</span><span class="line__meta">T-Bank</span></span><span class="line__value">381 559,53 ₽</span></label>
+            <label class="line"><input type="checkbox" checked /><span class="line__main"><span class="line__name">Брокерский счёт 6</span><span class="line__meta">T-Bank</span></span><span class="line__value">8 900,14 ₽</span></label>
+            <label class="line line--dim"><input type="checkbox" /><span class="line__main"><span class="line__name">Брокерский счёт</span><span class="line__meta">T-Bank · скрыт</span></span><span class="line__value">722,26 ₽</span></label>
+            <div class="group">USDT</div>
+            <label class="line"><input type="checkbox" checked /><span class="line__main"><span class="line__name">ByBit Unified</span><span class="line__meta">Bybit</span></span><span class="line__value">9,63 USDT</span></label>
+          </div>
+          <div class="pane pane-tokens">
+            <div class="line"><span class="line__main"><span class="line__name">брокерский 3</span><span class="line__meta"><b>Активный</b> · вчера</span></span><button type="button" class="link">Удалить</button></div>
+            <div class="line"><span class="line__main"><span class="line__name">Опросник</span><span class="line__meta"><b>Активный</b> · 2 мин назад</span></span><button type="button" class="link">Удалить</button></div>
+            <div class="line"><span class="line__main"><span class="line__name">Т-Инвестиции 21.08.2026</span><span class="line__meta"><b>Активный</b> · 4 ч назад</span></span><button type="button" class="link">Удалить</button></div>
+            <div class="line"><span class="line__main"><span class="line__name">ByBit TST</span><span class="line__meta"><b>Активный</b> · 2 мин назад</span></span><button type="button" class="link">Удалить</button></div>
+            <button type="button" class="submit">Добавить токен</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" data-screen="stage">
+        <div class="scene">
+          <div class="identity">
+            <h2>gy</h2>
+            <p class="lead">Кабинет, счета и ключи брокеров.</p>
+            <div class="facts">
+              <div><span class="label">Почта</span><b>germanyankovich@gmail.com</b></div>
+              <div><span class="label">Телефон</span><b>+79998346928</b></div>
+              <div><span class="label">В кабинете с</span><b>28.02.2026</b></div>
+              <div><span class="label">Последний вход</span><b>сегодня, 09:57</b></div>
+            </div>
+            <div class="label" style="margin-bottom:8px">Оформление</div>
+            <button type="button" class="choice">Тёмная</button>
+            <button type="button" class="choice is-on">Светлая <small>выбрано</small></button>
+            <button type="button" class="choice">Авто</button>
+            <div class="links-row" style="justify-content:flex-start;border:0;padding-top:8px"><button type="button" class="link">Изменить профиль</button></div>
+          </div>
+          <div class="panel work" id="work" data-tab="accounts">
+            <div class="tabs tabs--2" data-for="work">
+              <button type="button" data-tab="accounts" class="is-on">Счета</button>
+              <button type="button" data-tab="tokens">Токены</button>
+            </div>
+            <div class="pane pane-accounts">
+              <p class="hint">Скрытый счёт остаётся у брокера и пропадает из сводки.</p>
+              <label class="line"><input type="checkbox" checked /><span class="line__main"><span class="line__name">Pinkin</span><span class="line__meta">T-Bank</span></span><span class="line__value">837 035 ₽</span></label>
+              <label class="line"><input type="checkbox" checked /><span class="line__main"><span class="line__name">Анти-мейнстрим</span><span class="line__meta">T-Bank</span></span><span class="line__value">381 559 ₽</span></label>
+              <label class="line"><input type="checkbox" checked /><span class="line__main"><span class="line__name">Брокерский счёт 6</span><span class="line__meta">T-Bank</span></span><span class="line__value">8 900 ₽</span></label>
+              <label class="line line--dim"><input type="checkbox" /><span class="line__main"><span class="line__name">Брокерский счёт</span><span class="line__meta">скрыт</span></span><span class="line__value">722 ₽</span></label>
+              <label class="line"><input type="checkbox" checked /><span class="line__main"><span class="line__name">ByBit Unified</span><span class="line__meta">Bybit</span></span><span class="line__value">9,63 USDT</span></label>
+            </div>
+            <div class="pane pane-tokens">
+              <div class="line"><span class="line__main"><span class="line__name">брокерский 3</span><span class="line__meta"><b>Активный</b> · вчера</span></span></div>
+              <div class="line"><span class="line__main"><span class="line__name">Опросник</span><span class="line__meta"><b>Активный</b> · 2 мин назад</span></span></div>
+              <div class="line"><span class="line__main"><span class="line__name">Т-Инвестиции</span><span class="line__meta"><b>Активный</b> · 4 ч назад</span></span></div>
+              <div class="line"><span class="line__main"><span class="line__name">ByBit TST</span><span class="line__meta"><b>Активный</b> · 2 мин назад</span></span></div>
+              <button type="button" class="submit">Добавить токен</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" data-screen="stack">
+        <div class="stack">
+          <section class="panel">
+            <h3>Профиль</h3>
+            <label class="field"><span>Логин</span><input value="gy" readonly /></label>
+            <label class="field"><span>Почта</span><input value="germanyankovich@gmail.com" readonly /></label>
+            <label class="field"><span>Телефон</span><input value="+79998346928" readonly /></label>
+            <label class="field"><span>В кабинете с</span><input value="28.02.2026 · вход сегодня, 09:57" readonly /></label>
+            <div class="links-row"><button type="button" class="link">Изменить профиль</button></div>
+          </section>
+          <section class="panel">
+            <h3>Оформление</h3>
+            <button type="button" class="choice">Тёмная</button>
+            <button type="button" class="choice is-on">Светлая <small>выбрано</small></button>
+            <button type="button" class="choice">Авто</button>
+          </section>
+          <section class="panel">
+            <h3>Счета</h3>
+            <p class="hint">Скрытый счёт остаётся у брокера и пропадает из сводки.</p>
+            <label class="line"><input type="checkbox" checked /><span class="line__main"><span class="line__name">Pinkin</span><span class="line__meta">T-Bank</span></span><span class="line__value">837 035,59 ₽</span></label>
+            <label class="line"><input type="checkbox" checked /><span class="line__main"><span class="line__name">Анти-мейнстрим Aggressive</span><span class="line__meta">T-Bank</span></span><span class="line__value">381 559,53 ₽</span></label>
+            <label class="line line--dim"><input type="checkbox" /><span class="line__main"><span class="line__name">Брокерский счёт</span><span class="line__meta">T-Bank · скрыт</span></span><span class="line__value">722,26 ₽</span></label>
+            <label class="line"><input type="checkbox" checked /><span class="line__main"><span class="line__name">ByBit Unified</span><span class="line__meta">Bybit</span></span><span class="line__value">9,63 USDT</span></label>
+          </section>
+          <section class="panel">
+            <h3>Токены</h3>
+            <div class="line"><span class="line__main"><span class="line__name">брокерский 3</span><span class="line__meta"><b>Активный</b> · вчера</span></span><button type="button" class="link">Удалить</button></div>
+            <div class="line"><span class="line__main"><span class="line__name">Опросник</span><span class="line__meta"><b>Активный</b> · 2 мин назад</span></span><button type="button" class="link">Удалить</button></div>
+            <div class="line"><span class="line__main"><span class="line__name">ByBit TST</span><span class="line__meta"><b>Активный</b> · 2 мин назад</span></span><button type="button" class="link">Удалить</button></div>
+            <button type="button" class="submit">Добавить токен</button>
+          </section>
+        </div>
+      </section>
+    </div>
+  </div>
+<script>
+  const blurbs = {
+    card: 'Одна карточка по центру, как форма входа. Профиль, счета и токены переключаются внутри.',
+    stage: 'Композиция экрана входа: слева кто вы, справа рабочий список. Счета и токены — переключатель панели.',
+    stack: 'Те же панели, что карточка входа, одна под другой. Все разделы видны сразу, без вкладок.',
+  }
+  const app = document.getElementById('app')
+  const blurb = document.getElementById('blurb')
+  const modes = document.querySelectorAll('.picker__modes button')
+  function setLayout(name) {
+    app.dataset.layout = name
+    blurb.textContent = blurbs[name]
+    modes.forEach(btn => btn.classList.toggle('is-on', btn.dataset.layout === name))
+  }
+  modes.forEach(btn => btn.addEventListener('click', () => setLayout(btn.dataset.layout)))
+  setLayout('card')
+  document.getElementById('theme').addEventListener('click', () => {
+    const next = app.dataset.theme === 'dark' ? 'light' : 'dark'
+    app.dataset.theme = next
+    document.getElementById('theme').textContent = next === 'dark' ? 'Светлая' : 'Тёмная'
+  })
+  document.querySelectorAll('.tabs[data-for]').forEach(bar => {
+    const host = document.getElementById(bar.dataset.for)
+    bar.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-tab]')
+      if (!button) return
+      host.dataset.tab = button.dataset.tab
+      bar.querySelectorAll('button').forEach(item => item.classList.toggle('is-on', item === button))
+    })
+  })
+</script>
+</body>
+</html>

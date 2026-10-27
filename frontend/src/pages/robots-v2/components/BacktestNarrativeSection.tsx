@@ -9,7 +9,7 @@ type Props = {
     seedSteps?: BacktestNarrativeStep[] | null
     highlightedTs?: string | null
     onStepClick?: (step: BacktestNarrativeStep) => void
-    /** Open on first paint so a finished run can be read without hunting. */
+    /** Optional override; UX-05 keeps the narrative collapsed by default. */
     defaultOpen?: boolean
 }
 
@@ -94,10 +94,10 @@ export function BacktestNarrativeSection({
             title={(
                 <span className="dashboard-collapse__label">
                     <IconNarrative />
-                    Журнал решений
+                    Как проходил прогон
                 </span>
             )}
-            hint="Шаги прогона по порядку: данные, сигналы, отказы"
+            hint="История прогона по порядку: данные, исполнение и итог"
             badge={
                 <span className="robots-v2-hint">
                     {failed || (steps != null && steps.length === 0)
@@ -119,7 +119,7 @@ export function BacktestNarrativeSection({
                 <p className="robots-v2-hint">Загрузка журнала…</p>
             ) : empty || failed ? (
                 <p className="robots-v2-hint">
-                    Текстового журнала для этого прогона нет. Сделки и сигналы ниже всё равно можно открыть по строке.
+                    Нет текстовой истории для этого прогона. Сделки и сигналы всё равно можно открыть по строке.
                 </p>
             ) : (
                 <>

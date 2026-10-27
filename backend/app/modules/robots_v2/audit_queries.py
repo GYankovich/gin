@@ -2,10 +2,28 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 AUDIT_TYPES = ("sessions", "fills", "cycles", "decisions", "signals", "orders", "roundTrips")
+
+
+def _range_clause(
+    column: str,
+    from_at: datetime | None,
+    to_at: datetime | None,
+) -> tuple[str, dict[str, Any]]:
+    """Half-open [from_at, to_at) on a timestamp column."""
+    parts: list[str] = []
+    params: dict[str, Any] = {}
+    if from_at is not None:
+        parts.append(f"AND {column} >= :from_at")
+        params["from_at"] = from_at
+    if to_at is not None:
+        parts.append(f"AND {column} < :to_at")
+        params["to_at"] = to_at
+    return ("\n".join(parts), params)
 
 
 def build_list_sessions_query(
@@ -78,6 +96,8 @@ def build_list_fills_query(
     limit: int,
     offset: int = 0,
     session_id: UUID | None = None,
+    from_at: datetime | None = None,
+    to_at: datetime | None = None,
     schema: str = "public",
 ) -> tuple[str, dict[str, Any]]:
     params: dict[str, Any] = {
@@ -88,6 +108,8 @@ def build_list_fills_query(
     }
     session_filter, session_params = _fills_session_filter(schema, session_id)
     params.update(session_params)
+    range_filter, range_params = _range_clause("f.filled_at", from_at, to_at)
+    params.update(range_params)
 
     query = f"""
         SELECT
@@ -109,6 +131,7 @@ def build_list_fills_query(
         JOIN {schema}.robots_v2 r ON r.id = f.robot_id
         WHERE f.robot_id = :robot_id AND r.user_id = :user_id
         {session_filter}
+        {range_filter}
         ORDER BY f.filled_at DESC
         LIMIT :limit OFFSET :offset
     """
@@ -120,17 +143,22 @@ def build_count_fills_query(
     robot_id: int,
     user_id: int,
     session_id: UUID | None = None,
+    from_at: datetime | None = None,
+    to_at: datetime | None = None,
     schema: str = "public",
 ) -> tuple[str, dict[str, Any]]:
     params: dict[str, Any] = {"robot_id": robot_id, "user_id": user_id}
     session_filter, session_params = _fills_session_filter(schema, session_id)
     params.update(session_params)
+    range_filter, range_params = _range_clause("f.filled_at", from_at, to_at)
+    params.update(range_params)
     query = f"""
         SELECT COUNT(*) AS cnt
         FROM {schema}.robots_v2_fills f
         JOIN {schema}.robots_v2 r ON r.id = f.robot_id
         WHERE f.robot_id = :robot_id AND r.user_id = :user_id
         {session_filter}
+        {range_filter}
     """
     return query, params
 
@@ -148,6 +176,8 @@ def build_list_cycles_query(
     limit: int,
     offset: int = 0,
     session_id: UUID | None = None,
+    from_at: datetime | None = None,
+    to_at: datetime | None = None,
     schema: str = "public",
 ) -> tuple[str, dict[str, Any]]:
     params: dict[str, Any] = {
@@ -158,6 +188,8 @@ def build_list_cycles_query(
     }
     session_filter, session_params = _cycles_session_filter(session_id)
     params.update(session_params)
+    range_filter, range_params = _range_clause("c.started_at", from_at, to_at)
+    params.update(range_params)
 
     query = f"""
         SELECT
@@ -176,6 +208,7 @@ def build_list_cycles_query(
         JOIN {schema}.robots_v2 r ON r.id = c.robot_id
         WHERE c.robot_id = :robot_id AND r.user_id = :user_id
         {session_filter}
+        {range_filter}
         ORDER BY c.started_at DESC
         LIMIT :limit OFFSET :offset
     """
@@ -187,17 +220,22 @@ def build_count_cycles_query(
     robot_id: int,
     user_id: int,
     session_id: UUID | None = None,
+    from_at: datetime | None = None,
+    to_at: datetime | None = None,
     schema: str = "public",
 ) -> tuple[str, dict[str, Any]]:
     params: dict[str, Any] = {"robot_id": robot_id, "user_id": user_id}
     session_filter, session_params = _cycles_session_filter(session_id)
     params.update(session_params)
+    range_filter, range_params = _range_clause("c.started_at", from_at, to_at)
+    params.update(range_params)
     query = f"""
         SELECT COUNT(*) AS cnt
         FROM {schema}.robots_v2_cycles c
         JOIN {schema}.robots_v2 r ON r.id = c.robot_id
         WHERE c.robot_id = :robot_id AND r.user_id = :user_id
         {session_filter}
+        {range_filter}
     """
     return query, params
 
@@ -377,6 +415,8 @@ def build_list_orders_query(
     limit: int,
     offset: int = 0,
     session_id: UUID | None = None,
+    from_at: datetime | None = None,
+    to_at: datetime | None = None,
     schema: str = "public",
 ) -> tuple[str, dict[str, Any]]:
     params: dict[str, Any] = {
@@ -387,6 +427,8 @@ def build_list_orders_query(
     }
     session_filter, session_params = _orders_session_filter(session_id)
     params.update(session_params)
+    range_filter, range_params = _range_clause("o.submitted_at", from_at, to_at)
+    params.update(range_params)
 
     query = f"""
         SELECT
@@ -409,6 +451,7 @@ def build_list_orders_query(
         JOIN {schema}.robots_v2 r ON r.id = o.robot_id
         WHERE o.robot_id = :robot_id AND r.user_id = :user_id
         {session_filter}
+        {range_filter}
         ORDER BY o.submitted_at DESC
         LIMIT :limit OFFSET :offset
     """
@@ -420,11 +463,15 @@ def build_count_orders_query(
     robot_id: int,
     user_id: int,
     session_id: UUID | None = None,
+    from_at: datetime | None = None,
+    to_at: datetime | None = None,
     schema: str = "public",
 ) -> tuple[str, dict[str, Any]]:
     params: dict[str, Any] = {"robot_id": robot_id, "user_id": user_id}
     session_filter, session_params = _orders_session_filter(session_id)
     params.update(session_params)
+    range_filter, range_params = _range_clause("o.submitted_at", from_at, to_at)
+    params.update(range_params)
     query = f"""
         SELECT COUNT(*) AS cnt
         FROM {schema}.robots_v2_orders o
@@ -432,6 +479,7 @@ def build_count_orders_query(
         JOIN {schema}.robots_v2 r ON r.id = o.robot_id
         WHERE o.robot_id = :robot_id AND r.user_id = :user_id
         {session_filter}
+        {range_filter}
     """
     return query, params
 

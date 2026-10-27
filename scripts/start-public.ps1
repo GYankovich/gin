@@ -90,8 +90,10 @@ if ($listening) {
 }
 
 Write-Host ""
-Write-Host "Open: https://nefor.online" -ForegroundColor Green
-Write-Host "Fallback: https://nefor.online:8443"
+Write-Host "Open: https://ginity.ru" -ForegroundColor Green
+Write-Host "Fallback: https://ginity.ru:8443"
+# Write-Host "Open: https://nefor.online" -ForegroundColor Green
+# Write-Host "Fallback: https://nefor.online:8443"
 Write-Host "Keenetic: 80→80, 443→443 (and keep 8080/8443 as backup)"
 Write-Host 'Need: $env:GIN_ENV="production"; python backend/run.py all'
 Write-Host "Vite is NOT used in production (static dist/ only)."

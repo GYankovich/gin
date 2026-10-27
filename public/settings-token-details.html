@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark" data-v="a">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>settings-token-details · варианты · GIN</title>
+<style>
+  :root {
+    --bg-page: #0a0a0f;
+    --bg-card: #12121a;
+    --bg-input: #0e0e16;
+    --bg-elevated: #181824;
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-medium: rgba(255, 255, 255, 0.12);
+    --text-primary: #e0e0e0;
+    --text-secondary: #888888;
+    --text-muted: #555555;
+    --color-up: #00ffaa;
+    --color-down: #ff3366;
+    --color-warn: #ffaa00;
+    --radius-lg: 12px;
+    --picker-bg: #0e0e14;
+    --phone-w: 390px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    background: #07070b;
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+  button:focus-visible { outline: 2px solid rgba(255,255,255,0.28); outline-offset: 2px; }
+
+  .picker {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 20px;
+    padding: 14px 20px;
+    background: var(--picker-bg);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .picker h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .picker p { margin: 4px 0 0; max-width: 72ch; font-size: 13px; color: var(--text-secondary); line-height: 1.45; }
+  .picker__modes {
+    display: flex; flex-wrap: wrap; gap: 4px; padding: 4px;
+    margin-left: auto; background: var(--bg-input); border-radius: 12px;
+  }
+  .picker__modes button {
+    border: 1px solid transparent; border-radius: 9px;
+    padding: 8px 12px; min-height: 36px;
+    font-size: 13px; font-weight: 500; color: var(--text-muted);
+  }
+  .picker__modes button.is-on {
+    background: var(--bg-elevated); color: var(--text-primary);
+    border-color: var(--border-medium);
+  }
+  .picker__note {
+    flex: 1 1 100%;
+    margin: 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.4;
+  }
+  .picker__note strong { color: var(--text-secondary); }
+
+  .stage {
+    display: flex; justify-content: center;
+    padding: 28px 16px 48px; min-height: calc(100vh - 100px);
+  }
+  .phone {
+    width: var(--phone-w); max-width: 100%;
+    border-radius: 28px;
+    border: 1px solid var(--border-medium);
+    background: var(--bg-page);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.55);
+    overflow: hidden;
+  }
+  .phone__pad { padding: 14px 12px 24px; }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .broker-h {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; min-height: 52px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .broker-h__icon {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: grid; place-items: center;
+    background: var(--bg-input); border: 1px solid var(--border-subtle);
+    font-size: 10px; font-weight: 700; color: var(--text-secondary);
+  }
+  .broker-h__name { font-size: 14.5px; font-weight: 600; }
+
+  .seg {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 3px;
+    margin: 10px 12px 0; padding: 3px; border-radius: 10px; background: var(--bg-input);
+  }
+  .seg button {
+    min-height: 34px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    color: var(--text-muted);
+  }
+  .seg button.is-on { background: var(--bg-elevated); color: var(--text-primary); }
+
+  .tok-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; min-height: 52px;
+  }
+  .tok-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; text-align: left; }
+  .tok-title { display: flex; align-items: center; gap: 8px; }
+  .dot {
+    width: 7px; height: 7px; border-radius: 999px; background: var(--color-up); flex-shrink: 0;
+  }
+  .name { font-size: 14px; font-weight: 400; }
+  .meta { font-size: 12px; color: var(--text-secondary); }
+  .del {
+    width: 44px; height: 44px; display: grid; place-items: center;
+    color: color-mix(in srgb, var(--color-down) 80%, var(--text-secondary)); font-size: 13px;
+  }
+  .add-row {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 12px 14px 14px;
+    border-top: 1px solid var(--border-subtle);
+    font-size: 13px; font-weight: 500; color: var(--text-secondary);
+  }
+  .add-row span { font-size: 9px; line-height: 1; }
+
+  .variant { display: none; }
+  body[data-v='a'] .variant-a,
+  body[data-v='b'] .variant-b,
+  body[data-v='c'] .variant-c,
+  body[data-v='d'] .variant-d,
+  body[data-v='e'] .variant-e { display: block; }
+
+  .hint {
+    margin: 0; font-size: 12px; line-height: 1.4; color: var(--color-warn);
+  }
+  .token-meta {
+    display: flex; flex-wrap: wrap; gap: 6px; margin: 0;
+    font-size: 12px; color: var(--text-muted); line-height: 1.4;
+  }
+  .ico {
+    width: 13px; height: 13px; display: inline-block; vertical-align: middle;
+    opacity: 0.85;
+  }
+  .ico svg { display: block; width: 100%; height: 100%; }
+
+  /* ——— A · Now ——— */
+  .a-details {
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 4px 14px 12px;
+  }
+  .a-lab {
+    display: block; margin-bottom: 5px;
+    font-size: 11px; font-weight: 500; letter-spacing: 0.02em;
+    text-transform: uppercase; color: var(--text-muted);
+  }
+  .a-lab::after {
+    content: ' · копировать';
+    font-weight: 400; letter-spacing: 0; text-transform: none; opacity: 0.75;
+  }
+  .a-row { display: flex; align-items: stretch; gap: 8px; min-width: 0; }
+  .a-val {
+    flex: 1; min-width: 0; text-align: left;
+    padding: 8px 11px; border-radius: 8px;
+    background: var(--bg-input);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.35);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px; letter-spacing: 0.02em;
+  }
+  .a-ref {
+    width: 36px; display: grid; place-items: center;
+    color: var(--text-muted);
+  }
+
+  /* ——— B · Flat ——— */
+  .b-details {
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 2px 14px 14px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .b-lab {
+    font-size: 12px; font-weight: 500; color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .b-row {
+    display: flex; align-items: center; gap: 10px; min-width: 0;
+  }
+  .b-val {
+    flex: 1; min-width: 0; text-align: left;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px; color: var(--text-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .b-acts { display: flex; gap: 4px; flex-shrink: 0; }
+  .b-acts button {
+    width: 32px; height: 32px; display: grid; place-items: center;
+    border-radius: 8px; color: var(--text-muted);
+  }
+  .b-acts button:hover { color: var(--text-secondary); background: var(--bg-input); }
+
+  /* ——— C · Well ——— */
+  .c-details { padding: 0 12px 12px; }
+  .c-well {
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+  }
+  .c-top {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+  }
+  .c-lab { font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .c-val {
+    margin-top: 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px; word-break: break-all; line-height: 1.35;
+  }
+  .c-acts { display: flex; gap: 2px; flex-shrink: 0; }
+  .c-acts button {
+    width: 32px; height: 32px; display: grid; place-items: center;
+    color: var(--text-muted); border-radius: 8px;
+  }
+  .c-foot { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; color: var(--text-muted); }
+
+  /* ——— D · Links ——— */
+  .d-details {
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 4px 14px 14px;
+  }
+  .d-val {
+    text-align: left;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13.5px; line-height: 1.35; word-break: break-all;
+  }
+  .d-links {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px;
+  }
+  .d-links button {
+    font-size: 12.5px; font-weight: 500; color: var(--text-secondary);
+  }
+  .d-links button:hover { color: var(--text-primary); }
+
+  /* ——— E · Compact ——— */
+  .e-details {
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 2px 14px 12px;
+  }
+  .e-line {
+    display: flex; align-items: center; gap: 8px;
+    min-height: 36px;
+    padding: 0 2px;
+  }
+  .e-val {
+    flex: 1; min-width: 0; text-align: left;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--text-secondary);
+  }
+  .e-line button {
+    flex-shrink: 0;
+    font-size: 12px; font-weight: 500; color: var(--text-muted);
+    padding: 4px 2px;
+  }
+  .e-line button:hover { color: var(--text-secondary); }
+  .e-line .e-ref { width: 28px; display: grid; place-items: center; padding: 0; }
+</style>
+</head>
+<body data-v="a">
+  <header class="picker">
+    <div>
+      <h1>settings-token-details</h1>
+      <p>Варианты раскрытой панели токена (sheet). Строка списка — уже принятый B.</p>
+    </div>
+    <div class="picker__modes" role="tablist" aria-label="Вариант">
+      <button type="button" data-v="a" class="is-on">A · Now</button>
+      <button type="button" data-v="b">B · Flat</button>
+      <button type="button" data-v="c">C · Well</button>
+      <button type="button" data-v="d">D · Links</button>
+      <button type="button" data-v="e">E · Compact</button>
+    </div>
+    <p class="picker__note" id="note">
+      <strong>A · Now</strong> — label + input-коробка + refresh; meta строкой.
+    </p>
+  </header>
+
+  <main class="stage">
+    <div class="phone">
+      <div class="phone__pad">
+        <div class="card">
+          <div class="broker-h">
+            <span class="broker-h__icon">T</span>
+            <span class="broker-h__name">T-Bank</span>
+          </div>
+          <div class="seg">
+            <button type="button" class="is-on">Токены</button>
+            <button type="button">Счета</button>
+          </div>
+
+          <div class="tok-row">
+            <button type="button" class="tok-main">
+              <span class="tok-title"><span class="dot"></span><span class="name">Основной</span></span>
+              <span class="meta">2 ч назад</span>
+            </button>
+            <button type="button" class="del" aria-label="Удалить">⌫</button>
+          </div>
+
+          <!-- A -->
+          <div class="variant variant-a">
+            <div class="a-details">
+              <div>
+                <span class="a-lab">Token</span>
+                <div class="a-row">
+                  <button type="button" class="a-val">t.••••••••••••xk2q</button>
+                  <button type="button" class="a-ref" aria-label="Проверить">
+                    <span class="ico" aria-hidden>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>
+                    </span>
+                  </button>
+                </div>
+              </div>
+              <p class="token-meta"><span>Trade</span><span aria-hidden>·</span><span>создан 12.03.2025</span></p>
+            </div>
+          </div>
+
+          <!-- B -->
+          <div class="variant variant-b">
+            <div class="b-details">
+              <div>
+                <div class="b-lab">Token</div>
+                <div class="b-row">
+                  <button type="button" class="b-val" title="Копировать">t.••••••••••••xk2q</button>
+                  <div class="b-acts">
+                    <button type="button" aria-label="Копировать">
+                      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span>
+                    </button>
+                    <button type="button" aria-label="Проверить">
+                      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <p class="token-meta"><span>Trade</span><span aria-hidden>·</span><span>создан 12.03.2025</span></p>
+            </div>
+          </div>
+
+          <!-- C -->
+          <div class="variant variant-c">
+            <div class="c-details">
+              <div class="c-well">
+                <div class="c-top">
+                  <div>
+                    <div class="c-lab">Token</div>
+                    <div class="c-val">t.••••••••••••xk2q</div>
+                  </div>
+                  <div class="c-acts">
+                    <button type="button" aria-label="Копировать">
+                      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span>
+                    </button>
+                    <button type="button" aria-label="Проверить">
+                      <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg></span>
+                    </button>
+                  </div>
+                </div>
+                <div class="c-foot"><span>Trade</span><span aria-hidden>·</span><span>создан 12.03.2025</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- D -->
+          <div class="variant variant-d">
+            <div class="d-details">
+              <button type="button" class="d-val">t.••••••••••••xk2q</button>
+              <div class="d-links">
+                <button type="button">Копировать</button>
+                <button type="button">Проверить</button>
+              </div>
+              <p class="token-meta"><span>Trade</span><span aria-hidden>·</span><span>создан 12.03.2025</span></p>
+              <p class="hint">Последняя ошибка: timeout</p>
+            </div>
+          </div>
+
+          <!-- E -->
+          <div class="variant variant-e">
+            <div class="e-details">
+              <div class="e-line">
+                <button type="button" class="e-val">t.••••••••••••xk2q</button>
+                <button type="button">Копир.</button>
+                <button type="button" class="e-ref" aria-label="Проверить">
+                  <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg></span>
+                </button>
+              </div>
+              <p class="token-meta"><span>Trade</span><span aria-hidden>·</span><span>создан 12.03.2025</span></p>
+            </div>
+          </div>
+
+          <button type="button" class="add-row"><span>+</span> Добавить токен</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const notes = {
+      a: '<strong>A · Now</strong> — uppercase label «· копировать», input-коробка, refresh справа; meta ниже.',
+      b: '<strong>B · Flat</strong> — без input-фона: mono-текст + иконки copy/refresh; лёгкий разделитель сверху.',
+      c: '<strong>C · Well</strong> — всё в одном inset-колодце: токен, действия, meta внутри.',
+      d: '<strong>D · Links</strong> — токен как текст, действия текстовыми ссылками «Копировать / Проверить».',
+      e: '<strong>E · Compact</strong> — одна строка: masked · Копир. · refresh; минимум chrome.',
+    };
+    const noteEl = document.getElementById('note');
+    const buttons = [...document.querySelectorAll('.picker__modes button')];
+    function setV(v) {
+      document.body.dataset.v = v;
+      buttons.forEach((b) => b.classList.toggle('is-on', b.dataset.v === v));
+      noteEl.innerHTML = notes[v];
+      history.replaceState(null, '', '#' + v);
+    }
+    buttons.forEach((b) => b.addEventListener('click', () => setV(b.dataset.v)));
+    const fromHash = (location.hash || '#a').slice(1);
+    if (notes[fromHash]) setV(fromHash);
+  </script>
+</body>
+</html>

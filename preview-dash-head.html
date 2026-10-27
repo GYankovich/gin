@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+    <meta charset="UTF-8" />
+    <title>dash-head — варианты 1 и 3</title>
+    <script type="module">
+        import '/frontend/src/styles/variables.css'
+        import '/frontend/src/styles/global.css'
+        import '/frontend/src/pages/DashboardPage.css'
+        import '/frontend/src/styles/responsive.css'
+    </script>
+    <style>
+        .preview-stage {
+            margin-top: 0;
+        }
+        .dash-gear {
+            margin-left: auto;
+        }
+    </style>
+</head>
+<body>
+    <header class="navbar" role="navigation">
+        <div class="navbar__left">
+            <a class="navbar__brand" href="#1"><img class="navbar__logo" src="/frontend/src/assets/ginity-logo-infinity-g.png" alt=""></a>
+        </div>
+        <nav class="navbar__links">
+            <a class="nav-link nav-link--active" href="#1">Дашборд</a>
+            <a class="nav-link" href="#1">Портфель</a>
+            <a class="nav-link" href="#1">Роботы</a>
+            <a class="nav-link" href="#1">Лаборатория</a>
+        </nav>
+        <div class="navbar__right">
+            <button type="button" class="navbar__theme-btn" aria-label="Светлая тема">
+                <svg class="navbar__theme-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="8.25" fill="none" stroke="currentColor" stroke-width="1.5"></circle>
+                    <path d="M12 3.75a8.25 8.25 0 0 0 0 16.5V3.75Z" fill="currentColor"></path>
+                </svg>
+            </button>
+            <button type="button" class="navbar__avatar" aria-label="Меню пользователя">GY</button>
+        </div>
+    </header>
+    <main class="main-content">
+        <div class="page preview-stage" data-page="dashboard" id="stage"></div>
+    </main>
+    <template id="card">
+        <section class="dashboard-currency-row">
+            <div class="dashboard-currency-grid">
+                <div class="card dashboard-totals-card">
+                    <div class="dashboard-totals-card__head">
+                        <h3 class="dashboard-panel-title">Сводка</h3>
+                    </div>
+                    <div class="dashboard-summary-metrics">
+                        <div class="dashboard-summary-metric dashboard-summary-metric--own dashboard-summary-metric--primary">
+                            <span class="dashboard-summary-metric__label">Собственные средства</span>
+                            <span class="dashboard-summary-metric__value mono">1 500 000 ₽</span>
+                        </div>
+                        <div class="dashboard-summary-metric dashboard-summary-metric--value dashboard-summary-metric--primary">
+                            <span class="dashboard-summary-metric__label">Текущая стоимость</span>
+                            <span class="dashboard-summary-metric__value mono">1 840 000 ₽</span>
+                        </div>
+                        <div class="dashboard-summary-metric dashboard-summary-metric--gain">
+                            <span class="dashboard-summary-metric__label">Общее изменение</span>
+                            <span class="dashboard-summary-metric__value mono color-up">+340 000 ₽ · +22,7%</span>
+                        </div>
+                        <div class="dashboard-summary-metric dashboard-summary-metric--day">
+                            <span class="dashboard-summary-metric__label">За день</span>
+                            <span class="dashboard-summary-metric__value mono color-up">+12 400 ₽ · +0,7%</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card dashboard-assets-card">
+                    <div class="dashboard-assets-card__head">
+                        <h3 class="dashboard-panel-title">Структура активов</h3>
+                    </div>
+                    <div class="dashboard-dist-list">
+                        <div class="dashboard-dist-row dashboard-dist-row--up">
+                            <div class="dashboard-dist-row__main">
+                                <span class="dashboard-dist-row__type">Акции</span>
+                                <span class="dashboard-dist-row__pct mono">1 200 000 ₽ (65 %)</span>
+                            </div>
+                            <div class="dashboard-dist-bar-track"><div class="dashboard-dist-bar-fill" style="width:65%"></div></div>
+                        </div>
+                        <div class="dashboard-dist-row dashboard-dist-row--warn">
+                            <div class="dashboard-dist-row__main">
+                                <span class="dashboard-dist-row__type">Облигации</span>
+                                <span class="dashboard-dist-row__pct mono">460 000 ₽ (25 %)</span>
+                            </div>
+                            <div class="dashboard-dist-bar-track"><div class="dashboard-dist-bar-fill" style="width:25%"></div></div>
+                        </div>
+                        <div class="dashboard-dist-row">
+                            <div class="dashboard-dist-row__main">
+                                <span class="dashboard-dist-row__type">Деньги</span>
+                                <span class="dashboard-dist-row__pct mono">180 000 ₽ (10 %)</span>
+                            </div>
+                            <div class="dashboard-dist-bar-track"><div class="dashboard-dist-bar-fill" style="width:10%"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </template>
+    <template id="settings">
+        <button type="button" class="dash-gear" aria-label="Настроить" title="Настроить">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="none" stroke="currentColor" stroke-width="1.15" stroke-linejoin="miter" d="M12.78 4.89 14.68 2.78 16.62 3.59 16.47 6.42 17.58 7.53 20.41 7.38 21.22 9.32 19.11 11.22 19.11 12.78 21.22 14.68 20.41 16.62 17.58 16.47 16.47 17.58 16.62 20.41 14.68 21.22 12.78 19.11 11.22 19.11 9.32 21.22 7.38 20.41 7.53 17.58 6.42 16.47 3.59 16.62 2.78 14.68 4.89 12.78 4.89 11.22 2.78 9.32 3.59 7.38 6.42 7.53 7.53 6.42 7.38 3.59 9.32 2.78 11.22 4.89Z"></path>
+                <circle cx="12" cy="12" r="3.15" fill="none" stroke="currentColor" stroke-width="1.15"></circle>
+            </svg>
+        </button>
+    </template>
+    <script>
+        const stage = document.getElementById('stage')
+        const card = document.getElementById('card').content.cloneNode(true)
+        const button = document.getElementById('settings').content.cloneNode(true)
+        card.querySelector('.dashboard-totals-card__head').append(button)
+        stage.append(card)
+    </script>
+</body>
+</html>

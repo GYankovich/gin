@@ -61,6 +61,15 @@ class OsEngineMcpClient:
             self._client = httpx.AsyncClient(timeout=self._timeout)
         return self._client
 
+    async def _start_osengine_if_down(self) -> bool:
+        try:
+            from app.modules.osengine.process import ensure_osengine_running
+
+            return await ensure_osengine_running()
+        except Exception:
+            logger.exception("osengine on-demand start failed")
+            return False
+
     async def call_tool(self, name: str, arguments: Optional[Dict[str, Any]] = None) -> Any:
         if not self._url:
             raise OsEngineMcpError("OSENGINE_MCP_URL is empty")
@@ -81,7 +90,12 @@ class OsEngineMcpClient:
         try:
             resp = await http.post(self._url, json=payload, headers=headers)
         except httpx.HTTPError as exc:
-            raise OsEngineMcpError(f"OsEngine MCP HTTP error: {exc}") from exc
+            if not await self._start_osengine_if_down():
+                raise OsEngineMcpError(f"OsEngine MCP HTTP error: {exc}") from exc
+            try:
+                resp = await http.post(self._url, json=payload, headers=headers)
+            except httpx.HTTPError as retry_exc:
+                raise OsEngineMcpError(f"OsEngine MCP HTTP error: {retry_exc}") from retry_exc
 
         if resp.status_code == 401:
             raise OsEngineMcpError("OsEngine MCP unauthorized (check OSENGINE_MCP_API_KEY)", code=401)

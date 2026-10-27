@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>dashboard-mobile-header · варианты</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --card: #12161b;
+    --input: #181c22;
+    --elevated: #1b2027;
+    --text: #eceff3;
+    --secondary: #b4bcc6;
+    --muted: #8b939e;
+    --border: rgba(255, 255, 255, 0.08);
+    --line: rgba(255, 255, 255, 0.14);
+    --up: #3dbe7a;
+    --picker: #0e1114;
+  }
+  [data-theme='light'] {
+    --bg: #f4f6f8;
+    --card: #ffffff;
+    --input: #eef1f4;
+    --elevated: #ffffff;
+    --text: #0f172a;
+    --secondary: #334155;
+    --muted: #64748b;
+    --border: rgba(15, 23, 42, 0.1);
+    --line: rgba(15, 23, 42, 0.16);
+    --up: #0e9f6e;
+    --picker: #ffffff;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: Inter, system-ui, sans-serif;
+    background: #0b0d10;
+    color: #e8eaed;
+  }
+  [data-theme='light'] body { background: #e8eaed; color: #0f172a; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+
+  .picker {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;
+    padding: 14px 22px;
+    background: var(--picker);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+  [data-theme='light'] .picker { border-bottom-color: rgba(15,23,42,.1); }
+  .picker h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .picker p { margin: 2px 0 0; font-size: 13px; color: #8b939c; max-width: 64ch; }
+  .theme-toggle {
+    margin-left: auto;
+    border: 1px solid rgba(255,255,255,.08);
+    background: #181c21; color: #e8eaed;
+    border-radius: 9px; padding: 8px 12px; font-size: 13px;
+  }
+  [data-theme='light'] .theme-toggle {
+    background: #fff; color: #0f172a; border-color: rgba(15,23,42,.12);
+  }
+
+  .gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 28px;
+    padding: 28px 22px 48px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .card h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  .card p { margin: 4px 0 12px; font-size: 13px; line-height: 1.45; color: #8b939c; max-width: 38ch; }
+
+  .phone {
+    position: relative;
+    width: 100%; max-width: 360px;
+    aspect-ratio: 9 / 16;
+    margin: 0 auto;
+    border-radius: 36px;
+    border: 1px solid rgba(255,255,255,.12);
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,.45);
+  }
+  [data-theme='light'] .phone {
+    border-color: rgba(15,23,42,.14);
+    box-shadow: 0 18px 40px rgba(15,23,42,.1);
+  }
+  .phone__notch {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    width: 96px; height: 22px; border-radius: 999px; background: #0a0c0f; z-index: 4;
+  }
+  [data-theme='light'] .phone__notch { background: #cbd5e1; }
+
+  .screen {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding-top: 36px;
+  }
+  .content {
+    flex: 1;
+    overflow: hidden;
+    padding: 12px 14px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px;
+  }
+  .panel .k { color: var(--muted); font-size: 11px; font-weight: 500; }
+  .panel .v { margin-top: 4px; font-size: 22px; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .panel .d { margin-top: 4px; font-size: 12px; color: var(--up); }
+  .bar {
+    height: 8px; border-radius: 999px; background: var(--input); overflow: hidden; margin-top: 8px;
+  }
+  .bar i { display: block; height: 100%; width: 62%; background: color-mix(in srgb, var(--text) 28%, transparent); border-radius: inherit; }
+
+  .dock {
+    position: absolute; left: 12px; right: 12px; bottom: 14px; z-index: 5;
+    height: 56px; padding: 4px 6px;
+    display: flex; align-items: center; gap: 4px;
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--card) 28%, transparent);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(20px) saturate(1.3);
+    -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  }
+  .dock__logo {
+    width: 22px; height: 22px; margin: 0 8px;
+    filter: brightness(0) invert(1); opacity: 1;
+  }
+  [data-theme='light'] .dock__logo { filter: brightness(0); }
+  .dock__tabs { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); height: 100%; }
+  .dock__tab {
+    border: 0; background: transparent; color: var(--text); opacity: .4;
+    display: grid; place-items: center; font-size: 10px;
+  }
+  .dock__tab.is-on { opacity: 1; }
+  .dock__avatar {
+    width: 44px; height: 44px; border: 0; background: transparent;
+    color: var(--text); opacity: .4; font-size: 11px; font-weight: 600;
+  }
+
+  /* shared header bits */
+  .hdr {
+    position: relative; z-index: 3;
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px 10px;
+    flex: none;
+  }
+  .chips {
+    flex: 1; min-width: 0;
+    display: flex; gap: 6px; padding: 3px;
+    overflow: auto;
+  }
+  .chip {
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text);
+    opacity: .4;
+    border-radius: 9px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .chip.is-on {
+    opacity: 1;
+    background: color-mix(in srgb, var(--card) 72%, transparent);
+    border-color: var(--line);
+  }
+  .gear {
+    width: 36px; height: 36px; flex: 0 0 auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text);
+    opacity: .55;
+    display: grid; place-items: center;
+  }
+  .gear svg { width: 16px; height: 16px; }
+  .solo {
+    flex: 1; font-size: 15px; font-weight: 600; letter-spacing: -.02em;
+  }
+
+  /* A — now: transparent */
+  .v-a .hdr { background: transparent; border: 0; }
+
+  /* B — frosted like dock */
+  .v-b .hdr {
+    background: color-mix(in srgb, var(--card) 36%, transparent);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(18px) saturate(1.25);
+    -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  }
+
+  /* C — floating island */
+  .v-c .hdr {
+    margin: 0 12px;
+    padding: 6px 8px;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--card) 40%, transparent);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 10px 28px rgba(0,0,0,.22);
+  }
+  .v-c .content { padding-top: 10px; }
+
+  /* D — segmented control */
+  .v-d .seg {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3px;
+    padding: 3px;
+    background: var(--input);
+    border-radius: 12px;
+  }
+  .v-d .seg button {
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    border-radius: 9px;
+    padding: 8px 6px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .v-d .seg button.is-on {
+    background: var(--elevated);
+    color: var(--text);
+    border-color: var(--line);
+  }
+  .v-d .hdr { background: transparent; }
+
+  /* E — title + inline total */
+  .v-e .hdr {
+    background: transparent;
+    align-items: flex-end;
+    padding-bottom: 12px;
+  }
+  .v-e .hero { flex: 1; min-width: 0; }
+  .v-e .hero small { display: block; color: var(--muted); font-size: 11px; font-weight: 500; }
+  .v-e .hero strong { display: block; margin-top: 2px; font-size: 20px; font-weight: 600; letter-spacing: -.03em; }
+  .v-e .hero em { display: block; margin-top: 2px; font-style: normal; font-size: 12px; color: var(--up); }
+
+  /* F — underline tabs */
+  .v-f .hdr {
+    background: transparent;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0;
+    align-items: stretch;
+  }
+  .v-f .tabs {
+    flex: 1; display: flex; gap: 0; min-width: 0;
+  }
+  .v-f .tabs button {
+    border: 0; background: transparent;
+    color: var(--text); opacity: .4;
+    padding: 10px 12px 12px;
+    font-size: 13px; font-weight: 600;
+    position: relative;
+  }
+  .v-f .tabs button.is-on { opacity: 1; }
+  .v-f .tabs button.is-on::after {
+    content: '';
+    position: absolute; left: 10px; right: 10px; bottom: 0;
+    height: 2px; border-radius: 1px; background: var(--text);
+  }
+  .v-f .gear { align-self: center; margin-bottom: 6px; }
+
+  /* G — compact status row */
+  .v-g .hdr {
+    background: transparent;
+    gap: 10px;
+  }
+  .v-g .pill {
+    flex: 1;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--card) 35%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+  .v-g .pill b { font-size: 13px; font-weight: 600; }
+  .v-g .pill span { font-size: 12px; color: var(--up); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+  <header class="picker">
+    <div>
+      <h1>Варианты mobile header</h1>
+      <p>Сейчас в приложении — A (без фона). Тап по валюте переключает активную. Напиши букву — перенесу.</p>
+    </div>
+    <button type="button" class="theme-toggle" id="themeToggle">Тема</button>
+  </header>
+
+  <div class="gallery">
+
+    <article class="card">
+      <h2>A. Прозрачный</h2>
+      <p>Как сейчас: только chips + gear поверх контента, без подложки.</p>
+      <div class="phone v-a" data-v="a">
+        <div class="phone__notch"></div>
+        <div class="screen">
+          <header class="hdr">
+            <div class="chips" data-chips></div>
+            <button type="button" class="gear" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6.2 6.2l1.6 1.6M16.2 16.2l1.6 1.6M17.8 6.2l-1.6 1.6M7.8 16.2l-1.6 1.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+          </header>
+          <div class="content" data-body></div>
+        </div>
+        <nav class="dock" aria-hidden="true">
+          <img class="dock__logo" src="/favicon.svg" alt="" />
+          <div class="dock__tabs">
+            <button type="button" class="dock__tab is-on">●</button>
+            <button type="button" class="dock__tab">●</button>
+            <button type="button" class="dock__tab">●</button>
+          </div>
+          <button type="button" class="dock__avatar">GY</button>
+        </nav>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>B. Frosted bar</h2>
+      <p>Как капсула: лёгкий blur + полупрозрачность, hairline снизу.</p>
+      <div class="phone v-b" data-v="b">
+        <div class="phone__notch"></div>
+        <div class="screen">
+          <header class="hdr">
+            <div class="chips" data-chips></div>
+            <button type="button" class="gear" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6.2 6.2l1.6 1.6M16.2 16.2l1.6 1.6M17.8 6.2l-1.6 1.6M7.8 16.2l-1.6 1.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+          </header>
+          <div class="content" data-body></div>
+        </div>
+        <nav class="dock" aria-hidden="true">
+          <img class="dock__logo" src="/favicon.svg" alt="" />
+          <div class="dock__tabs"><button type="button" class="dock__tab is-on">●</button><button type="button" class="dock__tab">●</button><button type="button" class="dock__tab">●</button></div>
+          <button type="button" class="dock__avatar">GY</button>
+        </nav>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>C. Floating island</h2>
+      <p>Отдельная капсула сверху — пара к нижнему dock.</p>
+      <div class="phone v-c" data-v="c">
+        <div class="phone__notch"></div>
+        <div class="screen">
+          <header class="hdr">
+            <div class="chips" data-chips></div>
+            <button type="button" class="gear" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6.2 6.2l1.6 1.6M16.2 16.2l1.6 1.6M17.8 6.2l-1.6 1.6M7.8 16.2l-1.6 1.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+          </header>
+          <div class="content" data-body></div>
+        </div>
+        <nav class="dock" aria-hidden="true">
+          <img class="dock__logo" src="/favicon.svg" alt="" />
+          <div class="dock__tabs"><button type="button" class="dock__tab is-on">●</button><button type="button" class="dock__tab">●</button><button type="button" class="dock__tab">●</button></div>
+          <button type="button" class="dock__avatar">GY</button>
+        </nav>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>D. Auth-сегменты</h2>
+      <p>Как tabs на логине: равные сегменты в input-блоке.</p>
+      <div class="phone v-d" data-v="d">
+        <div class="phone__notch"></div>
+        <div class="screen">
+          <header class="hdr">
+            <div class="seg" data-seg>
+              <button type="button" class="is-on">RUB</button>
+              <button type="button">USDT</button>
+              <button type="button">USD</button>
+            </div>
+            <button type="button" class="gear" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6.2 6.2l1.6 1.6M16.2 16.2l1.6 1.6M17.8 6.2l-1.6 1.6M7.8 16.2l-1.6 1.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+          </header>
+          <div class="content" data-body></div>
+        </div>
+        <nav class="dock" aria-hidden="true">
+          <img class="dock__logo" src="/favicon.svg" alt="" />
+          <div class="dock__tabs"><button type="button" class="dock__tab is-on">●</button><button type="button" class="dock__tab">●</button><button type="button" class="dock__tab">●</button></div>
+          <button type="button" class="dock__avatar">GY</button>
+        </nav>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>E. Hero total</h2>
+      <p>В шапке сразу сумма и день; валюты — вторично или в solo.</p>
+      <div class="phone v-e" data-v="e">
+        <div class="phone__notch"></div>
+        <div class="screen">
+          <header class="hdr">
+            <div class="hero">
+              <small>RUB · стоимость</small>
+              <strong>1 840 000 ₽</strong>
+              <em>+12 400 ₽ · +0,7%</em>
+            </div>
+            <button type="button" class="gear" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6.2 6.2l1.6 1.6M16.2 16.2l1.6 1.6M17.8 6.2l-1.6 1.6M7.8 16.2l-1.6 1.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+          </header>
+          <div class="content" data-body></div>
+        </div>
+        <nav class="dock" aria-hidden="true">
+          <img class="dock__logo" src="/favicon.svg" alt="" />
+          <div class="dock__tabs"><button type="button" class="dock__tab is-on">●</button><button type="button" class="dock__tab">●</button><button type="button" class="dock__tab">●</button></div>
+          <button type="button" class="dock__avatar">GY</button>
+        </nav>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>F. Underline tabs</h2>
+      <p>Текстовые вкладки с чёрточкой — меньше «пилюль».</p>
+      <div class="phone v-f" data-v="f">
+        <div class="phone__notch"></div>
+        <div class="screen">
+          <header class="hdr">
+            <div class="tabs" data-tabs>
+              <button type="button" class="is-on">RUB</button>
+              <button type="button">USDT</button>
+              <button type="button">USD</button>
+            </div>
+            <button type="button" class="gear" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6.2 6.2l1.6 1.6M16.2 16.2l1.6 1.6M17.8 6.2l-1.6 1.6M7.8 16.2l-1.6 1.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+          </header>
+          <div class="content" data-body></div>
+        </div>
+        <nav class="dock" aria-hidden="true">
+          <img class="dock__logo" src="/favicon.svg" alt="" />
+          <div class="dock__tabs"><button type="button" class="dock__tab is-on">●</button><button type="button" class="dock__tab">●</button><button type="button" class="dock__tab">●</button></div>
+          <button type="button" class="dock__avatar">GY</button>
+        </nav>
+      </div>
+    </article>
+
+    <article class="card">
+      <h2>G. Status pill</h2>
+      <p>Одна строка: валюта + день. Переключение — тап по pill (цикл).</p>
+      <div class="phone v-g" data-v="g">
+        <div class="phone__notch"></div>
+        <div class="screen">
+          <header class="hdr">
+            <button type="button" class="pill" data-pill>
+              <b data-pill-cur>RUB</b>
+              <span data-pill-day>+0,7%</span>
+            </button>
+            <button type="button" class="gear" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6.2 6.2l1.6 1.6M16.2 16.2l1.6 1.6M17.8 6.2l-1.6 1.6M7.8 16.2l-1.6 1.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+          </header>
+          <div class="content" data-body></div>
+        </div>
+        <nav class="dock" aria-hidden="true">
+          <img class="dock__logo" src="/favicon.svg" alt="" />
+          <div class="dock__tabs"><button type="button" class="dock__tab is-on">●</button><button type="button" class="dock__tab">●</button><button type="button" class="dock__tab">●</button></div>
+          <button type="button" class="dock__avatar">GY</button>
+        </nav>
+      </div>
+    </article>
+
+  </div>
+
+<script>
+  const CURRENCIES = [
+    { id: 'RUB', value: '1 840 000 ₽', day: '+12 400 ₽ · +0,7%' },
+    { id: 'USDT', value: '18 420 USDT', day: '+86 · +0,5%' },
+    { id: 'USD', value: '$12 110', day: '+42 · +0,3%' },
+  ]
+
+  function bodyHtml(c) {
+    return `
+      <div class="panel">
+        <div class="k">Текущая стоимость · ${c.id}</div>
+        <div class="v">${c.value}</div>
+        <div class="d">${c.day}</div>
+      </div>
+      <div class="panel">
+        <div class="k">Структура</div>
+        <div class="bar"><i></i></div>
+      </div>
+      <div class="panel">
+        <div class="k">Счета</div>
+        <div style="margin-top:8px;color:var(--secondary);font-size:13px">4 видимых</div>
+      </div>
+    `
+  }
+
+  function fillChips(root, active = 0) {
+    const wrap = root.querySelector('[data-chips]')
+    if (!wrap) return
+    wrap.innerHTML = CURRENCIES.map((c, i) =>
+      `<button type="button" class="chip${i === active ? ' is-on' : ''}" data-i="${i}">${c.id}</button>`
+    ).join('')
+    wrap.querySelectorAll('.chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const i = Number(btn.dataset.i)
+        fillChips(root, i)
+        root.querySelector('[data-body]').innerHTML = bodyHtml(CURRENCIES[i])
+      })
+    })
+  }
+
+  document.querySelectorAll('.phone').forEach(phone => {
+    const body = phone.querySelector('[data-body]')
+    if (body) body.innerHTML = bodyHtml(CURRENCIES[0])
+    fillChips(phone, 0)
+
+    phone.querySelectorAll('[data-seg] button, [data-tabs] button').forEach((btn, idx, list) => {
+      btn.addEventListener('click', () => {
+        list.forEach(b => b.classList.remove('is-on'))
+        btn.classList.add('is-on')
+        const i = [...list].indexOf(btn)
+        body.innerHTML = bodyHtml(CURRENCIES[i] || CURRENCIES[0])
+      })
+    })
+
+    const pill = phone.querySelector('[data-pill]')
+    if (pill) {
+      let i = 0
+      pill.addEventListener('click', () => {
+        i = (i + 1) % CURRENCIES.length
+        pill.querySelector('[data-pill-cur]').textContent = CURRENCIES[i].id
+        pill.querySelector('[data-pill-day]').textContent = CURRENCIES[i].day.split('·').pop().trim()
+        body.innerHTML = bodyHtml(CURRENCIES[i])
+      })
+    }
+  })
+
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    const root = document.documentElement
+    if (root.getAttribute('data-theme') === 'light') root.removeAttribute('data-theme')
+    else root.setAttribute('data-theme', 'light')
+  })
+</script>
+</body>
+</html>

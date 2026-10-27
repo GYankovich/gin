@@ -22,6 +22,8 @@ type MonitorPositionsCardProps = {
     positionsUpdatedAt: string | null | undefined
     brokerSoftStopHint: boolean
     isRunning: boolean
+    /** Drop the card chrome when the section header already names the block. */
+    bare?: boolean
 }
 
 export function MonitorPositionsCard({
@@ -30,6 +32,7 @@ export function MonitorPositionsCard({
     positionsUpdatedAt,
     brokerSoftStopHint,
     isRunning,
+    bare = false,
 }: MonitorPositionsCardProps) {
     const columns = useMemo<Column<MonitorPositionRow>[]>(() => [
         {
@@ -56,14 +59,8 @@ export function MonitorPositionsCard({
         { key: 'tp', header: 'TP', render: r => <span className="mono">{r.tp}</span> },
     ], [])
 
-    return (
-        <Card className="dashboard-assets-card robots-v2-monitor-positions">
-            <div className="dashboard-assets-card__head">
-                <h3 className="dashboard-panel-title">Открытые позиции</h3>
-                {positionsCount > 0 ? (
-                    <span className="robots-v2-hint">{positionsCount}</span>
-                ) : null}
-            </div>
+    const body = (
+        <>
             {positionsUpdatedAt ? (
                 <p className="robots-v2-hint robots-v2-universe-caption">
                     Данные обновлены
@@ -107,6 +104,22 @@ export function MonitorPositionsCard({
                     </span>
                 )}
             />
+        </>
+    )
+
+    if (bare) {
+        return <div className="robots-v2-monitor-positions">{body}</div>
+    }
+
+    return (
+        <Card className="dashboard-assets-card robots-v2-monitor-positions">
+            <div className="dashboard-assets-card__head">
+                <h3 className="dashboard-panel-title">Открытые позиции</h3>
+                {positionsCount > 0 ? (
+                    <span className="robots-v2-hint">{positionsCount}</span>
+                ) : null}
+            </div>
+            {body}
         </Card>
     )
 }

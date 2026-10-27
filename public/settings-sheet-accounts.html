@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark" data-v="a">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>settings-sheet-seg · счета · варианты · GIN</title>
+<style>
+  :root {
+    --bg-page: #0a0a0f;
+    --bg-card: #12121a;
+    --bg-input: #0e0e16;
+    --bg-elevated: #181824;
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-medium: rgba(255, 255, 255, 0.12);
+    --text-primary: #e0e0e0;
+    --text-secondary: #888888;
+    --text-muted: #555555;
+    --color-up: #00ffaa;
+    --color-down: #ff3366;
+    --radius-lg: 12px;
+    --picker-bg: #0e0e14;
+    --phone-w: 390px;
+  }
+  [data-theme='light'] {
+    --bg-page: #F5F5F7;
+    --bg-card: #FFFFFF;
+    --bg-input: #EAEAEE;
+    --bg-elevated: #FFFFFF;
+    --border-subtle: rgba(26, 26, 26, 0.08);
+    --border-medium: rgba(26, 26, 26, 0.14);
+    --text-primary: #1A1A1A;
+    --text-secondary: #666666;
+    --text-muted: #999999;
+    --color-up: #00AA66;
+    --color-down: #CC3333;
+    --picker-bg: #ECECF0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    background: #07070b;
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+  [data-theme='light'] body { background: #e8e8ec; }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+  button:focus-visible { outline: 2px solid rgba(255,255,255,0.28); outline-offset: 2px; }
+
+  .picker {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 20px;
+    padding: 14px 20px;
+    background: var(--picker-bg);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .picker h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .picker p { margin: 4px 0 0; max-width: 72ch; font-size: 13px; color: var(--text-secondary); line-height: 1.45; }
+  .picker__modes {
+    display: flex; flex-wrap: wrap; gap: 4px; padding: 4px;
+    margin-left: auto; background: var(--bg-input); border-radius: 12px;
+  }
+  [data-theme='light'] .picker__modes { background: var(--bg-page); }
+  .picker__modes button {
+    border: 1px solid transparent; border-radius: 9px;
+    padding: 8px 12px; min-height: 36px;
+    font-size: 13px; font-weight: 500; color: var(--text-muted);
+  }
+  .picker__modes button.is-on {
+    background: var(--bg-elevated); color: var(--text-primary);
+    border-color: var(--border-medium);
+  }
+  .picker__theme {
+    display: flex; gap: 4px; padding: 4px;
+    background: var(--bg-input); border-radius: 12px;
+  }
+  [data-theme='light'] .picker__theme { background: var(--bg-page); }
+  .picker__theme button {
+    border: 1px solid transparent; border-radius: 9px;
+    padding: 8px 10px; min-height: 36px;
+    font-size: 12px; font-weight: 500; color: var(--text-muted);
+  }
+  .picker__theme button.is-on {
+    background: var(--bg-elevated); color: var(--text-primary);
+    border-color: var(--border-medium);
+  }
+  .picker__note {
+    flex: 1 1 100%;
+    margin: 0; font-size: 12.5px; color: var(--text-muted); line-height: 1.4;
+  }
+  .picker__note strong { color: var(--text-secondary); }
+
+  .stage {
+    display: flex; justify-content: center;
+    padding: 28px 16px 48px; min-height: calc(100vh - 100px);
+  }
+  .phone {
+    width: var(--phone-w); max-width: 100%;
+    border-radius: 28px;
+    border: 1px solid var(--border-medium);
+    background: var(--bg-page);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.55);
+    overflow: hidden;
+  }
+  [data-theme='light'] .phone { box-shadow: 0 12px 32px rgba(26,26,26,0.12); }
+  .phone__pad { padding: 14px 12px 24px; }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .broker-h {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; min-height: 52px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .broker-h__icon {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: grid; place-items: center;
+    background: var(--bg-page); border: 1px solid var(--border-subtle);
+    font-size: 10px; font-weight: 700; color: var(--text-secondary);
+  }
+  .broker-h__name { font-size: 14.5px; font-weight: 600; }
+
+  .seg {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 3px;
+    margin: 10px 12px 0; padding: 3px; border-radius: 10px; background: var(--bg-page);
+  }
+  .seg button {
+    min-height: 34px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    color: var(--text-muted); border: 1px solid transparent;
+  }
+  .seg button.is-on {
+    background: var(--bg-card); color: var(--text-primary);
+    border-color: var(--border-subtle);
+  }
+  .seg__count { margin-left: 4px; font-weight: 600; opacity: 0.7; font-size: 11px; }
+
+  .variant { display: none; }
+  body[data-v='a'] .variant-a,
+  body[data-v='b'] .variant-b,
+  body[data-v='c'] .variant-c,
+  body[data-v='d'] .variant-d,
+  body[data-v='e'] .variant-e { display: block; }
+
+  .name { font-size: 14px; font-weight: 400; color: var(--text-secondary); }
+  .meta { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .is-off { opacity: 0.72; }
+  .is-off .name { color: var(--text-muted); }
+
+  /* toggle */
+  .tog {
+    position: relative; width: 40px; height: 24px; flex-shrink: 0;
+    border-radius: 999px; background: var(--bg-input); cursor: pointer;
+  }
+  .tog::after {
+    content: ''; position: absolute; top: 3px; left: 3px;
+    width: 18px; height: 18px; border-radius: 999px;
+    background: var(--bg-card); box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    transition: transform 160ms ease;
+  }
+  .tog.is-on { background: #1f2937; }
+  [data-theme='light'] .tog.is-on { background: #1f2937; }
+  .tog.is-on::after { transform: translateX(16px); background: #fff; }
+
+  /* A · Now */
+  .a-cap {
+    padding: 10px 12px 4px;
+    font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--text-muted);
+  }
+  .a-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; min-height: 52px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .a-row:first-of-type { border-top: 0; }
+  .a-body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+
+  /* B · No cap */
+  .b-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; min-height: 52px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .b-body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+
+  /* C · Hint + primary name */
+  .c-hint {
+    margin: 0; padding: 10px 14px 4px;
+    font-size: 12px; line-height: 1.4; color: var(--text-muted);
+    font-weight: 400; text-transform: none; letter-spacing: 0;
+  }
+  .c-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; min-height: 52px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .c-body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .c-body .name { color: var(--text-primary); }
+
+  /* D · Money trailing */
+  .d-hint {
+    margin: 0; padding: 10px 14px 2px;
+    font-size: 12px; color: var(--text-muted);
+  }
+  .d-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px; min-height: 52px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .d-body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .d-body .name { color: var(--text-primary); }
+  .d-money {
+    flex-shrink: 0; font-size: 13px; font-variant-numeric: tabular-nums;
+    color: var(--text-secondary); text-align: right;
+  }
+  .is-off .d-money { color: var(--text-muted); }
+
+  /* E · Well list */
+  .e-wrap { padding: 10px 12px 14px; }
+  .e-hint {
+    margin: 0 0 8px; font-size: 12px; color: var(--text-muted);
+  }
+  .e-well {
+    background: var(--bg-page);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .e-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px; min-height: 52px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .e-row:first-child { border-top: 0; }
+  .e-body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .e-body .name { color: var(--text-primary); }
+</style>
+</head>
+<body data-v="a">
+  <header class="picker">
+    <div>
+      <h1>settings-sheet · счета</h1>
+      <p>Варианты вкладки «Счета»: шапка панели и строки видимости.</p>
+    </div>
+    <div class="picker__theme" role="group" aria-label="Тема">
+      <button type="button" data-theme-btn="dark" class="is-on">Dark</button>
+      <button type="button" data-theme-btn="light">Light</button>
+    </div>
+    <div class="picker__modes" role="tablist" aria-label="Вариант">
+      <button type="button" data-v="a" class="is-on">A · Now</button>
+      <button type="button" data-v="b">B · Bare</button>
+      <button type="button" data-v="c">C · Hint</button>
+      <button type="button" data-v="d">D · Money</button>
+      <button type="button" data-v="e">E · Well</button>
+    </div>
+    <p class="picker__note" id="note">
+      <strong>A · Now</strong> — uppercase «Видимость в сводке», имя secondary, meta id · money, toggle.
+    </p>
+  </header>
+
+  <main class="stage">
+    <div class="phone">
+      <div class="phone__pad">
+        <div class="card">
+          <div class="broker-h">
+            <span class="broker-h__icon">T</span>
+            <span class="broker-h__name">T-Bank</span>
+          </div>
+          <div class="seg">
+            <button type="button">Токены <span class="seg__count">2</span></button>
+            <button type="button" class="is-on">Счета <span class="seg__count">3</span></button>
+          </div>
+
+          <!-- A -->
+          <div class="variant variant-a">
+            <div class="a-cap">Видимость в сводке</div>
+            <div class="a-row">
+              <div class="a-body">
+                <span class="name">Брокерский счёт</span>
+                <span class="meta">2000123456 · 1 240 500 ₽</span>
+              </div>
+              <span class="tog is-on" role="presentation"></span>
+            </div>
+            <div class="a-row">
+              <div class="a-body">
+                <span class="name">ИИС</span>
+                <span class="meta">2000987654 · 320 100 ₽</span>
+              </div>
+              <span class="tog is-on" role="presentation"></span>
+            </div>
+            <div class="a-row is-off">
+              <div class="a-body">
+                <span class="name">Песочница</span>
+                <span class="meta">sandbox-01 · 50 000 ₽</span>
+              </div>
+              <span class="tog" role="presentation"></span>
+            </div>
+          </div>
+
+          <!-- B -->
+          <div class="variant variant-b">
+            <div class="b-row">
+              <div class="b-body">
+                <span class="name">Брокерский счёт</span>
+                <span class="meta">2000123456 · 1 240 500 ₽</span>
+              </div>
+              <span class="tog is-on" role="presentation"></span>
+            </div>
+            <div class="b-row">
+              <div class="b-body">
+                <span class="name">ИИС</span>
+                <span class="meta">2000987654 · 320 100 ₽</span>
+              </div>
+              <span class="tog is-on" role="presentation"></span>
+            </div>
+            <div class="b-row is-off">
+              <div class="b-body">
+                <span class="name">Песочница</span>
+                <span class="meta">sandbox-01 · 50 000 ₽</span>
+              </div>
+              <span class="tog" role="presentation"></span>
+            </div>
+          </div>
+
+          <!-- C -->
+          <div class="variant variant-c">
+            <p class="c-hint">Что показывать в сводке портфеля</p>
+            <div class="c-row">
+              <div class="c-body">
+                <span class="name">Брокерский счёт</span>
+                <span class="meta">2000123456 · 1 240 500 ₽</span>
+              </div>
+              <span class="tog is-on" role="presentation"></span>
+            </div>
+            <div class="c-row">
+              <div class="c-body">
+                <span class="name">ИИС</span>
+                <span class="meta">2000987654 · 320 100 ₽</span>
+              </div>
+              <span class="tog is-on" role="presentation"></span>
+            </div>
+            <div class="c-row is-off">
+              <div class="c-body">
+                <span class="name">Песочница</span>
+                <span class="meta">sandbox-01 · 50 000 ₽</span>
+              </div>
+              <span class="tog" role="presentation"></span>
+            </div>
+          </div>
+
+          <!-- D -->
+          <div class="variant variant-d">
+            <p class="d-hint">В сводке</p>
+            <div class="d-row">
+              <div class="d-body">
+                <span class="name">Брокерский счёт</span>
+                <span class="meta">2000123456</span>
+              </div>
+              <span class="d-money">1 240 500 ₽</span>
+              <span class="tog is-on" role="presentation"></span>
+            </div>
+            <div class="d-row">
+              <div class="d-body">
+                <span class="name">ИИС</span>
+                <span class="meta">2000987654</span>
+              </div>
+              <span class="d-money">320 100 ₽</span>
+              <span class="tog is-on" role="presentation"></span>
+            </div>
+            <div class="d-row is-off">
+              <div class="d-body">
+                <span class="name">Песочница</span>
+                <span class="meta">sandbox-01</span>
+              </div>
+              <span class="d-money">50 000 ₽</span>
+              <span class="tog" role="presentation"></span>
+            </div>
+          </div>
+
+          <!-- E -->
+          <div class="variant variant-e">
+            <div class="e-wrap">
+              <p class="e-hint">Видимость в сводке</p>
+              <div class="e-well">
+                <div class="e-row">
+                  <div class="e-body">
+                    <span class="name">Брокерский счёт</span>
+                    <span class="meta">2000123456 · 1 240 500 ₽</span>
+                  </div>
+                  <span class="tog is-on" role="presentation"></span>
+                </div>
+                <div class="e-row">
+                  <div class="e-body">
+                    <span class="name">ИИС</span>
+                    <span class="meta">2000987654 · 320 100 ₽</span>
+                  </div>
+                  <span class="tog is-on" role="presentation"></span>
+                </div>
+                <div class="e-row is-off">
+                  <div class="e-body">
+                    <span class="name">Песочница</span>
+                    <span class="meta">sandbox-01 · 50 000 ₽</span>
+                  </div>
+                  <span class="tog" role="presentation"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const notes = {
+      a: '<strong>A · Now</strong> — uppercase «Видимость в сводке», имя secondary, meta id · money, toggle.',
+      b: '<strong>B · Bare</strong> — без шапки (сегмент уже «Счета»), те же строки. Как токены без cap.',
+      c: '<strong>C · Hint</strong> — обычный hint вместо uppercase; имя primary.',
+      d: '<strong>D · Money</strong> — сумма справа у toggle; в meta только id.',
+      e: '<strong>E · Well</strong> — список в inset-колодце (как token details C).',
+    };
+    const noteEl = document.getElementById('note');
+    const buttons = [...document.querySelectorAll('.picker__modes button')];
+    const themeBtns = [...document.querySelectorAll('[data-theme-btn]')];
+    function setV(v) {
+      document.body.dataset.v = v;
+      buttons.forEach((b) => b.classList.toggle('is-on', b.dataset.v === v));
+      noteEl.innerHTML = notes[v];
+      const t = document.documentElement.getAttribute('data-theme') || 'dark';
+      history.replaceState(null, '', '#' + v + '/' + t);
+    }
+    function setTheme(t) {
+      document.documentElement.setAttribute('data-theme', t);
+      themeBtns.forEach((b) => b.classList.toggle('is-on', b.dataset.themeBtn === t));
+      const v = document.body.dataset.v || 'a';
+      history.replaceState(null, '', '#' + v + '/' + t);
+    }
+    buttons.forEach((b) => b.addEventListener('click', () => setV(b.dataset.v)));
+    themeBtns.forEach((b) => b.addEventListener('click', () => setTheme(b.dataset.themeBtn)));
+    const hash = (location.hash || '#a/dark').slice(1);
+    const [v, t] = hash.split('/');
+    if (notes[v]) setV(v);
+    if (t === 'light' || t === 'dark') setTheme(t);
+  </script>
+</body>
+</html>

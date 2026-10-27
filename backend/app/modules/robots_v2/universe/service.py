@@ -29,7 +29,11 @@ from app.modules.robots_v2.universe.schemas import (
     UniversePreview,
     ValidateTickersResponse,
 )
-from app.modules.robots_v2.universe.token_context import board_for_instrument_type, load_token_context
+from app.modules.robots_v2.universe.token_context import (
+    board_for_instrument_type,
+    load_token_context,
+    token_context_for_resolve,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +195,7 @@ class UniverseService:
         db: Session,
         user_id: int,
         *,
-        token_id: int,
+        token_id: int | None,
         instrument_type: str,
         universe_raw: dict[str, Any],
         page: int = 1,
@@ -201,7 +205,9 @@ class UniverseService:
         as_of: datetime | date | None = None,
     ) -> UniversePreview:
         universe = UniverseConfig.model_validate(universe_raw)
-        ctx = load_token_context(db, user_id=user_id, token_id=token_id, instrument_type=instrument_type, schema=self.schema)
+        ctx = token_context_for_resolve(
+            db, user_id=user_id, token_id=token_id, instrument_type=instrument_type, schema=self.schema,
+        )
         as_of_day = as_of.date() if isinstance(as_of, datetime) else as_of
         as_of_dt = datetime.combine(as_of_day, datetime.min.time(), tzinfo=timezone.utc) if as_of_day else datetime.now(timezone.utc)
         excluded = set(_normalize_tickers(universe.excluded))
@@ -249,7 +255,7 @@ class UniverseService:
         db: Session,
         user_id: int,
         *,
-        token_id: int,
+        token_id: int | None,
         instrument_type: str,
         universe_raw: dict[str, Any],
         robot_id: int | None = None,
@@ -288,9 +294,14 @@ class UniverseService:
             instruments=instruments,
             rejected=preview.rejected_sample,
             stats=stats,
-            cacheKey=_cache_key(universe=universe_raw, market=load_token_context(
-                db, user_id=user_id, token_id=token_id, instrument_type=instrument_type, schema=self.schema,
-            ).market, token_id=token_id, as_of=preview.as_of.date() if preview.as_of else None),
+            cacheKey=_cache_key(
+                universe=universe_raw,
+                market=token_context_for_resolve(
+                    db, user_id=user_id, token_id=token_id, instrument_type=instrument_type, schema=self.schema,
+                ).market,
+                token_id=int(token_id or 0),
+                as_of=preview.as_of.date() if preview.as_of else None,
+            ),
         )
 
     async def validate_tickers(
@@ -422,7 +433,7 @@ class UniverseService:
             raise HTTPException(status_code=422, detail="universe.index is required")
         if ctx.market == "crypto":
             constituents = await resolve_crypto_index_constituents(
-                db, ctx.user_id, index_code=code, token_id=ctx.token_id, as_of=as_of,
+                db, ctx.user_id, index_code=code, token_id=ctx.token_id or None, as_of=as_of,
             )
         else:
             constituents = await resolve_moex_index_constituents(
@@ -680,9 +691,6 @@ class UniverseService:
         )
         from app.modules.bybit.http_client import BybitHttpClient
 
-        if not ctx.api_key:
-            raise HTTPException(status_code=400, detail="Bybit API token required")
-
         category = "inverse" if instrument_type == "coin_futures" else "linear"
         quote_coin = "USD" if category == "inverse" else "USDT"
         filter_kwargs = presets.resolve_crypto_filters(preset=preset, custom_filters=custom)  # type: ignore[arg-type]
@@ -757,6 +765,8 @@ class UniverseService:
                 "atr": float(r.get("atr") or 0),
             } for r in accepted]
             return assets, rejected
+        if not ctx.api_key:
+            raise HTTPException(status_code=400, detail="Bybit API token required")
         context_ref = str(robot_id) if robot_id is not None else str(ctx.token_id)
         tickers = await fetch_bybit_tickers(
             api_key=ctx.api_key,

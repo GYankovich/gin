@@ -7,7 +7,7 @@ type Props = {
     className?: string
 }
 
-type IconProps = { className?: string }
+type IconProps = { className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }
 
 /** Geometric T mark — T-Invest / T-Bank, cyber line style. */
 function IconTinvest({ className }: IconProps) {
@@ -120,6 +120,11 @@ const ICONS: Record<BrokerKind, React.FC<IconProps>> = {
 export function BrokerIcon({ kind, className = '' }: Props) {
     const label = brokerLabel(kind)
     const Icon = ICONS[kind]
+
+    // Panel titles use bare SVG with `.dashboard-icon` (same as IconPie / IconWallet).
+    if (className.split(/\s+/).includes('dashboard-icon')) {
+        return <Icon className={className} aria-hidden />
+    }
 
     return (
         <span

@@ -14,6 +14,7 @@ import asyncio
 
 from app.modules.robots.trading.contracts import OrderIntent
 from app.modules.robots_v2.engine.execution import ExecutionService, attach_ticker_warnings
+from app.modules.robots_v2.engine.lot_size import lots_to_shares, shares_to_lots
 from app.modules.robots_v2.engine.order_flow import OrderFlowAggregator
 from app.modules.robots_v2.engine.paper_ledger import PaperLedger
 
@@ -883,3 +884,79 @@ def test_ticker_warning_missing_quote_and_broker_404():
     )
     assert "не нашёл инструмент" in rows[0]["tickerWarning"]
     assert "котировки" in rows[1]["tickerWarning"]
+
+
+def test_share_lot_conversion():
+    assert shares_to_lots(10, 10) == 1
+    assert lots_to_shares(1, 10) == 10
+    assert shares_to_lots(8, 10) == 0
+    assert shares_to_lots(3, 1) == 3
+    assert lots_to_shares(3, 1) == 3
+
+
+def test_tinvest_market_order_sends_lots_and_books_shares():
+    ledger = PaperLedger(cash=100_000, commission_rate=0.0)
+    exec_svc = ExecutionService(
+        mode="live",
+        robot_id=3,
+        ledger=ledger,
+        account_id="acc",
+        instrument_map={"GAZP": "BBG004730RP0"},
+        lot_sizes={"GAZP": 10},
+        fill_poll_interval_sec=0.01,
+        fill_timeout_sec=1.0,
+    )
+    posted: dict[str, int] = {}
+
+    class _Broker:
+        broker_type = "tinvest"
+
+        async def post_market_order(self, instrument, qty, direction, account_id):
+            posted["qty"] = int(qty)
+            posted["instrument"] = instrument
+            return {"orderId": "oid-gazp"}
+
+        async def get_order_state(self, account_id, order_id):
+            return {
+                "executionReportStatus": "EXECUTION_REPORT_STATUS_FILL",
+                "lotsExecuted": 1,
+                "executedOrderPrice": 111.23,
+            }
+
+    exec_svc.broker = _Broker()  # type: ignore[assignment]
+    intent = OrderIntent(kind="entry", figi="GAZP", side="BUY", quantity=10, price=111.23)
+    result = asyncio.run(exec_svc.execute_intent(intent, last_price=111.23))
+    assert posted["qty"] == 1
+    assert posted["instrument"] == "BBG004730RP0"
+    assert result.status == "filled"
+    assert result.quantity == 10
+    assert ledger.positions["GAZP"].quantity == 10
+    assert ledger.positions["GAZP"].avg_entry_price == 111.23
+
+
+def test_tinvest_rejects_order_smaller_than_one_lot():
+    ledger = PaperLedger(cash=100_000, commission_rate=0.0)
+    exec_svc = ExecutionService(
+        mode="live",
+        robot_id=3,
+        ledger=ledger,
+        account_id="acc",
+        instrument_map={"GAZP": "BBG004730RP0"},
+        lot_sizes={"GAZP": 10},
+    )
+    posted: list[int] = []
+
+    class _Broker:
+        broker_type = "tinvest"
+
+        async def post_market_order(self, instrument, qty, direction, account_id):
+            posted.append(int(qty))
+            return {"orderId": "should-not"}
+
+    exec_svc.broker = _Broker()  # type: ignore[assignment]
+    intent = OrderIntent(kind="entry", figi="GAZP", side="BUY", quantity=8, price=111.23)
+    result = asyncio.run(exec_svc.execute_intent(intent, last_price=111.23))
+    assert result.status == "rejected"
+    assert result.reason == "LOT_SIZE"
+    assert posted == []
+    assert "GAZP" not in ledger.positions

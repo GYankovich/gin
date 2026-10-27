@@ -9,6 +9,7 @@ import '@/stores/themeStore'
 import '@/styles/fonts.css'
 import '@/styles/variables.css'
 import '@/styles/global.css'
+import '@/styles/backtestLab.css'
 import '@/styles/animations.css'
 import '@/styles/responsive.css'
 

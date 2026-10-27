@@ -4,6 +4,7 @@ import { Modal } from '@/components/ui/Modal'
 import { useToast } from '@/components/ui/Toast'
 import { authService } from '@/services/authService'
 import { useAuthStore } from '@/stores/authStore'
+import '@/pages/DashboardPage.css'
 
 type EditUserModalProps = {
     open: boolean
@@ -100,88 +101,94 @@ export function EditUserModal({ open, onClose, login, email, phone }: EditUserMo
         <Modal
             open={open}
             onClose={onClose}
-            title="Редактировать пользователя"
-            width="520px"
-        >
-            <div className="form-group">
-                <label className="form-label" htmlFor="profile-login">Логин</label>
-                <input
-                    id="profile-login"
-                    className="gin-select__trigger"
-                    value={loginValue}
-                    onChange={(e) => setLoginValue(e.target.value)}
-                    placeholder="login"
-                    autoComplete="username"
-                    required
-                />
-            </div>
-            <div className="form-group">
-                <label className="form-label" htmlFor="profile-phone">Телефон</label>
-                <input
-                    id="profile-phone"
-                    className="gin-select__trigger"
-                    type="tel"
-                    value={phoneValue}
-                    onChange={(e) => setPhoneValue(e.target.value)}
-                    placeholder="+79001234567"
-                    autoComplete="tel"
-                />
-            </div>
-            <div className="form-group">
-                <label className="form-label" htmlFor="profile-email">Email</label>
-                <input
-                    id="profile-email"
-                    className="gin-select__trigger"
-                    type="email"
-                    value={emailValue}
-                    onChange={(e) => setEmailValue(e.target.value)}
-                    placeholder="name@example.com"
-                    autoComplete="email"
-                />
-            </div>
-                <div className="form-group">
-                <label className="form-label" htmlFor="profile-current-password">Старый пароль</label>
-                <input
-                    id="profile-current-password"
-                    className="gin-select__trigger"
-                    type="password"
-                    name="profile-current-password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                    data-lpignore="true"
-                    data-1p-ignore="true"
-                    data-form-type="other"
-                />
-            </div>
-            <div className="form-group">
-                <label className="form-label" htmlFor="profile-new-password">Новый пароль</label>
-                <input
-                    id="profile-new-password"
-                    className="gin-select__trigger"
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Минимум 3 символа"
-                    autoComplete="new-password"
-                />
-            </div>
-            {hasAnyPassword && !passwordComplete && (
-                <div className="form-hint" style={{ color: 'var(--color-down)' }}>
-                    Для смены - заполните оба поля
+            title="Профиль"
+            flush
+            className="dash-quiet-modal dash-scene-modal"
+            lead={(
+                <div className="dash-scene__brand">
+                    <p className="dash-scene__kicker">Настройки</p>
+                    <p className="dash-scene__title">Изменить профиль</p>
+                    <p className="dash-scene__line">
+                        Логин и контакты. Пароль меняйте только если нужно — заполните оба поля.
+                    </p>
                 </div>
             )}
-            <div className="dashboard-settings-actions">
-                <Button
-                    loading={saving}
-                    disabled={!canSave}
-                    onClick={() => void handleSave()}
-                >
-                    Сохранить
-                </Button>
+        >
+            <div className="dashboard-settings">
+                <div className="dashboard-settings-list">
+                    <section className="dashboard-settings-group">
+                        <div className="settings-scene-fields">
+                            <label className="settings-scene-field" htmlFor="profile-login">
+                                <span>Логин</span>
+                                <input
+                                    id="profile-login"
+                                    value={loginValue}
+                                    onChange={(e) => setLoginValue(e.target.value)}
+                                    placeholder="login"
+                                    autoComplete="username"
+                                    required
+                                />
+                            </label>
+                            <label className="settings-scene-field" htmlFor="profile-email">
+                                <span>Почта</span>
+                                <input
+                                    id="profile-email"
+                                    type="email"
+                                    value={emailValue}
+                                    onChange={(e) => setEmailValue(e.target.value)}
+                                    placeholder="name@example.com"
+                                    autoComplete="email"
+                                />
+                            </label>
+                            <label className="settings-scene-field" htmlFor="profile-current-password">
+                                <span>Старый пароль</span>
+                                <input
+                                    id="profile-current-password"
+                                    type="password"
+                                    name="profile-current-password"
+                                    value={currentPassword}
+                                    onChange={(e) => setCurrentPassword(e.target.value)}
+                                    autoComplete="off"
+                                    autoCorrect="off"
+                                    autoCapitalize="off"
+                                    spellCheck={false}
+                                    data-lpignore="true"
+                                    data-1p-ignore="true"
+                                    data-form-type="other"
+                                />
+                            </label>
+                            <label className="settings-scene-field" htmlFor="profile-new-password">
+                                <span>Новый пароль</span>
+                                <input
+                                    id="profile-new-password"
+                                    type="password"
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    placeholder="Минимум 3 символа"
+                                    autoComplete="new-password"
+                                />
+                            </label>
+                            {hasAnyPassword && !passwordComplete ? (
+                                <p className="settings-scene-hint settings-scene-hint--warn">
+                                    Для смены пароля заполните оба поля.
+                                </p>
+                            ) : null}
+                        </div>
+                    </section>
+                </div>
+                <div className="dashboard-settings-actions">
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="lg"
+                        className="dashboard-settings-actions__apply"
+                        loading={saving}
+                        disabled={!canSave}
+                        onClick={() => void handleSave()}
+                    >
+                        Сохранить
+                    </Button>
+                </div>
             </div>
         </Modal>
     )

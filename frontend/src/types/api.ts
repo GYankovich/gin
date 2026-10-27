@@ -48,6 +48,7 @@ export interface AnalyticsSnapshotsResponse {
     count: number
     limit: number
     offset: number
+    earliest_snapshot_date?: string | null
     history: PortfolioSnapshotSummary[]
 }
 
@@ -204,13 +205,13 @@ export interface PortfolioStatisticsExtendedResponse {
 }
 
 export interface DashboardAccountSummaryKpi {
-    own_funds: number
-    value: number
-    minus_own_funds: number
+    own_funds: number | null
+    value: number | null
+    minus_own_funds: number | null
     minus_own_funds_percent: number | null
     day_over_day_delta: number | null
     day_over_day_delta_percent: number | null
-    currency: string
+    currency: string | null
 }
 
 export interface DashboardAccountItem {
@@ -222,14 +223,17 @@ export interface DashboardAccountItem {
     account_opened: string | null
     last_account_sync: string | null
     dashboard_hidden: boolean
+    last_token_id?: number | null
+    /** Canonical broker code from /dashboard/accounts (tinvest, bybit, …). */
+    broker?: string | null
     summary: DashboardAccountSummaryKpi
 }
 
 export interface DashboardCurrencyTotals {
     currency: string
-    total_own_funds: number
+    total_own_funds: number | null
     total_value: number
-    total_minus_own_funds: number
+    total_minus_own_funds: number | null
     total_minus_own_funds_percent: number | null
     total_day_over_day_delta: number | null
     total_day_over_day_delta_percent: number | null
@@ -272,6 +276,7 @@ export interface AnalyticsChartSeriesResponse {
     from_date: string
     to_date: string
     portfolio_series: ChartPoint[]
+    hourly_series?: ChartPoint[]
     drawdown_series: DrawdownPoint[]
     instruments_series: ChartInstrumentSeries[]
     available_instruments: ChartAvailableInstrument[]

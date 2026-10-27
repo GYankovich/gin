@@ -5,9 +5,11 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Select } from '@/components/ui/Select'
 import { Toggle } from '@/components/ui/Toggle'
 import { WeekdaysMaskField } from '@/components/ui/WeekdaysMaskField'
+import { ScreenerCustomFilters } from '@/pages/robots-v2/components/ScreenerCustomFilters'
 import {
     ARCHETYPE_CARDS,
     archetypeDefaults,
+    customScreenerFieldDefaults,
     type RobotV2WizardDraft,
     type WizardArchetype,
 } from '@/pages/robots-v2/wizardDraft'
@@ -35,7 +37,7 @@ const STOP_MODE_OPTIONS = [
 ] as const
 
 const EOD_OPTIONS = [
-    { value: 'auto', label: 'Auto' },
+    { value: 'auto', label: 'Авто' },
     { value: 'on', label: 'Вкл' },
     { value: 'off', label: 'Выкл' },
 ] as const
@@ -67,10 +69,12 @@ export type LabConfigFormProps = {
     onChange: (patch: Partial<RobotV2WizardDraft>) => void
     /** Hide schedule / live mode extras for denser Lab column. */
     compact?: boolean
+    /** Optional quick-preset control rendered inside Стратегия (avoids a floating duplicate row). */
+    presetSlot?: React.ReactNode
 }
 
 /** Visual trading config for Backtest Lab — same fields as robot wizard steps 1–3. */
-export function LabConfigForm({ draft, onChange, compact = true }: LabConfigFormProps) {
+export function LabConfigForm({ draft, onChange, compact = true, presetSlot }: LabConfigFormProps) {
     const patch = (next: Partial<RobotV2WizardDraft>) => onChange(next)
 
     const selectArchetype = (id: WizardArchetype) => {
@@ -105,7 +109,7 @@ export function LabConfigForm({ draft, onChange, compact = true }: LabConfigForm
     return (
         <div className={`robots-v2-lab-config ${compact ? 'robots-v2-lab-config--compact' : ''}`}>
             <CollapsibleSection
-                className="dashboard-assets-collapse"
+                className="dashboard-accounts-collapse portfolio-composition-collapse"
                 defaultOpen
                 title={(
                     <span className="dashboard-collapse__label">
@@ -113,59 +117,127 @@ export function LabConfigForm({ draft, onChange, compact = true }: LabConfigForm
                         Стратегия
                     </span>
                 )}
+                badge={compact && draft.timeframe
+                    ? <span className="dashboard-accounts-collapse__count">{draft.timeframe}</span>
+                    : undefined}
             >
                 <div className="robots-v2-form">
-                    <label className="robots-v2-field">
-                        <span>Цель</span>
-                        <SegmentedControl
-                            className="robots-v2-segmented"
-                            aria-label="Цель стратегии"
-                            options={[...GOAL_OPTIONS]}
-                            value={draft.goal}
-                            onChange={goal => patch({ goal })}
-                        />
-                    </label>
-                    <label className="robots-v2-field">
-                        <span>Тип инструмента</span>
-                        <Select
-                            className="robots-v2-select"
-                            value={draft.instrumentType}
-                            searchable={false}
-                            options={instrumentOptions}
-                            onChange={value =>
-                                patch({
-                                    instrumentType: value as RobotV2WizardDraft['instrumentType'],
-                                })
-                            }
-                        />
-                    </label>
-                    <div className="robots-v2-archetype-grid robots-v2-archetype-grid--lab">
-                        {ARCHETYPE_CARDS.map(card => (
-                            <button
-                                key={card.id}
-                                type="button"
-                                className={`robots-v2-archetype ${draft.archetype === card.id ? 'robots-v2-archetype--on' : ''}`}
-                                onClick={() => selectArchetype(card.id)}
-                            >
-                                <strong>{card.title}</strong>
-                                <span>{card.description}</span>
-                            </button>
-                        ))}
-                    </div>
-                    <label className="robots-v2-field">
-                        <span>Таймфрейм</span>
-                        <Select
-                            className="robots-v2-select"
-                            value={draft.timeframe}
-                            searchable={false}
-                            options={['1m', '5m', '15m', '1h', '4h', '1d'].map(tf => ({
-                                value: tf,
-                                label: tf,
-                            }))}
-                            onChange={timeframe => patch({ timeframe })}
-                        />
-                    </label>
-                    <div className="robots-v2-params">
+                    {compact ? (
+                        <>
+                            {presetSlot ? (
+                                <div className="robots-v2-lab-preset-slot">{presetSlot}</div>
+                            ) : null}
+                            <div className="robots-v2-grid robots-v2-grid--3">
+                                <label className="robots-v2-field">
+                                    <span>Тип</span>
+                                    <Select
+                                        className="robots-v2-select"
+                                        value={draft.archetype || 'momentum'}
+                                        searchable={false}
+                                        options={ARCHETYPE_CARDS.map(card => ({
+                                            value: card.id,
+                                            label: card.title,
+                                        }))}
+                                        onChange={id => selectArchetype(id as WizardArchetype)}
+                                    />
+                                </label>
+                                <label className="robots-v2-field">
+                                    <span>Инструмент</span>
+                                    <Select
+                                        className="robots-v2-select"
+                                        value={draft.instrumentType}
+                                        searchable={false}
+                                        options={instrumentOptions}
+                                        onChange={value =>
+                                            patch({
+                                                instrumentType: value as RobotV2WizardDraft['instrumentType'],
+                                            })
+                                        }
+                                    />
+                                </label>
+                                <label className="robots-v2-field">
+                                    <span>Таймфрейм</span>
+                                    <Select
+                                        className="robots-v2-select"
+                                        value={draft.timeframe}
+                                        searchable={false}
+                                        options={['1m', '5m', '15m', '1h', '4h', '1d'].map(tf => ({
+                                            value: tf,
+                                            label: tf,
+                                        }))}
+                                        onChange={timeframe => patch({ timeframe })}
+                                    />
+                                </label>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <label className="robots-v2-field">
+                                <span>Цель</span>
+                                <SegmentedControl
+                                    className="robots-v2-segmented"
+                                    aria-label="Цель стратегии"
+                                    options={[...GOAL_OPTIONS]}
+                                    value={draft.goal}
+                                    onChange={goal => patch({ goal })}
+                                />
+                            </label>
+                            <label className="robots-v2-field">
+                                <span>Тип инструмента</span>
+                                <Select
+                                    className="robots-v2-select"
+                                    value={draft.instrumentType}
+                                    searchable={false}
+                                    options={instrumentOptions}
+                                    onChange={value =>
+                                        patch({
+                                            instrumentType: value as RobotV2WizardDraft['instrumentType'],
+                                        })
+                                    }
+                                />
+                            </label>
+                            <div className="robots-v2-archetype-grid robots-v2-archetype-grid--lab">
+                                {ARCHETYPE_CARDS.map(card => (
+                                    <button
+                                        key={card.id}
+                                        type="button"
+                                        className={`robots-v2-archetype ${draft.archetype === card.id ? 'robots-v2-archetype--on' : ''}`}
+                                        onClick={() => selectArchetype(card.id)}
+                                    >
+                                        <strong>{card.title}</strong>
+                                        <span>{card.description}</span>
+                                    </button>
+                                ))}
+                            </div>
+                            <label className="robots-v2-field">
+                                <span>Таймфрейм</span>
+                                <Select
+                                    className="robots-v2-select"
+                                    value={draft.timeframe}
+                                    searchable={false}
+                                    options={['1m', '5m', '15m', '1h', '4h', '1d'].map(tf => ({
+                                        value: tf,
+                                        label: tf,
+                                    }))}
+                                    onChange={timeframe => patch({ timeframe })}
+                                />
+                            </label>
+                            <label className="robots-v2-field">
+                                <span>
+                                    Режим
+                                    <FormLabelTooltip text="Для бэктеста обычно Paper. Конфиг сохранится с выбранным режимом." />
+                                </span>
+                                <SegmentedControl
+                                    className="robots-v2-segmented"
+                                    aria-label="Режим торговли"
+                                    options={[...MODE_OPTIONS]}
+                                    value={draft.mode}
+                                    onChange={mode => patch({ mode })}
+                                />
+                            </label>
+                        </>
+                    )}
+                    <div className="robots-v2-params robots-v2-grid robots-v2-grid--3">
                         {Object.entries(draft.strategyParams).map(([key, val]) => (
                             <label key={key} className="robots-v2-field">
                                 <span title={key}>{PARAM_LABELS[key] ?? key}</span>
@@ -189,19 +261,6 @@ export function LabConfigForm({ draft, onChange, compact = true }: LabConfigForm
                             label="Advanced mode (обязателен для scalper)"
                         />
                     )}
-                    <label className="robots-v2-field">
-                        <span>
-                            Режим
-                            <FormLabelTooltip text="Для бэктеста обычно Paper. Конфиг сохранится с выбранным режимом." />
-                        </span>
-                        <SegmentedControl
-                            className="robots-v2-segmented"
-                            aria-label="Режим торговли"
-                            options={[...MODE_OPTIONS]}
-                            value={draft.mode}
-                            onChange={mode => patch({ mode })}
-                        />
-                    </label>
                     {!compact && (
                         <div className="robots-v2-field">
                             <WeekdaysMaskField
@@ -251,14 +310,17 @@ export function LabConfigForm({ draft, onChange, compact = true }: LabConfigForm
             </CollapsibleSection>
 
             <CollapsibleSection
-                className="dashboard-assets-collapse"
-                defaultOpen
+                className="dashboard-accounts-collapse portfolio-composition-collapse"
+                defaultOpen={!compact}
                 title={(
                     <span className="dashboard-collapse__label">
                         <span className="dashboard-icon" aria-hidden>◈</span>
                         Активы
                     </span>
                 )}
+                badge={compact && draft.universeMode === 'fixed' && draft.fixedList
+                    ? <span className="dashboard-accounts-collapse__count">{draft.fixedList}</span>
+                    : undefined}
             >
                 <div className="robots-v2-form">
                     <SegmentedControl
@@ -273,7 +335,7 @@ export function LabConfigForm({ draft, onChange, compact = true }: LabConfigForm
                             <span>Тикеры через запятую</span>
                             <textarea
                                 className="robots-v2-input robots-v2-input--area"
-                                rows={2}
+                                rows={compact ? 1 : 2}
                                 value={draft.fixedList}
                                 onChange={e => patch({ fixedList: e.target.value })}
                             />
@@ -291,25 +353,38 @@ export function LabConfigForm({ draft, onChange, compact = true }: LabConfigForm
                         </label>
                     )}
                     {draft.universeMode === 'screener' && (
-                        <label className="robots-v2-field">
-                            <span>Пресет</span>
-                            <Select
-                                className="robots-v2-select"
-                                value={draft.screenerPreset}
-                                searchable={false}
-                                options={[
-                                    { value: 'high_liquidity', label: 'Высокая ликвидность' },
-                                    { value: 'volatile', label: 'Волатильные' },
-                                    { value: 'low_price', label: 'Низкая цена' },
-                                    { value: 'custom', label: 'Custom' },
-                                ]}
-                                onChange={value =>
-                                    patch({ screenerPreset: value as RobotV2WizardDraft['screenerPreset'] })
-                                }
-                            />
-                        </label>
+                        <>
+                            <label className="robots-v2-field">
+                                <span>Пресет</span>
+                                <Select
+                                    className="robots-v2-select"
+                                    value={draft.screenerPreset}
+                                    searchable={false}
+                                    options={[
+                                        { value: 'high_liquidity', label: 'Высокая ликвидность' },
+                                        { value: 'volatile', label: 'Волатильные' },
+                                        { value: 'low_price', label: 'Низкая цена' },
+                                        { value: 'custom', label: 'Свой' },
+                                    ]}
+                                    onChange={value => {
+                                        const screenerPreset = value as RobotV2WizardDraft['screenerPreset']
+                                        if (screenerPreset === 'custom' && draft.screenerPreset !== 'custom') {
+                                            patch({
+                                                screenerPreset,
+                                                ...customScreenerFieldDefaults(draft.instrumentType),
+                                            })
+                                            return
+                                        }
+                                        patch({ screenerPreset })
+                                    }}
+                                />
+                            </label>
+                            {draft.screenerPreset === 'custom' && (
+                                <ScreenerCustomFilters draft={draft} patch={patch} />
+                            )}
+                        </>
                     )}
-                    <div className="robots-v2-inline">
+                    <div className="robots-v2-grid robots-v2-grid--2">
                         <label className="robots-v2-field">
                             <span>Макс. активов</span>
                             <input
@@ -331,60 +406,35 @@ export function LabConfigForm({ draft, onChange, compact = true }: LabConfigForm
             </CollapsibleSection>
 
             <CollapsibleSection
-                className="dashboard-assets-collapse"
-                defaultOpen
+                className="dashboard-accounts-collapse portfolio-composition-collapse"
+                defaultOpen={!compact}
                 title={(
                     <span className="dashboard-collapse__label">
                         <span className="dashboard-icon" aria-hidden>◎</span>
                         Риск
                     </span>
                 )}
+                badge={compact
+                    ? (
+                        <span className="dashboard-accounts-collapse__count">
+                            {`${Number(draft.capital).toLocaleString('ru-RU')} · SL ${draft.stopLossPct}% · TP ${draft.takeProfitPct}% · ${draft.brokerCommissionPct}/${draft.taxPct}%`}
+                        </span>
+                    )
+                    : undefined}
             >
                 <div className="robots-v2-form robots-v2-form--risk">
-                    <label className="robots-v2-field">
-                        <span>Капитал (в конфиге)</span>
-                        <input
-                            className="robots-v2-input"
-                            type="number"
-                            min={10}
-                            value={draft.capital}
-                            onChange={e => patch({ capital: Number(e.target.value) })}
-                        />
-                        <small className="robots-v2-hint">
-                            Поле «Капитал» ниже в запуске может переопределить сумму прогона.
-                        </small>
-                    </label>
-                    <label className="robots-v2-field">
-                        <span>Доля позиции, %</span>
-                        <input
-                            className="robots-v2-input"
-                            type="number"
-                            value={draft.maxPositionSharePct}
-                            onChange={e => patch({ maxPositionSharePct: Number(e.target.value) })}
-                        />
-                    </label>
-                    <div className="robots-v2-inline">
+                    <div className="robots-v2-grid robots-v2-grid--4">
                         <label className="robots-v2-field">
-                            <span>Stop-loss %</span>
+                            <span>Капитал</span>
                             <input
                                 className="robots-v2-input"
                                 type="number"
-                                value={draft.stopLossPct}
-                                onChange={e => patch({ stopLossPct: Number(e.target.value) })}
+                                min={10}
+                                step={1000}
+                                value={draft.capital}
+                                onChange={e => patch({ capital: Number(e.target.value) })}
                             />
                         </label>
-                        <label className="robots-v2-field">
-                            <span>Take-profit %</span>
-                            <input
-                                className="robots-v2-input"
-                                type="number"
-                                value={draft.takeProfitPct}
-                                onChange={e => patch({ takeProfitPct: Number(e.target.value) })}
-                            />
-                        </label>
-                    </div>
-                    <small className="robots-v2-hint">Risk/Reward ≈ {rr.toFixed(2)}</small>
-                    <div className="robots-v2-inline">
                         <label className="robots-v2-field">
                             <span>Макс. дневной убыток</span>
                             <input
@@ -415,31 +465,71 @@ export function LabConfigForm({ draft, onChange, compact = true }: LabConfigForm
                             />
                         </label>
                     </div>
-                    <label className="robots-v2-field">
-                        <span>Режим остановки</span>
-                        <SegmentedControl
-                            className="robots-v2-segmented"
-                            aria-label="Режим остановки"
-                            options={[...STOP_MODE_OPTIONS]}
-                            value={draft.stopMode}
-                            onChange={stopMode => patch({ stopMode })}
-                        />
-                    </label>
-                    <label className="robots-v2-field">
-                        <span>EOD flatten</span>
-                        <SegmentedControl
-                            className="robots-v2-segmented"
-                            aria-label="Закрытие к концу сессии"
-                            options={[...EOD_OPTIONS]}
-                            value={draft.eodFlattenEnabled === null ? 'auto' : draft.eodFlattenEnabled ? 'on' : 'off'}
-                            onChange={value => patch({
-                                eodFlattenEnabled: value === 'auto' ? null : value === 'on',
-                            })}
-                        />
-                    </label>
-                    <div className="robots-v2-inline">
+                    <div className="robots-v2-grid robots-v2-grid--3">
                         <label className="robots-v2-field">
-                            <span>Комиссия %</span>
+                            <span>Доля позиции, %</span>
+                            <input
+                                className="robots-v2-input"
+                                type="number"
+                                value={draft.maxPositionSharePct}
+                                onChange={e => patch({ maxPositionSharePct: Number(e.target.value) })}
+                            />
+                        </label>
+                        <label className="robots-v2-field">
+                            <span>Stop-loss %</span>
+                            <input
+                                className="robots-v2-input"
+                                type="number"
+                                value={draft.stopLossPct}
+                                onChange={e => patch({ stopLossPct: Number(e.target.value) })}
+                            />
+                        </label>
+                        <label className="robots-v2-field">
+                            <span>Take-profit %</span>
+                            <input
+                                className="robots-v2-input"
+                                type="number"
+                                value={draft.takeProfitPct}
+                                onChange={e => patch({ takeProfitPct: Number(e.target.value) })}
+                            />
+                            <small className="robots-v2-hint">Risk/Reward ≈ {rr.toFixed(2)}</small>
+                        </label>
+                    </div>
+                    <div className="robots-v2-grid robots-v2-grid--2">
+                        <label className="robots-v2-field">
+                            <span>
+                                Режим остановки
+                                <FormLabelTooltip text="Мягкая: робот перестаёт открывать новые позиции. Жёсткая: дополнительно закрывает уже открытые." />
+                            </span>
+                            <SegmentedControl
+                                className="robots-v2-segmented"
+                                aria-label="Режим остановки"
+                                options={[...STOP_MODE_OPTIONS]}
+                                value={draft.stopMode}
+                                onChange={stopMode => patch({ stopMode })}
+                            />
+                            <small className="robots-v2-hint">Мягкая — без новых входов. Жёсткая — ещё закрыть текущие.</small>
+                        </label>
+                        <label className="robots-v2-field">
+                            <span>
+                                Закрытие к концу дня
+                                <FormLabelTooltip text="EOD flatten: перед закрытием сессии все позиции сбрасываются в ноль. Авто включает это для акций MOEX и выключает для круглосуточных рынков." />
+                            </span>
+                            <SegmentedControl
+                                className="robots-v2-segmented"
+                                aria-label="Закрытие к концу дня"
+                                options={[...EOD_OPTIONS]}
+                                value={draft.eodFlattenEnabled === null ? 'auto' : draft.eodFlattenEnabled ? 'on' : 'off'}
+                                onChange={value => patch({
+                                    eodFlattenEnabled: value === 'auto' ? null : value === 'on',
+                                })}
+                            />
+                            <small className="robots-v2-hint">Сбросить позиции до конца сессии. Авто — для акций.</small>
+                        </label>
+                    </div>
+                    <div className="robots-v2-grid robots-v2-grid--3">
+                        <label className="robots-v2-field">
+                            <span>Комиссия брокера %</span>
                             <input
                                 className="robots-v2-input"
                                 type="number"
@@ -449,7 +539,7 @@ export function LabConfigForm({ draft, onChange, compact = true }: LabConfigForm
                             />
                         </label>
                         <label className="robots-v2-field">
-                            <span>Налог %</span>
+                            <span>НДФЛ %</span>
                             <input
                                 className="robots-v2-input"
                                 type="number"

@@ -10,6 +10,7 @@ type MonitorEventsCardProps = {
     streamConnected: boolean
     isRunning: boolean
     hasToken: boolean
+    bare?: boolean
 }
 
 export function MonitorEventsCard({
@@ -17,15 +18,15 @@ export function MonitorEventsCard({
     streamConnected,
     isRunning,
     hasToken,
+    bare = false,
 }: MonitorEventsCardProps) {
-    return (
-        <Card className="dashboard-assets-card robots-v2-monitor-events">
-            <div className="dashboard-assets-card__head">
-                <h3 className="dashboard-panel-title">Живой поток</h3>
-                <Badge variant={streamConnected ? 'up' : 'neutral'}>
-                    {streamConnected ? 'стрим' : 'стрим офлайн'}
-                </Badge>
-            </div>
+    const body = (
+        <>
+            {bare ? (
+                <p className="robots-v2-hint robots-v2-universe-caption">
+                    {streamConnected ? 'Стрим подключён' : 'Стрим офлайн'}
+                </p>
+            ) : null}
             {events.length === 0 ? (
                 <p className="dashboard-empty">
                     {isRunning
@@ -53,6 +54,22 @@ export function MonitorEventsCard({
                     ))}
                 </ul>
             )}
+        </>
+    )
+
+    if (bare) {
+        return <div className="robots-v2-monitor-events">{body}</div>
+    }
+
+    return (
+        <Card className="dashboard-assets-card robots-v2-monitor-events">
+            <div className="dashboard-assets-card__head">
+                <h3 className="dashboard-panel-title">Живой поток</h3>
+                <Badge variant={streamConnected ? 'up' : 'neutral'}>
+                    {streamConnected ? 'стрим' : 'стрим офлайн'}
+                </Badge>
+            </div>
+            {body}
         </Card>
     )
 }
