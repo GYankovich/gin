@@ -99,8 +99,54 @@ def build_create_phone_query() -> str:
 def build_create_token_query() -> str:
     """Возвращает запрос для сохранения токена"""
     return """
-           INSERT INTO user_token (user_id, token, status, created_at, expires_at)
-           VALUES (:user_id, :token, :status, :created_at, :expires_at) \
+           INSERT INTO user_token (
+               user_id, token, status, created_at, expires_at,
+               ip, user_agent, device_label, geo_label, last_seen_at
+           )
+           VALUES (
+               :user_id, :token, :status, :created_at, :expires_at,
+               :ip, :user_agent, :device_label, :geo_label, :last_seen_at
+           ) \
+           """
+
+
+def build_list_active_sessions_query() -> str:
+    """Активные (не просроченные) сессии пользователя. Текущая — первой."""
+    return """
+           SELECT
+               id,
+               ip,
+               device_label,
+               geo_label,
+               created_at,
+               expires_at,
+               last_seen_at,
+               token
+           FROM user_token
+           WHERE user_id = :user_id
+             AND status = 1
+             AND expires_at > CURRENT_TIMESTAMP
+           ORDER BY (token = :current_token) DESC, created_at DESC \
+           """
+
+
+def build_invalidate_token_by_id_query() -> str:
+    """Инвалидация конкретной сессии пользователя по id."""
+    return """
+           UPDATE user_token
+           SET status = 3, invalidated_at = :now
+           WHERE id = :token_id
+             AND user_id = :user_id
+             AND status = 1 \
+           """
+
+
+def build_invalidate_all_user_tokens_query() -> str:
+    """Инвалидация всех активных сессий пользователя."""
+    return """
+           UPDATE user_token
+           SET status = 3, invalidated_at = :now
+           WHERE user_id = :user_id AND status = 1 \
            """
 
 

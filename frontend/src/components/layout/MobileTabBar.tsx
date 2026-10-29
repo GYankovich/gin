@@ -44,9 +44,26 @@ function IconTesting({ className }: TabIconProps) {
 }
 
 const tabs = [
-    { to: '/portfolio', label: 'Портфель', Icon: IconPortfolio },
-    { to: '/robots', label: 'Роботы', Icon: IconRobots },
-    { to: '/backtest', label: 'Лаб', Icon: IconTesting },
+    {
+        to: '/portfolio',
+        label: 'Портфель',
+        Icon: IconPortfolio,
+        prefetch: () => { void import('@/pages/PortfolioPage') },
+    },
+    {
+        to: '/robots',
+        label: 'Роботы',
+        Icon: IconRobots,
+        prefetch: () => {
+            void import('@/pages/robots-v2/RobotsV2FleetPage')
+        },
+    },
+    {
+        to: '/backtest',
+        label: 'Лаб',
+        Icon: IconTesting,
+        prefetch: () => { void import('@/pages/robots-v2/BacktestLabPage') },
+    },
 ] as const
 
 function scrollToTokens() {
@@ -57,10 +74,12 @@ function MobileTab({
     to,
     label,
     Icon,
+    prefetch,
 }: {
     to: string
     label: string
     Icon: React.ComponentType<TabIconProps>
+    prefetch?: () => void
 }) {
     return (
         <NavLink
@@ -70,6 +89,9 @@ function MobileTab({
                 isActive ? 'mobile-dock__tab--active' : 'mobile-dock__tab--idle',
             ].join(' ')}
             aria-label={label}
+            onMouseEnter={prefetch}
+            onFocus={prefetch}
+            onTouchStart={prefetch}
         >
             {({ isActive }) => (
                 <>
@@ -112,17 +134,21 @@ export function MobileTabBar({ hasExpiredToken }: { hasExpiredToken: boolean }) 
                     end
                     className={({ isActive }) => `mobile-dock__brand${isActive ? ' mobile-dock__brand--active' : ''}`}
                     aria-label="Дашборд"
+                    onMouseEnter={() => { void import('@/pages/DashboardPage') }}
+                    onFocus={() => { void import('@/pages/DashboardPage') }}
+                    onTouchStart={() => { void import('@/pages/DashboardPage') }}
                 >
                     <img className="mobile-dock__logo" src="/favicon.svg" alt="" />
                 </NavLink>
 
                 <div className="mobile-dock__tabs">
-                    {tabs.map(({ to, label, Icon }) => (
+                    {tabs.map(({ to, label, Icon, prefetch }) => (
                         <MobileTab
                             key={to}
                             to={to}
                             label={label}
                             Icon={Icon}
+                            prefetch={prefetch}
                         />
                     ))}
                 </div>

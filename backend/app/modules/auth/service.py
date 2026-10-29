@@ -23,6 +23,7 @@ from app.core.security import verify_password, get_password_hash, create_access_
 from app.core.config import settings
 from . import schemas
 from . import queries
+from .session_meta import SessionClientMeta, mask_ip
 from .confirmation import (
     CODE_TTL,
     MAX_ATTEMPTS,
@@ -506,7 +507,12 @@ class AuthService:
         self.db.commit()
         return schemas.RegisterPendingResponse(email=email, dev_code=dev_code)
 
-    def confirm_registration(self, db: Session, payload: schemas.ConfirmRegisterRequest) -> schemas.TokenResponse:
+    def confirm_registration(
+        self,
+        db: Session,
+        payload: schemas.ConfirmRegisterRequest,
+        client: Optional[SessionClientMeta] = None,
+    ) -> schemas.TokenResponse:
         email = str(payload.email).strip().lower()
         self.db = db
         password_hash = self._accept_code(email, payload.code, PURPOSE_REGISTER)
@@ -522,7 +528,7 @@ class AuthService:
         user = self._persist_user(login=login, password_hash=password_hash, email=email, now=datetime.utcnow())
         self._delete_confirmation(email, PURPOSE_REGISTER)
         self.db.commit()
-        return self.create_user_token(db, user)
+        return self.create_user_token(db, user, client=client)
 
     def start_email_login(self, db: Session, credentials: schemas.LoginRequest) -> schemas.RegisterPendingResponse:
         """Пароль верный — на почту аккаунта уходит код. Сессия после /auth/confirm."""
@@ -586,7 +592,12 @@ class AuthService:
         self.db.commit()
         return schemas.RegisterPendingResponse(email=email, dev_code=dev_code)
 
-    def confirm_email_login(self, db: Session, payload: schemas.ConfirmRegisterRequest) -> schemas.TokenResponse:
+    def confirm_email_login(
+        self,
+        db: Session,
+        payload: schemas.ConfirmRegisterRequest,
+        client: Optional[SessionClientMeta] = None,
+    ) -> schemas.TokenResponse:
         email = str(payload.email).strip().lower()
         self.db = db
         self._accept_code(email, payload.code, PURPOSE_LOGIN)
@@ -598,7 +609,7 @@ class AuthService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Аккаунт не найден.",
             )
-        return self.create_user_token(db, user)
+        return self.create_user_token(db, user, client=client)
 
     def _user_from_email(self, email: str) -> Optional[dict]:
         row = self._execute(
@@ -760,7 +771,12 @@ class AuthService:
             "created_at": now,
         }
 
-    def create_user_token(self, db: Session, user_data: dict) -> schemas.TokenResponse:
+    def create_user_token(
+        self,
+        db: Session,
+        user_data: dict,
+        client: Optional[SessionClientMeta] = None,
+    ) -> schemas.TokenResponse:
         """
         Создает JWT токен для пользователя и сохраняет его в БД
         """
@@ -789,7 +805,7 @@ class AuthService:
         logger.debug(f"Creating token expires_at: {expires_at}")
         logger.debug(f"Current time: {now}")
 
-        # Сохраняем токен в БД
+        meta = client or SessionClientMeta()
         token_query = queries.build_create_token_query()
         self._execute(
             token_query,
@@ -798,7 +814,12 @@ class AuthService:
                 "token": token,
                 "status": 1,  # ACTIVE
                 "created_at": now,
-                "expires_at": expires_at
+                "expires_at": expires_at,
+                "ip": meta.ip,
+                "user_agent": meta.user_agent,
+                "device_label": meta.device_label,
+                "geo_label": meta.geo_label,
+                "last_seen_at": now,
             }
         )
         db.commit()
@@ -869,13 +890,65 @@ class AuthService:
         self.db = db
 
         update_query = queries.build_invalidate_token_query()
-        result = self._execute(
+        self._execute(
             update_query,
             {"token": token, "now": datetime.now(timezone.utc)}
         )
         db.commit()
 
         logger.info(f"Token invalidated: {token[:20]}...")
+
+    def list_sessions(self, db: Session, user_id: int, current_token: str) -> schemas.SessionListResponse:
+        self.db = db
+        rows = self._execute(
+            queries.build_list_active_sessions_query(),
+            {"user_id": user_id, "current_token": current_token},
+        )
+        items: list[schemas.SessionOut] = []
+        for row in rows:
+            raw_token = row[7]
+            items.append(
+                schemas.SessionOut(
+                    id=int(row[0]),
+                    ip_masked=mask_ip(row[1]),
+                    device_label=row[2] or "Неизвестное устройство",
+                    geo_label=row[3],
+                    created_at=row[4],
+                    expires_at=row[5],
+                    last_seen_at=row[6],
+                    is_current=bool(raw_token and raw_token == current_token),
+                )
+            )
+        return schemas.SessionListResponse(items=items)
+
+    def revoke_session(self, db: Session, user_id: int, session_id: int) -> bool:
+        """Инвалидирует сессию. True, если строка обновлена."""
+        self.db = db
+        result = self._execute(
+            queries.build_invalidate_token_by_id_query(),
+            {
+                "token_id": session_id,
+                "user_id": user_id,
+                "now": datetime.now(timezone.utc),
+            },
+        )
+        db.commit()
+        try:
+            return bool(result and result.rowcount)
+        except Exception:
+            return True
+
+    def revoke_all_sessions(self, db: Session, user_id: int) -> int:
+        self.db = db
+        result = self._execute(
+            queries.build_invalidate_all_user_tokens_query(),
+            {"user_id": user_id, "now": datetime.now(timezone.utc)},
+        )
+        db.commit()
+        try:
+            return int(result.rowcount or 0)
+        except Exception:
+            return 0
 
     def get_user_contacts(self, db: Session, user_id: int) -> list:
         """

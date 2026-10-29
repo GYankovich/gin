@@ -2,6 +2,7 @@
 ///@ Исходный модуль `frontend/src/stores/authStore.ts` — автоматическая разметка для Obsidian Source Scanner.
 
 import { create } from 'zustand'
+import { usePageCacheStore } from '@/stores/pageCacheStore'
 
 interface User {
     id: number
@@ -39,6 +40,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         localStorage.removeItem('gin-token')
         localStorage.removeItem('gin-user')
         localStorage.removeItem('gin-login-at')
+        usePageCacheStore.getState().clear()
         set({ user: null, token: null, loginAt: null })
     },
 }))

@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Button } from '@/components/ui/Button'
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
 import { AccountVisibilityGear, AccountVisibilityModal } from '@/components/accounts/AccountVisibilityModal'
+import { ConnectBrokerEmpty } from '@/components/ConnectBrokerEmpty'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { dashboardService } from '@/services/dashboardService'
+import { usePageCacheStore } from '@/stores/pageCacheStore'
 import type {
     DashboardAccountItem,
     DashboardAssetItem,
@@ -21,8 +23,13 @@ import './DashboardPage.css'
 const DASHBOARD_RETRY_ANIM_MS = 1800
 
 export default function DashboardPage() {
-    const [data, setData] = useState<DashboardDataResponse | null>(null)
-    const [loading, setLoading] = useState(true)
+    const [searchParams] = useSearchParams()
+    // Preview: /dashboard?empty=1
+    const previewEmpty = searchParams.get('empty') === '1'
+    const cachedDashboard = usePageCacheStore(s => s.dashboard)
+    const setDashboardCache = usePageCacheStore(s => s.setDashboard)
+    const [data, setData] = useState<DashboardDataResponse | null>(cachedDashboard)
+    const [loading, setLoading] = useState(cachedDashboard == null)
     const [retrying, setRetrying] = useState(false)
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [settingsCurrency, setSettingsCurrency] = useState<string | null>(null)
@@ -30,12 +37,14 @@ export default function DashboardPage() {
     const load = useCallback(async (opts?: { fromRetry?: boolean }) => {
         const fromRetry = Boolean(opts?.fromRetry)
         const startedAt = Date.now()
+        const hasStale = usePageCacheStore.getState().dashboard != null
         if (fromRetry) setRetrying(true)
-        else setLoading(true)
+        else if (!hasStale) setLoading(true)
         let succeeded = false
         try {
             const res = await dashboardService.fetchData()
             setData(res)
+            setDashboardCache(res)
             succeeded = true
         } catch { /* interceptor */ }
         if (fromRetry && !succeeded) {
@@ -48,7 +57,7 @@ export default function DashboardPage() {
         }
         setLoading(false)
         setRetrying(false)
-    }, [])
+    }, [setDashboardCache])
 
     useEffect(() => {
         void load()
@@ -137,7 +146,7 @@ export default function DashboardPage() {
         )
     }
 
-    const hasContent = currencyRows.length > 0 || data.accounts.length > 0
+    const hasContent = !previewEmpty && (currencyRows.length > 0 || data.accounts.length > 0)
     const stickyTotals = data.totals
     const multiCurrency = stickyTotals.length > 1
     const showMobileHeader = isMobile && hasContent && Boolean(mobileView)
@@ -170,11 +179,7 @@ export default function DashboardPage() {
             <h1 className="dash-sr-only">Дашборд</h1>
             {currencyHeader}
             {!hasContent ? (
-                <Card className="dashboard-totals-card">
-                    <p className="dashboard-empty">
-                        Нет открытых счетов (статус OPEN). Добавьте счёт в T‑Invest или проверьте синхронизацию.
-                    </p>
-                </Card>
+                <ConnectBrokerEmpty />
             ) : (
                 <div className="dashboard-layout">
                     {isMobile ? (
@@ -480,6 +485,10 @@ function TotalsBlock({
     const gain = totals.total_minus_own_funds
     const gainPct = totals.total_minus_own_funds_percent
     const currency = (totals.currency || 'RUB').toUpperCase()
+    const showOwn = hasMetric(totals.total_own_funds)
+    const showGain = hasMetric(gain)
+    const showDay = hasMetric(d)
+    const metricCount = 1 + Number(showOwn) + Number(showGain) + Number(showDay)
 
     return (
         <Card className="dashboard-totals-card">
@@ -493,53 +502,71 @@ function TotalsBlock({
                     <div className="dashboard-summary-hero">
                         <div className="dashboard-summary-hero__head">
                             <span className="dashboard-summary-metric__label">Текущая стоимость</span>
-                            <span className={`dashboard-summary-hero__day mono ${roiClass(d)}`}>
-                                {formatAbsWithPercent(d, dp, totals.currency)}
-                            </span>
+                            {showDay ? (
+                                <span className={`dashboard-summary-hero__day mono ${roiClass(d)}`}>
+                                    {formatAbsWithPercent(d, dp, totals.currency)}
+                                </span>
+                            ) : null}
                         </div>
                         <div className="dashboard-summary-hero__value mono">
                             {formatMoney(totals.total_value, totals.currency)}
                         </div>
                     </div>
-                    <div className="dashboard-summary-divider" role="separator" />
-                    <div className="dashboard-summary-hero">
-                        <div className="dashboard-summary-hero__head">
-                            <span className="dashboard-summary-metric__label">Собственные</span>
-                            <span className={`dashboard-summary-hero__day mono ${roiClass(gain)}`}>
-                                {formatAbsWithPercent(gain, gainPct, totals.currency)}
-                            </span>
-                        </div>
-                        <div className="dashboard-summary-hero__value mono">
-                            {formatMoney(totals.total_own_funds, totals.currency)}
-                        </div>
-                    </div>
+                    {showOwn ? (
+                        <>
+                            <div className="dashboard-summary-divider" role="separator" />
+                            <div className="dashboard-summary-hero">
+                                <div className="dashboard-summary-hero__head">
+                                    <span className="dashboard-summary-metric__label">Собственные</span>
+                                    {showGain ? (
+                                        <span className={`dashboard-summary-hero__day mono ${roiClass(gain)}`}>
+                                            {formatAbsWithPercent(gain, gainPct, totals.currency)}
+                                        </span>
+                                    ) : null}
+                                </div>
+                                <div className="dashboard-summary-hero__value mono">
+                                    {formatMoney(totals.total_own_funds, totals.currency)}
+                                </div>
+                            </div>
+                        </>
+                    ) : null}
                 </div>
             ) : (
-                <div className="dashboard-summary-metrics">
-                    <div className="dashboard-summary-metric dashboard-summary-metric--own dashboard-summary-metric--primary">
-                        <span className="dashboard-summary-metric__label">Собственные средства</span>
-                        <span className="dashboard-summary-metric__value mono">
-                            {formatMoney(totals.total_own_funds, totals.currency)}
-                        </span>
-                    </div>
+                <div
+                    className={`dashboard-summary-metrics${metricCount < 4 ? ' dashboard-summary-metrics--sparse' : ''}`}
+                >
+                    {showOwn ? (
+                        <div className="dashboard-summary-metric dashboard-summary-metric--own dashboard-summary-metric--primary">
+                            <span className="dashboard-summary-metric__label">Собственные средства</span>
+                            <span className="dashboard-summary-metric__value mono">
+                                {formatMoney(totals.total_own_funds, totals.currency)}
+                            </span>
+                        </div>
+                    ) : null}
                     <div className="dashboard-summary-metric dashboard-summary-metric--value dashboard-summary-metric--primary">
                         <span className="dashboard-summary-metric__label">Текущая стоимость</span>
                         <span className="dashboard-summary-metric__value mono">
                             {formatMoney(totals.total_value, totals.currency)}
                         </span>
                     </div>
-                    <div className="dashboard-summary-metric dashboard-summary-metric--gain">
-                        <span className="dashboard-summary-metric__label">Общее изменение</span>
-                        <span className={`dashboard-summary-metric__value mono ${roiClass(gain)}`}>
-                            {formatAbsWithPercent(gain, gainPct, totals.currency)}
-                        </span>
-                    </div>
-                    <div className="dashboard-summary-metric dashboard-summary-metric--day">
-                        <span className="dashboard-summary-metric__label">За день</span>
-                        <span className={`dashboard-summary-metric__value mono ${roiClass(d)}`}>
-                            {formatAbsWithPercent(d, dp, totals.currency)}
-                        </span>
-                    </div>
+                    {showGain ? (
+                        <div className="dashboard-summary-metric dashboard-summary-metric--gain">
+                            <span className="dashboard-summary-metric__label">
+                                К своим средствам
+                            </span>
+                            <span className={`dashboard-summary-metric__value mono ${roiClass(gain)}`}>
+                                {formatAbsWithPercent(gain, gainPct, totals.currency)}
+                            </span>
+                        </div>
+                    ) : null}
+                    {showDay ? (
+                        <div className="dashboard-summary-metric dashboard-summary-metric--day">
+                            <span className="dashboard-summary-metric__label">За день</span>
+                            <span className={`dashboard-summary-metric__value mono ${roiClass(d)}`}>
+                                {formatAbsWithPercent(d, dp, totals.currency)}
+                            </span>
+                        </div>
+                    ) : null}
                 </div>
             )}
         </Card>
@@ -552,7 +579,7 @@ function AssetsBlock({ currency, items }: { currency: string; items: DashboardAs
             {items.map((a, index) => (
                 <div
                     key={`${currency}-${a.type}`}
-                    className={`dashboard-dist-row dashboard-dist-row--${assetBarTone(a.type, index)}`}
+                    className={`dashboard-dist-row dashboard-dist-row--tone${index % 4}`}
                     title={formatMoneyCompact(a.value, a.currency)}
                 >
                     <div className="dashboard-dist-row__main">
@@ -870,19 +897,13 @@ function buildCurrencyRows(
     }))
 }
 
+function hasMetric(val: number | null | undefined): boolean {
+    return val != null && !Number.isNaN(Number(val))
+}
+
 function clampPercent(val: number): number {
     if (!Number.isFinite(val)) return 0
     return Math.max(0, Math.min(100, val))
-}
-
-function assetBarTone(type: string, index: number): 'cyan' | 'magenta' | 'violet' | 'up' | 'warn' {
-    const t = type.toLowerCase()
-    if (/etf|фонд/.test(t)) return 'cyan'
-    if (/share|equity|акци|stock/.test(t)) return 'magenta'
-    if (/bond|облиг/.test(t)) return 'warn'
-    if (/currenc|cash|валют|деньг|money|currency/.test(t)) return 'up'
-    const tones = ['cyan', 'magenta', 'violet', 'warn', 'up'] as const
-    return tones[index % tones.length]
 }
 
 function isAccountActive(row: DashboardAccountItem): boolean {

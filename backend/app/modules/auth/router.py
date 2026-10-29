@@ -13,6 +13,7 @@ from typing import Optional
 from app.core.config import settings
 from app.core.database import get_db
 from . import schemas, service
+from .session_meta import client_meta_from_request
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -61,10 +62,13 @@ async def auth(
 @router.post("/confirm", response_model=schemas.TokenResponse)
 async def auth_confirm(
         payload: schemas.ConfirmRegisterRequest,
+        request: Request,
         db: Session = Depends(get_db),
 ):
     """Код из письма совпал — выдаём сессию."""
-    return service.auth_service.confirm_email_login(db, payload)
+    return service.auth_service.confirm_email_login(
+        db, payload, client=await client_meta_from_request(request)
+    )
 
 
 @router.post("/resend", response_model=schemas.RegisterPendingResponse)
@@ -96,10 +100,13 @@ async def registration(
 @registration_router.post("/confirm", response_model=schemas.TokenResponse)
 async def registration_confirm(
         payload: schemas.ConfirmRegisterRequest,
+        request: Request,
         db: Session = Depends(get_db),
 ):
     """Код из письма совпал — создаём аккаунт и выдаём сессию."""
-    return service.auth_service.confirm_registration(db, payload)
+    return service.auth_service.confirm_registration(
+        db, payload, client=await client_meta_from_request(request)
+    )
 
 
 @registration_router.post("/resend", response_model=schemas.RegisterPendingResponse)
@@ -143,6 +150,7 @@ async def change_pass(
 @router.post("/login", response_model=schemas.TokenResponse)
 async def login(
         credentials: schemas.LoginRequest,
+        request: Request,
         db: Session = Depends(get_db)
 ):
     """
@@ -161,7 +169,9 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return service.auth_service.create_user_token(db, user)
+    return service.auth_service.create_user_token(
+        db, user, client=await client_meta_from_request(request)
+    )
 
 
 @router.get("/me", response_model=schemas.UserOut)
@@ -211,8 +221,67 @@ async def logout(
     """
     Выход из системы (инвалидация токена)
     """
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     service.auth_service.logout_user(db, token)
     return {"message": "Successfully logged out"}
+
+
+@router.get("/sessions", response_model=schemas.SessionListResponse)
+async def list_sessions(
+        token: str = Depends(get_token_from_header),
+        db: Session = Depends(get_db),
+):
+    """Активные сессии текущего пользователя."""
+    user = service.auth_service.get_user_from_token(db, token)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return service.auth_service.list_sessions(db, user["id"], token)
+
+
+@router.delete("/sessions/{session_id}")
+async def revoke_session(
+        session_id: int,
+        token: str = Depends(get_token_from_header),
+        db: Session = Depends(get_db),
+):
+    """Завершить одну сессию (своё устройство или чужое)."""
+    user = service.auth_service.get_user_from_token(db, token)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    ok = service.auth_service.revoke_session(db, user["id"], session_id)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сессия не найдена")
+    return {"status": "ok"}
+
+
+@router.post("/sessions/revoke-all")
+async def revoke_all_sessions(
+        token: str = Depends(get_token_from_header),
+        db: Session = Depends(get_db),
+):
+    """Завершить все сессии пользователя, включая текущую."""
+    user = service.auth_service.get_user_from_token(db, token)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    count = service.auth_service.revoke_all_sessions(db, user["id"])
+    return {"status": "ok", "revoked": count}
 
 
 @router.post("/clean-tokens")

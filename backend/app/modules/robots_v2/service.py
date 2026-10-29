@@ -38,9 +38,12 @@ from app.modules.robots_v2.validator import (
 
 from app.modules.robots_v2.engine.session_resume import DELETED_AT_KEY, SESSION_DESIRED_KEY
 
+logger = logging.getLogger(__name__)
+
 _IDLE_BROKER_CACHE: dict[int, tuple[float, dict[str, Any]]] = {}
 _IDLE_BROKER_CACHE_TTL_SEC = 20.0
-_IDLE_BROKER_FETCH_TIMEOUT_SEC = 6.0
+# get_accounts + portfolio can exceed 6s under rate limits; prefer cached account_id.
+_IDLE_BROKER_FETCH_TIMEOUT_SEC = 12.0
 
 
 def _idle_broker_cache_get(robot_id: int) -> dict[str, Any] | None:
@@ -741,6 +744,8 @@ class RobotsV2Service:
         """Best-effort broker portfolio snapshot when session is stopped (lightweight)."""
         from app.modules.robots_v2.engine.broker_factory import (
             create_broker_from_token,
+            load_token_account_id,
+            persist_token_account_id,
             resolve_account_id,
         )
         from app.modules.robots_v2.engine.broker_positions import fetch_broker_positions_snapshot
@@ -777,9 +782,18 @@ class RobotsV2Service:
             if broker is None:
                 return None
             preferred = str(core.get("accountId") or core.get("account_id") or "").strip() or None
+            if not preferred:
+                preferred = load_token_account_id(token_id, user_id, schema=self.schema)
             account_id = await resolve_account_id(broker, preferred)
             if not account_id:
                 return None
+            if not preferred:
+                persist_token_account_id(
+                    user_id=user_id,
+                    token_id=token_id,
+                    account_id=account_id,
+                    schema=self.schema,
+                )
             snap = await fetch_broker_positions_snapshot(
                 broker=broker,
                 account_id=account_id,
@@ -805,6 +819,8 @@ class RobotsV2Service:
                 "universe": universe,
                 "updatedAt": datetime.now(timezone.utc).isoformat(),
             }
+        except asyncio.CancelledError:
+            raise
         except Exception:
             logger.exception("idle broker snapshot failed robot_id=%s", robot_id)
             return None

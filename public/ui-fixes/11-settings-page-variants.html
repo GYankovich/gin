@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Настройки — варианты композиции</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .intro {
+    margin: 0 0 22px;
+    max-width: 72ch;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--secondary);
+  }
+  .intro strong { color: var(--text); font-weight: 600; }
+
+  .variant {
+    margin-bottom: 36px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: #0e1114;
+  }
+  .variant__head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    align-items: baseline;
+    margin-bottom: 14px;
+  }
+  .variant__num {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .variant__title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .variant__why {
+    margin: 0;
+    flex: 1 1 100%;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--secondary);
+  }
+
+  .frames {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) 390px;
+    gap: 18px;
+    align-items: start;
+  }
+  @media (max-width: 980px) {
+    .frames { grid-template-columns: 1fr; }
+  }
+
+  .desk, .phone {
+    border: 1px solid var(--border);
+    background: var(--bg);
+    overflow: hidden;
+  }
+  .desk {
+    border-radius: 14px;
+    min-height: 520px;
+  }
+  .phone {
+    width: 100%;
+    max-width: 390px;
+    margin-inline: auto;
+    border-radius: 28px;
+    min-height: 640px;
+  }
+
+  .chrome {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: #0b0d10;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .chrome strong { color: var(--text); font-weight: 600; }
+  .chrome__links { display: flex; gap: 12px; margin-left: 8px; }
+  .chrome__links span.is-on { color: var(--text); }
+  .chrome__right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .av {
+    width: 28px; height: 28px; border-radius: 999px;
+    display: grid; place-items: center;
+    border: 1px solid var(--border);
+    background: var(--input);
+    font-size: 11px; font-weight: 700;
+  }
+
+  .body { padding: 16px; }
+  .phone .body { padding: 12px 14px 20px; }
+
+  .row2 {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .phone .row2 { grid-template-columns: 1fr; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 14px;
+  }
+  .lbl {
+    margin: 0 0 8px;
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .profile {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .profile .av { width: 36px; height: 36px; font-size: 12px; }
+  .profile__id { min-width: 0; flex: 1; }
+  .profile__login { font-size: 15px; font-weight: 600; }
+  .profile__meta { font-size: 12.5px; color: var(--secondary); margin-top: 2px; }
+  .profile__since { font-size: 12.5px; color: var(--secondary); margin-left: auto; white-space: nowrap; }
+  .pencil { color: var(--muted); font-size: 12px; }
+
+  .tabs {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 3px; padding: 3px; background: var(--input); border-radius: 10px;
+  }
+  .tabs span {
+    text-align: center; font-size: 13px; color: var(--muted);
+    padding: 8px 4px; border-radius: 7px;
+  }
+  .tabs span.is-on {
+    background: var(--elevated); color: var(--text);
+    border: 1px solid var(--line);
+  }
+
+  .empty {
+    padding: 22px 18px;
+    text-align: center;
+  }
+  .empty h3 { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+  .empty p { margin: 0 auto 14px; max-width: 34ch; font-size: 14px; line-height: 1.45; color: var(--secondary); }
+  .empty .cta {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 40px; padding: 0 16px; border-radius: 10px;
+    background: var(--accent); color: var(--on-accent); font-weight: 600; font-size: 14px;
+  }
+
+  .disc {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px;
+  }
+  .disc__t { flex: 1; font-size: 13px; font-weight: 500; color: var(--muted); }
+  .disc__chev { color: var(--muted); font-size: 12px; }
+
+  .logout {
+    text-align: center; padding: 10px 0 4px;
+    color: var(--down); font-size: 14px; font-weight: 500;
+  }
+
+  /* V2 list */
+  .list {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .list__row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .list__row:last-child { border-bottom: 0; }
+  .list__row .m { margin-left: auto; color: var(--muted); font-size: 12.5px; }
+  .list__group { margin: 0 0 8px; font-size: 12px; color: var(--muted); padding-left: 4px; }
+  .list + .list { margin-top: 12px; }
+
+  /* V3 identity hero */
+  .hero {
+    padding: 18px 16px 16px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #151920 0%, var(--bg) 100%);
+  }
+  .hero .profile { gap: 12px; }
+  .hero .av { width: 44px; height: 44px; font-size: 14px; }
+  .hero .profile__login { font-size: 17px; }
+  .hero-tabs { margin-top: 14px; }
+
+  /* V4 split */
+  .split {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    min-height: 480px;
+  }
+  .split__nav {
+    border-right: 1px solid var(--border);
+    padding: 12px 10px;
+    background: #0e1114;
+  }
+  .split__nav button {
+    display: block; width: 100%; text-align: left;
+    border: 0; background: transparent; color: var(--muted);
+    padding: 10px 12px; border-radius: 10px; font-size: 13px;
+  }
+  .split__nav button.is-on {
+    background: var(--panel); color: var(--text);
+  }
+  .split__main { padding: 16px; }
+
+  .phone .dock {
+    margin-top: auto;
+    display: grid; grid-template-columns: repeat(5, 1fr);
+    border-top: 1px solid var(--border);
+    padding: 8px 4px 12px;
+    font-size: 10px; color: var(--muted); text-align: center;
+  }
+  .phone .dock span.is-on { color: var(--text); }
+
+  .stack { display: flex; flex-direction: column; gap: 10px; }
+  .phone-frame { display: flex; flex-direction: column; min-height: 640px; }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← Назад</a>
+    <div>
+      <h1>Настройки — 4 направления</h1>
+      <p>Статика. Живой CSS «под логин» откатил. Выбери направление — внедрим целиком.</p>
+    </div>
+    <span class="badge badge--new">согласование</span>
+  </div>
+
+  <div class="wrap">
+    <p class="intro">
+      Сейчас страница — <strong>набор карточек дашборда</strong> (профиль+тема, empty брокера, сессии, выход).
+      Ниже четыре композиции: что оставить / что упростить. Desktop слева, mobile справа.
+    </p>
+
+    <!-- ========== V1 ========== -->
+    <section class="variant" id="v1">
+      <div class="variant__head">
+        <span class="variant__num">Вариант A</span>
+        <h2 class="variant__title">Кабинет как сейчас (полировка)</h2>
+        <p class="variant__why">
+          Та же структура: 2 колонки сверху → empty / брокеры → сессии (свёрнуты) → Выйти.
+          Улучшения только в ритме: единый gap, спокойный first-run, без перекраски под login.
+          <strong>Плюс:</strong> знакомо. <strong>Минус:</strong> всё ещё «дашборд-страница», много рамок.
+        </p>
+      </div>
+      <div class="frames">
+        <div class="desk">
+          <div class="chrome">
+            <strong>ginity</strong>
+            <div class="chrome__links"><span>Дашборд</span><span>Портфель</span><span>Роботы</span><span>Лаборатория</span></div>
+            <div class="chrome__right"><span>◐</span><span class="av">GY</span></div>
+          </div>
+          <div class="body stack">
+            <div class="row2">
+              <div class="card profile">
+                <span class="av">GY</span>
+                <div class="profile__id">
+                  <div class="profile__login">gy</div>
+                  <div class="profile__meta">user@mail.ru</div>
+                </div>
+                <span class="profile__since">регистрация 12.03.2025</span>
+                <span class="pencil">✎</span>
+              </div>
+              <div class="card">
+                <div class="tabs"><span>Система</span><span class="is-on">Тёмная</span><span>Светлая</span></div>
+              </div>
+            </div>
+            <div class="card empty">
+              <h3>Подключите брокера</h3>
+              <p>Счета появятся после токена T‑Invest или Bybit.</p>
+              <span class="cta">Добавить токен</span>
+            </div>
+            <div class="card disc"><span class="disc__t">Активные сессии</span><span class="disc__chev">›</span></div>
+            <div class="logout">Выйти</div>
+          </div>
+        </div>
+        <div class="phone">
+          <div class="phone-frame">
+            <div class="chrome"><strong>Настройки</strong></div>
+            <div class="body stack">
+              <div class="card profile">
+                <span class="av">GY</span>
+                <div class="profile__id">
+                  <div class="profile__login">gy</div>
+                  <div class="profile__meta">user@mail.ru</div>
+                  <div class="profile__meta">регистрация 12.03.2025</div>
+                </div>
+                <span class="pencil">✎</span>
+              </div>
+              <div>
+                <p class="lbl">Тема</p>
+                <div class="tabs"><span>Система</span><span class="is-on">Тёмная</span><span>Светлая</span></div>
+              </div>
+              <div class="card empty">
+                <h3>Подключите брокера</h3>
+                <p>Счета после токена.</p>
+                <span class="cta">Добавить токен</span>
+              </div>
+              <div class="card disc"><span class="disc__t">Активные сессии</span><span class="disc__chev">›</span></div>
+              <div class="logout">Выйти</div>
+            </div>
+            <div class="dock"><span>⌂</span><span>◇</span><span>⚙</span><span>◎</span><span class="is-on">⋯</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== V2 ========== -->
+    <section class="variant" id="v2">
+      <div class="variant__head">
+        <span class="variant__num">Вариант B</span>
+        <h2 class="variant__title">Список настроек (группы строк)</h2>
+        <p class="variant__why">
+          Меньше карточек: группы «Профиль / Оформление / Брокеры / Безопасность» как список строк.
+          Empty брокера — одна строка-CTA, не огромный блок. Сессии и выход в «Безопасность».
+          <strong>Плюс:</strong> читается как Settings, плотность. <strong>Минус:</strong> меньше «вау» у empty.
+        </p>
+      </div>
+      <div class="frames">
+        <div class="desk">
+          <div class="chrome">
+            <strong>ginity</strong>
+            <div class="chrome__links"><span>Дашборд</span><span>Портфель</span><span>Роботы</span><span>Лаборатория</span></div>
+            <div class="chrome__right"><span class="av">GY</span></div>
+          </div>
+          <div class="body">
+            <p class="list__group">Профиль</p>
+            <div class="list">
+              <div class="list__row"><span class="av">GY</span><span>gy · user@mail.ru</span><span class="m">Изменить ›</span></div>
+              <div class="list__row"><span>Регистрация</span><span class="m">12.03.2025</span></div>
+            </div>
+            <p class="list__group" style="margin-top:14px">Оформление</p>
+            <div class="list">
+              <div class="list__row"><span>Тема</span><span class="m">Тёмная ›</span></div>
+            </div>
+            <p class="list__group" style="margin-top:14px">Брокеры</p>
+            <div class="list">
+              <div class="list__row"><span>Нет подключений</span><span class="m" style="color:var(--accent)">+ токен ›</span></div>
+            </div>
+            <p class="list__group" style="margin-top:14px">Безопасность</p>
+            <div class="list">
+              <div class="list__row"><span>Активные сессии</span><span class="m">2 ›</span></div>
+              <div class="list__row"><span style="color:var(--down)">Выйти</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="phone">
+          <div class="phone-frame">
+            <div class="chrome"><strong>Настройки</strong></div>
+            <div class="body">
+              <p class="list__group">Профиль</p>
+              <div class="list">
+                <div class="list__row"><span class="av">GY</span><span>gy</span><span class="m">›</span></div>
+              </div>
+              <p class="list__group" style="margin-top:12px">Оформление</p>
+              <div class="list">
+                <div class="list__row"><span>Тема</span><span class="m">Тёмная ›</span></div>
+              </div>
+              <p class="list__group" style="margin-top:12px">Брокеры</p>
+              <div class="list">
+                <div class="list__row"><span>+ Добавить токен</span></div>
+              </div>
+              <p class="list__group" style="margin-top:12px">Безопасность</p>
+              <div class="list">
+                <div class="list__row"><span>Сессии</span><span class="m">2 ›</span></div>
+                <div class="list__row"><span style="color:var(--down)">Выйти</span></div>
+              </div>
+            </div>
+            <div class="dock"><span>⌂</span><span>◇</span><span>⚙</span><span>◎</span><span class="is-on">⋯</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== V3 ========== -->
+    <section class="variant" id="v3">
+      <div class="variant__head">
+        <span class="variant__num">Вариант C</span>
+        <h2 class="variant__title">Идентичность сверху + остальное ниже</h2>
+        <p class="variant__why">
+          Первая плоскость — только человек (avatar, login, email, дата) и тема. Без боковой карточки темы на desktop.
+          Брокер и сессии — второй экран внимания. Empty остаётся заметным, но не спорит с профилем.
+          <strong>Плюс:</strong> одна композиция сверху. <strong>Минус:</strong> на desktop тема не «рядом», а под профилем.
+        </p>
+      </div>
+      <div class="frames">
+        <div class="desk">
+          <div class="chrome">
+            <strong>ginity</strong>
+            <div class="chrome__links"><span>Дашборд</span><span>Портфель</span><span>Роботы</span><span>Лаборатория</span></div>
+            <div class="chrome__right"><span class="av">GY</span></div>
+          </div>
+          <div class="hero">
+            <div class="profile">
+              <span class="av">GY</span>
+              <div class="profile__id">
+                <div class="profile__login">gy</div>
+                <div class="profile__meta">user@mail.ru · в ginity с 12.03.2025</div>
+              </div>
+              <span class="pencil">Изменить</span>
+            </div>
+            <div class="hero-tabs tabs"><span>Система</span><span class="is-on">Тёмная</span><span>Светлая</span></div>
+          </div>
+          <div class="body stack">
+            <div class="card empty">
+              <h3>Подключите брокера</h3>
+              <p>Счета и аналитика — после токена.</p>
+              <span class="cta">Добавить токен</span>
+            </div>
+            <div class="card disc"><span class="disc__t">Активные сессии</span><span class="disc__chev">›</span></div>
+            <div class="logout">Выйти</div>
+          </div>
+        </div>
+        <div class="phone">
+          <div class="phone-frame">
+            <div class="chrome"><strong>Настройки</strong></div>
+            <div class="hero">
+              <div class="profile">
+                <span class="av">GY</span>
+                <div class="profile__id">
+                  <div class="profile__login">gy</div>
+                  <div class="profile__meta">user@mail.ru</div>
+                </div>
+                <span class="pencil">✎</span>
+              </div>
+              <div class="hero-tabs tabs"><span>Система</span><span class="is-on">Тёмная</span><span>Светлая</span></div>
+            </div>
+            <div class="body stack">
+              <div class="card empty">
+                <h3>Подключите брокера</h3>
+                <p>После токена.</p>
+                <span class="cta">Добавить токен</span>
+              </div>
+              <div class="card disc"><span class="disc__t">Активные сессии</span><span class="disc__chev">›</span></div>
+              <div class="logout">Выйти</div>
+            </div>
+            <div class="dock"><span>⌂</span><span>◇</span><span>⚙</span><span>◎</span><span class="is-on">⋯</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== V4 ========== -->
+    <section class="variant" id="v4">
+      <div class="variant__head">
+        <span class="variant__num">Вариант D</span>
+        <h2 class="variant__title">Разделы слева (desktop) / аккордеон (mobile)</h2>
+        <p class="variant__why">
+          Desktop: навигация Профиль · Тема · Брокеры · Сессии. Справа — только активный раздел.
+          Mobile: те же разделы вертикальным аккордеоном (как сейчас брокеры).
+          <strong>Плюс:</strong> масштабируется, когда настроек станет больше. <strong>Минус:</strong> больше кликов до брокера.
+        </p>
+      </div>
+      <div class="frames">
+        <div class="desk">
+          <div class="chrome">
+            <strong>ginity</strong>
+            <div class="chrome__links"><span>Дашборд</span><span>Портфель</span><span>Роботы</span><span>Лаборатория</span></div>
+            <div class="chrome__right"><span class="av">GY</span></div>
+          </div>
+          <div class="split">
+            <nav class="split__nav">
+              <button type="button">Профиль</button>
+              <button type="button">Тема</button>
+              <button type="button" class="is-on">Брокеры</button>
+              <button type="button">Сессии</button>
+            </nav>
+            <div class="split__main">
+              <div class="card empty">
+                <h3>Подключите брокера</h3>
+                <p>Здесь только раздел брокеров — без шума профиля.</p>
+                <span class="cta">Добавить токен</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="phone">
+          <div class="phone-frame">
+            <div class="chrome"><strong>Настройки</strong></div>
+            <div class="body stack">
+              <div class="card disc"><span class="disc__t">Профиль</span><span class="disc__chev">›</span></div>
+              <div class="card disc"><span class="disc__t">Тема</span><span class="disc__chev">›</span></div>
+              <div class="card" style="padding:0; overflow:hidden">
+                <div class="disc" style="border-bottom:1px solid var(--border)"><span class="disc__t" style="color:var(--text)">Брокеры</span><span class="disc__chev">▾</span></div>
+                <div class="empty">
+                  <h3>Подключите брокера</h3>
+                  <p>Токен T‑Invest или Bybit.</p>
+                  <span class="cta">Добавить токен</span>
+                </div>
+              </div>
+              <div class="card disc"><span class="disc__t">Сессии</span><span class="disc__chev">›</span></div>
+              <div class="logout">Выйти</div>
+            </div>
+            <div class="dock"><span>⌂</span><span>◇</span><span>⚙</span><span>◎</span><span class="is-on">⋯</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="note">
+      <strong>Как выбрать:</strong> напиши A / B / C / D (или микс: «C сверху + B для сессий»).
+      После выбора соберём в живой UI без экспериментов «под логин».
+    </div>
+  </div>
+</body>
+</html>

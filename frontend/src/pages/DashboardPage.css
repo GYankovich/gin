@@ -50,41 +50,6 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
     text-shadow: none;
 }
 
-body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings'])) .menu-dropdown,
-body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings'])) .navbar__dropdown {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 14px;
-    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
-}
-
-body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings'])) .menu-dropdown button,
-body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings'])) .navbar__dropdown button {
-    font-family: Inter, var(--font-sans);
-    font-size: 14px;
-    font-weight: 500;
-    letter-spacing: 0;
-    text-transform: none;
-    color: var(--text-secondary);
-}
-
-body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings'])) .menu-dropdown button:hover,
-body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings'])) .menu-dropdown button:focus-visible,
-body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings'])) .navbar__dropdown button:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--text-primary);
-}
-
-[data-theme='light'] body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings'])) .menu-dropdown,
-[data-theme='light'] body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings'])) .navbar__dropdown {
-    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
-}
-
-[data-theme='light'] body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings'])) .menu-dropdown button:hover,
-[data-theme='light'] body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings'])) .navbar__dropdown button:hover {
-    background: rgba(15, 23, 42, 0.05);
-}
-
 body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings'])) .mobile-dock {
     background: transparent;
     backdrop-filter: none;
@@ -103,6 +68,18 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
 [data-theme] :is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']).page::before,
 [data-theme] :is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']).page::after {
     display: none;
+}
+
+/* Tab remount + SWR: enter animations feel like a jerk on every switch. */
+:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']).page {
+    animation: none;
+}
+
+:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-totals-card,
+:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-assets-card,
+:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-account-card,
+:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .portfolio-panel.card {
+    animation: none;
 }
 
 :is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-hero--node .dashboard-hero__title,
@@ -308,6 +285,12 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
 
 [data-theme='light'] :is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .btn--primary {
     background: #0f172a;
+    color: #ffffff;
+}
+
+[data-theme='light'] :is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .btn--primary:hover:not(:disabled) {
+    box-shadow: none;
+    background: #1e293b;
     color: #ffffff;
 }
 
@@ -996,49 +979,140 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     grid-template-columns: 1fr;
 }
 
-:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-dist-row--magenta .dashboard-dist-bar-track {
-    background: rgba(139, 156, 247, 0.16);
+/* Dashboard mock: sparse KPI grid + quiet monochrome asset bars */
+[data-page='dashboard'] .dashboard-summary-metrics--sparse {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
-:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-dist-row--magenta .dashboard-dist-bar-fill {
-    background: #8b9cf7;
+/* First-login empty cabin (dashboard / portfolio / robots / settings).
+   Use both classes so padding wins over page-specific .dashboard-totals-card rules.
+   Desktop: card surface is full content width; copy/CTA stay readable. */
+:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-first-run-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    margin-top: 48px;
+    width: 100%;
+}
+
+:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-totals-card.dashboard-first-run {
+    max-width: none;
+    width: 100%;
+    height: auto;
+    margin: 0;
+    padding: 28px 26px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 12px;
+    box-sizing: border-box;
+}
+
+:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-first-run__title {
+    margin: 0;
+    max-width: 440px;
+    width: 100%;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 0;
+    color: var(--text-primary);
+    line-height: 1.25;
+}
+
+:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-first-run__text {
+    margin: 0;
+    max-width: 34ch;
+    width: 100%;
+    font-size: 15px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+}
+
+:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-first-run__actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+    max-width: 440px;
+    margin-top: 8px;
+}
+
+:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-first-run__primary {
+    width: 100%;
+}
+
+/* Cabin pages: centered narrow card. Settings keeps full-bleed first-run in the stack. */
+:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots']) .dashboard-first-run-wrap {
+    align-items: center;
+}
+
+:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots']) .dashboard-totals-card.dashboard-first-run {
+    max-width: 440px;
+    width: 100%;
+}
+
+@media (max-width: 767px) {
+    :is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-first-run-wrap {
+        margin-top: 24px;
+    }
+
+    :is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-totals-card.dashboard-first-run {
+        padding: 22px 18px 18px;
+    }
+
+    :is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-first-run__actions {
+        max-width: none;
+    }
+}
+
+[data-page='dashboard'] .dashboard-dist-bar-track {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme='light'] [data-page='dashboard'] .dashboard-dist-bar-track {
+    background: rgba(15, 23, 42, 0.08);
+}
+
+[data-page='dashboard'] .dashboard-dist-row--tone0 .dashboard-dist-bar-fill,
+[data-page='dashboard'] .dashboard-dist-row--tone1 .dashboard-dist-bar-fill,
+[data-page='dashboard'] .dashboard-dist-row--tone2 .dashboard-dist-bar-fill,
+[data-page='dashboard'] .dashboard-dist-row--tone3 .dashboard-dist-bar-fill {
     box-shadow: none;
 }
 
-:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-dist-row--warn .dashboard-dist-bar-track {
-    background: rgba(212, 160, 86, 0.18);
+[data-page='dashboard'] .dashboard-dist-row--tone0 .dashboard-dist-bar-fill {
+    background: rgba(232, 234, 237, 0.88);
 }
 
-:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-dist-row--warn .dashboard-dist-bar-fill {
-    background: #d4a056;
-    box-shadow: none;
+[data-page='dashboard'] .dashboard-dist-row--tone1 .dashboard-dist-bar-fill {
+    background: rgba(232, 234, 237, 0.62);
 }
 
-:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-dist-row--up .dashboard-dist-bar-track {
-    background: rgba(94, 184, 154, 0.18);
+[data-page='dashboard'] .dashboard-dist-row--tone2 .dashboard-dist-bar-fill {
+    background: rgba(232, 234, 237, 0.42);
 }
 
-:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-dist-row--up .dashboard-dist-bar-fill {
-    background: #5eb89a;
-    box-shadow: none;
+[data-page='dashboard'] .dashboard-dist-row--tone3 .dashboard-dist-bar-fill {
+    background: rgba(232, 234, 237, 0.28);
 }
 
-:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-dist-row--cyan .dashboard-dist-bar-track {
-    background: rgba(108, 182, 214, 0.18);
+[data-theme='light'] [data-page='dashboard'] .dashboard-dist-row--tone0 .dashboard-dist-bar-fill {
+    background: rgba(15, 23, 42, 0.78);
 }
 
-:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-dist-row--cyan .dashboard-dist-bar-fill {
-    background: #6cb6d6;
-    box-shadow: none;
+[data-theme='light'] [data-page='dashboard'] .dashboard-dist-row--tone1 .dashboard-dist-bar-fill {
+    background: rgba(15, 23, 42, 0.55);
 }
 
-:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-dist-row--violet .dashboard-dist-bar-track {
-    background: rgba(167, 139, 202, 0.18);
+[data-theme='light'] [data-page='dashboard'] .dashboard-dist-row--tone2 .dashboard-dist-bar-fill {
+    background: rgba(15, 23, 42, 0.38);
 }
 
-:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-dist-row--violet .dashboard-dist-bar-fill {
-    background: #a78bca;
-    box-shadow: none;
+[data-theme='light'] [data-page='dashboard'] .dashboard-dist-row--tone3 .dashboard-dist-bar-fill {
+    background: rgba(15, 23, 42, 0.24);
 }
 
 /* Robots fleet: same quiet chrome as dashboard accounts and portfolio sections. */

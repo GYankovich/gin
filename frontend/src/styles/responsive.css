@@ -1342,7 +1342,8 @@
     [data-page='portfolio'] .dashboard-layout {
         gap: var(--space-3);
     }
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) {
+    /* Keep ConnectBrokerEmpty (.dashboard-first-run) on the shared dashboard first-run look */
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) {
         padding: var(--space-3);
         border: 1px solid var(--border-subtle);
         border-radius: var(--radius-lg);
@@ -1351,20 +1352,20 @@
         -webkit-backdrop-filter: none;
         box-shadow: none;
     }
-    [data-theme='light'] [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) {
+    [data-theme='light'] [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) {
         background: var(--bg-card);
         box-shadow: none;
     }
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .dashboard-totals-card__head {
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .dashboard-totals-card__head {
         margin-bottom: var(--space-2);
     }
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary {
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-summary {
         gap: var(--space-3);
     }
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-hero {
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-summary-hero {
         padding-bottom: var(--space-2);
     }
-    [data-page='portfolio'] .dashboard-totals-card--collapsed:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-hero {
+    [data-page='portfolio'] .dashboard-totals-card--collapsed:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-summary-hero {
         border-bottom: 0;
         padding-bottom: 0;
     }
@@ -1397,50 +1398,50 @@
         outline-offset: 2px;
         border-radius: 4px;
     }
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-hero--split {
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-summary-hero--split {
         column-gap: var(--space-3);
     }
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-hero__col,
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-hero__col--own {
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-summary-hero__col,
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-summary-hero__col--own {
         align-items: flex-start;
         text-align: left;
         gap: 4px;
     }
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-hero__head {
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-summary-hero__head {
         justify-content: flex-start;
     }
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-hero__own-value,
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-hero__own-value-skeleton {
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-summary-hero__own-value,
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-summary-hero__own-value-skeleton {
         text-align: left;
     }
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-hero__delta {
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-summary-hero__delta {
         font-size: 10px;
         white-space: normal;
         text-align: left;
     }
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-hero__value,
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-hero__own-value {
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-summary-hero__value,
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-summary-hero__own-value {
         font-size: clamp(1.15rem, 5.5vw, 1.55rem);
     }
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .dashboard-summary-metric__value {
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .dashboard-summary-metric__value {
         font-size: var(--text-sm);
     }
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-block {
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-summary-block {
         gap: var(--space-2);
         padding-top: var(--space-2);
     }
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-block__title {
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-summary-block__title {
         margin-bottom: 0;
         font-size: 0.65rem;
         letter-spacing: 0.1em;
     }
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-block__grid--3,
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-summary-block__grid--2,
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .portfolio-stats-grid--details {
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-summary-block__grid--3,
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-summary-block__grid--2,
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .portfolio-stats-grid--details {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: var(--space-2) var(--space-3);
     }
-    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone) .dashboard-summary-metric {
+    [data-page='portfolio'] .dashboard-totals-card:not(.portfolio-toolbar):not(.portfolio-history-zone):not(.dashboard-first-run) .dashboard-summary-metric {
         gap: 2px;
     }
     [data-page='portfolio'] .portfolio-chart-imoex .portfolio-summary-block__grid--3 {

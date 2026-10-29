@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { authService } from '@/services/authService'
 import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
 import { EditUserModal } from '@/pages/settings/components/ProfileModals'
 import { ProfileSection } from '@/pages/settings/components/ProfileSection'
+import { SessionsSection } from '@/pages/settings/components/SessionsSection'
 import {
     IconThemeMark,
     SettingsSectionLabel,
@@ -48,7 +48,7 @@ export default function SettingsPage() {
         return () => { cancelled = true }
     }, [updateUser])
 
-    const onLogout = () => {
+    const onLogoutCurrent = () => {
         logout()
         navigate('/login')
     }
@@ -91,17 +91,10 @@ export default function SettingsPage() {
                     sheet={isMobile}
                 />
 
-                <div className="settings-logout">
-                    {isMobile ? (
-                        <button type="button" className="settings-logout__sheet" onClick={onLogout}>
-                            Выйти
-                        </button>
-                    ) : (
-                        <Button type="button" variant="ghost" onClick={onLogout}>
-                            Выйти
-                        </Button>
-                    )}
-                </div>
+                <SessionsSection
+                    onLogoutCurrent={onLogoutCurrent}
+                    sheet={isMobile}
+                />
             </div>
 
             <EditUserModal

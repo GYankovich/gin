@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Настройки — сессии и выход</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .stage-wrap {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  .stage {
+    background: #0b0d10;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 22px;
+  }
+  .top {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 720px) {
+    .top { grid-template-columns: 1fr; }
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 14px;
+  }
+  .profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+  }
+  .profile__av {
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: var(--input);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .profile__login {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.45;
+  }
+  .profile__meta {
+    font-size: 15px;
+    line-height: 1.45;
+    color: var(--secondary);
+  }
+  .profile__edit {
+    position: absolute;
+    top: 0;
+    right: 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .theme {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    padding: 4px;
+    background: var(--input);
+    border-radius: 10px;
+    height: 100%;
+    align-content: center;
+  }
+  .theme span {
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+    padding: 8px 4px;
+    border-radius: 8px;
+  }
+  .theme span.is-on {
+    background: var(--elevated);
+    color: var(--text);
+    border: 1px solid var(--line);
+  }
+
+  .brokers-label {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .brokers {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 14px;
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+
+  .account {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .account__head {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .account__title {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .account__sub {
+    margin: 6px 0 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--secondary);
+  }
+
+  .session {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px 16px;
+    align-items: start;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .session:last-child { border-bottom: 0; }
+  .session.is-current {
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .session__device {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--text);
+  }
+  .session__badge {
+    display: inline-flex;
+    margin-left: 8px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    vertical-align: middle;
+    color: var(--up);
+    border: 1px solid rgba(61, 190, 122, 0.35);
+    background: rgba(61, 190, 122, 0.08);
+  }
+  .session__meta {
+    margin: 6px 0 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--secondary);
+  }
+  .session__meta span { color: var(--muted); }
+  .session__ip {
+    margin: 4px 0 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .session__action {
+    border: 0;
+    background: none;
+    padding: 4px 0;
+    color: var(--muted);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .session__action:hover { color: var(--down); }
+  .session__action.is-current {
+    color: var(--muted);
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  .account__foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px 14px;
+    border-top: 1px solid var(--border);
+    background: rgba(0, 0, 0, 0.18);
+  }
+  .account__foot-note {
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .logout-all {
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--down);
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .note-box {
+    margin-top: 18px;
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← К списку</a>
+    <div>
+      <h1>Настройки — вариант 3: аккаунт и сессии</h1>
+      <p>Статичный макет. Секция внизу: активные сессии + выход. Не в живом UI.</p>
+    </div>
+    <span class="badge badge--new">согласование</span>
+  </div>
+
+  <div class="wrap stage-wrap">
+    <div class="stage">
+      <div class="top">
+        <div class="card profile">
+          <span class="profile__edit" aria-hidden>✎</span>
+          <div class="profile__av">GY</div>
+          <div>
+            <div class="profile__login">gy</div>
+            <div class="profile__meta">germanyankovich@gmail.com</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="theme">
+            <span>Система</span>
+            <span class="is-on">Тёмная</span>
+            <span>Светлая</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="brokers-label">Брокеры</p>
+      <div class="brokers">Рельса токенов / счетов…</div>
+
+      <section class="account" aria-label="Аккаунт">
+        <div class="account__head">
+          <h2 class="account__title">Аккаунт</h2>
+          <p class="account__sub">Активные сессии. Можно завершить чужие устройства.</p>
+        </div>
+
+        <article class="session is-current">
+          <div>
+            <p class="session__device">
+              Chrome · Windows
+              <span class="session__badge">Эта сессия</span>
+            </p>
+            <p class="session__meta">
+              Москва, Россия
+              <span>·</span>
+              вход 28.10.2026, 13:42
+            </p>
+            <p class="session__ip">IP 95.24.xxx.xxx</p>
+          </div>
+          <button type="button" class="session__action is-current" disabled>Текущая</button>
+        </article>
+
+        <article class="session">
+          <div>
+            <p class="session__device">Safari · iPhone</p>
+            <p class="session__meta">
+              Санкт-Петербург, Россия
+              <span>·</span>
+              вход 27.10.2026, 22:18
+            </p>
+            <p class="session__ip">IP 178.176.xxx.xxx</p>
+          </div>
+          <button type="button" class="session__action">Завершить</button>
+        </article>
+
+        <article class="session">
+          <div>
+            <p class="session__device">Firefox · macOS</p>
+            <p class="session__meta">
+              Berlin, Germany
+              <span>·</span>
+              вход 25.10.2026, 09:05
+            </p>
+            <p class="session__ip">IP 91.198.xxx.xxx</p>
+          </div>
+          <button type="button" class="session__action">Завершить</button>
+        </article>
+
+        <div class="account__foot">
+          <p class="account__foot-note">Выход с этого устройства завершит только текущую сессию.</p>
+          <button type="button" class="logout-all">Выйти везде</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="note note-box">
+      <strong>В карточке сессии:</strong> устройство · город/страна · дата и время входа · IP
+      (маскированный). Текущая помечена бейджем. Действия: «Завершить» / «Выйти везде».
+      Отдельной красной кнопки внизу страницы нет.
+    </div>
+  </div>
+</body>
+</html>

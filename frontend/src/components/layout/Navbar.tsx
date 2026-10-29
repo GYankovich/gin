@@ -2,6 +2,8 @@
 ///@ Исходный модуль `frontend/src/components/layout/Navbar.tsx` — автоматическая разметка для Obsidian Source Scanner.
 
 import React from 'react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faArrowRightFromBracket, faGear } from '@fortawesome/free-solid-svg-icons'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { DropdownMenu } from '@/components/ui/DropdownMenu'
 import { useAuthStore } from '@/stores/authStore'
@@ -24,10 +26,38 @@ export function Navbar({ hasExpiredToken }: { hasExpiredToken: boolean }) {
                     <img className="navbar__logo" src={logo} alt="" />
                 </Link>
                 <nav className="navbar__links">
-                    <NavLink to="/dashboard" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Дашборд</NavLink>
-                    <NavLink to="/portfolio" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Портфель</NavLink>
-                    <NavLink to="/robots" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Роботы</NavLink>
-                    <NavLink to="/backtest" className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}>Лаборатория</NavLink>
+                    <NavLink
+                        to="/dashboard"
+                        className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}
+                        onMouseEnter={() => { void import('@/pages/DashboardPage') }}
+                        onFocus={() => { void import('@/pages/DashboardPage') }}
+                    >
+                        Дашборд
+                    </NavLink>
+                    <NavLink
+                        to="/portfolio"
+                        className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}
+                        onMouseEnter={() => { void import('@/pages/PortfolioPage') }}
+                        onFocus={() => { void import('@/pages/PortfolioPage') }}
+                    >
+                        Портфель
+                    </NavLink>
+                    <NavLink
+                        to="/robots"
+                        className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}
+                        onMouseEnter={() => { void import('@/pages/robots-v2/RobotsV2FleetPage') }}
+                        onFocus={() => { void import('@/pages/robots-v2/RobotsV2FleetPage') }}
+                    >
+                        Роботы
+                    </NavLink>
+                    <NavLink
+                        to="/backtest"
+                        className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}
+                        onMouseEnter={() => { void import('@/pages/robots-v2/BacktestLabPage') }}
+                        onFocus={() => { void import('@/pages/robots-v2/BacktestLabPage') }}
+                    >
+                        Лаборатория
+                    </NavLink>
                 </nav>
             </div>
 
@@ -65,14 +95,15 @@ export function Navbar({ hasExpiredToken }: { hasExpiredToken: boolean }) {
                     </DropdownMenu.Trigger>
                     <DropdownMenu.Panel>
                         <DropdownMenu.Item
-                            icon="⚙"
+                            icon={<FontAwesomeIcon icon={faGear} />}
                             onClick={() => navigate('/settings')}
                         >
                             Настройки
                         </DropdownMenu.Item>
                         <DropdownMenu.Divider />
                         <DropdownMenu.Item
-                            icon="↩"
+                            variant="danger"
+                            icon={<FontAwesomeIcon icon={faArrowRightFromBracket} />}
                             onClick={() => {
                                 logout()
                                 navigate('/login')

@@ -9,11 +9,14 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
 import { DropdownMenu } from '@/components/ui/DropdownMenu'
 import { RobotIllustration } from '@/components/ui/RobotIllustration'
+import { ConnectBrokerEmpty } from '@/components/ConnectBrokerEmpty'
 import { useToast } from '@/components/ui/Toast'
 import { FleetRobotCard } from '@/pages/robots-v2/components/FleetRobotCard'
 import { RobotConfirmModal } from '@/pages/robots-v2/components/RobotConfirmModal'
 import { fmtErr } from '@/pages/robots-v2/formatters'
+import { dashboardService } from '@/services/dashboardService'
 import { robotV2Service } from '@/services/robotV2Service'
+import { usePageCacheStore } from '@/stores/pageCacheStore'
 import type { RobotV2, RobotV2Status } from '@/types/robotV2'
 
 type ConfirmAction =
@@ -41,12 +44,26 @@ function FleetSkeleton() {
     )
 }
 
+function inferNoBrokerFromCabinCache(): boolean {
+    const { dashboard, portfolioAccounts } = usePageCacheStore.getState()
+    if (portfolioAccounts != null) return portfolioAccounts.accounts.length === 0
+    if (dashboard != null) return (dashboard.accounts?.length ?? 0) === 0
+    return false
+}
+
 export default function RobotsV2FleetPage() {
     const navigate = useNavigate()
     const toast = useToast()
-    const [robots, setRobots] = useState<RobotV2[]>([])
+    const cachedFleet = usePageCacheStore(s => s.robotsFleet)
+    const setRobotsFleetCache = usePageCacheStore(s => s.setRobotsFleet)
+    const knownEmptyCabin = cachedFleet == null && inferNoBrokerFromCabinCache()
+    const [robots, setRobots] = useState<RobotV2[]>(cachedFleet?.robots ?? [])
     const [snapshots, setSnapshots] = useState<Record<number, RobotV2Status>>({})
-    const [loading, setLoading] = useState(true)
+    const [hasBrokerAccounts, setHasBrokerAccounts] = useState(
+        cachedFleet?.hasBrokerAccounts ?? !knownEmptyCabin,
+    )
+    // Skip fleet skeleton when dashboard/portfolio already showed «no broker».
+    const [loading, setLoading] = useState(cachedFleet == null && !knownEmptyCabin)
     const [error, setError] = useState<string | null>(null)
     const [busyId, setBusyId] = useState<number | null>(null)
     const [statusMenuId, setStatusMenuId] = useState<number | null>(null)
@@ -78,24 +95,41 @@ export default function RobotsV2FleetPage() {
     }, [])
 
     const load = useCallback(async () => {
-        setLoading(true)
+        const hasStale = usePageCacheStore.getState().robotsFleet != null
+        if (!hasStale) setLoading(true)
         setError(null)
         try {
-            const data = await robotV2Service.list()
+            const [data, accounts] = await Promise.all([
+                robotV2Service.list(),
+                dashboardService.fetchSettingsAccounts().catch(() => []),
+            ])
+            const hasAccounts = accounts.length > 0
             setRobots(data.items)
+            setHasBrokerAccounts(hasAccounts)
+            setRobotsFleetCache({ robots: data.items, hasBrokerAccounts: hasAccounts })
             setLoading(false)
             void loadSnapshots(data.items)
         } catch (e) {
             setError(fmtErr(e))
-            setRobots([])
+            if (!hasStale) {
+                setRobots([])
+                setHasBrokerAccounts(false)
+            }
             setSnapshots({})
             setLoading(false)
         }
-    }, [loadSnapshots])
+    }, [loadSnapshots, setRobotsFleetCache])
 
     useEffect(() => {
         void load()
     }, [load])
+
+    useEffect(() => {
+        if (!cachedFleet?.robots.length) return
+        void loadSnapshots(cachedFleet.robots)
+        // Only hydrate status snapshots for the stale fleet shown on first paint.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     const portfolioRobots = useMemo(() => robots.filter(robot => robot.type === 1), [robots])
     const tradingRobots = useMemo(() => robots.filter(robot => robot.type === 2), [robots])
@@ -264,12 +298,23 @@ export default function RobotsV2FleetPage() {
                 : `Жёсткая остановка «${confirm.robot.name}»?`
             : ''
 
+    const needsBroker = !loading && !error && !hasBrokerAccounts && robots.length === 0
+
     if (loading && robots.length === 0 && !error) {
         return (
             <div className="page" data-page="robots" data-robots-view="fleet">
                 <h1 className="dash-sr-only">Роботы</h1>
                 <FleetSkeleton />
                 {createFab}
+            </div>
+        )
+    }
+
+    if (needsBroker) {
+        return (
+            <div className="page" data-page="robots" data-robots-view="fleet">
+                <h1 className="dash-sr-only">Роботы</h1>
+                <ConnectBrokerEmpty />
             </div>
         )
     }

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faArrowsRotate, faCopy, faPlus, faTrashCan } from '@fortawesome/free-solid-svg-icons'
 import { Card } from '@/components/ui/Card'
@@ -6,6 +7,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { Toggle } from '@/components/ui/Toggle'
 import { useToast } from '@/components/ui/Toast'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { ConnectBrokerEmpty } from '@/components/ConnectBrokerEmpty'
 import { api } from '@/services/api'
 import { dashboardService } from '@/services/dashboardService'
 import { BrokerAccordionCard } from '@/pages/settings/components/BrokerAccordion'
@@ -358,7 +360,11 @@ function AccountLine({
                 <Toggle
                     checked={included}
                     disabled={saving}
-                    aria-label={included ? `Скрыть ${title}` : `Показать ${title}`}
+                    aria-label={
+                        included
+                            ? `${title}: в сводке дашборда`
+                            : `${title}: скрыт из сводки дашборда`
+                    }
                     onChange={(next) => onToggle(account, next)}
                 />
             </div>
@@ -372,7 +378,11 @@ function AccountLine({
             <Toggle
                 checked={included}
                 disabled={saving}
-                aria-label={included ? `Скрыть ${title}` : `Показать ${title}`}
+                aria-label={
+                    included
+                        ? `${title}: в сводке дашборда`
+                        : `${title}: скрыт из сводки дашборда`
+                }
                 onChange={(next) => onToggle(account, next)}
             />
         </div>
@@ -468,7 +478,9 @@ function BrokerDetail({
                     </div>
                 ) : (
                     <div className="settings-sheet-seg-panel" role="tabpanel">
-                        <p className="settings-sheet-seg-panel__hint">В сводке</p>
+                        <p className="settings-sheet-seg-panel__hint">
+                            Тумблер — показывать счёт в сводке дашборда
+                        </p>
                         {bucket.accounts.length === 0 ? (
                             <p className="settings-broker-card__empty">Нет счетов</p>
                         ) : (
@@ -528,9 +540,14 @@ function BrokerDetail({
                     </div>
                 )}
 
-                <h3 className="settings-detail-feed__label settings-detail-feed__label--next">
-                    Счета
-                </h3>
+                <div className="settings-detail-feed__accounts-head">
+                    <h3 className="settings-detail-feed__label settings-detail-feed__label--next">
+                        Счета
+                    </h3>
+                    <p className="settings-detail-feed__hint">
+                        Тумблер — в сводке дашборда
+                    </p>
+                </div>
                 {bucket.accounts.length === 0 ? (
                     <p className="settings-broker-card__empty">Нет счетов</p>
                 ) : (
@@ -557,6 +574,9 @@ export function TokensSection({
     onCountChange,
     sheet: sheetProp,
 }: Props) {
+    const [searchParams] = useSearchParams()
+    // Preview: /settings?emptyBrokers=1
+    const previewEmptyBrokers = searchParams.get('emptyBrokers') === '1'
     const toast = useToast()
     const isMobileMq = useMediaQuery('(max-width: 767px)')
     const isMobile = sheetProp ?? isMobileMq
@@ -726,9 +746,11 @@ export function TokensSection({
         )
     }
 
+    const showFirstRun = buckets.length === 0 || previewEmptyBrokers
+
     return (
         <div className="settings-brokers" id="tokens">
-            {isMobile ? (
+            {!showFirstRun && isMobile ? (
                 <SettingsSectionLabel
                     icon={<IconBrokerMark />}
                     end={(
@@ -743,26 +765,17 @@ export function TokensSection({
                 >
                     Брокеры
                 </SettingsSectionLabel>
-            ) : (
+            ) : null}
+            {!showFirstRun && !isMobile ? (
                 <div className="settings-brokers__toolbar">
                     <span className="settings-brokers__toolbar-label">Брокеры</span>
                 </div>
-            )}
+            ) : null}
 
-            {buckets.length === 0 ? (
-                <Card className="dashboard-totals-card settings-broker-card">
-                    <div className="settings-empty">
-                        <p>Нет брокеров</p>
-                        <p>Добавьте токен, чтобы подключить счета и роботов.</p>
-                        <button
-                            type="button"
-                            className="settings-text-link"
-                            onClick={() => onCreateOpenChange(true)}
-                        >
-                            + брокер
-                        </button>
-                    </div>
-                </Card>
+            {showFirstRun ? (
+                <div className="settings-brokers__first-run">
+                    <ConnectBrokerEmpty onConnect={() => onCreateOpenChange(true)} />
+                </div>
             ) : isMobile ? (
                 <div className="settings-broker-stack" role="list">
                     {buckets.map(bucket => (

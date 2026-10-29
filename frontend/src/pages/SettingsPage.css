@@ -398,7 +398,59 @@
 }
 
 .settings-detail-feed__label--next {
+    margin-top: 0;
+}
+
+.settings-detail-feed__accounts-head {
     margin-top: 32px;
+    margin-bottom: 8px;
+}
+
+.settings-detail-feed__accounts-head .settings-detail-feed__label {
+    margin-bottom: 4px;
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.settings-detail-feed__hint {
+    margin: 0;
+    padding: 0 2px 8px;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    line-height: 1.35;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-brokers__first-run {
+    margin-top: 0;
+}
+
+/* Beat DashboardPage cabin margin (48px) so theme ↔ first-run ↔ sessions share stack gap. */
+[data-page='settings'] .settings-brokers__first-run .dashboard-first-run-wrap {
+    margin-top: 0;
+    align-items: stretch;
+}
+
+.settings-brokers__first-run .dashboard-first-run {
+    max-width: none;
+    width: 100%;
+    margin-inline: 0;
+    align-items: center;
+    text-align: center;
+}
+
+.settings-brokers__first-run .dashboard-first-run__title,
+.settings-brokers__first-run .dashboard-first-run__text,
+.settings-brokers__first-run .dashboard-first-run__actions {
+    max-width: 440px;
+    width: 100%;
+}
+
+.settings-brokers__first-run .dashboard-first-run__text {
+    max-width: 34ch;
 }
 
 .settings-detail-feed__add {
@@ -578,12 +630,10 @@
 
 /* —— Profile —— */
 .settings-profile {
-    position: relative;
     display: flex;
     align-items: center;
     gap: 10px;
     width: 100%;
-    padding-right: 34px;
 }
 
 .settings-profile__avatar {
@@ -602,45 +652,46 @@
 }
 
 .settings-profile__identity {
+    flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 1px;
 }
 
-.settings-profile__row {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    min-width: 0;
-    flex-wrap: wrap;
-}
-
 .settings-profile__login {
-    font-size: 14.5px;
+    font-size: 15px;
     font-weight: 600;
-    line-height: 1.25;
+    line-height: 1.45;
     color: var(--text-primary);
     word-break: break-word;
+    min-width: 0;
 }
 
-.settings-profile__since,
-.settings-profile__meta {
+.settings-profile__meta,
+.settings-profile__since {
     font-size: 12.5px;
-    line-height: 1.3;
-    color: var(--text-muted);
-    word-break: break-word;
+    font-weight: 400;
+    line-height: 1.4;
+    color: var(--text-secondary);
+}
+
+.settings-profile__meta {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .settings-profile__since {
     flex-shrink: 0;
+    margin-left: auto;
+    text-align: right;
+    white-space: nowrap;
 }
 
 .settings-profile__edit {
-    position: absolute;
-    top: 50%;
-    right: 0;
-    transform: translateY(-50%);
+    flex-shrink: 0;
     width: 28px;
     height: 28px;
     display: grid;
@@ -661,15 +712,80 @@
 .settings-profile__edit:hover,
 .settings-profile__edit:focus-visible {
     color: var(--text-primary);
-    border-color: var(--border-subtle);
-    background: var(--bg-input);
+    border-color: transparent;
+    background: transparent;
     outline: none;
+}
+
+.settings-sessions-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.settings-sessions-card.card,
+.settings-sessions-card.dashboard-assets-card.card,
+.settings-sessions-card.dashboard-assets-card.card:hover {
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    box-shadow: none;
+}
+
+.settings-sessions--rail {
+    background: transparent;
+    border: 0;
+}
+
+.settings-sessions--sheet {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: none;
+}
+
+.settings-logout-collapse {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.settings-logout-collapse.is-hidden {
+    grid-template-rows: 0fr;
+}
+
+.settings-logout-collapse__inner {
+    overflow: hidden;
+    min-height: 0;
 }
 
 .settings-logout {
     display: flex;
     justify-content: center;
     padding: 4px 0 8px;
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+        opacity 180ms ease,
+        transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.settings-logout-collapse.is-hidden .settings-logout {
+    opacity: 0;
+    transform: translateY(-4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .settings-logout-collapse,
+    .settings-logout {
+        transition: none;
+    }
+
+    .settings-logout {
+        transform: none;
+    }
 }
 
 .settings-logout .btn {
@@ -681,6 +797,310 @@
 .settings-logout .btn:focus-visible {
     color: var(--color-down);
     background: color-mix(in srgb, var(--color-down) 8%, transparent);
+}
+
+.settings-logout__sheet {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 48px;
+    margin: 0;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--color-down);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.settings-logout__sheet:hover,
+.settings-logout__sheet:focus-visible {
+    background: color-mix(in srgb, var(--color-down) 8%, transparent);
+    outline: none;
+}
+
+.settings-logout__sheet:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.settings-sessions__head {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-sessions__head--toggle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 56px;
+    padding: 12px 14px;
+    border: 0;
+    border-bottom: 1px solid transparent;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.settings-sessions.is-open .settings-sessions__head--toggle {
+    border-bottom-color: var(--border-subtle);
+}
+
+.settings-sessions__collapse {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.settings-sessions.is-open .settings-sessions__collapse {
+    grid-template-rows: 1fr;
+}
+
+.settings-sessions__collapse-inner {
+    overflow: hidden;
+    min-height: 0;
+}
+
+.settings-sessions__body {
+    opacity: 0;
+    transform: translateY(-6px);
+    transition:
+        opacity 180ms ease,
+        transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.settings-sessions.is-open .settings-sessions__body {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .settings-sessions__collapse,
+    .settings-sessions__body,
+    .settings-sessions__chev {
+        transition: none;
+    }
+
+    .settings-sessions__body {
+        transform: none;
+    }
+}
+
+.settings-sessions__head-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.settings-sessions__chev {
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    color: var(--text-muted);
+    transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.settings-sessions.is-open .settings-sessions__chev {
+    transform: rotate(90deg);
+}
+
+.settings-sessions__title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text-muted);
+}
+
+.settings-sessions__sub {
+    margin: 6px 0 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--text-secondary);
+}
+
+.settings-sessions__head--toggle .settings-sessions__sub {
+    margin: 0;
+}
+
+.settings-sessions__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+}
+
+.settings-sessions__empty {
+    margin: 0;
+    padding: 18px 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+    background: transparent;
+}
+
+.settings-session {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px 16px;
+    align-items: start;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: transparent;
+}
+
+.settings-session:last-child {
+    border-bottom: 0;
+}
+
+.settings-session.is-current {
+    background: transparent;
+}
+
+.settings-session__device {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--text-primary);
+}
+
+.settings-session__badge {
+    display: inline-flex;
+    margin-left: 8px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    vertical-align: middle;
+    color: var(--color-up);
+    border: 1px solid color-mix(in srgb, var(--color-up) 35%, transparent);
+    background: color-mix(in srgb, var(--color-up) 8%, transparent);
+}
+
+.settings-session__meta {
+    margin: 6px 0 0;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+}
+
+.settings-session__meta span {
+    margin: 0 0.35em;
+    color: var(--text-muted);
+}
+
+.settings-session__ip {
+    margin: 4px 0 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.settings-session__action {
+    border: 0;
+    background: none;
+    padding: 4px 0;
+    color: var(--text-muted);
+    font-size: 13px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.settings-session__action:hover:not(:disabled),
+.settings-session__action:focus-visible:not(:disabled) {
+    color: var(--color-down);
+    outline: none;
+}
+
+.settings-session__action:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+.settings-session__action.is-current:hover:not(:disabled),
+.settings-session__action.is-current:focus-visible:not(:disabled) {
+    color: var(--color-down);
+}
+
+.settings-sessions__foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px 14px;
+    border-top: 1px solid var(--border-subtle);
+    background: transparent;
+}
+
+.settings-sessions__foot-note {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    max-width: 28rem;
+}
+
+.settings-sessions__logout-all {
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--color-down);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.settings-sessions__logout-all:hover:not(:disabled),
+.settings-sessions__logout-all:focus-visible:not(:disabled) {
+    text-decoration: underline;
+    outline: none;
+}
+
+.settings-sessions__logout-all:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+[data-theme='light'] .settings-sessions-card.card,
+[data-theme='light'] .settings-sessions-card.dashboard-assets-card.card,
+[data-theme='light'] .settings-sessions-card.dashboard-assets-card.card:hover,
+[data-theme='light'] .settings-sessions--sheet {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    box-shadow: none;
+}
+
+[data-theme='light'] .settings-sessions__head,
+[data-theme='light'] .settings-session,
+[data-theme='light'] .settings-sessions__foot {
+    border-color: var(--border-subtle);
+}
+
+[data-theme='light'] .settings-session.is-current {
+    background: transparent;
+}
+
+[data-theme='light'] .settings-session__badge {
+    color: var(--color-up);
+    border-color: color-mix(in srgb, var(--color-up) 28%, transparent);
+    background: color-mix(in srgb, var(--color-up) 10%, #fff);
+}
+
+[data-theme='light'] .settings-sessions__list,
+[data-theme='light'] .settings-sessions__foot,
+[data-theme='light'] .settings-session {
+    background: transparent;
 }
 
 /* Token detail fields reuse the same input surface as dashboard forms */
@@ -1517,29 +1937,6 @@ button.settings-field__value {
     color: var(--text-muted);
 }
 
-.settings-logout__sheet {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    min-height: 48px;
-    margin: 0;
-    border: 0;
-    border-radius: 12px;
-    background: transparent;
-    color: var(--color-down);
-    font: inherit;
-    font-size: 15px;
-    font-weight: 500;
-    cursor: pointer;
-}
-
-.settings-logout__sheet:hover,
-.settings-logout__sheet:focus-visible {
-    background: color-mix(in srgb, var(--color-down) 8%, transparent);
-    outline: none;
-}
-
 @media (max-width: 900px) {
     .settings-page .settings-top-grid {
         grid-template-columns: 1fr;
@@ -1619,17 +2016,7 @@ button.settings-field__value {
     }
 
     .settings-page[data-settings-layout='sheet'] .settings-section-label {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin: 0 2px 8px;
-        padding: 0;
-        font-size: 13px;
-        font-weight: 500;
-        letter-spacing: 0;
-        text-transform: none;
-        color: var(--text-muted);
-        line-height: 1.3;
+        display: none;
     }
 
     .settings-section-label__icon {
@@ -1708,22 +2095,19 @@ button.settings-field__value {
 
     .settings-profile--sheet .settings-profile__login {
         font-size: 15px;
-    }
-
-    .settings-profile--sheet .settings-profile__since {
-        font-size: 12px;
-        font-weight: 400;
+        line-height: 1.35;
     }
 
     .settings-profile--sheet .settings-profile__identity {
         flex: 1;
         min-width: 0;
+        gap: 2px;
     }
 
-    .settings-profile--sheet .settings-profile__meta {
-        margin-top: 2px;
-        font-size: 12.5px;
-        color: var(--text-secondary);
+    .settings-profile--sheet .settings-profile__since {
+        margin-left: 0;
+        text-align: left;
+        white-space: normal;
     }
 
     .settings-profile--sheet .settings-profile__edit {
@@ -1782,8 +2166,48 @@ button.settings-field__value {
         padding: 12px;
     }
 
+    .settings-page[data-settings-layout='sheet'] .settings-sessions-wrap {
+        margin-top: 0;
+        gap: 10px;
+    }
+
     .settings-page[data-settings-layout='sheet'] .settings-logout {
-        margin-top: auto;
-        padding: 16px 0 4px;
+        padding: 0 0 4px;
+    }
+
+    .settings-page[data-settings-layout='sheet'] .settings-logout__sheet {
+        font-size: 12.5px;
+        min-height: 44px;
+    }
+
+    .settings-page[data-settings-layout='sheet'] .settings-sessions__sub,
+    .settings-page[data-settings-layout='sheet'] .settings-sessions__empty,
+    .settings-page[data-settings-layout='sheet'] .settings-session__meta,
+    .settings-page[data-settings-layout='sheet'] .settings-session__ip,
+    .settings-page[data-settings-layout='sheet'] .settings-session__action {
+        font-size: 12.5px;
+    }
+
+    .settings-page[data-settings-layout='sheet'] .settings-session__device {
+        font-size: 12.5px;
+    }
+
+    .settings-page[data-settings-layout='sheet'] .settings-sessions__foot {
+        justify-content: center;
+    }
+
+    .settings-page[data-settings-layout='sheet'] .settings-sessions__foot-note {
+        display: none;
+    }
+
+    .settings-page[data-settings-layout='sheet'] .settings-sessions__logout-all {
+        font-size: 12.5px;
+        margin-inline: auto;
+        text-align: center;
+    }
+
+    .settings-page[data-settings-layout='sheet'] .settings-section-label__action,
+    .settings-page[data-settings-layout='sheet'] .settings-theme-bare .settings-theme-tab {
+        font-size: 12.5px;
     }
 }

@@ -115,4 +115,28 @@ export const authService = {
     async logout(): Promise<void> {
         try { await api.post('/auth/logout') } catch { /* ignore */ }
     },
+
+    async listSessions(): Promise<AuthSession[]> {
+        const { data } = await api.get<{ items: AuthSession[] }>('/auth/sessions')
+        return data.items || []
+    },
+
+    async revokeSession(sessionId: number): Promise<void> {
+        await api.delete(`/auth/sessions/${sessionId}`)
+    },
+
+    async revokeAllSessions(): Promise<void> {
+        await api.post('/auth/sessions/revoke-all')
+    },
+}
+
+export type AuthSession = {
+    id: number
+    device_label?: string | null
+    geo_label?: string | null
+    ip_masked?: string | null
+    created_at: string
+    expires_at: string
+    last_seen_at?: string | null
+    is_current: boolean
 }

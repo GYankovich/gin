@@ -2,7 +2,7 @@
 #/// Исходный модуль `backend/app/modules/auth/schemas.py` — автоматическая разметка для Obsidian Source Scanner.
 
 import re
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field, EmailStr, field_validator, model_validator
 
@@ -100,6 +100,22 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_at: datetime
     user: Optional["UserOut"] = None
+
+
+class SessionOut(BaseModel):
+    """Публичное описание активной сессии (без самого токена)."""
+    id: int
+    device_label: Optional[str] = None
+    geo_label: Optional[str] = None
+    ip_masked: Optional[str] = None
+    created_at: datetime
+    expires_at: datetime
+    last_seen_at: Optional[datetime] = None
+    is_current: bool = False
+
+
+class SessionListResponse(BaseModel):
+    items: List[SessionOut]
 
 class UserOut(BaseModel):
     """Схема для публичных данных пользователя"""

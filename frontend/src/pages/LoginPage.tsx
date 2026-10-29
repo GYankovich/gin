@@ -223,6 +223,14 @@ export default function LoginPage() {
         setShowPassword(false)
     }
 
+    const openForgot = () => {
+        setForgotId(loginName)
+        setForgotSent(false)
+        setForgotDevLink(null)
+        setForgotError('')
+        setForgotOpen(true)
+    }
+
     const openCode = (purpose: CardMode, pending: { email: string; dev_code?: string | null }) => {
         setCodePurpose(purpose)
         setPendingEmail(pending.email)
@@ -398,7 +406,12 @@ export default function LoginPage() {
             <div className="auth-stage">
                 <div className="auth-brand">
                     <img className="auth-logo" src={logo} alt="Ginity" />
-                    <p className="auth-brand__line">Портфель, прогон и роботы — в одном кабинете.</p>
+                    <p className="auth-brand__line">Портфель, бэктест и роботы — в одном кабинете.</p>
+                    {!isReset && (
+                        <button type="button" className="auth-demo-link" onClick={() => navigate('/demo')}>
+                            Посмотреть демо
+                        </button>
+                    )}
                 </div>
 
                 <section className="auth-panel" aria-label="Вход в Ginity">
@@ -486,6 +499,13 @@ export default function LoginPage() {
                                 shown={showPassword}
                                 onToggle={() => setShowPassword(v => !v)}
                             />
+                            {card === 'login' && (
+                                <div className="auth-forgot-row">
+                                    <button type="button" className="auth-text-link" onClick={openForgot}>
+                                        Забыли пароль?
+                                    </button>
+                                </div>
+                            )}
                             {card === 'register' && (
                                 <PasswordField
                                     id="auth-password-again"
@@ -501,21 +521,6 @@ export default function LoginPage() {
                             {error && (
                                 <div className="auth-error" role="alert">
                                     <span>{error}</span>
-                                    {card === 'login' && (
-                                        <button
-                                            type="button"
-                                            className="auth-text-link"
-                                            onClick={() => {
-                                                setForgotId(loginName)
-                                                setForgotSent(false)
-                                                setForgotDevLink(null)
-                                                setForgotError('')
-                                                setForgotOpen(true)
-                                            }}
-                                        >
-                                            Забыли пароль?
-                                        </button>
-                                    )}
                                 </div>
                             )}
                             <Button type="submit" variant="primary" size="lg" loading={loading} className="auth-submit">
@@ -523,12 +528,9 @@ export default function LoginPage() {
                             </Button>
                             <div className="auth-links">
                                 {card === 'login' ? (
-                                    <p className="auth-switch auth-switch--split">
+                                    <p className="auth-switch">
+                                        Нет аккаунта?{' '}
                                         <button type="button" onClick={() => switchCard('register')}>Зарегистрироваться</button>
-                                        <span className="auth-switch__sep" aria-hidden>·</span>
-                                        <button type="button" className="auth-demo-link" onClick={() => navigate('/demo')}>
-                                            Попробовать демо
-                                        </button>
                                     </p>
                                 ) : (
                                     <p className="auth-switch">

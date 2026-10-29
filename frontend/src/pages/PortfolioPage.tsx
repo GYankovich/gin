@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
@@ -11,7 +12,9 @@ import { Toggle } from '@/components/ui/Toggle'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { RobotIllustration } from '@/components/ui/RobotIllustration'
+import { ConnectBrokerEmpty } from '@/components/ConnectBrokerEmpty'
 import { analyticsService } from '@/services/analyticsService'
+import { usePageCacheStore } from '@/stores/pageCacheStore'
 import type {
     AccountSummary,
     AnalyticsOperationItem,
@@ -96,12 +99,40 @@ function historyCountText(count: number | null): string {
     return count == null ? '…' : count.toLocaleString('ru-RU')
 }
 
+function initialPortfolioSelection(accounts: AccountSummary[]): number | null {
+    if (!accounts.length) return null
+    const fromUrl = new URLSearchParams(window.location.search).get('accountId')
+    const preferred = fromUrl ? accounts.find(a => String(a.id) === fromUrl) : null
+    return (preferred ?? accounts[0]).id
+}
+
 export default function PortfolioPage() {
     const toast = useToast()
+    const [searchParams] = useSearchParams()
+    // Preview: /portfolio?empty=1
+    const previewEmpty = searchParams.get('empty') === '1'
     const isMobile = useMediaQuery('(max-width: 767px)')
+    const cachedPortfolio = usePageCacheStore(s => s.portfolioAccounts)
+    const setPortfolioAccountsCache = usePageCacheStore(s => s.setPortfolioAccounts)
 
-    const [accounts, setAccounts] = useState<AccountSummary[]>([])
-    const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null)
+    const [accounts, setAccounts] = useState<AccountSummary[]>(cachedPortfolio?.accounts ?? [])
+    const [selectedAccountId, setSelectedAccountId] = useState<number | null>(() => {
+        if (cachedPortfolio?.accounts.length) {
+            const fromUrl = new URLSearchParams(window.location.search).get('accountId')
+            if (fromUrl) {
+                const match = cachedPortfolio.accounts.find(a => String(a.id) === fromUrl)
+                if (match) return match.id
+            }
+            if (
+                cachedPortfolio.selectedAccountId != null
+                && cachedPortfolio.accounts.some(a => a.id === cachedPortfolio.selectedAccountId)
+            ) {
+                return cachedPortfolio.selectedAccountId
+            }
+            return cachedPortfolio.accounts[0].id
+        }
+        return null
+    })
     const selectedAccount = accounts.find(a => a.id === selectedAccountId) ?? null
     const accountCurrency = selectedAccount?.currency || 'RUB'
     const bybitAccount = isBybitPortfolioAccount(selectedAccount)
@@ -125,7 +156,7 @@ export default function PortfolioPage() {
     const [opsLoadingMore, setOpsLoadingMore] = useState(false)
     const [opsSyncing, setOpsSyncing] = useState(false)
 
-    const [loading, setLoading] = useState(true)
+    const [loading, setLoading] = useState(cachedPortfolio == null)
     const [positions, setPositions] = useState<any[]>([])
     const [posLoading, setPosLoading] = useState(false)
 
@@ -202,6 +233,13 @@ export default function PortfolioPage() {
     useEffect(() => { loadAccounts() }, [])
 
     useEffect(() => {
+        const cached = usePageCacheStore.getState().portfolioAccounts
+        if (!cached) return
+        if (cached.selectedAccountId === selectedAccountId) return
+        setPortfolioAccountsCache({ ...cached, selectedAccountId })
+    }, [selectedAccountId, setPortfolioAccountsCache])
+
+    useEffect(() => {
         if (!selectedAccountId) return
         const periodReady = historyPeriodActive || (!historyFrom && !historyTo)
         if (!periodReady) return
@@ -254,17 +292,17 @@ export default function PortfolioPage() {
     }, [chartData?.instruments_series])
 
     const loadAccounts = async () => {
-        setLoading(true)
+        const hasStale = usePageCacheStore.getState().portfolioAccounts != null
+        if (!hasStale) setLoading(true)
         try {
             const summary = await analyticsService.getSummary()
             const accs = summary.accounts ?? []
             setAccounts(accs)
-            if (accs.length > 0) {
-                const fromUrl = new URLSearchParams(window.location.search).get('accountId')
-                const preferred = fromUrl ? accs.find(a => String(a.id) === fromUrl) : null
-                const initial = preferred ?? accs[0]
-                setSelectedAccountId(initial.id)
-                loadPositions(initial.id)
+            const nextSelected = initialPortfolioSelection(accs)
+            setSelectedAccountId(nextSelected)
+            setPortfolioAccountsCache({ accounts: accs, selectedAccountId: nextSelected })
+            if (nextSelected != null) {
+                loadPositions(nextSelected)
             }
         } catch { /* */ }
         setLoading(false)
@@ -1064,18 +1102,11 @@ export default function PortfolioPage() {
         )
     }
 
-    if (accounts.length === 0) {
+    if (previewEmpty || accounts.length === 0) {
         return (
             <div className="page" data-page="portfolio">
                 <h1 className="dash-sr-only">Портфель</h1>
-                <Card className="dashboard-totals-card dashboard-error-card">
-                    <div className="dashboard-error-card__robot" aria-hidden>
-                        <RobotIllustration size={96} mode="inactive" interactive={false} />
-                    </div>
-                    <p className="dashboard-empty">
-                        Нет счетов портфеля. Запустите робота обновления портфеля (ByBit или T-Invest), чтобы появились снимки.
-                    </p>
-                </Card>
+                <ConnectBrokerEmpty />
             </div>
         )
     }

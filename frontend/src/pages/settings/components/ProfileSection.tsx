@@ -14,6 +14,7 @@ type Props = {
 
 export function ProfileSection({ login, email, createdAt, onEdit, sheet = false }: Props) {
     const initials = (login || 'U').slice(0, 2).toUpperCase()
+    const sinceLabel = `регистрация ${formatProfileDate(createdAt)}`
 
     if (sheet) {
         return (
@@ -22,11 +23,9 @@ export function ProfileSection({ login, email, createdAt, onEdit, sheet = false 
                     {initials}
                 </span>
                 <span className="settings-profile__identity">
-                    <span className="settings-profile__row">
-                        <strong className="settings-profile__login">{login || 'Пользователь'}</strong>
-                        <span className="settings-profile__since">с {formatProfileDate(createdAt)}</span>
-                    </span>
+                    <strong className="settings-profile__login">{login || 'Пользователь'}</strong>
                     <span className="settings-profile__meta">{email || '—'}</span>
+                    <span className="settings-profile__since">{sinceLabel}</span>
                 </span>
                 <span className="settings-profile__edit" aria-hidden>
                     <FontAwesomeIcon icon={faPencil} className="settings-profile__edit-icon" />
@@ -37,6 +36,14 @@ export function ProfileSection({ login, email, createdAt, onEdit, sheet = false 
 
     return (
         <div className="settings-profile">
+            <div className="settings-profile__avatar" aria-hidden>
+                {initials}
+            </div>
+            <div className="settings-profile__identity">
+                <strong className="settings-profile__login">{login || 'Пользователь'}</strong>
+                <span className="settings-profile__meta">{email || '—'}</span>
+            </div>
+            <span className="settings-profile__since">{sinceLabel}</span>
             <button
                 type="button"
                 className="settings-profile__edit"
@@ -45,17 +52,6 @@ export function ProfileSection({ login, email, createdAt, onEdit, sheet = false 
             >
                 <FontAwesomeIcon icon={faPencil} className="settings-profile__edit-icon" />
             </button>
-
-            <div className="settings-profile__avatar" aria-hidden>
-                {initials}
-            </div>
-            <div className="settings-profile__identity">
-                <div className="settings-profile__row">
-                    <strong className="settings-profile__login">{login || 'Пользователь'}</strong>
-                    <span className="settings-profile__since">с {formatProfileDate(createdAt)}</span>
-                </div>
-                <span className="settings-profile__meta">{email || '—'}</span>
-            </div>
         </div>
     )
 }

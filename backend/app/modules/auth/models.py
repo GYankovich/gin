@@ -90,6 +90,11 @@ class UserToken(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     invalidated_at = Column(DateTime(timezone=True), nullable=True)
+    ip = Column(String(45), nullable=True)
+    user_agent = Column(Text, nullable=True)
+    device_label = Column(String(128), nullable=True)
+    geo_label = Column(String(255), nullable=True)
+    last_seen_at = Column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User", back_populates="tokens")
 

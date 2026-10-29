@@ -216,9 +216,10 @@ type ItemProps = {
     children: React.ReactNode
     onClick: (event: React.MouseEvent<HTMLButtonElement>) => void
     disabled?: boolean
+    variant?: 'default' | 'danger'
 }
 
-function Item({ icon, children, onClick, disabled }: ItemProps) {
+function Item({ icon, children, onClick, disabled, variant = 'default' }: ItemProps) {
     const { onOpenChange } = useDropdownMenu()
 
     return (
@@ -226,6 +227,7 @@ function Item({ icon, children, onClick, disabled }: ItemProps) {
             type="button"
             role="menuitem"
             disabled={disabled}
+            className={variant === 'danger' ? 'is-danger' : undefined}
             onClick={(e) => {
                 e.stopPropagation()
                 onOpenChange(false)
@@ -246,7 +248,7 @@ function Divider() {
     return <div className="menu-dropdown__divider" />
 }
 
-/** Cyber-styled dropdown shared by navbar avatar and page hero actions. */
+/** Shared dropdown: navbar avatar, create FAB, and similar menus. */
 export const DropdownMenu = Object.assign(Root, {
     Trigger,
     Panel,
