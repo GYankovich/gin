@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Настройки — broker-rail__add</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .intro {
+    margin: 0 0 22px;
+    max-width: 72ch;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--secondary);
+  }
+  .intro strong { color: var(--text); font-weight: 600; }
+
+  .variant {
+    margin-bottom: 28px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: #0e1114;
+  }
+  .variant__head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    align-items: baseline;
+    margin-bottom: 14px;
+  }
+  .variant__num {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .variant__title { margin: 0; font-size: 17px; font-weight: 600; }
+  .variant__why {
+    margin: 0;
+    flex: 1 1 100%;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--secondary);
+  }
+
+  .desk {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 16px;
+    max-width: 720px;
+    align-items: start;
+  }
+  .nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    text-align: left;
+  }
+  .item.is-on {
+    color: var(--text);
+    background: var(--panel);
+    border-color: var(--border);
+  }
+  .ico {
+    width: 15px;
+    height: 15px;
+    border-radius: 3px;
+    background: var(--elevated);
+    flex-shrink: 0;
+  }
+  .name { font-size: 14px; font-weight: 600; line-height: 1.25; }
+  .meta { font-size: 12px; color: var(--muted); line-height: 1.25; }
+  .item.is-on .meta { color: var(--secondary); }
+  .panel {
+    padding: 22px 24px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+    min-height: 120px;
+  }
+  .panel__lab {
+    margin: 0 0 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .panel__row {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    color: var(--secondary);
+  }
+  .panel__row:last-child { border-bottom: 0; }
+
+  /* A · сейчас */
+  .v-a .add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 6px;
+    padding: 11px 14px;
+    border: 1px dashed rgba(255,255,255,0.18);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  /* B · quiet text */
+  .v-b .add {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    width: 100%;
+    margin-top: 4px;
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .v-b .add span.plus {
+    font-size: 15px;
+    line-height: 1;
+    opacity: 0.8;
+  }
+
+  /* C · same row as item */
+  .v-c .add {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    margin-top: 6px;
+    padding: 11px 14px;
+    border: 1px dashed rgba(255,255,255,0.18);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 500;
+    text-align: left;
+  }
+  .v-c .add .slot {
+    width: 15px;
+    height: 15px;
+    display: grid;
+    place-items: center;
+    border-radius: 3px;
+    border: 1px dashed rgba(255,255,255,0.25);
+    font-size: 11px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .v-c .add .lab {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .v-c .add .lab strong {
+    font-size: 14px;
+    font-weight: 600;
+    color: inherit;
+  }
+  .v-c .add .lab em {
+    font-style: normal;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* D · icon chip under nav */
+  .v-d .add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: auto;
+    align-self: flex-start;
+    margin-top: 8px;
+    margin-left: 4px;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .v-d .add .chip {
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 7px;
+    background: var(--input);
+    font-size: 14px;
+    line-height: 1;
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← к списку</a>
+    <div>
+      <h1>Broker rail — add</h1>
+      <p>Как выглядит «добавить брокера» в левой колонке. Сейчас — dashed bar «+ брокер».</p>
+    </div>
+    <span class="badge badge--new">A–D</span>
+  </div>
+
+  <div class="wrap">
+    <p class="intro">
+      Кнопка открывает создание токена (новый брокер = новый ключ).
+      Сейчас <strong>dashed full-width</strong> конкурирует с активным item и выглядит тяжелее, чем «+» у токенов в панели.
+    </p>
+
+    <section class="variant v-a">
+      <div class="variant__head">
+        <span class="variant__num">A</span>
+        <h2 class="variant__title">Сейчас — dashed bar</h2>
+        <p class="variant__why">Полная ширина, пунктир, «+ брокер». Явно, но шумно.</p>
+      </div>
+      <div class="desk" data-demo="a"></div>
+    </section>
+
+    <section class="variant v-b">
+      <div class="variant__head">
+        <span class="variant__num">B</span>
+        <h2 class="variant__title">Quiet text</h2>
+        <p class="variant__why">Без рамки, как текстовая ссылка: «+ Добавить брокера». Ближе к feed__add по тону.</p>
+      </div>
+      <div class="desk" data-demo="b"></div>
+    </section>
+
+    <section class="variant v-c">
+      <div class="variant__head">
+        <span class="variant__num">C</span>
+        <h2 class="variant__title">Ghost item</h2>
+        <p class="variant__why">Та же сетка, что у брокера: слот иконки + имя + meta. Пунктир, но читается как ещё один ряд списка.</p>
+      </div>
+      <div class="desk" data-demo="c"></div>
+    </section>
+
+    <section class="variant v-d">
+      <div class="variant__head">
+        <span class="variant__num">D</span>
+        <h2 class="variant__title">Compact chip</h2>
+        <p class="variant__why">Маленький «+» chip + подпись, не на всю ширину — как secondary action под nav.</p>
+      </div>
+      <div class="desk" data-demo="d"></div>
+    </section>
+  </div>
+
+  <template id="rail">
+    <nav class="nav" aria-label="Брокеры">
+      <button type="button" class="item is-on">
+        <span class="ico" aria-hidden></span>
+        <span>
+          <span class="name">Т-Инвестиции</span>
+          <span class="meta">3 ток. · 7 сч.</span>
+        </span>
+      </button>
+      <button type="button" class="item">
+        <span class="ico" aria-hidden></span>
+        <span>
+          <span class="name">Bybit</span>
+          <span class="meta">1 ток.</span>
+        </span>
+      </button>
+      <!-- add injected per variant -->
+    </nav>
+    <div class="panel">
+      <p class="panel__lab">Токены</p>
+      <div class="panel__row">брокерский 3</div>
+      <div class="panel__row">Опросник</div>
+    </div>
+  </template>
+
+  <script>
+    const adds = {
+      a: '<button type="button" class="add">+ брокер</button>',
+      b: '<button type="button" class="add"><span class="plus" aria-hidden>+</span> Добавить брокера</button>',
+      c: `<button type="button" class="add">
+            <span class="slot" aria-hidden>+</span>
+            <span class="lab"><strong>Брокер</strong><em>подключить ключ</em></span>
+          </button>`,
+      d: `<button type="button" class="add"><span class="chip" aria-hidden>+</span> брокер</button>`,
+    }
+    const tpl = document.getElementById('rail')
+    document.querySelectorAll('[data-demo]').forEach((el) => {
+      const key = el.getAttribute('data-demo')
+      const node = tpl.content.cloneNode(true)
+      const nav = node.querySelector('.nav')
+      nav.insertAdjacentHTML('beforeend', adds[key])
+      el.appendChild(node)
+    })
+  </script>
+</body>
+</html>

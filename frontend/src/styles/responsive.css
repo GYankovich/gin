@@ -642,7 +642,7 @@
 
     [data-page='dashboard'] .dashboard-mobile-header--island .dash-gear:hover,
     [data-page='dashboard'] .dashboard-mobile-header--island .dash-gear:focus-visible {
-        border-color: var(--border-medium);
+        border-color: transparent;
         background: color-mix(in srgb, var(--bg-card) 72%, transparent);
         color: var(--text-primary);
         opacity: 1;
@@ -652,7 +652,7 @@
     [data-theme='light'] [data-page='dashboard'] .dashboard-mobile-header--island .dash-gear:hover,
     [data-theme='light'] [data-page='dashboard'] .dashboard-mobile-header--island .dash-gear:focus-visible {
         background: color-mix(in srgb, var(--bg-card) 85%, transparent);
-        border-color: rgba(15, 23, 42, 0.22);
+        border-color: transparent;
     }
 
     [data-page='dashboard'].page:has(.dashboard-mobile-header) .dashboard-layout {
@@ -1783,15 +1783,15 @@
     }
 
     .card.card--clickable.dashboard-account-card.dashboard-account-card--link {
-        border: 1px solid color-mix(in srgb, var(--neon-cyan) 18%, var(--border-subtle));
+        border: 1px solid var(--border-subtle);
         border-radius: var(--radius-md);
-        background: color-mix(in srgb, var(--bg-card) 88%, transparent);
+        background: var(--bg-card);
         box-shadow: none;
         transform: none;
     }
     .card.card--clickable.dashboard-account-card.dashboard-account-card--link:hover {
-        border-color: color-mix(in srgb, var(--neon-cyan) 18%, var(--border-subtle));
-        background: color-mix(in srgb, var(--bg-card) 88%, transparent);
+        border-color: var(--border-subtle);
+        background: var(--bg-card);
         box-shadow: none;
         transform: none;
     }
@@ -1849,11 +1849,9 @@
         outline: none;
     }
     .dashboard-sticky-chip--active {
-        border-color: color-mix(in srgb, var(--neon-cyan) 55%, var(--border-subtle));
-        background: var(--bg-card);
-        box-shadow:
-            -5px 0 14px -4px rgba(0, 255, 255, 0.14),
-            5px 0 14px -4px rgba(0, 255, 255, 0.14);
+        border-color: var(--border-medium);
+        background: var(--bg-elevated);
+        box-shadow: none;
     }
     .dashboard-sticky-chip__cur {
         font-family: var(--font-cyber);
@@ -1861,17 +1859,15 @@
         color: var(--text-secondary);
     }
     .dashboard-sticky-chip--active .dashboard-sticky-chip__cur {
-        color: var(--neon-cyan);
+        color: var(--text-primary);
     }
     [data-theme='light'] .dashboard-sticky-chip--active {
-        border-color: #0066cc;
-        background: var(--bg-card);
-        box-shadow:
-            -5px 0 14px -4px rgba(0, 102, 204, 0.12),
-            5px 0 14px -4px rgba(0, 102, 204, 0.12);
+        border-color: rgba(15, 23, 42, 0.28);
+        background: #ffffff;
+        box-shadow: none;
     }
     [data-theme='light'] .dashboard-sticky-chip--active .dashboard-sticky-chip__cur {
-        color: #0066cc;
+        color: #0f172a;
     }
     /* Login card */
     .login-card {
@@ -1921,13 +1917,32 @@
         box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
     }
 
-    /* Scene / quiet cards: full-bleed sheet, no 90%/95% leftover width */
+    /* Scene / quiet cards: full-bleed sheet; outer scroll lifts lead */
     .modal-backdrop--scene .modal-scene__card.dashboard-modal,
-    .modal-backdrop--scene .dash-quiet-modal.dash-scene-modal.modal--flush {
+    .modal-backdrop--scene .dash-quiet-modal.dash-scene-modal.modal--flush,
+    .modal-backdrop--scene .dash-scene-modal.modal-scene__card {
         width: 100% !important;
         max-width: none !important;
         min-width: 0;
         margin-inline: 0;
+        max-height: none !important;
+        overflow: visible !important;
+    }
+    .modal-backdrop--scene .modal-scene__card .modal__body,
+    .modal-backdrop--scene .dash-scene-modal .modal__body {
+        width: 100% !important;
+        max-width: none !important;
+        margin-inline: 0;
+        padding: 0 !important;
+        box-sizing: border-box;
+        overflow: visible !important;
+        max-height: none !important;
+    }
+    .modal-backdrop--scene .dash-scene-modal .dashboard-settings {
+        width: 100% !important;
+        max-width: none !important;
+        box-sizing: border-box;
+        overflow: visible !important;
     }
     [data-theme='light'] .modal,
     [data-theme='light'] .dashboard-modal.modal {

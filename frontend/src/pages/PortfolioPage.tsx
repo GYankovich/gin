@@ -1695,37 +1695,31 @@ export default function PortfolioPage() {
 }
 
 function PortfolioSkeleton({ isMobile }: { isMobile: boolean }) {
-    const chartHeight = isMobile ? 240 : 420
+    const chartHeight = isMobile ? 140 : 180
     return (
         <div className="dashboard-layout dashboard-skeleton" aria-busy="true" aria-label="Загрузка портфеля">
             <div className="dashboard-currency-grid">
                 <Card className="dashboard-totals-card dashboard-skeleton-card">
                     <div className="dashboard-totals-card__head">
-                        <Skeleton width="160px" height="18px" borderRadius="4px" />
+                        <Skeleton width="120px" height="14px" borderRadius="4px" />
                     </div>
-                    <div className="dashboard-summary-metrics">
-                        {[0, 1, 2, 3].map(i => (
-                            <div key={i} className="dashboard-summary-metric dashboard-summary-metric--primary">
-                                <Skeleton width="70%" height="12px" borderRadius="4px" />
-                                <div style={{ marginTop: 'var(--space-2)' }}>
-                                    <Skeleton width="55%" height="20px" borderRadius="4px" />
-                                </div>
-                            </div>
-                        ))}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <Skeleton width="55%" height="12px" borderRadius="4px" />
+                        <Skeleton width="40%" height="20px" borderRadius="4px" />
                     </div>
                 </Card>
                 <Card className="dashboard-assets-card dashboard-skeleton-card">
                     <div className="dashboard-assets-card__head">
-                        <Skeleton width="180px" height="18px" borderRadius="4px" />
+                        <Skeleton width="140px" height="14px" borderRadius="4px" />
                     </div>
                     <Skeleton width="100%" height={`${chartHeight}px`} borderRadius="8px" />
                 </Card>
             </div>
             <Card className="dashboard-totals-card portfolio-history-zone dashboard-skeleton-card">
                 <div className="portfolio-history-zone__toolbar">
-                    <Skeleton width="120px" height="18px" borderRadius="4px" />
+                    <Skeleton width="100px" height="14px" borderRadius="4px" />
                 </div>
-                <Skeleton width="100%" height="96px" borderRadius="8px" />
+                <Skeleton width="100%" height="56px" borderRadius="8px" />
             </Card>
         </div>
     )

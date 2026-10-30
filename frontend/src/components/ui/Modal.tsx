@@ -35,6 +35,9 @@ export function Modal({
         if (e.key === 'Escape') onClose()
     }, [onClose])
     const backdropRef = useRef<HTMLDivElement>(null)
+    const scrollRef = useRef<HTMLDivElement>(null)
+    const leadRef = useRef<HTMLDivElement>(null)
+    const cardRef = useRef<HTMLDivElement>(null)
     const liftAboveKeyboard = className.split(/\s+/).includes('auth-modal')
 
     useEffect(() => {
@@ -59,7 +62,9 @@ export function Modal({
 
         const revealField = () => {
             const field = backdrop.querySelector('input:focus, textarea:focus')
-            const scroller = field?.closest('.modal__body')
+            // Scene sheets scroll on .modal-scene__scroll; auth sheets on .modal__body.
+            const scroller =
+                field?.closest('.modal-scene__scroll') ?? field?.closest('.modal__body')
             if (!(field instanceof HTMLElement) || !(scroller instanceof HTMLElement)) return
             const fieldRect = field.getBoundingClientRect()
             const box = scroller.getBoundingClientRect()
@@ -102,6 +107,84 @@ export function Modal({
         }
     }, [open, liftAboveKeyboard])
 
+    /* Mobile scene: full-bleed sheet + outer scroll that lifts the lead. */
+    useEffect(() => {
+        if (!open || !lead) return
+        const backdrop = backdropRef.current
+        const scroller = scrollRef.current
+        const leadEl = leadRef.current
+        const cardEl = cardRef.current
+        if (!backdrop || !scroller || !leadEl || !cardEl) return
+
+        const mobileQuery = window.matchMedia('(max-width: 900px)')
+        let frame = 0
+
+        const clearMobile = () => {
+            backdrop.dataset.sceneScrolled = '0'
+            cardEl.style.removeProperty('min-height')
+            cardEl.style.removeProperty('width')
+            cardEl.style.removeProperty('max-width')
+            cardEl.style.removeProperty('overflow')
+            cardEl.style.removeProperty('max-height')
+            const body = cardEl.querySelector('.modal__body')
+            if (body instanceof HTMLElement) {
+                body.style.removeProperty('width')
+                body.style.removeProperty('max-width')
+                body.style.removeProperty('overflow')
+                body.style.removeProperty('max-height')
+                body.style.removeProperty('padding')
+            }
+        }
+
+        const layout = () => {
+            if (!mobileQuery.matches) {
+                clearMobile()
+                return
+            }
+            cardEl.style.setProperty('width', '100%', 'important')
+            cardEl.style.setProperty('max-width', 'none', 'important')
+            cardEl.style.setProperty('overflow', 'visible', 'important')
+            cardEl.style.setProperty('max-height', 'none', 'important')
+            const body = cardEl.querySelector('.modal__body')
+            if (body instanceof HTMLElement) {
+                body.style.setProperty('width', '100%', 'important')
+                body.style.setProperty('max-width', 'none', 'important')
+                body.style.setProperty('overflow', 'visible', 'important')
+                body.style.setProperty('max-height', 'none', 'important')
+                body.style.setProperty('padding', '0', 'important')
+            }
+            // Short sheets sit on the bottom; tall content grows and scrolls the lead away.
+            const leadH = leadEl.getBoundingClientRect().height
+            const viewH = scroller.clientHeight
+            cardEl.style.minHeight = `${Math.max(0, Math.round(viewH - leadH))}px`
+            backdrop.dataset.sceneScrolled = scroller.scrollTop > 8 ? '1' : '0'
+        }
+
+        const onScroll = () => {
+            cancelAnimationFrame(frame)
+            frame = requestAnimationFrame(() => {
+                backdrop.dataset.sceneScrolled = scroller.scrollTop > 8 ? '1' : '0'
+            })
+        }
+
+        layout()
+        const ro = new ResizeObserver(layout)
+        ro.observe(scroller)
+        ro.observe(leadEl)
+        ro.observe(cardEl)
+        scroller.addEventListener('scroll', onScroll, { passive: true })
+        mobileQuery.addEventListener('change', layout)
+        window.addEventListener('resize', layout)
+        return () => {
+            cancelAnimationFrame(frame)
+            ro.disconnect()
+            scroller.removeEventListener('scroll', onScroll)
+            mobileQuery.removeEventListener('change', layout)
+            window.removeEventListener('resize', layout)
+            clearMobile()
+        }
+    }, [open, lead, children])
+
     if (!open) return null
 
     const label = typeof title === 'string' ? title : undefined
@@ -117,6 +200,7 @@ export function Modal({
     )
     const card = (
         <div
+            ref={lead ? cardRef : undefined}
             className={['modal', 'dashboard-modal', flush ? 'modal--flush' : '', lead ? 'modal-scene__card' : '', className]
                 .filter(Boolean)
                 .join(' ')}
@@ -159,8 +243,8 @@ export function Modal({
                         aria-label={label}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="modal-scene__scroll">
-                            <div className="modal-scene__lead">{lead}</div>
+                        <div className="modal-scene__scroll" ref={scrollRef}>
+                            <div className="modal-scene__lead" ref={leadRef}>{lead}</div>
                             {card}
                         </div>
                     </div>

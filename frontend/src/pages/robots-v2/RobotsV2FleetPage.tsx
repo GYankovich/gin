@@ -32,14 +32,12 @@ function modeOf(robot: RobotV2): string {
 function FleetSkeleton() {
     return (
         <div className="dashboard-layout" aria-busy="true" aria-label="Загрузка флота">
-            {[0, 1].map(group => (
-                <Card key={group} className="dashboard-account-card dashboard-skeleton-card">
-                    <Skeleton width="32%" height="18px" borderRadius="4px" />
-                    <div style={{ marginTop: 'var(--space-3)' }}>
-                        <Skeleton width="100%" height="88px" borderRadius="8px" />
-                    </div>
-                </Card>
-            ))}
+            <Card className="dashboard-account-card dashboard-skeleton-card">
+                <Skeleton width="28%" height="14px" borderRadius="4px" />
+                <div style={{ marginTop: 'var(--space-3)' }}>
+                    <Skeleton width="100%" height="48px" borderRadius="8px" />
+                </div>
+            </Card>
         </div>
     )
 }

@@ -238,70 +238,33 @@ function DashboardSkeleton() {
             <section className="dashboard-currency-row">
                 <div className="dashboard-currency-grid">
                     <Card className="dashboard-totals-card dashboard-skeleton-card">
-                        {!isMobile && (
-                            <div className="dashboard-totals-card__head">
-                                <Skeleton width="72px" height="12px" borderRadius="4px" />
-                            </div>
-                        )}
                         {isMobile ? (
                             <div className="dashboard-summary-metrics dashboard-summary-metrics--compact">
                                 <div className="dashboard-summary-hero">
-                                    <div className="dashboard-summary-hero__head">
-                                        <Skeleton width="48%" height="10px" borderRadius="4px" />
-                                        <Skeleton width="28%" height="10px" borderRadius="4px" />
-                                    </div>
-                                    <Skeleton width="72%" height="28px" borderRadius="4px" />
-                                </div>
-                                <div className="dashboard-summary-divider" aria-hidden />
-                                <div className="dashboard-summary-hero">
-                                    <div className="dashboard-summary-hero__head">
-                                        <Skeleton width="48%" height="10px" borderRadius="4px" />
-                                        <Skeleton width="28%" height="10px" borderRadius="4px" />
-                                    </div>
-                                    <Skeleton width="64%" height="28px" borderRadius="4px" />
+                                    <Skeleton width="40%" height="10px" borderRadius="4px" />
+                                    <Skeleton width="68%" height="24px" borderRadius="4px" />
                                 </div>
                             </div>
                         ) : (
-                            <div className="dashboard-summary-metrics">
-                                <div className="dashboard-summary-metric dashboard-summary-metric--own dashboard-summary-metric--primary">
-                                    <Skeleton width="70%" height="10px" borderRadius="4px" />
-                                    <div style={{ marginTop: 'var(--space-2)' }}>
-                                        <Skeleton width="55%" height="14px" borderRadius="4px" />
-                                    </div>
+                            <>
+                                <div className="dashboard-totals-card__head">
+                                    <Skeleton width="72px" height="12px" borderRadius="4px" />
                                 </div>
-                                <div className="dashboard-summary-metric dashboard-summary-metric--value dashboard-summary-metric--primary">
-                                    <Skeleton width="40%" height="10px" borderRadius="4px" />
-                                    <div style={{ marginTop: 'var(--space-2)' }}>
-                                        <Skeleton width="70%" height="22px" borderRadius="4px" />
-                                    </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    <Skeleton width="55%" height="14px" borderRadius="4px" />
+                                    <Skeleton width="40%" height="22px" borderRadius="4px" />
                                 </div>
-                                <div className="dashboard-summary-metric dashboard-summary-metric--gain">
-                                    <Skeleton width="60%" height="10px" borderRadius="4px" />
-                                    <div style={{ marginTop: 'var(--space-2)' }}>
-                                        <Skeleton width="75%" height="14px" borderRadius="4px" />
-                                    </div>
-                                </div>
-                                <div className="dashboard-summary-metric dashboard-summary-metric--day">
-                                    <Skeleton width="48%" height="10px" borderRadius="4px" />
-                                    <div style={{ marginTop: 'var(--space-2)' }}>
-                                        <Skeleton width="50%" height="14px" borderRadius="4px" />
-                                    </div>
-                                </div>
-                            </div>
+                            </>
                         )}
                     </Card>
                     <Card className="dashboard-assets-card dashboard-skeleton-card">
                         <div className="dashboard-assets-card__head">
-                            <Skeleton width="160px" height="12px" borderRadius="4px" />
+                            <Skeleton width="120px" height="12px" borderRadius="4px" />
                         </div>
                         <div className="dashboard-dist-list">
-                            {[0, 1, 2, 3].map((i) => (
+                            {[0, 1].map((i) => (
                                 <div key={i} className="dashboard-dist-row">
-                                    <div className="dashboard-dist-row__main">
-                                        <Skeleton width="88px" height="12px" borderRadius="4px" />
-                                        <Skeleton width="36px" height="12px" borderRadius="4px" />
-                                    </div>
-                                    <Skeleton width="100%" height="6px" borderRadius="999px" />
+                                    <Skeleton width={i === 0 ? '72%' : '48%'} height="12px" borderRadius="4px" />
                                 </div>
                             ))}
                         </div>
@@ -315,13 +278,12 @@ function DashboardSkeleton() {
                     </div>
                 ) : (
                     <div className="dashboard-accounts-collapse dashboard-skeleton-table">
-                        <Skeleton width="88px" height="16px" borderRadius="4px" />
-                        <div style={{ marginTop: 'var(--space-4)' }}>
-                            {[0, 1, 2].map((i) => (
+                        <Skeleton width="88px" height="14px" borderRadius="4px" />
+                        <div style={{ marginTop: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {[0, 1].map((i) => (
                                 <div key={i} className="dashboard-accounts-skel-row">
-                                    <Skeleton width="28%" height="14px" borderRadius="4px" />
-                                    <Skeleton width="18%" height="14px" borderRadius="4px" />
-                                    <Skeleton width="22%" height="14px" borderRadius="4px" />
+                                    <Skeleton width="32%" height="12px" borderRadius="4px" />
+                                    <Skeleton width="18%" height="12px" borderRadius="4px" />
                                 </div>
                             ))}
                         </div>
@@ -622,7 +584,6 @@ function AccountCard({
     onNavigate: (accountId: string) => void
 }) {
     const title = row.account_name || row.external_account_id
-    const active = isAccountActive(row)
     const s = row.summary
     const gain = s.minus_own_funds
     const gainPct = s.minus_own_funds_percent
@@ -681,10 +642,6 @@ function AccountCard({
             }}
         >
             <header className="dashboard-accounts-card__head">
-                <span
-                    className={`dashboard-status-dot${active ? ' dashboard-status-dot--on' : ''}`}
-                    aria-hidden
-                />
                 <div className="dashboard-accounts-card__identity">
                     <div className="dashboard-accounts-card__title-row">
                         <span
@@ -773,7 +730,6 @@ function AccountsTable({
                 <tbody>
                     {accounts.map((row) => {
                         const title = row.account_name || row.external_account_id
-                        const active = isAccountActive(row)
                         const s = row.summary
                         const gain = s.minus_own_funds
                         const gainPct = s.minus_own_funds_percent
@@ -788,10 +744,6 @@ function AccountsTable({
                                 <td>
                                     <span className="dashboard-account-cell">
                                         <span className="dashboard-account-name">
-                                            <span
-                                                className={`dashboard-status-dot${active ? ' dashboard-status-dot--on' : ''}`}
-                                                aria-hidden
-                                            />
                                             <span className="dashboard-account-name__text">{title}</span>
                                         </span>
                                         <span className="dashboard-account-opened">
@@ -904,11 +856,6 @@ function hasMetric(val: number | null | undefined): boolean {
 function clampPercent(val: number): number {
     if (!Number.isFinite(val)) return 0
     return Math.max(0, Math.min(100, val))
-}
-
-function isAccountActive(row: DashboardAccountItem): boolean {
-    const status = (row.account_status || '').toUpperCase()
-    return status === 'OPEN' || status === 'ACTIVE'
 }
 
 function formatAccountOpenedText(iso: string | null | undefined): string {

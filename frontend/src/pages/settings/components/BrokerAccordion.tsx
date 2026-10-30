@@ -108,7 +108,15 @@ export function BrokerAccordionCard({
                     aria-hidden
                 />
             </button>
-            {open ? <div className="settings-broker-accordion__body">{children}</div> : null}
+            <div
+                className="settings-broker-accordion__collapse"
+                aria-hidden={!open}
+                inert={!open ? true : undefined}
+            >
+                <div className="settings-broker-accordion__collapse-inner">
+                    <div className="settings-broker-accordion__body">{children}</div>
+                </div>
+            </div>
         </Card>
     )
 }

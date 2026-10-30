@@ -13,6 +13,27 @@ import '@/styles/backtestLab.css'
 import '@/styles/animations.css'
 import '@/styles/responsive.css'
 
+// After deploy, an open tab may still reference old hashed chunks. Missing /assets/*
+// used to SPA-fallback as HTML → module parse error → blank #root. Reload once.
+const PRELOAD_RELOAD_KEY = 'gin-vite-preload-reload'
+window.addEventListener('vite:preloadError', (event) => {
+    event.preventDefault()
+    try {
+        if (sessionStorage.getItem(PRELOAD_RELOAD_KEY) === '1') return
+        sessionStorage.setItem(PRELOAD_RELOAD_KEY, '1')
+    } catch {
+        /* private mode */
+    }
+    window.location.reload()
+})
+window.addEventListener('load', () => {
+    try {
+        sessionStorage.removeItem(PRELOAD_RELOAD_KEY)
+    } catch {
+        /* ignore */
+    }
+})
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
         <App />

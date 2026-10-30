@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Настройки — settings-detail-feed__list</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .intro {
+    margin: 0 0 22px;
+    max-width: 72ch;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--secondary);
+  }
+  .intro strong { color: var(--text); font-weight: 600; }
+
+  .variant {
+    margin-bottom: 32px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: #0e1114;
+  }
+  .variant__head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    align-items: baseline;
+    margin-bottom: 14px;
+  }
+  .variant__num {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .variant__title { margin: 0; font-size: 17px; font-weight: 600; }
+  .variant__why {
+    margin: 0;
+    flex: 1 1 100%;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--secondary);
+  }
+  .variant__spec {
+    margin: 0;
+    flex: 1 1 100%;
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--muted);
+  }
+
+  .desk {
+    max-width: 560px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+    padding: 16px 18px 18px;
+  }
+
+  .feed-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 0 0 8px;
+    padding: 0 0 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .feed-label {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .feed-add {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1;
+  }
+  .accounts-head {
+    margin-top: 28px;
+    margin-bottom: 8px;
+  }
+  .accounts-head .feed-label {
+    margin-bottom: 4px;
+  }
+  .feed-hint {
+    margin: 0;
+    padding: 0 0 8px;
+    font-size: 12px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--up);
+    flex-shrink: 0;
+  }
+  .name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .meta { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .money {
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    text-align: right;
+    white-space: nowrap;
+  }
+  .del {
+    width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .tog {
+    width: 36px;
+    height: 22px;
+    border-radius: 999px;
+    background: #3a4048;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .tog::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: #c5cad1;
+  }
+  .tog.is-on { background: #5a616a; }
+  .tog.is-on::after {
+    left: auto;
+    right: 2px;
+    background: #fff;
+  }
+  .is-off .name,
+  .is-off .money { color: var(--muted); }
+  .is-off { opacity: 0.72; }
+
+  .title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .val {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.35;
+    text-align: left;
+    word-break: break-all;
+  }
+  .created {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .act {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .well {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    background: var(--input);
+    border: 0;
+    border-radius: 8px;
+  }
+  .well-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .cred { min-width: 0; flex: 1; }
+
+  /* —— A · сейчас —— */
+  .v-a .list { min-width: 0; }
+  .v-a .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 16px;
+    min-height: 44px;
+    padding: 10px;
+    margin: 0 -10px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  }
+  .v-a .row.acct {
+    grid-template-columns: minmax(0, 1fr) 120px 44px;
+    padding-left: 22px;
+  }
+  .v-a .list > *:last-child .row { border-bottom-color: transparent; }
+  .v-a .wrap {
+    margin: 0 -10px 8px;
+    padding-bottom: 10px;
+    background: color-mix(in srgb, var(--input) 55%, transparent);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .v-a .wrap .row {
+    margin: 0;
+    border-bottom-color: transparent;
+  }
+  .v-a .details { padding: 0 10px 2px; }
+
+  /* —— B · cards —— */
+  .v-b .list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .v-b .row,
+  .v-b .wrap {
+    margin: 0;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--input) 55%, transparent);
+  }
+  .v-b .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 16px;
+    min-height: 44px;
+    padding: 10px 12px;
+  }
+  .v-b .row.acct {
+    grid-template-columns: minmax(0, 1fr) 120px 44px;
+  }
+  .v-b .wrap {
+    padding-bottom: 10px;
+    border-color: var(--border);
+    background: color-mix(in srgb, var(--input) 70%, transparent);
+  }
+  .v-b .wrap .row {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+  .v-b .details { padding: 0 12px 2px; }
+  .v-b .feed-head,
+  .v-b .feed-hint { border-bottom: 0; padding-bottom: 0; }
+  .v-b .accounts-head { margin-top: 24px; }
+
+  /* —— C · inset panel —— */
+  .v-c .list {
+    margin: 0;
+    padding: 4px 0;
+    border-radius: 12px;
+    background: var(--input);
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .v-c .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 16px;
+    min-height: 44px;
+    padding: 10px 14px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  }
+  .v-c .row.acct {
+    grid-template-columns: minmax(0, 1fr) 120px 44px;
+  }
+  .v-c .list > *:last-child .row { border-bottom: 0; }
+  .v-c .wrap {
+    margin: 4px 6px 6px;
+    padding-bottom: 10px;
+    border-radius: 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+  }
+  .v-c .wrap .row {
+    border-bottom: 0;
+    background: transparent;
+  }
+  .v-c .details { padding: 0 14px 2px; }
+  .v-c .well { background: color-mix(in srgb, var(--input) 80%, var(--panel)); }
+  .v-c .feed-head,
+  .v-c .feed-hint { border-bottom: 0; padding-bottom: 0; margin-bottom: 10px; }
+  .v-c .accounts-head { margin-top: 24px; }
+
+  /* —— D · quiet rules —— */
+  .v-d .list { min-width: 0; }
+  .v-d .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 16px;
+    min-height: 40px;
+    padding: 8px 2px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    background: transparent;
+  }
+  .v-d .row.acct {
+    grid-template-columns: minmax(0, 1fr) 120px 44px;
+    padding-left: 14px;
+  }
+  .v-d .list > *:last-child .row { border-bottom-color: transparent; }
+  .v-d .wrap {
+    margin: 4px 0 10px;
+    padding: 2px 0 10px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: inset 3px 0 0 var(--up);
+  }
+  .v-d .wrap .row {
+    border-bottom: 0;
+    padding-left: 12px;
+  }
+  .v-d .details { padding: 0 2px 0 12px; }
+  .v-d .well {
+    padding: 8px 0 0;
+    background: transparent;
+    border-radius: 0;
+  }
+  .v-d .name { font-weight: 400; color: var(--text); }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← к списку</a>
+    <div>
+      <h1>Настройки — feed list</h1>
+      <p>Варианты композиции <code>settings-detail-feed__list</code> (токены + счета). Открытый токен — как сейчас.</p>
+    </div>
+    <span class="badge badge--new">A–D</span>
+  </div>
+
+  <div class="wrap">
+    <p class="intro">
+      Сейчас список — <strong>плоские строки с hairline</strong>, раскрытие превращает одну строку в карточку.
+      Ниже четыре направления: оставить как есть, карточки с gap, общий inset-panel, или quieter rules без «коробки» у open.
+    </p>
+
+    <!-- A -->
+    <section class="variant v-a">
+      <div class="variant__head">
+        <span class="variant__num">A</span>
+        <h2 class="variant__title">Сейчас — hairline rows</h2>
+        <p class="variant__why">Bleed ±10px, разделители между строками, is-open = bordered card 10px.</p>
+        <p class="variant__spec">border-bottom · wrap.is-open { border + radius 10 }</p>
+      </div>
+      <div class="desk" data-demo="a"></div>
+    </section>
+
+    <!-- B -->
+    <section class="variant v-b">
+      <div class="variant__head">
+        <span class="variant__num">B</span>
+        <h2 class="variant__title">Cards stack</h2>
+        <p class="variant__why">Каждая строка — мягкая плитка с gap 6px. Нет hairline. Open усиливает border той же карточки.</p>
+        <p class="variant__spec">flex gap 6 · row { bg + radius 10 } · без border-bottom</p>
+      </div>
+      <div class="desk" data-demo="b"></div>
+    </section>
+
+    <!-- C -->
+    <section class="variant v-c">
+      <div class="variant__head">
+        <span class="variant__num">C</span>
+        <h2 class="variant__title">Inset panel</h2>
+        <p class="variant__why">Весь list в одном inset (bg-input + border). Строки внутри с правилами; open «всплывает» панелью поверх.</p>
+        <p class="variant__spec">list { panel } · wrap inset на panel bg</p>
+      </div>
+      <div class="desk" data-demo="c"></div>
+    </section>
+
+    <!-- D -->
+    <section class="variant v-d">
+      <div class="variant__head">
+        <span class="variant__num">D</span>
+        <h2 class="variant__title">Quiet rules</h2>
+        <p class="variant__why">Тоньше разделители, без hover-карточки. Open без рамки — только accent bar слева и well без фона.</p>
+        <p class="variant__spec">hairline 55% · open { inset bar } · well flat</p>
+      </div>
+      <div class="desk" data-demo="d"></div>
+    </section>
+  </div>
+
+  <template id="feed-demo">
+    <div class="feed-head">
+      <h3 class="feed-label">Токены</h3>
+      <button type="button" class="feed-add" aria-label="Добавить">+</button>
+    </div>
+    <div class="list" role="list">
+      <div role="listitem">
+        <div class="wrap">
+          <div class="row">
+            <span class="title"><span class="dot" aria-hidden></span><span class="name">брокерский 3</span></span>
+            <span class="meta">2 дн назад</span>
+            <button type="button" class="del" aria-label="Удалить">⌫</button>
+          </div>
+          <div class="details">
+            <div class="well">
+              <div class="well-top">
+                <div class="cred">
+                  <button type="button" class="val">t.••••••••••••••••••••x7k2</button>
+                  <span class="created">создан 12.08.2026</span>
+                </div>
+                <button type="button" class="act" aria-label="Проверить">↻</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div role="listitem">
+        <div class="row">
+          <span class="title"><span class="dot" aria-hidden></span><span class="name">Опросник</span></span>
+          <span class="meta">15 мин назад</span>
+          <button type="button" class="del" aria-label="Удалить">⌫</button>
+        </div>
+      </div>
+      <div role="listitem">
+        <div class="row">
+          <span class="title"><span class="dot" aria-hidden></span><span class="name">Т-Инвестиции 21.08.2026 (брокер 6)</span></span>
+          <span class="meta">только что</span>
+          <button type="button" class="del" aria-label="Удалить">⌫</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="accounts-head">
+      <h3 class="feed-label">Счета</h3>
+      <p class="feed-hint">Тумблер — в сводке дашборда</p>
+    </div>
+    <div class="list" role="list">
+      <div role="listitem">
+        <div class="row acct">
+          <span class="name">Pinkin</span>
+          <span class="money">839 694,3 ₽</span>
+          <span class="tog is-on" aria-hidden></span>
+        </div>
+      </div>
+      <div role="listitem">
+        <div class="row acct">
+          <span class="name">Анти-мейнстрим Aggressive</span>
+          <span class="money">385 353,78 ₽</span>
+          <span class="tog is-on" aria-hidden></span>
+        </div>
+      </div>
+      <div role="listitem">
+        <div class="row acct">
+          <span class="name">Брокерский счет 6</span>
+          <span class="money">8 932,25 ₽</span>
+          <span class="tog is-on" aria-hidden></span>
+        </div>
+      </div>
+      <div role="listitem">
+        <div class="row acct is-off">
+          <span class="name">Брокерский счет 3</span>
+          <span class="money">0 ₽</span>
+          <span class="tog" aria-hidden></span>
+        </div>
+      </div>
+      <div role="listitem">
+        <div class="row acct is-off">
+          <span class="name">Брокерский счёт</span>
+          <span class="money">722,23 ₽</span>
+          <span class="tog" aria-hidden></span>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    const tpl = document.getElementById('feed-demo')
+    document.querySelectorAll('[data-demo]').forEach((el) => {
+      el.appendChild(tpl.content.cloneNode(true))
+    })
+  </script>
+</body>
+</html>

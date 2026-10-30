@@ -16,6 +16,9 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
     --color-up: #3dbe7a;
     --color-down: #f05252;
     --color-warn: #d4a056;
+    /* Quiet cabin: no neon accent — map cyan token to primary text */
+    --neon-cyan: #eceff3;
+    --border-accent: var(--border-medium);
     --glow-cyan: none;
     --glow-magenta: none;
     --glow-up: none;
@@ -40,6 +43,8 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
     --color-up: #0e9f6e;
     --color-down: #e11d48;
     --color-warn: #b7791f;
+    --neon-cyan: #0f172a;
+    --border-accent: var(--border-medium);
     background: var(--bg-page);
     color: var(--text-primary);
 }
@@ -202,12 +207,6 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
     letter-spacing: 0;
     text-transform: none;
     color: var(--text-muted);
-}
-
-:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-status-dot--on,
-:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-accounts-card__head .dashboard-status-dot--on {
-    background: var(--color-up);
-    box-shadow: none;
 }
 
 :is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings']) .dashboard-accounts-reveal__btn-label,
@@ -640,23 +639,36 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
         text-align: center;
     }
 
+    /*
+      Lead grows and pins the sheet to the bottom. Card stays content-sized
+      (no min-height) so dashboard-settings sits on the floor, not mid-card.
+      Tall content → total > viewport → scroll lifts the lead.
+    */
     .modal-scene__scroll {
         display: flex;
         flex-direction: column;
         flex: 1 1 auto;
         min-height: 0;
-        gap: 0;
-        overflow: auto;
+        overflow-x: hidden;
+        overflow-y: auto;
         overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .modal-scene__scroll::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
     }
 
     .modal-scene__lead {
-        flex: 1 1 auto;
+        flex: 1 0 auto;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        min-height: 0;
+        box-sizing: border-box;
         padding: calc(48px + env(safe-area-inset-top, 0px)) 20px 16px;
     }
 
@@ -679,30 +691,45 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
     .modal-backdrop--scene .dash-quiet-modal.dash-scene-modal.modal-scene__card {
         display: flex;
         flex-direction: column;
-        flex: 0 1 auto;
+        flex: 0 0 auto;
         align-self: stretch;
-        width: 100% !important;
+        width: 100vw !important;
         max-width: none !important;
-        min-width: 0;
-        margin: 0;
+        min-width: 100% !important;
+        margin: 0 !important;
+        margin-top: auto;
         border-radius: 18px 18px 0 0 !important;
-        max-height: min(88dvh, 100%);
-        overflow: auto;
+        border-left: 0 !important;
+        border-right: 0 !important;
+        border-bottom: 0 !important;
+        max-height: none !important;
+        overflow: visible !important;
         animation: none;
+        box-sizing: border-box;
     }
 
     .modal-scene__card {
         text-align: left;
     }
 
+    /* Full-bleed body — beat global .modal width/overflow and flush overflow:hidden */
+    .modal-backdrop--scene .modal-scene__card .modal__body,
+    .modal-backdrop--scene .dash-scene-modal .modal__body,
     .dash-scene-modal.modal--flush .modal__body,
     .dash-scene-modal .modal__body {
         display: flex;
         flex-direction: column;
-        flex: 0 1 auto;
-        overflow: visible;
-        padding: 0;
-        width: 100%;
+        flex: 0 0 auto;
+        justify-content: flex-end;
+        align-self: stretch;
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0;
+        margin: 0;
+        padding: 0 !important;
+        overflow: visible !important;
+        max-height: none !important;
+        box-sizing: border-box;
     }
 
     .modal-backdrop--scene .modal-scene__close.modal__close--round {
@@ -710,21 +737,25 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
         right: max(10px, env(safe-area-inset-right, 0px));
     }
 
+    /* Sheet content pinned to the bottom of the card by default */
     .dash-scene-modal .dashboard-settings {
         display: flex;
         flex-direction: column;
-        flex: 0 1 auto;
+        flex: 0 0 auto;
         gap: 0;
+        margin-top: auto;
         padding: 16px 16px 12px;
-        width: 100%;
+        width: 100% !important;
+        max-width: none !important;
         box-sizing: border-box;
         min-height: 0;
+        overflow: visible !important;
     }
 
     .dash-scene-modal .dashboard-settings-list {
         flex: 0 0 auto;
         gap: 10px;
-        overflow: visible;
+        overflow: visible !important;
         padding: 0;
         margin: 0;
         width: 100%;

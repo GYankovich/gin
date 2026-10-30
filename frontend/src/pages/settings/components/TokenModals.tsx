@@ -4,7 +4,8 @@ import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import { useToast } from '@/components/ui/Toast'
 import { api } from '@/services/api'
-import type { ApiKeyItem } from '@/pages/settings/types'
+import type { ApiKeyItem, BrokerKind } from '@/pages/settings/types'
+import { matchTokenTypeValue } from '@/pages/settings/utils'
 import '@/pages/DashboardPage.css'
 
 function isBybitType(tokenType: string, label?: string) {
@@ -17,9 +18,11 @@ type Props = {
     open: boolean
     onClose: () => void
     onCreated: () => void
+    /** Prefill broker type select (e.g. from selected rail broker). */
+    initialBrokerKind?: BrokerKind | null
 }
 
-export function CreateTokenModal({ open, onClose, onCreated }: Props) {
+export function CreateTokenModal({ open, onClose, onCreated, initialBrokerKind = null }: Props) {
     const toast = useToast()
     const [tokenTypes, setTokenTypes] = useState<Array<{ value: string; label: string }>>([])
     const [newName, setNewName] = useState('')
@@ -49,18 +52,27 @@ export function CreateTokenModal({ open, onClose, onCreated }: Props) {
                 label: String(x.name ?? x.stringValue ?? ''),
             })).filter((x: { value: string }) => !!x.value)
             setTokenTypes(opts)
-            if (opts.length > 0) setNewTokenType(prev => prev || opts[0].value)
+            return opts
         } catch {
             setTokenTypes([])
+            return [] as Array<{ value: string; label: string }>
         }
     }, [])
 
     useEffect(() => {
-        if (open) {
-            reset()
-            void loadTokenTypes()
+        if (!open) return
+        reset()
+        let cancelled = false
+        void (async () => {
+            const opts = await loadTokenTypes()
+            if (cancelled) return
+            const matched = matchTokenTypeValue(opts, initialBrokerKind)
+            setNewTokenType(matched || opts[0]?.value || '')
+        })()
+        return () => {
+            cancelled = true
         }
-    }, [open, reset, loadTokenTypes])
+    }, [open, initialBrokerKind, reset, loadTokenTypes])
 
     const suggestName = () => {
         if (newName.trim()) return

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Настройки — token row is-open</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .intro {
+    margin: 0 0 22px;
+    max-width: 72ch;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--secondary);
+  }
+  .intro strong { color: var(--text); font-weight: 600; }
+
+  .variant {
+    margin-bottom: 32px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: #0e1114;
+  }
+  .variant__head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    align-items: baseline;
+    margin-bottom: 14px;
+  }
+  .variant__num {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .variant__title { margin: 0; font-size: 17px; font-weight: 600; }
+  .variant__why {
+    margin: 0;
+    flex: 1 1 100%;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--secondary);
+  }
+
+  .desk {
+    max-width: 560px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+    padding: 8px 6px 12px;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 16px;
+    min-height: 44px;
+    padding: 10px 10px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--input) 72%, transparent);
+  }
+  .title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--up);
+    flex-shrink: 0;
+  }
+  .name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .meta { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .del {
+    width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .lab {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .lab em {
+    font-style: normal;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    opacity: 0.75;
+  }
+  .val {
+    display: block;
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: var(--input);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    text-align: left;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.35);
+  }
+  .foot {
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .ico {
+    width: 36px;
+    flex-shrink: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  /* A current */
+  .v-a .details {
+    padding: 4px 10px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .v-a .cred-row { display: flex; gap: 8px; }
+
+  /* B well */
+  .v-b .details { padding: 6px 10px 4px; }
+  .v-b .well {
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--input);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .v-b .well .val {
+    background: var(--panel);
+    box-shadow: none;
+  }
+  .v-b .well-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .v-b .acts { display: flex; gap: 2px; }
+  .v-b .acts .ico {
+    width: 32px;
+    height: 32px;
+    background: transparent;
+  }
+
+  /* C compact toolbar */
+  .v-c .details {
+    padding: 2px 10px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .v-c .strip {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: var(--input);
+    border: 1px solid var(--border);
+  }
+  .v-c .strip .val {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .v-c .strip-acts { display: flex; gap: 2px; }
+  .v-c .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .v-c .chip {
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* D split */
+  .v-d .details {
+    padding: 6px 10px 4px;
+    display: grid;
+    grid-template-columns: 140px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+  }
+  .v-d .side {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 2px;
+  }
+  .v-d .side-k {
+    margin: 0;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .v-d .side-v {
+    margin: 2px 0 0;
+    font-size: 13px;
+    color: var(--secondary);
+  }
+  .v-d .block {
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--input);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .v-d .block .val {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+  .v-d .block-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .v-d .block-lab {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← к списку</a>
+    <div>
+      <h1>Token open — детали строки</h1>
+      <p>Раскрытый <code>settings-detail-row-wrap.is-open</code>. Точка уже перед именем.</p>
+    </div>
+    <span class="badge badge--new">согласование</span>
+  </div>
+
+  <div class="wrap">
+    <p class="intro">
+      Сейчас детали — отдельные поля с подписью «Token · копировать» и кнопкой refresh.
+      Ниже четыре направления: оставить поля, <strong>well как на мобилке</strong>, компактная полоса, split meta/creds.
+    </p>
+
+    <section class="variant v-a">
+      <div class="variant__head">
+        <span class="variant__num">A · сейчас</span>
+        <h2 class="variant__title">Поля + refresh сбоку</h2>
+        <p class="variant__why">Привычно, но много хрома и дублирует «копировать» в лейбле.</p>
+      </div>
+      <div class="desk">
+        <div class="row">
+          <span class="title"><span class="dot"></span><span class="name">prod-main</span></span>
+          <span class="meta">2 ч назад</span>
+          <button type="button" class="del" aria-label="Удалить">×</button>
+        </div>
+        <div class="details">
+          <div>
+            <p class="lab">Token <em>· копировать</em></p>
+            <div class="cred-row">
+              <button type="button" class="val">t.••••••••4f2a</button>
+              <button type="button" class="ico" aria-label="Проверить">↻</button>
+            </div>
+          </div>
+          <p class="foot">чтение · создан 12.03.2024</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="variant v-b">
+      <div class="variant__head">
+        <span class="variant__num">B · well</span>
+        <h2 class="variant__title">Один inset-блок как на sheet</h2>
+        <p class="variant__why">Ключ + copy/test сверху справа, meta внутри. Меньше «форм», ближе к мобилке.</p>
+      </div>
+      <div class="desk">
+        <div class="row">
+          <span class="title"><span class="dot"></span><span class="name">prod-main</span></span>
+          <span class="meta">2 ч назад</span>
+          <button type="button" class="del" aria-label="Удалить">×</button>
+        </div>
+        <div class="details">
+          <div class="well">
+            <div class="well-top">
+              <div>
+                <p class="lab" style="margin:0 0 4px">Token</p>
+                <button type="button" class="val">t.••••••••4f2a</button>
+              </div>
+              <div class="acts">
+                <button type="button" class="ico" aria-label="Копировать">⧉</button>
+                <button type="button" class="ico" aria-label="Проверить">↻</button>
+              </div>
+            </div>
+            <p class="foot">чтение · создан 12.03.2024</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="variant v-c">
+      <div class="variant__head">
+        <span class="variant__num">C · strip</span>
+        <h2 class="variant__title">Одна полоса ключа + chips</h2>
+        <p class="variant__why">Самый плотный: monospace в ряд с иконками, права/дата — чипы.</p>
+      </div>
+      <div class="desk">
+        <div class="row">
+          <span class="title"><span class="dot"></span><span class="name">prod-main</span></span>
+          <span class="meta">2 ч назад</span>
+          <button type="button" class="del" aria-label="Удалить">×</button>
+        </div>
+        <div class="details">
+          <div class="strip">
+            <button type="button" class="val">t.••••••••4f2a</button>
+            <div class="strip-acts">
+              <button type="button" class="ico" aria-label="Копировать">⧉</button>
+              <button type="button" class="ico" aria-label="Проверить">↻</button>
+            </div>
+          </div>
+          <div class="chips">
+            <span class="chip">чтение</span>
+            <span class="chip">создан 12.03.2024</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="variant v-d">
+      <div class="variant__head">
+        <span class="variant__num">D · split</span>
+        <h2 class="variant__title">Meta слева, ключ справа</h2>
+        <p class="variant__why">Сводка отдельно от секрета; удобно, если появятся secret / ошибка.</p>
+      </div>
+      <div class="desk">
+        <div class="row">
+          <span class="title"><span class="dot"></span><span class="name">prod-main</span></span>
+          <span class="meta">2 ч назад</span>
+          <button type="button" class="del" aria-label="Удалить">×</button>
+        </div>
+        <div class="details">
+          <div class="side">
+            <div>
+              <p class="side-k">Права</p>
+              <p class="side-v">чтение</p>
+            </div>
+            <div>
+              <p class="side-k">Создан</p>
+              <p class="side-v">12.03.2024</p>
+            </div>
+          </div>
+          <div class="block">
+            <div>
+              <div class="block-lab">Token</div>
+              <div class="block-row">
+                <button type="button" class="val">t.••••••••4f2a</button>
+                <button type="button" class="ico" aria-label="Копировать">⧉</button>
+                <button type="button" class="ico" aria-label="Проверить">↻</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

@@ -25,7 +25,6 @@ import {
     copyText,
     detectBrokerKind,
     formatRelativeTime,
-    inferTokenRights,
     normalizeBrokerKind,
     sortTokens,
 } from '@/pages/settings/utils'
@@ -71,7 +70,6 @@ function TokenLine({
     const [revealed, setRevealed] = useState<RevealedCreds | null>(null)
 
     const broker = detectBrokerKind(token)
-    const rights = inferTokenRights(token)
     const hasSecret =
         broker === 'bybit' &&
         Boolean(
@@ -88,13 +86,6 @@ function TokenLine({
             : token.status_name?.trim()
               ? token.status_name.trim()
               : connectionStatusLabel(status)
-
-    const statusClass =
-        health.status === 'error' || token.status === 3
-            ? 'is-error'
-            : token.status === 1
-              ? ''
-              : 'is-muted'
 
     const statusDotClass =
         health.status === 'error' || token.status === 3
@@ -160,9 +151,10 @@ function TokenLine({
                                 {token.name || 'API key'}
                             </span>
                         </span>
-                        {lastUsed ? (
-                            <span className="settings-sheet-seg-token__meta">{lastUsed}</span>
-                        ) : null}
+                        <span className="settings-sheet-seg-token__meta">
+                            {lastUsed ? <span>{lastUsed}</span> : null}
+                            {open ? <span>создан {createdAt}</span> : null}
+                        </span>
                     </button>
                     <button
                         type="button"
@@ -178,29 +170,24 @@ function TokenLine({
                         <div className="settings-sheet-token-well">
                             <div className="settings-sheet-token-well__top">
                                 <div className="settings-sheet-token-well__cred">
-                                    <span className="settings-sheet-token-well__lab">
-                                        {hasSecret ? 'API Key' : 'Token'}
-                                    </span>
                                     <button
                                         type="button"
                                         className="settings-sheet-token-well__val"
                                         onClick={() => void copyCred('token')}
+                                        title="Показать и скопировать"
+                                        aria-label="Показать и скопировать"
                                     >
-                                        {displayToken}
+                                        <span className="settings-sheet-token-well__val-text">
+                                            {displayToken}
+                                        </span>
+                                        <FontAwesomeIcon
+                                            icon={faCopy}
+                                            className="settings-sheet-token-well__val-icon"
+                                            aria-hidden
+                                        />
                                     </button>
                                 </div>
                                 <div className="settings-sheet-token-well__acts">
-                                    <button
-                                        type="button"
-                                        className="settings-sheet-token-well__act"
-                                        onClick={() => void copyCred('token')}
-                                        aria-label="Копировать"
-                                    >
-                                        <FontAwesomeIcon
-                                            icon={faCopy}
-                                            className="settings-sheet-token-well__act-icon"
-                                        />
-                                    </button>
                                     <button
                                         type="button"
                                         className="settings-sheet-token-well__act"
@@ -218,21 +205,24 @@ function TokenLine({
                             </div>
                             {hasSecret ? (
                                 <div className="settings-sheet-token-well__cred">
-                                    <span className="settings-sheet-token-well__lab">API Secret</span>
                                     <button
                                         type="button"
                                         className="settings-sheet-token-well__val"
                                         onClick={() => void copyCred('secret')}
+                                        title="Показать и скопировать"
+                                        aria-label="Показать и скопировать"
                                     >
-                                        {displaySecret}
+                                        <span className="settings-sheet-token-well__val-text">
+                                            {displaySecret}
+                                        </span>
+                                        <FontAwesomeIcon
+                                            icon={faCopy}
+                                            className="settings-sheet-token-well__val-icon"
+                                            aria-hidden
+                                        />
                                     </button>
                                 </div>
                             ) : null}
-                            <p className="settings-token-meta">
-                                <span>{rights.label}</span>
-                                <span aria-hidden>·</span>
-                                <span>создан {createdAt}</span>
-                            </p>
                             {token.last_error ? (
                                 <p className="settings-hint settings-hint--warn" role="status">
                                     {token.last_error}
@@ -245,82 +235,130 @@ function TokenLine({
         )
     }
 
+    const toggleOpen = () => setOpen(v => !v)
+
     return (
-        <div className={`settings-detail-row-wrap${open ? ' is-open' : ''}`}>
+        <div
+            className={`settings-detail-row-wrap${open ? ' is-open' : ''}`}
+            onClick={toggleOpen}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    toggleOpen()
+                }
+            }}
+            role="button"
+            tabIndex={0}
+            aria-expanded={open}
+        >
             <div className="settings-detail-row settings-token-line">
-                <button
-                    type="button"
-                    className="settings-token-line__main"
-                    onClick={() => setOpen(v => !v)}
-                    aria-expanded={open}
-                >
-                    <span className="settings-token-line__name">{token.name || 'API key'}</span>
-                </button>
+                <span className="settings-token-line__main">
+                    <span className="settings-token-line__title">
+                        <span
+                            className={[
+                                'settings-token-line__status',
+                                statusDotClass || undefined,
+                            ]
+                                .filter(Boolean)
+                                .join(' ')}
+                            title={statusLabel}
+                            aria-label={statusLabel}
+                        />
+                        <span className="settings-token-line__name">{token.name || 'API key'}</span>
+                    </span>
+                </span>
                 <span className="settings-token-line__meta">
-                    <b className={statusClass || undefined}>{statusLabel}</b>
                     {lastUsed ? <span>{lastUsed}</span> : null}
+                    {open ? <span>создан {createdAt}</span> : null}
                 </span>
                 <button
                     type="button"
                     className="settings-token-line__delete"
-                    onClick={() => onDelete(token)}
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        onDelete(token)
+                    }}
                     aria-label="Удалить токен"
                 >
                     <FontAwesomeIcon icon={faTrashCan} className="settings-token-line__delete-icon" />
                 </button>
             </div>
 
-            {open && (
+            {open ? (
                 <div className="settings-token-details">
-                    <div className="settings-field settings-field--cred">
-                        <span>{hasSecret ? 'API Key' : 'Token'}</span>
-                        <div className="settings-field__cred-row">
-                            <button
-                                type="button"
-                                className="settings-field__value is-copyable"
-                                onClick={() => void copyCred('token')}
-                            >
-                                {displayToken}
-                            </button>
-                            <button
-                                type="button"
-                                className="settings-field__refresh"
-                                onClick={() => onTest(token.id)}
-                                disabled={testing}
-                                aria-label={testing ? 'Проверка…' : 'Проверить'}
-                            >
-                                <FontAwesomeIcon
-                                    icon={faArrowsRotate}
-                                    spin={testing}
-                                    className="settings-field__refresh-icon"
-                                />
-                            </button>
+                    <div className="settings-sheet-token-well">
+                        <div className="settings-sheet-token-well__top">
+                            <div className="settings-sheet-token-well__cred">
+                                <button
+                                    type="button"
+                                    className="settings-sheet-token-well__val"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        void copyCred('token')
+                                    }}
+                                    title="Показать и скопировать"
+                                    aria-label="Показать и скопировать"
+                                >
+                                    <span className="settings-sheet-token-well__val-text">
+                                        {displayToken}
+                                    </span>
+                                    <FontAwesomeIcon
+                                        icon={faCopy}
+                                        className="settings-sheet-token-well__val-icon"
+                                        aria-hidden
+                                    />
+                                </button>
+                            </div>
+                            <div className="settings-sheet-token-well__acts">
+                                <button
+                                    type="button"
+                                    className="settings-sheet-token-well__act"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        onTest(token.id)
+                                    }}
+                                    disabled={testing}
+                                    aria-label={testing ? 'Проверка…' : 'Проверить'}
+                                >
+                                    <FontAwesomeIcon
+                                        icon={faArrowsRotate}
+                                        spin={testing}
+                                        className="settings-sheet-token-well__act-icon"
+                                    />
+                                </button>
+                            </div>
                         </div>
+                        {hasSecret ? (
+                            <div className="settings-sheet-token-well__cred">
+                                <button
+                                    type="button"
+                                    className="settings-sheet-token-well__val"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        void copyCred('secret')
+                                    }}
+                                    title="Показать и скопировать"
+                                    aria-label="Показать и скопировать"
+                                >
+                                    <span className="settings-sheet-token-well__val-text">
+                                        {displaySecret}
+                                    </span>
+                                    <FontAwesomeIcon
+                                        icon={faCopy}
+                                        className="settings-sheet-token-well__val-icon"
+                                        aria-hidden
+                                    />
+                                </button>
+                            </div>
+                        ) : null}
+                        {token.last_error ? (
+                            <p className="settings-hint settings-hint--warn" role="status">
+                                {token.last_error}
+                            </p>
+                        ) : null}
                     </div>
-                    {hasSecret ? (
-                        <div className="settings-field settings-field--cred">
-                            <span>API Secret</span>
-                            <button
-                                type="button"
-                                className="settings-field__value is-copyable"
-                                onClick={() => void copyCred('secret')}
-                            >
-                                {displaySecret}
-                            </button>
-                        </div>
-                    ) : null}
-                    <p className="settings-token-meta">
-                        <span>{rights.label}</span>
-                        <span aria-hidden>·</span>
-                        <span>создан {createdAt}</span>
-                    </p>
-                    {token.last_error ? (
-                        <p className="settings-hint settings-hint--warn" role="status">
-                            {token.last_error}
-                        </p>
-                    ) : null}
                 </div>
-            )}
+            ) : null}
         </div>
     )
 }
@@ -589,6 +627,20 @@ export function TokensSection({
     const [deleting, setDeleting] = useState(false)
     const [savingAccountId, setSavingAccountId] = useState<number | null>(null)
     const [selectedKind, setSelectedKind] = useState<BrokerKind | null>(null)
+    const [createPrefillKind, setCreatePrefillKind] = useState<BrokerKind | null>(null)
+
+    const openCreate = useCallback(
+        (kind?: BrokerKind | null) => {
+            setCreatePrefillKind(kind ?? null)
+            onCreateOpenChange(true)
+        },
+        [onCreateOpenChange],
+    )
+
+    const closeCreate = useCallback(() => {
+        onCreateOpenChange(false)
+        setCreatePrefillKind(null)
+    }, [onCreateOpenChange])
 
     const loadAll = useCallback(async () => {
         setLoading(true)
@@ -757,7 +809,7 @@ export function TokensSection({
                         <button
                             type="button"
                             className="settings-section-label__action"
-                            onClick={() => onCreateOpenChange(true)}
+                            onClick={() => openCreate(null)}
                         >
                             + брокер
                         </button>
@@ -774,7 +826,7 @@ export function TokensSection({
 
             {showFirstRun ? (
                 <div className="settings-brokers__first-run">
-                    <ConnectBrokerEmpty onConnect={() => onCreateOpenChange(true)} />
+                    <ConnectBrokerEmpty onConnect={() => openCreate(null)} />
                 </div>
             ) : isMobile ? (
                 <div className="settings-broker-stack" role="list">
@@ -789,7 +841,7 @@ export function TokensSection({
                                     healthMap={healthMap}
                                     testingId={testingId}
                                     savingAccountId={savingAccountId}
-                                    onAddToken={() => onCreateOpenChange(true)}
+                                    onAddToken={() => openCreate(bucket.kind)}
                                     onTest={handleTest}
                                     onDelete={setDeleteTarget}
                                     onToggleAccount={handleToggleAccount}
@@ -839,9 +891,12 @@ export function TokensSection({
                         <button
                             type="button"
                             className="settings-broker-rail__add"
-                            onClick={() => onCreateOpenChange(true)}
+                            onClick={() => openCreate(null)}
                         >
-                            + брокер
+                            <span className="settings-broker-rail__add-plus" aria-hidden>
+                                +
+                            </span>
+                            Добавить брокера
                         </button>
                     </nav>
 
@@ -852,7 +907,7 @@ export function TokensSection({
                             healthMap={healthMap}
                             testingId={testingId}
                             savingAccountId={savingAccountId}
-                            onAddToken={() => onCreateOpenChange(true)}
+                            onAddToken={() => openCreate(selectedBucket.kind)}
                             onTest={handleTest}
                             onDelete={setDeleteTarget}
                             onToggleAccount={handleToggleAccount}
@@ -863,8 +918,9 @@ export function TokensSection({
 
             <CreateTokenModal
                 open={createOpen}
-                onClose={() => onCreateOpenChange(false)}
+                onClose={closeCreate}
                 onCreated={() => void loadAll()}
+                initialBrokerKind={createPrefillKind}
             />
             <DeleteTokenModal
                 token={deleteTarget}

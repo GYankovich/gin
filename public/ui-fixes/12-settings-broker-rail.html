@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Настройки — broker rail размеры</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .intro {
+    margin: 0 0 22px;
+    max-width: 72ch;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--secondary);
+  }
+  .intro strong { color: var(--text); font-weight: 600; }
+
+  .variant {
+    margin-bottom: 32px;
+    padding: 18px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: #0e1114;
+  }
+  .variant__head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    align-items: baseline;
+    margin-bottom: 14px;
+  }
+  .variant__num {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .variant__title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .variant__why {
+    margin: 0;
+    flex: 1 1 100%;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--secondary);
+  }
+  .variant__spec {
+    margin: 0;
+    flex: 1 1 100%;
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--muted);
+  }
+
+  .desk {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--bg);
+    padding: 18px;
+    overflow: hidden;
+  }
+
+  .rail {
+    display: grid;
+    align-items: start;
+  }
+  .rail__nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .rail__item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    text-align: left;
+  }
+  .rail__item.is-on {
+    color: var(--text);
+    background: var(--panel);
+    border-color: var(--border);
+  }
+  .rail__ico {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 6px;
+    background: var(--input);
+    color: var(--secondary);
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .rail__text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .rail__name { font-weight: 600; line-height: 1.25; }
+  .rail__meta { color: var(--muted); line-height: 1.25; }
+  .rail__item.is-on .rail__meta { color: var(--secondary); }
+  .rail__add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    margin-top: 6px;
+    border: 1px dashed rgba(255,255,255,0.18);
+    background: transparent;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .panel {
+    min-width: 0;
+    border: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .panel__label {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .panel__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel__row:last-child { border-bottom: 0; }
+  .panel__row-title { font-size: 14px; font-weight: 600; }
+  .panel__row-meta { margin-top: 3px; font-size: 12px; color: var(--muted); }
+  .panel__btn {
+    border: 0;
+    background: none;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 0;
+  }
+
+  /* A — current */
+  .v-a .rail { grid-template-columns: 240px minmax(0, 1fr); gap: 16px; }
+  .v-a .rail__item { gap: 10px; padding: 11px 14px; border-radius: 10px; }
+  .v-a .rail__ico { width: 28px; height: 28px; }
+  .v-a .rail__text { gap: 2px; }
+  .v-a .rail__name { font-size: 14px; }
+  .v-a .rail__meta { font-size: 12px; }
+  .v-a .rail__add { padding: 11px 14px; border-radius: 10px; font-size: 14px; }
+  .v-a .panel { padding: 22px 24px 20px; border-radius: 12px; box-shadow: 0 18px 50px rgba(0,0,0,0.28); }
+  .v-a .panel__head { margin-bottom: 14px; }
+  .v-a .panel__row { padding: 14px 0; }
+
+  /* B — compact */
+  .v-b .rail { grid-template-columns: 200px minmax(0, 1fr); gap: 12px; }
+  .v-b .rail__item { gap: 8px; padding: 9px 12px; border-radius: 10px; }
+  .v-b .rail__ico { width: 24px; height: 24px; font-size: 9px; }
+  .v-b .rail__text { gap: 1px; }
+  .v-b .rail__name { font-size: 13px; }
+  .v-b .rail__meta { font-size: 11px; }
+  .v-b .rail__add { padding: 9px 12px; border-radius: 10px; font-size: 13px; }
+  .v-b .panel { padding: 16px 18px; border-radius: 12px; box-shadow: none; }
+  .v-b .panel__head { margin-bottom: 10px; }
+  .v-b .panel__row { padding: 12px 0; }
+
+  /* C — narrow + quiet (как sessions) */
+  .v-c .rail { grid-template-columns: 176px minmax(0, 1fr); gap: 12px; }
+  .v-c .rail__item { gap: 8px; padding: 8px 10px; border-radius: 8px; }
+  .v-c .rail__ico { width: 22px; height: 22px; font-size: 8px; border-radius: 5px; }
+  .v-c .rail__text { gap: 1px; }
+  .v-c .rail__name { font-size: 13px; font-weight: 500; }
+  .v-c .rail__meta { font-size: 11px; }
+  .v-c .rail__add { padding: 8px 10px; border-radius: 8px; font-size: 13px; font-weight: 500; }
+  .v-c .panel { padding: 14px 16px; border-radius: 12px; box-shadow: none; }
+  .v-c .panel__head { margin-bottom: 8px; }
+  .v-c .panel__label { font-size: 12.5px; }
+  .v-c .panel__row { padding: 11px 0; }
+  .v-c .panel__row-title { font-size: 13.5px; }
+
+  /* D — denser list, wider content */
+  .v-d .rail { grid-template-columns: 188px minmax(0, 1fr); gap: 14px; }
+  .v-d .rail__nav { gap: 2px; }
+  .v-d .rail__item { gap: 8px; padding: 7px 10px; border-radius: 8px; }
+  .v-d .rail__ico { width: 20px; height: 20px; font-size: 8px; background: transparent; }
+  .v-d .rail__text { gap: 0; }
+  .v-d .rail__name { font-size: 13px; font-weight: 500; }
+  .v-d .rail__meta { font-size: 11px; }
+  .v-d .rail__add { margin-top: 4px; padding: 7px 10px; border-radius: 8px; font-size: 13px; font-weight: 500; }
+  .v-d .panel { padding: 18px 20px; border-radius: 12px; box-shadow: none; }
+  .v-d .panel__head { margin-bottom: 12px; }
+  .v-d .panel__row { padding: 12px 0; }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← к списку</a>
+    <div>
+      <h1>Broker rail — размеры</h1>
+      <p>Desktop. Сейчас колонка 240px + жирный shadow у панели. Выбери букву.</p>
+    </div>
+    <span class="badge badge--new">согласование</span>
+  </div>
+
+  <div class="wrap">
+    <p class="intro">
+      Смущают обычно: <strong>ширина списка</strong> (240px), <strong>паддинг панели</strong> (22×24)
+      и <strong>тень</strong> у detail-card. Ниже четыре масштаба на одних данных.
+    </p>
+
+    <section class="variant v-a">
+      <div class="variant__head">
+        <span class="variant__num">A · сейчас</span>
+        <h2 class="variant__title">Широкий rail + тяжёлая панель</h2>
+        <p class="variant__why">Как в проде: 240 / gap 16 / item 11×14 / panel 22×24 + shadow.</p>
+        <p class="variant__spec">nav 240 · gap 16 · item 11/14 · ico 28 · name 14 · panel 22/24 · shadow</p>
+      </div>
+      <div class="desk" data-rail></div>
+    </section>
+
+    <section class="variant v-b">
+      <div class="variant__head">
+        <span class="variant__num">B · compact</span>
+        <h2 class="variant__title">Чуть уже и плотнее</h2>
+        <p class="variant__why">Минус ~40px у списка, легче панель, без тени. Близко к sessions.</p>
+        <p class="variant__spec">nav 200 · gap 12 · item 9/12 · ico 24 · name 13 · panel 16/18 · no shadow</p>
+      </div>
+      <div class="desk" data-rail></div>
+    </section>
+
+    <section class="variant v-c">
+      <div class="variant__head">
+        <span class="variant__num">C · quiet</span>
+        <h2 class="variant__title">Узкий rail, как sessions-card</h2>
+        <p class="variant__why">Самый спокойный: 176px, radius 8 у пунктов, панель как у sessions.</p>
+        <p class="variant__spec">nav 176 · gap 12 · item 8/10 · ico 22 · name 13/500 · panel 14/16 · no shadow</p>
+      </div>
+      <div class="desk" data-rail></div>
+    </section>
+
+    <section class="variant v-d">
+      <div class="variant__head">
+        <span class="variant__num">D · dense nav</span>
+        <h2 class="variant__title">Плотный список, воздух в панели</h2>
+        <p class="variant__why">Иконки без плашек, низкие строки; панель чуть просторнее B.</p>
+        <p class="variant__spec">nav 188 · gap 14 · item 7/10 · ico 20 bare · name 13/500 · panel 18/20 · no shadow</p>
+      </div>
+      <div class="desk" data-rail></div>
+    </section>
+  </div>
+
+  <script>
+    const markup = `
+      <div class="rail">
+        <nav class="rail__nav" aria-label="Брокеры">
+          <button type="button" class="rail__item is-on">
+            <span class="rail__ico">TI</span>
+            <span class="rail__text">
+              <span class="rail__name">T‑Invest</span>
+              <span class="rail__meta">2 токена · 3 счёта</span>
+            </span>
+          </button>
+          <button type="button" class="rail__item">
+            <span class="rail__ico">BY</span>
+            <span class="rail__text">
+              <span class="rail__name">Bybit</span>
+              <span class="rail__meta">1 токен · 1 счёт</span>
+            </span>
+          </button>
+          <button type="button" class="rail__add">+ Брокер</button>
+        </nav>
+        <div class="panel">
+          <div class="panel__head">
+            <p class="panel__label">Токены</p>
+          </div>
+          <div class="panel__row">
+            <div>
+              <div class="panel__row-title">prod-main</div>
+              <div class="panel__row-meta">•••• 4f2a · OK</div>
+            </div>
+            <button type="button" class="panel__btn">Проверить</button>
+          </div>
+          <div class="panel__row">
+            <div>
+              <div class="panel__row-title">sandbox</div>
+              <div class="panel__row-meta">•••• 91c0 · OK</div>
+            </div>
+            <button type="button" class="panel__btn">Проверить</button>
+          </div>
+          <div class="panel__head" style="margin-top:14px">
+            <p class="panel__label">Счета</p>
+          </div>
+          <div class="panel__row">
+            <div>
+              <div class="panel__row-title">Брокерский</div>
+              <div class="panel__row-meta">открыт 12.03.2024</div>
+            </div>
+            <button type="button" class="panel__btn">В сводке</button>
+          </div>
+        </div>
+      </div>`
+
+    document.querySelectorAll('[data-rail]').forEach((el) => {
+      el.innerHTML = markup
+    })
+  </script>
+</body>
+</html>

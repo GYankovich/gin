@@ -57,6 +57,31 @@ export function brokerLabel(kind: BrokerKind): string {
     return 'Брокер'
 }
 
+/** Match TOKEN.TYPE dictionary option for a UI broker kind (create-token prefill). */
+export function matchTokenTypeValue(
+    opts: Array<{ value: string; label: string }>,
+    kind: BrokerKind | null | undefined,
+): string | null {
+    if (!kind || kind === 'other' || opts.length === 0) return null
+    if (kind === 'tinvest') {
+        const byNum = opts.find(o => o.value === '1')
+        if (byNum) return byNum.value
+        return (
+            opts.find(o => /t-invest|tinvest|tinkoff|t-bank|tbank/i.test(o.label))?.value
+            ?? null
+        )
+    }
+    if (kind === 'bybit') {
+        const byNum = opts.find(o => o.value === '2')
+        if (byNum) return byNum.value
+        return opts.find(o => /bybit/i.test(o.label))?.value ?? null
+    }
+    if (kind === 'binance') {
+        return opts.find(o => /binance/i.test(o.label))?.value ?? null
+    }
+    return null
+}
+
 export function brokerWrapClass(kind: BrokerKind): string {
     return `settings-token-wrap--${kind}`
 }
