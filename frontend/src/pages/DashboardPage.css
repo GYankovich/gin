@@ -422,6 +422,44 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
     mask-image: radial-gradient(ellipse at center, #000 42%, transparent 82%);
 }
 
+@keyframes modal-scene-lead-in {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes modal-scene-card-in {
+    from {
+        opacity: 0;
+        transform: translateY(18px) scale(0.985);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes modal-scene-sheet-up {
+    from {
+        opacity: 0.92;
+        transform: translateY(100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes modal-scene-close-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
 .modal-scene {
     position: relative;
     z-index: 1;
@@ -434,6 +472,26 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
 
 .modal-scene__scroll {
     display: contents;
+}
+
+.modal-backdrop--scene .modal-scene__lead {
+    animation: modal-scene-lead-in 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.modal-backdrop--scene .modal-scene__card.dashboard-modal {
+    animation: modal-scene-card-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.04s both;
+}
+
+.modal-backdrop--scene .modal-scene__close.modal__close--round {
+    animation: modal-scene-close-in 0.28s ease 0.12s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .modal-backdrop--scene .modal-scene__lead,
+    .modal-backdrop--scene .modal-scene__card.dashboard-modal,
+    .modal-backdrop--scene .modal-scene__close.modal__close--round {
+        animation: none;
+    }
 }
 
 .dash-scene__kicker,
@@ -470,6 +528,7 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
     max-width: none !important;
     max-height: min(70vh, 720px);
     border-radius: 18px !important;
+    /* open animation declared above with .modal-backdrop--scene .modal-scene__card */
 }
 
 .modal-backdrop--scene .modal-scene__close.modal__close--round {
@@ -633,10 +692,14 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
         flex-direction: column;
         width: 100%;
         max-width: none;
+        min-width: 100%;
         height: 100dvh;
         height: 100svh;
+        margin: 0;
+        padding: 0;
         gap: 0;
         text-align: center;
+        box-sizing: border-box;
     }
 
     /*
@@ -649,11 +712,15 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
         flex-direction: column;
         flex: 1 1 auto;
         min-height: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
         overflow-x: hidden;
         overflow-y: auto;
         overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: none;
+        box-sizing: border-box;
     }
 
     .modal-scene__scroll::-webkit-scrollbar {
@@ -687,15 +754,20 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
         font-size: 15px;
     }
 
+    .modal-backdrop--scene .modal-scene__lead {
+        animation: modal-scene-lead-in 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
     .modal-backdrop--scene .modal-scene__card.dashboard-modal,
     .modal-backdrop--scene .dash-quiet-modal.dash-scene-modal.modal-scene__card {
         display: flex;
         flex-direction: column;
         flex: 0 0 auto;
         align-self: stretch;
-        width: 100vw !important;
+        width: 100% !important;
         max-width: none !important;
         min-width: 100% !important;
+        min-height: 0 !important;
         margin: 0 !important;
         margin-top: auto;
         border-radius: 18px 18px 0 0 !important;
@@ -704,8 +776,19 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
         border-bottom: 0 !important;
         max-height: none !important;
         overflow: visible !important;
-        animation: none;
+        animation: modal-scene-sheet-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
         box-sizing: border-box;
+        /* kill responsive padding-bottom inset that leaves side/bottom gaps */
+        padding: 0 !important;
+        padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .modal-backdrop--scene .modal-scene__lead,
+        .modal-backdrop--scene .modal-scene__card.dashboard-modal,
+        .modal-backdrop--scene .dash-quiet-modal.dash-scene-modal.modal-scene__card {
+            animation: none;
+        }
     }
 
     .modal-scene__card {
@@ -724,8 +807,8 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
         align-self: stretch;
         width: 100% !important;
         max-width: none !important;
-        min-width: 0;
-        margin: 0;
+        min-width: 100% !important;
+        margin: 0 !important;
         padding: 0 !important;
         overflow: visible !important;
         max-height: none !important;
@@ -737,14 +820,14 @@ body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robot
         right: max(10px, env(safe-area-inset-right, 0px));
     }
 
-    /* Sheet content pinned to the bottom of the card by default */
+    /* Content pinned to the bottom of the sheet by default */
     .dash-scene-modal .dashboard-settings {
         display: flex;
         flex-direction: column;
         flex: 0 0 auto;
         gap: 0;
         margin-top: auto;
-        padding: 16px 16px 12px;
+        padding: 16px 16px calc(12px + env(safe-area-inset-bottom, 0px));
         width: 100% !important;
         max-width: none !important;
         box-sizing: border-box;

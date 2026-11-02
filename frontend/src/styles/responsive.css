@@ -1923,24 +1923,34 @@
     .modal-backdrop--scene .dash-scene-modal.modal-scene__card {
         width: 100% !important;
         max-width: none !important;
-        min-width: 0;
-        margin-inline: 0;
+        min-width: 100% !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        margin-inline: 0 !important;
         max-height: none !important;
         overflow: visible !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        border-left: 0 !important;
+        border-right: 0 !important;
+        border-bottom: 0 !important;
     }
     .modal-backdrop--scene .modal-scene__card .modal__body,
     .modal-backdrop--scene .dash-scene-modal .modal__body {
         width: 100% !important;
         max-width: none !important;
-        margin-inline: 0;
+        min-width: 100% !important;
+        margin: 0 !important;
         padding: 0 !important;
         box-sizing: border-box;
         overflow: visible !important;
         max-height: none !important;
+        justify-content: flex-end;
     }
     .modal-backdrop--scene .dash-scene-modal .dashboard-settings {
         width: 100% !important;
         max-width: none !important;
+        margin-top: auto;
         box-sizing: border-box;
         overflow: visible !important;
     }

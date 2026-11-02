@@ -8,6 +8,33 @@ import type { ApiKeyItem, BrokerKind } from '@/pages/settings/types'
 import { matchTokenTypeValue } from '@/pages/settings/utils'
 import '@/pages/DashboardPage.css'
 
+type TokenTypeOption = { value: string; label: string }
+
+let tokenTypesCache: TokenTypeOption[] | null = null
+let tokenTypesPromise: Promise<TokenTypeOption[]> | null = null
+
+async function fetchTokenTypes(): Promise<TokenTypeOption[]> {
+    if (tokenTypesCache) return tokenTypesCache
+    if (tokenTypesPromise) return tokenTypesPromise
+    tokenTypesPromise = (async () => {
+        try {
+            const { data } = await api.post('/dictionary/data', { tableName: 'TOKEN', columnName: 'TYPE' })
+            const opts = (Array.isArray(data) ? data : []).map((x: any) => ({
+                value: String(x.numericValue ?? x.num_value ?? ''),
+                label: String(x.name ?? x.stringValue ?? ''),
+            })).filter((x: { value: string }) => !!x.value)
+            tokenTypesCache = opts
+            return opts
+        } catch {
+            tokenTypesCache = []
+            return []
+        } finally {
+            tokenTypesPromise = null
+        }
+    })()
+    return tokenTypesPromise
+}
+
 function isBybitType(tokenType: string, label?: string) {
     const val = String(tokenType || '').toLowerCase()
     const lbl = String(label || '').toLowerCase()
@@ -24,7 +51,8 @@ type Props = {
 
 export function CreateTokenModal({ open, onClose, onCreated, initialBrokerKind = null }: Props) {
     const toast = useToast()
-    const [tokenTypes, setTokenTypes] = useState<Array<{ value: string; label: string }>>([])
+    const [tokenTypes, setTokenTypes] = useState<TokenTypeOption[]>(() => tokenTypesCache ?? [])
+    const [ready, setReady] = useState(false)
     const [newName, setNewName] = useState('')
     const [newToken, setNewToken] = useState('')
     const [newTokenType, setNewTokenType] = useState('')
@@ -44,35 +72,33 @@ export function CreateTokenModal({ open, onClose, onCreated, initialBrokerKind =
         setTestResult(null)
     }, [])
 
-    const loadTokenTypes = useCallback(async () => {
-        try {
-            const { data } = await api.post('/dictionary/data', { tableName: 'TOKEN', columnName: 'TYPE' })
-            const opts = (Array.isArray(data) ? data : []).map((x: any) => ({
-                value: String(x.numericValue ?? x.num_value ?? ''),
-                label: String(x.name ?? x.stringValue ?? ''),
-            })).filter((x: { value: string }) => !!x.value)
-            setTokenTypes(opts)
-            return opts
-        } catch {
-            setTokenTypes([])
-            return [] as Array<{ value: string; label: string }>
-        }
+    // Prefetch dictionary while settings is open, so the first open is warm.
+    useEffect(() => {
+        void fetchTokenTypes().then((opts) => {
+            setTokenTypes((prev) => (prev.length ? prev : opts))
+        })
     }, [])
 
     useEffect(() => {
-        if (!open) return
+        if (!open) {
+            setReady(false)
+            return
+        }
         reset()
         let cancelled = false
         void (async () => {
-            const opts = await loadTokenTypes()
+            const opts = await fetchTokenTypes()
             if (cancelled) return
             const matched = matchTokenTypeValue(opts, initialBrokerKind)
+            setTokenTypes(opts)
             setNewTokenType(matched || opts[0]?.value || '')
+            // Open only with final form height — avoids open-then-load jank.
+            setReady(true)
         })()
         return () => {
             cancelled = true
         }
-    }, [open, initialBrokerKind, reset, loadTokenTypes])
+    }, [open, initialBrokerKind, reset])
 
     const suggestName = () => {
         if (newName.trim()) return
@@ -130,7 +156,7 @@ export function CreateTokenModal({ open, onClose, onCreated, initialBrokerKind =
 
     return (
         <Modal
-            open={open}
+            open={open && ready}
             onClose={onClose}
             title="Токен"
             flush

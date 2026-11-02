@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faArrowsRotate, faCopy, faPlus, faTrashCan } from '@fortawesome/free-solid-svg-icons'
+import { faArrowsRotate, faChevronRight, faCopy, faPlus, faTrashCan } from '@fortawesome/free-solid-svg-icons'
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Toggle } from '@/components/ui/Toggle'
@@ -133,6 +133,10 @@ function TokenLine({
     }
 
     if (sheet) {
+        const metaLine = [lastUsed, `создан ${createdAt}`, broker !== 'other' ? brokerLabel(broker) : null]
+            .filter(Boolean)
+            .join(' · ')
+
         return (
             <div className={`settings-sheet-seg-token${open ? ' is-open' : ''}`}>
                 <div className="settings-sheet-seg-token__row">
@@ -142,66 +146,41 @@ function TokenLine({
                         onClick={() => setOpen(v => !v)}
                         aria-expanded={open}
                     >
-                        <span className="settings-sheet-seg-token__title">
-                            <span
-                                className={`settings-sheet-seg-token__dot${statusDotClass ? ` ${statusDotClass}` : ''}`}
-                                aria-hidden
-                            />
+                        <span className="settings-sheet-seg-token__copy">
                             <span className="settings-sheet-seg-token__name">
                                 {token.name || 'API key'}
                             </span>
+                            {metaLine ? (
+                                <span className="settings-sheet-seg-token__meta">{metaLine}</span>
+                            ) : null}
                         </span>
-                        <span className="settings-sheet-seg-token__meta">
-                            {lastUsed ? <span>{lastUsed}</span> : null}
-                            {open ? <span>создан {createdAt}</span> : null}
-                        </span>
-                    </button>
-                    <button
-                        type="button"
-                        className="settings-sheet-seg-token__delete"
-                        onClick={() => onDelete(token)}
-                        aria-label="Удалить токен"
-                    >
-                        <FontAwesomeIcon icon={faTrashCan} className="settings-token-line__delete-icon" />
+                        <FontAwesomeIcon
+                            icon={faChevronRight}
+                            className="settings-sheet-seg-token__chev"
+                            aria-hidden
+                        />
                     </button>
                 </div>
                 {open ? (
                     <div className="settings-token-details settings-sheet-seg-token__details">
                         <div className="settings-sheet-token-well">
-                            <div className="settings-sheet-token-well__top">
-                                <div className="settings-sheet-token-well__cred">
-                                    <button
-                                        type="button"
-                                        className="settings-sheet-token-well__val"
-                                        onClick={() => void copyCred('token')}
-                                        title="Показать и скопировать"
-                                        aria-label="Показать и скопировать"
-                                    >
-                                        <span className="settings-sheet-token-well__val-text">
-                                            {displayToken}
-                                        </span>
-                                        <FontAwesomeIcon
-                                            icon={faCopy}
-                                            className="settings-sheet-token-well__val-icon"
-                                            aria-hidden
-                                        />
-                                    </button>
-                                </div>
-                                <div className="settings-sheet-token-well__acts">
-                                    <button
-                                        type="button"
-                                        className="settings-sheet-token-well__act"
-                                        onClick={() => onTest(token.id)}
-                                        disabled={testing}
-                                        aria-label={testing ? 'Проверка…' : 'Проверить'}
-                                    >
-                                        <FontAwesomeIcon
-                                            icon={faArrowsRotate}
-                                            spin={testing}
-                                            className="settings-sheet-token-well__act-icon"
-                                        />
-                                    </button>
-                                </div>
+                            <div className="settings-sheet-token-well__cred">
+                                <button
+                                    type="button"
+                                    className="settings-sheet-token-well__val"
+                                    onClick={() => void copyCred('token')}
+                                    title="Показать и скопировать"
+                                    aria-label="Показать и скопировать"
+                                >
+                                    <span className="settings-sheet-token-well__val-text">
+                                        {displayToken}
+                                    </span>
+                                    <FontAwesomeIcon
+                                        icon={faCopy}
+                                        className="settings-sheet-token-well__val-icon"
+                                        aria-hidden
+                                    />
+                                </button>
                             </div>
                             {hasSecret ? (
                                 <div className="settings-sheet-token-well__cred">
@@ -228,6 +207,37 @@ function TokenLine({
                                     {token.last_error}
                                 </p>
                             ) : null}
+                            <div className="settings-sheet-token-well__toolbar">
+                                <button
+                                    type="button"
+                                    className="settings-sheet-token-well__tool"
+                                    onClick={() => onTest(token.id)}
+                                    disabled={testing}
+                                >
+                                    <FontAwesomeIcon
+                                        icon={faArrowsRotate}
+                                        spin={testing}
+                                        className="settings-sheet-token-well__act-icon"
+                                        aria-hidden
+                                    />
+                                    <span>{testing ? 'Проверка…' : 'Проверить'}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    className="settings-sheet-token-well__tool settings-sheet-token-well__tool--danger"
+                                    onClick={() => onDelete(token)}
+                                >
+                                    <FontAwesomeIcon
+                                        icon={faTrashCan}
+                                        className="settings-sheet-token-well__act-icon"
+                                        aria-hidden
+                                    />
+                                    <span>Удалить</span>
+                                </button>
+                            </div>
+                            <p className="settings-sheet-token-well__status" role="status">
+                                {statusLabel}
+                            </p>
                         </div>
                     </div>
                 ) : null}
@@ -287,46 +297,26 @@ function TokenLine({
             {open ? (
                 <div className="settings-token-details">
                     <div className="settings-sheet-token-well">
-                        <div className="settings-sheet-token-well__top">
-                            <div className="settings-sheet-token-well__cred">
-                                <button
-                                    type="button"
-                                    className="settings-sheet-token-well__val"
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        void copyCred('token')
-                                    }}
-                                    title="Показать и скопировать"
-                                    aria-label="Показать и скопировать"
-                                >
-                                    <span className="settings-sheet-token-well__val-text">
-                                        {displayToken}
-                                    </span>
-                                    <FontAwesomeIcon
-                                        icon={faCopy}
-                                        className="settings-sheet-token-well__val-icon"
-                                        aria-hidden
-                                    />
-                                </button>
-                            </div>
-                            <div className="settings-sheet-token-well__acts">
-                                <button
-                                    type="button"
-                                    className="settings-sheet-token-well__act"
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        onTest(token.id)
-                                    }}
-                                    disabled={testing}
-                                    aria-label={testing ? 'Проверка…' : 'Проверить'}
-                                >
-                                    <FontAwesomeIcon
-                                        icon={faArrowsRotate}
-                                        spin={testing}
-                                        className="settings-sheet-token-well__act-icon"
-                                    />
-                                </button>
-                            </div>
+                        <div className="settings-sheet-token-well__cred">
+                            <button
+                                type="button"
+                                className="settings-sheet-token-well__val"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    void copyCred('token')
+                                }}
+                                title="Показать и скопировать"
+                                aria-label="Показать и скопировать"
+                            >
+                                <span className="settings-sheet-token-well__val-text">
+                                    {displayToken}
+                                </span>
+                                <FontAwesomeIcon
+                                    icon={faCopy}
+                                    className="settings-sheet-token-well__val-icon"
+                                    aria-hidden
+                                />
+                            </button>
                         </div>
                         {hasSecret ? (
                             <div className="settings-sheet-token-well__cred">
@@ -356,6 +346,25 @@ function TokenLine({
                                 {token.last_error}
                             </p>
                         ) : null}
+                        <div className="settings-sheet-token-well__toolbar">
+                            <button
+                                type="button"
+                                className="settings-sheet-token-well__tool"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    onTest(token.id)
+                                }}
+                                disabled={testing}
+                            >
+                                <FontAwesomeIcon
+                                    icon={faArrowsRotate}
+                                    spin={testing}
+                                    className="settings-sheet-token-well__act-icon"
+                                    aria-hidden
+                                />
+                                <span>{testing ? 'Проверка…' : 'Проверить'}</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             ) : null}

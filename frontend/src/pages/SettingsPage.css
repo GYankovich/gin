@@ -303,17 +303,19 @@
     color: #334155;
 }
 
-/* Settings scene modals — reinforce full-bleed sheet (shared rules in DashboardPage.css) */
+/* Settings scene modals — full-bleed + settings pinned to bottom (shared chrome in DashboardPage.css) */
 @media (max-width: 900px) {
     .modal-backdrop--scene .dash-scene-modal.modal-scene__card.dashboard-modal {
         width: 100% !important;
         max-width: none !important;
-        min-height: calc(100svh - 32svh);
-        min-height: calc(100dvh - 32dvh);
+        min-height: 0 !important;
         max-height: none !important;
         overflow: visible !important;
-        margin: 0;
+        margin: 0 !important;
         border-radius: 18px 18px 0 0 !important;
+        border-left: 0 !important;
+        border-right: 0 !important;
+        border-bottom: 0 !important;
     }
 
     .modal-backdrop--scene .dash-scene-modal .modal__body {
@@ -322,9 +324,16 @@
         padding: 0 !important;
         overflow: visible !important;
         max-height: none !important;
+        justify-content: flex-end;
     }
 
-    .dash-scene-modal .dashboard-settings,
+    .dash-scene-modal .dashboard-settings {
+        margin-top: auto;
+        width: 100% !important;
+        max-width: none !important;
+        box-sizing: border-box;
+    }
+
     .dash-scene-modal .settings-scene-fields,
     .dash-scene-modal .settings-scene-field,
     .dash-scene-modal .settings-scene-field input,
@@ -1819,10 +1828,8 @@ button.settings-field__value {
 
 .settings-sheet-seg-token__row {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 14px;
-    min-height: 52px;
+    align-items: stretch;
+    min-height: 56px;
     border-top: 1px solid var(--border-subtle);
 }
 
@@ -1835,44 +1842,38 @@ button.settings-field__value {
     min-width: 0;
     flex: 1;
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: center;
+    gap: 12px;
     border: 0;
     background: none;
-    padding: 0;
+    padding: 12px 14px;
     text-align: left;
     color: inherit;
     font: inherit;
     cursor: pointer;
 }
 
-.settings-sheet-seg-token__title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+.settings-sheet-seg-token__main:hover .settings-sheet-seg-token__name,
+.settings-sheet-seg-token__main:focus-visible .settings-sheet-seg-token__name {
+    color: var(--text-primary);
+}
+
+.settings-sheet-seg-token__main:focus-visible {
+    outline: none;
+    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+}
+
+.settings-sheet-seg-token__copy {
     min-width: 0;
-}
-
-.settings-sheet-seg-token__dot {
-    display: inline-block;
-    width: 7px;
-    height: 7px;
-    border-radius: 999px;
-    background: var(--color-up);
-    flex-shrink: 0;
-}
-
-.settings-sheet-seg-token__dot.is-warn {
-    background: var(--color-warn);
-}
-
-.settings-sheet-seg-token__dot.is-err {
-    background: var(--color-down);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
 }
 
 .settings-sheet-seg-token__name {
-    font-size: 14px;
-    font-weight: 400;
+    font-size: 14.5px;
+    font-weight: 600;
     line-height: 1.25;
     color: var(--text-primary);
     overflow: hidden;
@@ -1881,51 +1882,49 @@ button.settings-field__value {
 }
 
 .settings-sheet-seg-token__meta {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
+    display: block;
+    min-width: 0;
     font-size: 12px;
     line-height: 1.35;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     font-variant-numeric: tabular-nums;
-    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    text-align: right;
+    white-space: nowrap;
 }
 
-
-.settings-sheet-seg-token__delete {
+.settings-sheet-seg-token__chev {
     flex-shrink: 0;
-    width: 44px;
-    height: 44px;
-    display: grid;
-    place-items: center;
-    border: 0;
-    border-radius: 10px;
-    background: transparent;
-    color: color-mix(in srgb, var(--color-down) 80%, var(--text-secondary));
-    cursor: pointer;
-    padding: 0;
+    width: 11px;
+    height: 11px;
+    color: var(--text-muted);
+    transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1), color 140ms ease;
 }
 
-.settings-sheet-seg-token__delete:hover,
-.settings-sheet-seg-token__delete:focus-visible {
-    color: var(--color-down);
-    background: color-mix(in srgb, var(--color-down) 10%, transparent);
-    outline: none;
+.settings-sheet-seg-token.is-open .settings-sheet-seg-token__chev {
+    transform: rotate(90deg);
+    color: var(--text-secondary);
+}
+
+.settings-sheet-seg-token__main:hover .settings-sheet-seg-token__chev {
+    color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .settings-sheet-seg-token__chev {
+        transition: none;
+    }
 }
 
 .settings-sheet-seg-token__details {
-    padding: 0 12px 12px;
+    padding: 0 14px 12px;
 }
 
 .settings-sheet-token-well {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 12px;
+    gap: 8px;
+    padding: 10px;
     background: var(--bg-input);
     border: 0;
     border-radius: 12px;
@@ -1944,16 +1943,8 @@ button.settings-field__value {
     background: var(--bg-page);
 }
 
-.settings-sheet-token-well__top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 10px;
-}
-
 .settings-sheet-token-well__cred {
     min-width: 0;
-    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -1966,13 +1957,13 @@ button.settings-field__value {
     width: 100%;
     margin: 0;
     padding: 9px 11px;
-    border: 1px dashed color-mix(in srgb, var(--border-subtle) 90%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 85%, transparent);
     border-radius: 8px;
     background: color-mix(in srgb, var(--bg-card) 55%, var(--bg-input));
-    color: var(--text-primary);
+    color: var(--text-secondary);
     font: inherit;
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 13px;
+    font-size: 12.5px;
     line-height: 1.35;
     text-align: left;
     cursor: pointer;
@@ -1998,7 +1989,6 @@ button.settings-field__value {
 
 .settings-sheet-token-well__val:hover,
 .settings-sheet-token-well__val:focus-visible {
-    border-style: solid;
     border-color: var(--border-subtle);
     background: var(--bg-input);
     color: var(--text-primary);
@@ -2019,40 +2009,64 @@ button.settings-field__value {
     background: var(--bg-card);
 }
 
-.settings-sheet-token-well__acts {
+.settings-sheet-token-well__toolbar {
     display: flex;
-    gap: 2px;
-    flex-shrink: 0;
+    gap: 6px;
+    margin-top: 2px;
 }
 
-.settings-sheet-token-well__act {
-    width: 32px;
-    height: 32px;
-    display: grid;
-    place-items: center;
+.settings-sheet-token-well__tool {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 36px;
     margin: 0;
-    padding: 0;
-    border: 0;
+    padding: 0 10px;
+    border: 1px solid transparent;
     border-radius: 8px;
-    background: transparent;
-    color: var(--text-muted);
+    background: color-mix(in srgb, var(--bg-card) 45%, transparent);
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 500;
     cursor: pointer;
 }
 
-.settings-sheet-token-well__act:hover:not(:disabled),
-.settings-sheet-token-well__act:focus-visible {
-    color: var(--text-secondary);
+.settings-sheet-token-well__tool:hover:not(:disabled),
+.settings-sheet-token-well__tool:focus-visible {
+    color: var(--text-primary);
+    border-color: var(--border-subtle);
     outline: none;
 }
 
-.settings-sheet-token-well__act:disabled {
+.settings-sheet-token-well__tool:disabled {
     opacity: 0.45;
     cursor: default;
 }
 
+.settings-sheet-token-well__tool--danger {
+    color: color-mix(in srgb, var(--color-down) 85%, var(--text-secondary));
+}
+
+.settings-sheet-token-well__tool--danger:hover:not(:disabled),
+.settings-sheet-token-well__tool--danger:focus-visible {
+    color: var(--color-down);
+    background: color-mix(in srgb, var(--color-down) 10%, transparent);
+    border-color: color-mix(in srgb, var(--color-down) 28%, transparent);
+}
+
 .settings-sheet-token-well__act-icon {
-    width: 13px;
-    height: 13px;
+    width: 12px;
+    height: 12px;
+}
+
+.settings-sheet-token-well__status {
+    margin: 2px 2px 0;
+    font-size: 11.5px;
+    line-height: 1.3;
+    color: var(--text-muted);
 }
 
 .settings-sheet-token-well .settings-hint {

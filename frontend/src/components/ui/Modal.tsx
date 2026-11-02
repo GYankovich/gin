@@ -107,83 +107,39 @@ export function Modal({
         }
     }, [open, liftAboveKeyboard])
 
-    /* Mobile scene: full-bleed sheet + outer scroll that lifts the lead. */
+    /* Mobile scene: mark scrolled state; layout (full-bleed + bottom pin) is CSS. */
     useEffect(() => {
         if (!open || !lead) return
         const backdrop = backdropRef.current
         const scroller = scrollRef.current
-        const leadEl = leadRef.current
-        const cardEl = cardRef.current
-        if (!backdrop || !scroller || !leadEl || !cardEl) return
+        if (!backdrop || !scroller) return
 
         const mobileQuery = window.matchMedia('(max-width: 900px)')
         let frame = 0
 
-        const clearMobile = () => {
-            backdrop.dataset.sceneScrolled = '0'
-            cardEl.style.removeProperty('min-height')
-            cardEl.style.removeProperty('width')
-            cardEl.style.removeProperty('max-width')
-            cardEl.style.removeProperty('overflow')
-            cardEl.style.removeProperty('max-height')
-            const body = cardEl.querySelector('.modal__body')
-            if (body instanceof HTMLElement) {
-                body.style.removeProperty('width')
-                body.style.removeProperty('max-width')
-                body.style.removeProperty('overflow')
-                body.style.removeProperty('max-height')
-                body.style.removeProperty('padding')
-            }
-        }
-
-        const layout = () => {
+        const sync = () => {
             if (!mobileQuery.matches) {
-                clearMobile()
+                backdrop.dataset.sceneScrolled = '0'
                 return
             }
-            cardEl.style.setProperty('width', '100%', 'important')
-            cardEl.style.setProperty('max-width', 'none', 'important')
-            cardEl.style.setProperty('overflow', 'visible', 'important')
-            cardEl.style.setProperty('max-height', 'none', 'important')
-            const body = cardEl.querySelector('.modal__body')
-            if (body instanceof HTMLElement) {
-                body.style.setProperty('width', '100%', 'important')
-                body.style.setProperty('max-width', 'none', 'important')
-                body.style.setProperty('overflow', 'visible', 'important')
-                body.style.setProperty('max-height', 'none', 'important')
-                body.style.setProperty('padding', '0', 'important')
-            }
-            // Short sheets sit on the bottom; tall content grows and scrolls the lead away.
-            const leadH = leadEl.getBoundingClientRect().height
-            const viewH = scroller.clientHeight
-            cardEl.style.minHeight = `${Math.max(0, Math.round(viewH - leadH))}px`
             backdrop.dataset.sceneScrolled = scroller.scrollTop > 8 ? '1' : '0'
         }
 
         const onScroll = () => {
             cancelAnimationFrame(frame)
-            frame = requestAnimationFrame(() => {
-                backdrop.dataset.sceneScrolled = scroller.scrollTop > 8 ? '1' : '0'
-            })
+            frame = requestAnimationFrame(sync)
         }
 
-        layout()
-        const ro = new ResizeObserver(layout)
-        ro.observe(scroller)
-        ro.observe(leadEl)
-        ro.observe(cardEl)
+        sync()
         scroller.addEventListener('scroll', onScroll, { passive: true })
-        mobileQuery.addEventListener('change', layout)
-        window.addEventListener('resize', layout)
+        mobileQuery.addEventListener('change', sync)
         return () => {
             cancelAnimationFrame(frame)
-            ro.disconnect()
             scroller.removeEventListener('scroll', onScroll)
-            mobileQuery.removeEventListener('change', layout)
-            window.removeEventListener('resize', layout)
-            clearMobile()
+            mobileQuery.removeEventListener('change', sync)
+            backdrop.dataset.sceneScrolled = '0'
         }
-    }, [open, lead, children])
+    }, [open, lead])
 
     if (!open) return null
 
