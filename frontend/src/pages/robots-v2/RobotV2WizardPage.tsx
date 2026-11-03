@@ -13,7 +13,6 @@ import { robotV2Service } from '@/services/robotV2Service'
 import { brokerFromTokenType, brokerLabelFromToken } from '@/modules/robots/config/tokenBroker'
 import { useToast } from '@/components/ui/Toast'
 import { RobotConfirmModal } from '@/pages/robots-v2/components/RobotConfirmModal'
-import { RobotPageChrome } from '@/pages/robots-v2/components/RobotPageChrome'
 import { ScreenerCustomFilters } from '@/pages/robots-v2/components/ScreenerCustomFilters'
 import { fmtErr } from '@/pages/robots-v2/formatters'
 import {
@@ -76,19 +75,6 @@ function weekdaysToMask(days: boolean[]): number {
 function maskToWeekdays(mask: number): boolean[] {
     return Array.from({ length: 7 }, (_, index) => Boolean(mask & (1 << index)))
 }
-
-const STEP_COPY = {
-    trading: [
-        ['Основа робота', 'Выберите назначение, понятное имя и брокерский аккаунт.'],
-        ['Торговая логика', 'Настройте стиль торговли, стратегию и расписание запуска.'],
-        ['Торговая вселенная', 'Определите инструменты, которые робот сможет анализировать.'],
-        ['Защита капитала', 'Задайте лимиты позиции, убытка и правила остановки.'],
-    ],
-    portfolio: [
-        ['Источник портфеля', 'Выберите аккаунт, из которого GIN будет получать позиции.'],
-        ['Расписание синхронизации', 'Укажите, когда и как часто обновлять данные портфеля.'],
-    ],
-} as const
 
 function mergeArchetypeCards(apiItems: StrategyArchetypeInfo[]): Array<{
     id: WizardArchetype
@@ -232,9 +218,9 @@ export default function RobotV2WizardPage() {
 
     const steps = kind === 'portfolio' ? PORTFOLIO_STEPS : TRADING_STEPS
     const lastStep = steps.length - 1
-    const stepCopy = STEP_COPY[kind][step]
-    const selectedToken = tokens.find(token => token.id === draft.tokenId)
-    const selectedArchetype = archetypeCards.find(card => card.id === draft.archetype)
+    const pageTitle = editId
+        ? (draft.name.trim() || (kind === 'portfolio' ? `Опросник #${editId}` : `Робот #${editId}`))
+        : (kind === 'portfolio' ? 'Новый опросник' : 'Новый робот')
 
     const validateStep = (s: number): string[] => {
         const errs: string[] = []
@@ -421,16 +407,9 @@ export default function RobotV2WizardPage() {
 
     if (editId && editLoading) {
         return (
-            <div className="page" data-page="robots">
-                <RobotPageChrome
-                    eyebrow="SETUP NODE"
-                    title={`ПРАВКА #${editId}`}
-                    subtitle="Загружаем конфигурацию робота…"
-                    robotId={editId}
-                    active="edit"
-                />
-                <div className="dashboard-layout">
-                    <Card className="dashboard-totals-card robots-v2-wizard-card" aria-busy="true">
+            <div className="page" data-page="robots" data-robots-view="wizard">
+                <div className="dashboard-layout robots-v2-wizard-layout">
+                    <Card className="robots-v2-wizard-card" aria-busy="true">
                         <Skeleton width="35%" height="24px" borderRadius="6px" />
                         <div style={{ marginTop: 'var(--space-4)' }}>
                             <Skeleton width="100%" height="280px" borderRadius="10px" />
@@ -444,23 +423,50 @@ export default function RobotV2WizardPage() {
     const storageKey = kind === 'portfolio' ? PORTFOLIO_DRAFT_STORAGE_KEY : undefined
 
     return (
-        <div className="page" data-page="robots">
-            <RobotPageChrome
-                eyebrow="SETUP NODE"
-                title={editId ? `ПРАВКА #${editId}` : kind === 'portfolio' ? 'НОВЫЙ ОПРОСНИК' : 'НОВЫЙ РОБОТ'}
-                subtitle={`Шаг ${step + 1} из ${steps.length} · ${kind === 'portfolio' ? 'синхронизация портфеля' : 'торговый робот'}`}
-                robotId={editId}
-                active={editId ? 'edit' : 'wizard'}
-                fleetOnly={!editId}
-            />
+        <div className="page" data-page="robots" data-robots-view="wizard">
+            <div className="dashboard-layout robots-v2-wizard-layout">
+                {fieldErrors.length > 0 && (
+                    <div className="robots-v2-banner robots-v2-banner--error" role="alert">
+                        <strong>Проверьте настройки</strong>
+                        <span>{fieldErrors.join(' · ')}</span>
+                    </div>
+                )}
 
-            <div className="dashboard-layout">
-                <div className="robots-v2-wizard-shell">
-                    <nav
-                        className="robots-v2-steps"
-                        aria-label="Шаги мастера"
-                        style={{ ['--robots-v2-steps-count' as string]: String(steps.length) }}
-                    >
+                <Card className="robots-v2-wizard-card">
+                    <header className="robots-v2-wizard-card__head">
+                        <div className="robots-v2-wizard-card__lead">
+                            <div className="robots-v2-wizard-card__title">
+                                <h1 className="robots-v2-wizard-card__name">{pageTitle}</h1>
+                                {editId ? (
+                                    <span className="robots-v2-wizard-card__id mono">#{editId}</span>
+                                ) : null}
+                            </div>
+                            <div className="robots-v2-wizard-card__pills" aria-label="Тип">
+                                <span className="robots-v2-wizard-card__pill">
+                                    {kind === 'portfolio' ? 'Опросник' : 'Торговый'}
+                                </span>
+                                {kind === 'trading' ? (
+                                    <span className="robots-v2-wizard-card__pill">
+                                        {draft.mode === 'live' ? 'Боевой' : 'Бумага'}
+                                    </span>
+                                ) : null}
+                                {kind === 'portfolio' && editId ? (
+                                    <span className={`robots-v2-wizard-card__pill${draft.portfolioEnabled ? ' robots-v2-wizard-card__pill--ok' : ''}`}>
+                                        {draft.portfolioEnabled ? 'Включён' : 'Выключен'}
+                                    </span>
+                                ) : null}
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            className="robots-v2-wizard-card__back"
+                            onClick={() => navigate('/robots')}
+                        >
+                            К списку
+                        </button>
+                    </header>
+
+                    <nav className="robots-v2-steps" aria-label="Шаги мастера">
                         {steps.map((label, i) => (
                             <button
                                 key={label}
@@ -473,33 +479,11 @@ export default function RobotV2WizardPage() {
                                 aria-current={i === step ? 'step' : undefined}
                                 onClick={() => goToStep(i)}
                             >
-                                <span className="robots-v2-steps__num">{i < step ? '✓' : i + 1}</span>
-                                <span className="robots-v2-steps__label">
-                                    <small>Шаг {i + 1}</small>
-                                    <strong>{label}</strong>
-                                </span>
+                                {label}
                             </button>
                         ))}
                     </nav>
 
-                    {fieldErrors.length > 0 && (
-                        <div className="robots-v2-banner robots-v2-banner--error" role="alert">
-                            <strong>Проверьте настройки</strong>
-                            <span>{fieldErrors.join(' · ')}</span>
-                        </div>
-                    )}
-
-                    <main className="robots-v2-wizard-main">
-                        <Card className="dashboard-totals-card robots-v2-wizard-card">
-                            <header className="robots-v2-wizard-card__head">
-                                <span className="robots-v2-wizard-card__eyebrow">
-                                    {kind === 'portfolio' ? 'ОПРОСНИК' : 'ТОРГОВЫЙ РОБОТ'}
-                                    <span aria-hidden> · </span>
-                                    {step + 1}/{steps.length}
-                                </span>
-                                <h2>{stepCopy[0]}</h2>
-                                <p>{stepCopy[1]}</p>
-                            </header>
                     {step === 0 && (
                         <div className="robots-v2-form">
                             {!kindPinned ? (
@@ -512,7 +496,6 @@ export default function RobotV2WizardPage() {
                                             aria-pressed={kind === 'trading'}
                                             onClick={() => selectKind('trading')}
                                         >
-                                            <span className="robots-v2-type-card__icon" aria-hidden>↗</span>
                                             <strong>Торговый робот</strong>
                                             <small>Ищет сигналы, открывает позиции и контролирует риск.</small>
                                         </button>
@@ -522,27 +505,12 @@ export default function RobotV2WizardPage() {
                                             aria-pressed={kind === 'portfolio'}
                                             onClick={() => selectKind('portfolio')}
                                         >
-                                            <span className="robots-v2-type-card__icon" aria-hidden>↻</span>
                                             <strong>Опросник портфеля</strong>
                                             <small>Переносит позиции и операции брокера в GIN.</small>
                                         </button>
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="robots-v2-kind-chip" aria-label="Тип конфигурации">
-                                    <span className="robots-v2-kind-chip__mark" aria-hidden>
-                                        {kind === 'portfolio' ? '↻' : '↗'}
-                                    </span>
-                                    <div className="robots-v2-kind-chip__copy">
-                                        <strong>{kind === 'portfolio' ? 'Опросник портфеля' : 'Торговый робот'}</strong>
-                                        <small>
-                                            {kind === 'portfolio'
-                                                ? 'Синхронизация позиций и операций брокера'
-                                                : 'Сигналы, позиции и контроль риска'}
-                                        </small>
-                                    </div>
-                                </div>
-                            )}
+                            ) : null}
                             <label className="robots-v2-field">
                                 <span>Название <small>Будет видно в списке и уведомлениях</small></span>
                                 <input
@@ -1103,83 +1071,36 @@ export default function RobotV2WizardPage() {
                         </details>
                     </div>
                     )}
-                        </Card>
 
-                        <footer className="robots-v2-wizard-footer">
-                            <Button type="button" variant="ghost" disabled={step === 0} onClick={() => setStep(s => Math.max(0, s - 1))}>
-                                ← Назад
-                            </Button>
-                            <span className="robots-v2-wizard-footer__save">Черновик сохраняется автоматически</span>
-                            <div className="robots-v2-wizard-footer__right">
-                                {step < lastStep ? (
-                                    <Button type="button" onClick={goNext}>Продолжить →</Button>
-                                ) : kind === 'portfolio' ? (
-                                    <Button type="button" loading={saving} onClick={() => void savePortfolioRobot()}>
-                                        {editId ? 'Сохранить' : 'Создать синхронизацию'}
-                                    </Button>
-                                ) : (
-                                    <>
-                                        <Button type="button" variant="secondary" loading={saving} onClick={() => void saveRobot(false)}>
-                                            Сохранить без запуска
-                                        </Button>
-                                        <Button type="button" loading={saving} onClick={() => void saveRobot(true)}>
-                                            {persistedRobotId ? 'Сохранить и запустить' : 'Создать и запустить'}
-                                        </Button>
-                                    </>
-                                )}
-                            </div>
-                        </footer>
-                    </main>
-
-                    <aside className="dashboard-totals-card robots-v2-wizard-summary" aria-label="Сводка настроек">
-                        <div className="robots-v2-wizard-summary__head">
-                            <span>Сводка</span>
-                            <strong>{draft.name.trim() || (kind === 'portfolio' ? 'Новый опросник' : 'Новый робот')}</strong>
-                        </div>
-                        <dl>
-                            <div>
-                                <dt>Тип</dt>
-                                <dd>{kind === 'portfolio' ? 'Опросник' : 'Торговля'}</dd>
-                            </div>
-                            <div>
-                                <dt>Аккаунт</dt>
-                                <dd>{selectedToken?.name || (draft.tokenId ? `Ключ #${draft.tokenId}` : 'Не выбран')}</dd>
-                            </div>
-                            {kind === 'trading' && (
+                    <footer className="robots-v2-wizard-footer">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            disabled={step === 0}
+                            onClick={() => setStep(s => Math.max(0, s - 1))}
+                        >
+                            Назад
+                        </Button>
+                        <div className="robots-v2-wizard-footer__right">
+                            {step < lastStep ? (
+                                <Button type="button" onClick={goNext}>Далее</Button>
+                            ) : kind === 'portfolio' ? (
+                                <Button type="button" loading={saving} onClick={() => void savePortfolioRobot()}>
+                                    {editId ? 'Сохранить' : 'Создать'}
+                                </Button>
+                            ) : (
                                 <>
-                                    <div>
-                                        <dt>Стратегия</dt>
-                                        <dd>{selectedArchetype?.title || 'Не выбрана'}</dd>
-                                    </div>
-                                    <div>
-                                        <dt>Режим</dt>
-                                        <dd className={draft.mode === 'live' ? 'color-down' : 'color-up'}>
-                                            {draft.mode === 'live' ? 'Live · реальные средства' : 'Paper · симуляция'}
-                                        </dd>
-                                    </div>
-                                    <div>
-                                        <dt>Активы</dt>
-                                        <dd>
-                                            {draft.universeMode === 'fixed'
-                                                ? `${parseFixedList(draft.fixedList).length} в списке`
-                                                : draft.universeMode === 'index'
-                                                    ? draft.indexCode || 'Индекс не выбран'
-                                                    : `Скринер · до ${draft.maxAssets}`}
-                                        </dd>
-                                    </div>
-                                    <div>
-                                        <dt>Риск на позицию</dt>
-                                        <dd>{draft.maxPositionSharePct}% капитала</dd>
-                                    </div>
+                                    <Button type="button" variant="secondary" loading={saving} onClick={() => void saveRobot(false)}>
+                                        Сохранить без запуска
+                                    </Button>
+                                    <Button type="button" loading={saving} onClick={() => void saveRobot(true)}>
+                                        {persistedRobotId ? 'Сохранить и запустить' : 'Создать и запустить'}
+                                    </Button>
                                 </>
                             )}
-                        </dl>
-                        <div className="robots-v2-wizard-summary__tip">
-                            <span aria-hidden>i</span>
-                            Настройки можно изменить после создания.
                         </div>
-                    </aside>
-                </div>
+                    </footer>
+                </Card>
             </div>
 
             <RobotConfirmModal

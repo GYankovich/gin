@@ -73,12 +73,12 @@ export function fmtDateTimeShort(iso: string): string {
     })
 }
 
-/** Relative age for fleet sync captions (RU). */
-export function fmtSyncAge(iso: string | null | undefined): string {
+/** Relative age for fleet sync captions (RU). `now` lets the caller tick the clock. */
+export function fmtSyncAge(iso: string | null | undefined, now = Date.now()): string {
     if (!iso) return '—'
     const t = new Date(iso).getTime()
     if (Number.isNaN(t)) return String(iso)
-    const sec = Math.max(0, Math.round((Date.now() - t) / 1000))
+    const sec = Math.max(0, Math.round((now - t) / 1000))
     if (sec < 60) return `${sec} с назад`
     const min = Math.round(sec / 60)
     if (min < 60) return `${min} мин назад`

@@ -550,6 +550,7 @@ export default function LoginPage() {
                 title={codePurpose === 'register' ? 'Подтверждение почты' : 'Подтверждение входа'}
                 width="420px"
                 className="auth-modal"
+                closeOnBackdrop={false}
             >
                 <form className="auth-form" onSubmit={confirmCode}>
                     <p className="auth-hint">
@@ -626,6 +627,7 @@ export default function LoginPage() {
                 title="Восстановление пароля"
                 width="420px"
                 className="auth-modal"
+                closeOnBackdrop={false}
             >
                 {forgotSent ? (
                     <div className="auth-form">

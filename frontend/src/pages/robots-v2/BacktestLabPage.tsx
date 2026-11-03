@@ -204,6 +204,19 @@ export default function BacktestLabPage() {
         void loadHistory()
     }, [loadRobots, loadHistory])
 
+    const deepLinkRobotId = searchParams.get('robot')
+    const deepLinkApplied = useRef(false)
+    useEffect(() => {
+        if (deepLinkApplied.current || robotsLoading || !deepLinkRobotId) return
+        const id = Number(deepLinkRobotId)
+        if (!Number.isFinite(id) || id <= 0) return
+        const match = robots.find(robot => robot.id === id && Number(robot.type) === 2)
+        if (!match) return
+        deepLinkApplied.current = true
+        setSource('robot')
+        setSelectedRobotId(String(match.id))
+    }, [deepLinkRobotId, robots, robotsLoading])
+
     const applyConfigSnapshot = useCallback((
         snap: Record<string, unknown>,
         opts?: { capital?: number; robotId?: number | null },

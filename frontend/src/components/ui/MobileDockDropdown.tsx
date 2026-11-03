@@ -13,8 +13,8 @@ type Placement = 'above' | 'below'
 type ItemVariant = 'default' | 'alert' | 'danger'
 
 type PanelCoords = {
-    top?: number
-    bottom?: number
+    top: number | 'auto'
+    bottom: number | 'auto'
     right: number
 }
 
@@ -156,11 +156,11 @@ function Panel({ children }: PanelProps) {
         const right = Math.max(8, window.innerWidth - rect.right)
 
         if (placement === 'below') {
-            setCoords({ top: rect.bottom + gap, right })
+            setCoords({ top: rect.bottom + gap, bottom: 'auto', right })
             return
         }
 
-        setCoords({ bottom: window.innerHeight - rect.top + gap, right })
+        setCoords({ top: 'auto', bottom: window.innerHeight - rect.top + gap, right })
     }, [menuRef, placement])
 
     useLayoutEffect(() => {

@@ -16,6 +16,8 @@ interface ModalProps {
     lead?: React.ReactNode
     /** Extra block inside `.modal__header`, after the title and close button. */
     headerExtra?: React.ReactNode
+    /** Click on the dimmed backdrop. Auth dialogs stay open until an explicit close. */
+    closeOnBackdrop?: boolean
     children: React.ReactNode
 }
 
@@ -29,6 +31,7 @@ export function Modal({
     flush = false,
     lead,
     headerExtra,
+    closeOnBackdrop = true,
     children,
 }: ModalProps) {
     const onKeyDown = useCallback((e: KeyboardEvent) => {
@@ -186,7 +189,7 @@ export function Modal({
             className={['modal-backdrop', 'dashboard-modal-backdrop', lead ? 'modal-backdrop--scene' : '']
                 .filter(Boolean)
                 .join(' ')}
-            onClick={onClose}
+            onClick={closeOnBackdrop ? onClose : undefined}
             role="presentation"
         >
             {lead ? (

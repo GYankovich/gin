@@ -28,16 +28,16 @@
     box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
 }
 
-.mobile-dock__dropdown--below {
+.mobile-dock__dropdown--below:not(.mobile-dock__dropdown--portaled) {
     bottom: auto;
     top: calc(100% + 10px);
 }
 
+/* Portaled position comes from inline coordinates.
+   A percentage top on position:fixed is the viewport, not the trigger. */
 .mobile-dock__dropdown--portaled {
     position: fixed;
-    top: auto;
-    bottom: auto;
-    right: auto;
+    inset: auto;
     z-index: var(--z-popover);
 }
 
@@ -2163,114 +2163,25 @@
     }
 
     [data-page='robots'][data-robots-view='fleet'] .dashboard-account-stack {
-        gap: 0;
+        gap: 12px;
     }
 
-    /* Fleet rows: text on the left, status beside it */
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card.card.card--clickable.dashboard-account-card--link {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        align-items: center;
-        column-gap: var(--space-2);
-        row-gap: 0;
+    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card.card.card--clickable {
         min-width: 0;
         max-width: 100%;
-        padding: 12px 0;
-        border: 0;
-        border-bottom: 1px solid var(--border-subtle);
-        border-radius: 0;
-        background: transparent;
-        box-shadow: none;
-        transform: none;
     }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card.card.card--clickable.dashboard-account-card--link:hover {
-        border-color: transparent;
-        border-bottom-color: var(--border-subtle);
-        background: transparent;
-        box-shadow: none;
-        transform: none;
-    }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-stack .robots-v2-fleet-card.card.card--clickable.dashboard-account-card--link:last-child,
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-stack .robots-v2-fleet-card.card.card--clickable.dashboard-account-card--link:last-child:hover {
-        border-bottom: 0;
-    }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__identity {
-        display: contents;
-    }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__name {
-        grid-column: 1;
-        grid-row: 1;
-        align-self: center;
-        font-size: var(--text-sm);
-    }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__meta,
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__stats,
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__activity {
-        grid-column: 1 / -1;
-        font-size: 0.7rem;
-        overflow-wrap: anywhere;
-    }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__name-text {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__meta,
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__activity {
-        font-size: 0.7rem;
-        overflow-wrap: anywhere;
-    }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__controls {
-        grid-column: 2;
-        grid-row: 1;
-        display: flex;
-        flex-wrap: nowrap;
-        justify-content: flex-end;
-        align-items: center;
-        align-self: center;
-        gap: 6px;
-        min-width: 0;
-        margin-left: 0;
-        padding-top: 0;
-        border-top: 0;
-    }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card .robots-v2-status-menu.mobile-dock__menu {
-        flex: 0 1 auto;
-        min-width: 0;
-        max-width: 11rem;
-        padding: 0;
-    }
+
     [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card .robots-v2-more-menu.mobile-dock__menu {
         flex: 0 0 auto;
         padding: 0;
     }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-status-trigger {
-        width: auto;
-        min-height: 32px;
-        max-width: 100%;
-        min-width: 0;
-        justify-content: space-between;
-        padding-inline: 10px;
-    }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-status-trigger__label {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
+
     [data-page='robots'][data-robots-view='fleet'] .robots-v2-more-trigger.btn--ghost.btn--sm {
         min-width: 32px;
         min-height: 32px;
         width: 32px;
         height: 32px;
         padding: 0 !important;
-    }
-
-[data-theme='light'] [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card.card.card--clickable.dashboard-account-card--link,
-[data-theme='light'] [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card.card.card--clickable.dashboard-account-card--link:hover {
-        border-color: transparent;
-        border-bottom-color: var(--border-subtle);
-        background: transparent;
-        box-shadow: none;
     }
 
     /* Section title + count; chevron stays trailing */

@@ -1,12 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faClipboardList, faRobot } from '@fortawesome/free-solid-svg-icons'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { CollapsibleSection } from '@/components/ui/CollapsibleSection'
 import { DropdownMenu } from '@/components/ui/DropdownMenu'
 import { RobotIllustration } from '@/components/ui/RobotIllustration'
 import { ConnectBrokerEmpty } from '@/components/ConnectBrokerEmpty'
@@ -17,6 +13,7 @@ import { fmtErr } from '@/pages/robots-v2/formatters'
 import { dashboardService } from '@/services/dashboardService'
 import { robotV2Service } from '@/services/robotV2Service'
 import { usePageCacheStore } from '@/stores/pageCacheStore'
+import type { DashboardAccountItem } from '@/types/api'
 import type { RobotV2, RobotV2Status } from '@/types/robotV2'
 
 type ConfirmAction =
@@ -27,6 +24,22 @@ type ConfirmAction =
 function modeOf(robot: RobotV2): string {
     const core = (robot.config?.core || {}) as Record<string, unknown>
     return String(core.mode || 'paper')
+}
+
+function tokenIdOf(robot: RobotV2): number | null {
+    const raw = robot.tokenId ?? robot.token_id
+    return raw != null && Number.isFinite(Number(raw)) ? Number(raw) : null
+}
+
+function brokerAccountLabel(account: DashboardAccountItem): string {
+    const name = String(account.account_name || '').trim()
+    if (name) return name
+    const broker = String(account.broker || '').toLowerCase()
+    if (broker.includes('bybit')) return 'Bybit'
+    if (broker.includes('tinvest') || broker.includes('tinkoff') || broker.includes('t-invest')) {
+        return 'Т-Инвестиции'
+    }
+    return account.external_account_id || `Счёт #${account.account_id}`
 }
 
 function FleetSkeleton() {
@@ -57,14 +70,13 @@ export default function RobotsV2FleetPage() {
     const knownEmptyCabin = cachedFleet == null && inferNoBrokerFromCabinCache()
     const [robots, setRobots] = useState<RobotV2[]>(cachedFleet?.robots ?? [])
     const [snapshots, setSnapshots] = useState<Record<number, RobotV2Status>>({})
+    const [accountLabels, setAccountLabels] = useState<Record<number, string>>({})
     const [hasBrokerAccounts, setHasBrokerAccounts] = useState(
         cachedFleet?.hasBrokerAccounts ?? !knownEmptyCabin,
     )
-    // Skip fleet skeleton when dashboard/portfolio already showed «no broker».
     const [loading, setLoading] = useState(cachedFleet == null && !knownEmptyCabin)
     const [error, setError] = useState<string | null>(null)
     const [busyId, setBusyId] = useState<number | null>(null)
-    const [statusMenuId, setStatusMenuId] = useState<number | null>(null)
     const [actionsMenuId, setActionsMenuId] = useState<number | null>(null)
     const [createMenuOpen, setCreateMenuOpen] = useState(false)
     const [confirm, setConfirm] = useState<ConfirmAction>(null)
@@ -99,9 +111,15 @@ export default function RobotsV2FleetPage() {
         try {
             const [data, accounts] = await Promise.all([
                 robotV2Service.list(),
-                dashboardService.fetchSettingsAccounts().catch(() => []),
+                dashboardService.fetchSettingsAccounts().catch(() => [] as DashboardAccountItem[]),
             ])
             const hasAccounts = accounts.length > 0
+            const labels: Record<number, string> = {}
+            for (const account of accounts) {
+                const tokenId = account.last_token_id
+                if (tokenId != null) labels[tokenId] = brokerAccountLabel(account)
+            }
+            setAccountLabels(labels)
             setRobots(data.items)
             setHasBrokerAccounts(hasAccounts)
             setRobotsFleetCache({ robots: data.items, hasBrokerAccounts: hasAccounts })
@@ -125,12 +143,11 @@ export default function RobotsV2FleetPage() {
     useEffect(() => {
         if (!cachedFleet?.robots.length) return
         void loadSnapshots(cachedFleet.robots)
-        // Only hydrate status snapshots for the stale fleet shown on first paint.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    const portfolioRobots = useMemo(() => robots.filter(robot => robot.type === 1), [robots])
     const tradingRobots = useMemo(() => robots.filter(robot => robot.type === 2), [robots])
+    const portfolioRobots = useMemo(() => robots.filter(robot => robot.type === 1), [robots])
 
     const onStart = async (robot: RobotV2) => {
         setBusyId(robot.id)
@@ -231,25 +248,39 @@ export default function RobotsV2FleetPage() {
         setConfirm(null)
     }
 
-    const renderRobotCard = (robot: RobotV2) => (
-        <FleetRobotCard
-            key={robot.id}
-            robot={robot}
-            snapshot={snapshots[robot.id] ?? null}
-            busy={busyId === robot.id}
-            statusMenuOpen={statusMenuId === robot.id}
-            actionsMenuOpen={actionsMenuId === robot.id}
-            onStatusMenuOpenChange={open => setStatusMenuId(open ? robot.id : null)}
-            onActionsMenuOpenChange={open => setActionsMenuId(open ? robot.id : null)}
-            onStart={r => void onStart(r)}
-            onStop={onStop}
-            onTogglePortfolio={r => void onTogglePortfolio(r)}
-            onClone={r => void onClone(r)}
-            onDelete={onDelete}
-        />
+    const renderRobotCard = (robot: RobotV2) => {
+        const tokenId = tokenIdOf(robot)
+        return (
+            <FleetRobotCard
+                key={robot.id}
+                robot={robot}
+                snapshot={snapshots[robot.id] ?? null}
+                accountLabel={tokenId != null ? accountLabels[tokenId] ?? null : null}
+                busy={busyId === robot.id}
+                actionsMenuOpen={actionsMenuId === robot.id}
+                onActionsMenuOpenChange={open => setActionsMenuId(open ? robot.id : null)}
+                onStart={r => void onStart(r)}
+                onStop={onStop}
+                onTogglePortfolio={r => void onTogglePortfolio(r)}
+                onClone={r => void onClone(r)}
+                onDelete={onDelete}
+            />
+        )
+    }
+
+    const createMenuItems = (
+        <DropdownMenu.Panel className="robots-fleet-create-menu">
+            <DropdownMenu.Item onClick={() => navigate('/robots/new?kind=portfolio')}>
+                Опросник портфеля
+            </DropdownMenu.Item>
+            <DropdownMenu.Divider />
+            <DropdownMenu.Item onClick={() => navigate('/robots/new?kind=trading')}>
+                Торговый робот
+            </DropdownMenu.Item>
+        </DropdownMenu.Panel>
     )
 
-    const createFab = createPortal(
+    const createFab = (
         <DropdownMenu
             open={createMenuOpen}
             onOpenChange={setCreateMenuOpen}
@@ -257,7 +288,7 @@ export default function RobotsV2FleetPage() {
             portaled
             className="robots-create-fab"
         >
-            <DropdownMenu.Trigger asChild aria-label="Создать">
+            <DropdownMenu.Trigger asChild aria-label="Создать робота">
                 <Button type="button" variant="primary" className="robots-create-fab__btn">
                     <svg viewBox="0 0 24 24" aria-hidden>
                         <path
@@ -270,23 +301,8 @@ export default function RobotsV2FleetPage() {
                     </svg>
                 </Button>
             </DropdownMenu.Trigger>
-            <DropdownMenu.Panel>
-                <DropdownMenu.Item
-                    icon={<FontAwesomeIcon icon={faClipboardList} />}
-                    onClick={() => navigate('/robots/new?kind=portfolio')}
-                >
-                    Опросник портфеля
-                </DropdownMenu.Item>
-                <DropdownMenu.Divider />
-                <DropdownMenu.Item
-                    icon={<FontAwesomeIcon icon={faRobot} />}
-                    onClick={() => navigate('/robots/new?kind=trading')}
-                >
-                    Торговый робот
-                </DropdownMenu.Item>
-            </DropdownMenu.Panel>
-        </DropdownMenu>,
-        document.body,
+            {createMenuItems}
+        </DropdownMenu>
     )
 
     const hardStopMessage =
@@ -301,9 +317,7 @@ export default function RobotsV2FleetPage() {
     if (loading && robots.length === 0 && !error) {
         return (
             <div className="page" data-page="robots" data-robots-view="fleet">
-                <h1 className="dash-sr-only">Роботы</h1>
                 <FleetSkeleton />
-                {createFab}
             </div>
         )
     }
@@ -318,9 +332,10 @@ export default function RobotsV2FleetPage() {
     }
 
     return (
-        <div className="page" data-page="robots" data-robots-view="fleet">
-            <h1 className="dash-sr-only">Роботы</h1>
-            <div className="dashboard-layout">
+        <div className="page" data-page="robots" data-robots-view="fleet" data-create="fab">
+            <div className="dashboard-layout robots-v2-fleet">
+                <h1 className="dash-sr-only">Роботы</h1>
+
                 {!loading && error && (
                     <Card className="dashboard-totals-card dashboard-error-card">
                         <div className="dashboard-error-card__robot" aria-hidden>
@@ -334,47 +349,35 @@ export default function RobotsV2FleetPage() {
                 )}
 
                 {!loading && !error && (
-                    <div className="robots-v2-fleet-groups">
-                        <CollapsibleSection
-                            className="robots-v2-fleet-collapse"
-                            title={(
-                                <span className="dashboard-collapse__label">
-                                    <FontAwesomeIcon icon={faClipboardList} className="dashboard-icon" />
-                                    Опросники портфеля
-                                </span>
-                            )}
-                            badge={<span className="robots-v2-fleet-collapse__count">{portfolioRobots.length}</span>}
-                            defaultOpen
-                        >
-                            {portfolioRobots.length > 0 ? (
-                                <div className="dashboard-account-stack robots-v2-fleet-stack">
-                                    {portfolioRobots.map(renderRobotCard)}
+                    <>
+                        {tradingRobots.length > 0 ? (
+                            <section className="robots-v2-fleet-section" aria-label="Торговые роботы">
+                                <div className="robots-v2-fleet-section-label">
+                                    Торговые роботы <span>{tradingRobots.length}</span>
                                 </div>
-                            ) : (
-                                <p className="dashboard-empty">Нет опросников портфеля</p>
-                            )}
-                        </CollapsibleSection>
-
-                        <CollapsibleSection
-                            className="robots-v2-fleet-collapse"
-                            title={(
-                                <span className="dashboard-collapse__label">
-                                    <FontAwesomeIcon icon={faRobot} className="dashboard-icon" />
-                                    Торговые роботы
-                                </span>
-                            )}
-                            badge={<span className="robots-v2-fleet-collapse__count">{tradingRobots.length}</span>}
-                            defaultOpen
-                        >
-                            {tradingRobots.length > 0 ? (
-                                <div className="dashboard-account-stack robots-v2-fleet-stack">
+                                <div className="robots-v2-fleet-stack">
                                     {tradingRobots.map(renderRobotCard)}
                                 </div>
-                            ) : (
-                                <p className="dashboard-empty">Нет торговых роботов</p>
-                            )}
-                        </CollapsibleSection>
-                    </div>
+                            </section>
+                        ) : null}
+
+                        {portfolioRobots.length > 0 ? (
+                            <section className="robots-v2-fleet-section" aria-label="Опросники портфеля">
+                                <div className="robots-v2-fleet-section-label">
+                                    Опросники портфеля <span>{portfolioRobots.length}</span>
+                                </div>
+                                <div className="robots-v2-fleet-stack">
+                                    {portfolioRobots.map(renderRobotCard)}
+                                </div>
+                            </section>
+                        ) : null}
+
+                        {robots.length === 0 ? (
+                            <div className="robots-v2-fleet-empty">
+                                Пока нет роботов. Создайте опросник или торгового робота.
+                            </div>
+                        ) : null}
+                    </>
                 )}
             </div>
 
