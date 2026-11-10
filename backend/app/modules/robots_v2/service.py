@@ -392,13 +392,23 @@ class RobotsV2Service:
             },
         )
 
+    def _require_valid_config(self, robot_type: int, config: dict[str, Any], *, action: str) -> None:
+        validation = self._validate_config(robot_type, config)
+        if validation.valid:
+            return
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "message": f"Config validation failed for {action}",
+                "errors": [e.model_dump() for e in validation.errors],
+            },
+        )
+
     def create_or_update(self, db: Session, user_id: int, request: RobotV2CreateRequest) -> RobotV2Response:
-        validation = self._validate_config(request.type, request.config)
-        if not validation.valid:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"message": "Config validation failed", "errors": [e.model_dump() for e in validation.errors]},
-            )
+        # Incomplete drafts may be saved; enabling / starting still requires a valid config.
+        enable_requested = request.type == 1 and request.status == 1
+        if enable_requested:
+            self._require_valid_config(request.type, request.config, action="enable")
 
         metadata: dict[str, Any] = {}
         if request.id is not None:
@@ -509,6 +519,8 @@ class RobotsV2Service:
         from app.modules.robots_v2.engine.session_manager import session_manager
 
         robot = self.get_robot(db, user_id, request.robot_id)
+        if robot.type == 1 and int(request.status) == 1:
+            self._require_valid_config(robot.type, robot.config or {}, action="enable")
         if robot.type == 2 and int(request.status) != 1 and session_manager.get(request.robot_id) is not None:
             stop_mode = request.stop_mode or (robot.metadata or {}).get("sessionStopMode") or "soft"
             metadata = dict(robot.metadata or {})
@@ -654,6 +666,7 @@ class RobotsV2Service:
         robot = self.get_robot(db, user_id, robot_id)
         if robot.type != 2:
             raise HTTPException(status_code=400, detail="Only trading robots (type=2) can be started")
+        self._require_valid_config(robot.type, robot.config or {}, action="start")
         mode = (robot.config.get("core") or {}).get("mode")
         if mode == "paper" and request.virtual_capital is None:
             raise HTTPException(

@@ -454,6 +454,7 @@ export function FleetRobotCard({
                         </MobileDockDropdown.Item>
                     ) : (
                         <MobileDockDropdown.Item
+                            variant="success"
                             icon={<FontAwesomeIcon icon={faPlay} className="mobile-dock__dropdown-icon" />}
                             disabled={busy}
                             onClick={() => onTogglePortfolio(robot)}
@@ -472,6 +473,7 @@ export function FleetRobotCard({
                     </MobileDockDropdown.Item>
                 ) : (
                     <MobileDockDropdown.Item
+                        variant="success"
                         icon={<FontAwesomeIcon icon={faPlay} className="mobile-dock__dropdown-icon" />}
                         disabled={busy}
                         onClick={() => onStart(robot)}

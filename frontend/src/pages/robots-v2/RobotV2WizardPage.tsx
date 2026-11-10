@@ -198,6 +198,12 @@ export default function RobotV2WizardPage() {
         return brokerFromTokenType(tokens.find(t => t.id === draft.tokenId)?.token_type)
     }, [draft.tokenId, tokens])
 
+    const brokerShortLabel = useMemo(() => {
+        if (!draft.tokenId) return null
+        const label = brokerLabelFromToken(draft.tokenId, tokens).trim()
+        return label && label !== '—' ? label : null
+    }, [draft.tokenId, tokens])
+
     const patch = (partial: Partial<RobotV2WizardDraft>) => {
         setDraft(prev => ({ ...prev, ...partial }))
         setFieldErrors([])
@@ -218,9 +224,18 @@ export default function RobotV2WizardPage() {
 
     const steps = kind === 'portfolio' ? PORTFOLIO_STEPS : TRADING_STEPS
     const lastStep = steps.length - 1
-    const pageTitle = editId
-        ? (draft.name.trim() || (kind === 'portfolio' ? `Опросник #${editId}` : `Робот #${editId}`))
+    const kindLabel = kind === 'portfolio' ? 'Опросник' : 'Торговый'
+    const modeLabel = draft.mode === 'live' ? 'Боевой' : 'Бумага'
+    const railTitle = editId ? 'Правка' : 'Создание'
+    const cardTitle = editId || step > 0
+        ? steps[step]
         : (kind === 'portfolio' ? 'Новый опросник' : 'Новый робот')
+    const railMetaPrimary = editId
+        ? `${draft.name.trim() || (kind === 'portfolio' ? 'Опросник' : 'Робот')} · #${editId}`
+        : (kind === 'trading' ? `${kindLabel} · ${modeLabel}` : kindLabel)
+    const railMetaSecondary = editId
+        ? (kind === 'trading' ? `${kindLabel} · ${modeLabel}` : kindLabel)
+        : 'Черновик сохраняется локально'
 
     const validateStep = (s: number): string[] => {
         const errs: string[] = []
@@ -252,34 +267,24 @@ export default function RobotV2WizardPage() {
         return errs
     }
 
+    const allStepErrors = () => steps.flatMap((_, index) => validateStep(index))
+
     const goNext = () => {
-        const errs = validateStep(step)
-        setFieldErrors(errs)
-        if (errs.length) {
-            toast.show(errs.join('; '), 'error')
-            return
-        }
+        setFieldErrors([])
         setStep(s => Math.min(lastStep, s + 1))
     }
 
     const goToStep = (target: number) => {
         if (target === step) return
-        if (target < step) {
-            setFieldErrors([])
-            setStep(target)
-            return
-        }
-        const errs: string[] = []
-        for (let s = 0; s < target; s++) {
-            errs.push(...validateStep(s))
-        }
-        setFieldErrors(errs)
-        if (errs.length) {
-            toast.show(errs.join('; '), 'error')
-            return
-        }
         setFieldErrors([])
         setStep(target)
+    }
+
+    const requireSaveBasics = (): string[] => {
+        const errs: string[] = []
+        if (!draft.name.trim()) errs.push('Укажите название')
+        if (!draft.tokenId) errs.push('Выберите API-ключ')
+        return errs
     }
 
     const selectArchetype = (id: WizardArchetype) => {
@@ -317,20 +322,32 @@ export default function RobotV2WizardPage() {
     }
 
     const saveRobot = async (andStart: boolean) => {
-        const errs = steps.flatMap((_, index) => validateStep(index))
-        setFieldErrors(errs)
-        if (errs.length) {
-            toast.show(errs.join('; '), 'error')
+        const basicErrs = requireSaveBasics()
+        if (basicErrs.length) {
+            setFieldErrors(basicErrs)
+            toast.show(basicErrs.join('; '), 'error')
             return
         }
-        if (!draft.tokenId || !draft.archetype) return
+        if (andStart) {
+            const errs = allStepErrors()
+            setFieldErrors(errs)
+            if (errs.length) {
+                toast.show(errs.join('; '), 'error')
+                return
+            }
+        } else {
+            setFieldErrors([])
+        }
+        if (!draft.tokenId) return
         setSaving(true)
         try {
             const config = draftToV4Config(draft)
-            const validated = await robotV2Service.validate({ type: 2, config })
-            if (!validated.valid) {
-                toast.show(validated.errors.map(e => e.message).join('; ') || 'Конфиг невалиден', 'error')
-                return
+            if (andStart) {
+                const validated = await robotV2Service.validate({ type: 2, config })
+                if (!validated.valid) {
+                    toast.show(validated.errors.map(e => e.message).join('; ') || 'Конфиг невалиден', 'error')
+                    return
+                }
             }
             const robot = await robotV2Service.createOrUpdate({
                 id: editId || persistedRobotId || undefined,
@@ -338,6 +355,7 @@ export default function RobotV2WizardPage() {
                 type: 2,
                 tokenId: draft.tokenId,
                 config,
+                status: andStart ? undefined : (editId || persistedRobotId ? undefined : 2),
             })
             setPersistedRobotId(robot.id)
             clearDraftLocal()
@@ -367,20 +385,31 @@ export default function RobotV2WizardPage() {
     }
 
     const savePortfolioRobot = async () => {
-        const errs = steps.flatMap((_, index) => validateStep(index))
-        setFieldErrors(errs)
-        if (errs.length) {
-            toast.show(errs.join('; '), 'error')
+        const basicErrs = requireSaveBasics()
+        if (basicErrs.length) {
+            setFieldErrors(basicErrs)
+            toast.show(basicErrs.join('; '), 'error')
             return
+        }
+        const completeErrs = allStepErrors()
+        const wantEnable = draft.portfolioEnabled
+        if (wantEnable && completeErrs.length) {
+            setFieldErrors(completeErrs)
+            toast.show(`Сохраняем выключенным: ${completeErrs.join('; ')}`, 'warning')
+        } else {
+            setFieldErrors([])
         }
         if (!draft.tokenId) return
         setSaving(true)
         try {
             const config = draftToPortfolioV4Config(draft)
-            const validated = await robotV2Service.validate({ type: 1, config })
-            if (!validated.valid) {
-                toast.show(validated.errors.map(e => e.message).join('; ') || 'Конфиг невалиден', 'error')
-                return
+            const enable = wantEnable && completeErrs.length === 0
+            if (enable) {
+                const validated = await robotV2Service.validate({ type: 1, config })
+                if (!validated.valid) {
+                    toast.show(validated.errors.map(e => e.message).join('; ') || 'Конфиг невалиден', 'error')
+                    return
+                }
             }
             await robotV2Service.createOrUpdate({
                 id: editId || undefined,
@@ -388,10 +417,15 @@ export default function RobotV2WizardPage() {
                 type: 1,
                 tokenId: draft.tokenId,
                 config,
-                status: draft.portfolioEnabled ? 1 : 2,
+                status: enable ? 1 : 2,
             })
             clearDraftLocal(PORTFOLIO_DRAFT_STORAGE_KEY)
-            toast.show(editId ? 'Опросник сохранён' : 'Опросник создан', 'success')
+            toast.show(
+                enable
+                    ? (editId ? 'Опросник сохранён и включён' : 'Опросник создан и включён')
+                    : (editId ? 'Опросник сохранён' : 'Опросник создан'),
+                'success',
+            )
             navigate('/robots')
         } catch (e) {
             toast.show(fmtErr(e), 'error')
@@ -404,23 +438,62 @@ export default function RobotV2WizardPage() {
         ? null
         : (draft.capital * draft.maxPositionSharePct) / 100
     const rr = draft.stopLossPct > 0 ? draft.takeProfitPct / draft.stopLossPct : 0
+    const configComplete = allStepErrors().length === 0
+
+    const storageKey = kind === 'portfolio' ? PORTFOLIO_DRAFT_STORAGE_KEY : undefined
+
+    const railNav = (
+        <aside className={`robots-v2-wizard-rail${editLoading ? ' robots-v2-wizard-rail--dim' : ''}`}>
+            <p className="robots-v2-wizard-rail__title">{railTitle}</p>
+            <nav className="robots-v2-wizard-rail__nav" aria-label="Шаги мастера">
+                {steps.map((label, i) => {
+                    const done = i < step
+                    const active = i === step
+                    return (
+                        <button
+                            key={label}
+                            type="button"
+                            className={[
+                                'robots-v2-wizard-rail__item',
+                                active ? 'robots-v2-wizard-rail__item--active' : '',
+                                done ? 'robots-v2-wizard-rail__item--done' : '',
+                            ].filter(Boolean).join(' ')}
+                            aria-current={active ? 'step' : undefined}
+                            disabled={Boolean(editLoading)}
+                            onClick={() => goToStep(i)}
+                        >
+                            <span className="robots-v2-wizard-rail__label">{label}</span>
+                            <span className="robots-v2-wizard-rail__mark" aria-hidden>
+                                {done ? '✓' : i + 1}
+                            </span>
+                        </button>
+                    )
+                })}
+            </nav>
+            <div className="robots-v2-wizard-rail__meta">
+                <div>{railMetaPrimary}</div>
+                <div>{railMetaSecondary}</div>
+            </div>
+        </aside>
+    )
 
     if (editId && editLoading) {
         return (
             <div className="page" data-page="robots" data-robots-view="wizard">
                 <div className="dashboard-layout robots-v2-wizard-layout">
-                    <Card className="robots-v2-wizard-card" aria-busy="true">
-                        <Skeleton width="35%" height="24px" borderRadius="6px" />
-                        <div style={{ marginTop: 'var(--space-4)' }}>
-                            <Skeleton width="100%" height="280px" borderRadius="10px" />
-                        </div>
-                    </Card>
+                    <div className="robots-v2-wizard-rail-layout">
+                        {railNav}
+                        <Card className="robots-v2-wizard-card" aria-busy="true">
+                            <Skeleton width="35%" height="24px" borderRadius="6px" />
+                            <div style={{ marginTop: 'var(--space-4)' }}>
+                                <Skeleton width="100%" height="280px" borderRadius="10px" />
+                            </div>
+                        </Card>
+                    </div>
                 </div>
             </div>
         )
     }
-
-    const storageKey = kind === 'portfolio' ? PORTFOLIO_DRAFT_STORAGE_KEY : undefined
 
     return (
         <div className="page" data-page="robots" data-robots-view="wizard">
@@ -432,23 +505,35 @@ export default function RobotV2WizardPage() {
                     </div>
                 )}
 
+                <div className="robots-v2-wizard-rail-layout">
+                    {railNav}
+
                 <Card className="robots-v2-wizard-card">
                     <header className="robots-v2-wizard-card__head">
                         <div className="robots-v2-wizard-card__lead">
                             <div className="robots-v2-wizard-card__title">
-                                <h1 className="robots-v2-wizard-card__name">{pageTitle}</h1>
+                                <h1 className="robots-v2-wizard-card__name">{cardTitle}</h1>
                                 {editId ? (
                                     <span className="robots-v2-wizard-card__id mono">#{editId}</span>
                                 ) : null}
                             </div>
                             <div className="robots-v2-wizard-card__pills" aria-label="Тип">
-                                <span className="robots-v2-wizard-card__pill">
-                                    {kind === 'portfolio' ? 'Опросник' : 'Торговый'}
-                                </span>
-                                {kind === 'trading' ? (
-                                    <span className="robots-v2-wizard-card__pill">
-                                        {draft.mode === 'live' ? 'Боевой' : 'Бумага'}
+                                {!editId ? (
+                                    <span className="robots-v2-wizard-card__pill robots-v2-wizard-card__pill--draft">
+                                        Черновик
                                     </span>
+                                ) : null}
+                                {editId && draft.name.trim() ? (
+                                    <span className="robots-v2-wizard-card__pill">{draft.name.trim()}</span>
+                                ) : null}
+                                <span className="robots-v2-wizard-card__pill">{kindLabel}</span>
+                                {kind === 'trading' ? (
+                                    <span className="robots-v2-wizard-card__pill robots-v2-wizard-card__pill--mode">
+                                        {modeLabel}
+                                    </span>
+                                ) : null}
+                                {brokerShortLabel ? (
+                                    <span className="robots-v2-wizard-card__pill">{brokerShortLabel}</span>
                                 ) : null}
                                 {kind === 'portfolio' && editId ? (
                                     <span className={`robots-v2-wizard-card__pill${draft.portfolioEnabled ? ' robots-v2-wizard-card__pill--ok' : ''}`}>
@@ -465,24 +550,6 @@ export default function RobotV2WizardPage() {
                             К списку
                         </button>
                     </header>
-
-                    <nav className="robots-v2-steps" aria-label="Шаги мастера">
-                        {steps.map((label, i) => (
-                            <button
-                                key={label}
-                                type="button"
-                                className={[
-                                    'robots-v2-steps__item',
-                                    i === step ? 'robots-v2-steps__item--active' : '',
-                                    i < step ? 'robots-v2-steps__item--done' : '',
-                                ].filter(Boolean).join(' ')}
-                                aria-current={i === step ? 'step' : undefined}
-                                onClick={() => goToStep(i)}
-                            >
-                                {label}
-                            </button>
-                        ))}
-                    </nav>
 
                     {step === 0 && (
                         <div className="robots-v2-form">
@@ -1082,25 +1149,40 @@ export default function RobotV2WizardPage() {
                             Назад
                         </Button>
                         <div className="robots-v2-wizard-footer__right">
-                            {step < lastStep ? (
-                                <Button type="button" onClick={goNext}>Далее</Button>
-                            ) : kind === 'portfolio' ? (
+                            {kind === 'portfolio' ? (
                                 <Button type="button" loading={saving} onClick={() => void savePortfolioRobot()}>
-                                    {editId ? 'Сохранить' : 'Создать'}
+                                    {editId
+                                        ? (draft.portfolioEnabled && configComplete ? 'Сохранить и включить' : 'Сохранить')
+                                        : (draft.portfolioEnabled && configComplete ? 'Создать и включить' : 'Создать')}
                                 </Button>
                             ) : (
-                                <>
-                                    <Button type="button" variant="secondary" loading={saving} onClick={() => void saveRobot(false)}>
-                                        Сохранить без запуска
-                                    </Button>
-                                    <Button type="button" loading={saving} onClick={() => void saveRobot(true)}>
-                                        {persistedRobotId ? 'Сохранить и запустить' : 'Создать и запустить'}
-                                    </Button>
-                                </>
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    loading={saving}
+                                    onClick={() => void saveRobot(false)}
+                                >
+                                    {editId || persistedRobotId ? 'Сохранить' : 'Создать'}
+                                </Button>
                             )}
+                            {kind === 'trading' ? (
+                                <Button
+                                    type="button"
+                                    loading={saving}
+                                    disabled={!configComplete}
+                                    title={configComplete ? undefined : 'Заполнение всех шагов нужно только для запуска'}
+                                    onClick={() => void saveRobot(true)}
+                                >
+                                    {persistedRobotId || editId ? 'Сохранить и запустить' : 'Создать и запустить'}
+                                </Button>
+                            ) : null}
+                            {step < lastStep ? (
+                                <Button type="button" variant="ghost" onClick={goNext}>Далее</Button>
+                            ) : null}
                         </div>
                     </footer>
                 </Card>
+                </div>
             </div>
 
             <RobotConfirmModal

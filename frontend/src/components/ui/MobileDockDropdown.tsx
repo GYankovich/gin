@@ -10,7 +10,7 @@ import React, {
 import { createPortal } from 'react-dom'
 
 type Placement = 'above' | 'below'
-type ItemVariant = 'default' | 'alert' | 'danger'
+type ItemVariant = 'default' | 'alert' | 'danger' | 'success'
 
 type PanelCoords = {
     top: number | 'auto'
@@ -263,7 +263,9 @@ function Item({ icon, children, onClick, disabled, variant = 'default' }: ItemPr
             ? 'mobile-dock__dropdown-alert'
             : variant === 'danger'
               ? 'mobile-dock__dropdown-item--danger'
-              : undefined
+              : variant === 'success'
+                ? 'mobile-dock__dropdown-item--success'
+                : undefined
 
     return (
         <button
