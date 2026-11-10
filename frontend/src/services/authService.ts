@@ -2,6 +2,7 @@
 ///@ Исходный модуль `frontend/src/services/authService.ts` — автоматическая разметка для Obsidian Source Scanner.
 
 import { api } from './api'
+import { useAuthStore, type AuthFeatures } from '@/stores/authStore'
 
 interface LoginPayload {
     login: string
@@ -26,6 +27,19 @@ interface UserOut {
     email?: string | null
     phone?: string | null
     created_at?: string | null
+}
+
+export interface AuthFeaturesOut {
+    dashboard: boolean
+    portfolio: boolean
+    robots: boolean
+    backtest: boolean
+}
+
+export interface MeInfoResponse {
+    user: UserOut
+    package_code: number
+    features: AuthFeaturesOut
 }
 
 interface TokenResponse {
@@ -99,6 +113,28 @@ export const authService = {
     async me(): Promise<UserOut> {
         const { data } = await api.get<UserOut>('/auth/me')
         return data
+    },
+
+    async meInfo(): Promise<MeInfoResponse> {
+        const { data } = await api.get<MeInfoResponse>('/auth/me-info')
+        return data
+    },
+
+    /** Load package features into auth store (login + app shell bootstrap). */
+    async bootstrapSession(): Promise<MeInfoResponse> {
+        const info = await this.meInfo()
+        const features: AuthFeatures = {
+            dashboard: Boolean(info.features?.dashboard),
+            portfolio: Boolean(info.features?.portfolio),
+            robots: Boolean(info.features?.robots),
+            backtest: Boolean(info.features?.backtest),
+        }
+        useAuthStore.getState().setMeInfo({
+            user: info.user,
+            packageCode: info.package_code,
+            features,
+        })
+        return info
     },
 
     async changeUser(payload: {

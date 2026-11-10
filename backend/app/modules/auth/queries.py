@@ -74,8 +74,8 @@ def build_update_login_query() -> str:
 def build_create_user_query() -> str:
     """Возвращает запрос для создания пользователя"""
     return """
-           INSERT INTO "user" (login, password_hash, created_at)
-           VALUES (:login, :password_hash, :created_at)
+           INSERT INTO "user" (login, password_hash, created_at, package_code)
+           VALUES (:login, :password_hash, :created_at, :package_code)
                RETURNING id, login, created_at \
            """
 

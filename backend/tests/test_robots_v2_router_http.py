@@ -119,7 +119,10 @@ def _v2_client(
     app.dependency_overrides[get_current_user] = override_user
     app.dependency_overrides[get_db] = override_db
     try:
-        with patch("app.modules.robots_v2.router.settings.ROBOTS_V2_ENABLED", v2_enabled):
+        with (
+            patch("app.modules.robots_v2.router.settings.ROBOTS_V2_ENABLED", v2_enabled),
+            patch("app.modules.auth.package_service.user_has_tab", return_value=True),
+        ):
             yield TestClient(app)
     finally:
         app.dependency_overrides.clear()
@@ -231,12 +234,28 @@ def test_change_status_route_is_async_and_delegates_to_service(
 
 def test_list_robots_delegates_to_service(auth_client: TestClient, mock_user: User) -> None:
     robot = _robot_response()
-    with patch.object(service.robots_v2_service, "list_robots", return_value=[robot]) as mock_list:
+    fleet = schemas.RobotV2ListResponse(
+        items=[
+            schemas.RobotV2FleetItem.model_validate(
+                {
+                    **robot.model_dump(by_alias=True),
+                    "accounts": [{"accountId": "acc-1", "accountName": "Брокерский счёт"}],
+                    "broker": "tinvest",
+                    "brokerLabel": "Т-Инвестиции",
+                    "live": None,
+                }
+            )
+        ],
+        total=1,
+        hasBrokerAccounts=True,
+    )
+    with patch.object(service.robots_v2_service, "list_robots", return_value=fleet) as mock_list:
         response = auth_client.post("/api/v2/robots/data", json={}, headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     body = response.json()
     assert body["total"] == 1
+    assert body["hasBrokerAccounts"] is True
     assert body["items"][0]["id"] == 42
     mock_list.assert_called_once()
     assert mock_list.call_args.args[1] == mock_user.id

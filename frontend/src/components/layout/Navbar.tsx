@@ -14,50 +14,65 @@ export function Navbar({ hasExpiredToken }: { hasExpiredToken: boolean }) {
     const navigate = useNavigate()
     const logout = useAuthStore(s => s.logout)
     const user = useAuthStore(s => s.user)
+    const features = useAuthStore(s => s.features)
     const { theme, toggle } = useThemeStore()
     const [dropdownOpen, setDropdownOpen] = React.useState(false)
 
     const initials = user?.login?.slice(0, 2).toUpperCase() || 'U'
+    const home =
+        features.dashboard ? '/dashboard'
+            : features.portfolio ? '/portfolio'
+                : features.robots ? '/robots'
+                    : features.backtest ? '/backtest'
+                        : '/settings'
 
     return (
         <header className="navbar" role="navigation" aria-label="Главная навигация">
             <div className="navbar__left">
-                <Link to="/dashboard" className="navbar__brand" aria-label="ginity">
+                <Link to={home} className="navbar__brand" aria-label="ginity">
                     <img className="navbar__logo" src={logo} alt="" />
                 </Link>
                 <nav className="navbar__links">
-                    <NavLink
-                        to="/dashboard"
-                        className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}
-                        onMouseEnter={() => { void import('@/pages/DashboardPage') }}
-                        onFocus={() => { void import('@/pages/DashboardPage') }}
-                    >
-                        Дашборд
-                    </NavLink>
-                    <NavLink
-                        to="/portfolio"
-                        className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}
-                        onMouseEnter={() => { void import('@/pages/PortfolioPage') }}
-                        onFocus={() => { void import('@/pages/PortfolioPage') }}
-                    >
-                        Портфель
-                    </NavLink>
-                    <NavLink
-                        to="/robots"
-                        className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}
-                        onMouseEnter={() => { void import('@/pages/robots-v2/RobotsV2FleetPage') }}
-                        onFocus={() => { void import('@/pages/robots-v2/RobotsV2FleetPage') }}
-                    >
-                        Роботы
-                    </NavLink>
-                    <NavLink
-                        to="/backtest"
-                        className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}
-                        onMouseEnter={() => { void import('@/pages/robots-v2/BacktestLabPage') }}
-                        onFocus={() => { void import('@/pages/robots-v2/BacktestLabPage') }}
-                    >
-                        Лаборатория
-                    </NavLink>
+                    {features.dashboard ? (
+                        <NavLink
+                            to="/dashboard"
+                            className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}
+                            onMouseEnter={() => { void import('@/pages/DashboardPage') }}
+                            onFocus={() => { void import('@/pages/DashboardPage') }}
+                        >
+                            Дашборд
+                        </NavLink>
+                    ) : null}
+                    {features.portfolio ? (
+                        <NavLink
+                            to="/portfolio"
+                            className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}
+                            onMouseEnter={() => { void import('@/pages/PortfolioPage') }}
+                            onFocus={() => { void import('@/pages/PortfolioPage') }}
+                        >
+                            Портфель
+                        </NavLink>
+                    ) : null}
+                    {features.robots ? (
+                        <NavLink
+                            to="/robots"
+                            className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}
+                            onMouseEnter={() => { void import('@/pages/robots-v2/RobotsV2FleetPage') }}
+                            onFocus={() => { void import('@/pages/robots-v2/RobotsV2FleetPage') }}
+                        >
+                            Роботы
+                        </NavLink>
+                    ) : null}
+                    {features.backtest ? (
+                        <NavLink
+                            to="/backtest"
+                            className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}
+                            onMouseEnter={() => { void import('@/pages/robots-v2/BacktestLabPage') }}
+                            onFocus={() => { void import('@/pages/robots-v2/BacktestLabPage') }}
+                        >
+                            Лаборатория
+                        </NavLink>
+                    ) : null}
                 </nav>
             </div>
 

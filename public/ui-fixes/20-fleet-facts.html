@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Флот — facts variants</title>
+<style>
+  :root {
+    --bg-page: #e8ebf0;
+    --bg-card: #fff;
+    --text-primary: #12151a;
+    --text-secondary: #5c6570;
+    --text-muted: #8a93a0;
+    --border-subtle: rgba(18, 21, 26, .08);
+    --color-up: #1f9d57;
+    --color-down: #d64550;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    padding: 20px 16px 48px;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .lead { margin: 0 0 18px; color: var(--text-muted); font-size: 13px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    max-width: 1100px;
+  }
+  .variant {
+    background: color-mix(in srgb, #fff 70%, transparent);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    padding: 12px;
+  }
+  .variant h2 { margin: 0 0 4px; font-size: 14px; }
+  .variant p { margin: 0 0 12px; font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+  .phone {
+    width: 100%;
+    max-width: 390px;
+    margin: 0 auto;
+    padding: 10px;
+    border-radius: 22px;
+    background: #dfe3ea;
+  }
+  .card {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-card);
+  }
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .name-line {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+  }
+  .name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .id { font-size: 11px; color: var(--text-muted); flex: 0 0 auto; }
+  .right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 0 auto;
+  }
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--color-up);
+    background: color-mix(in srgb, var(--color-up) 14%, transparent);
+  }
+  .status:before {
+    content: "";
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .kebab {
+    width: 28px; height: 28px; border: 0; background: transparent;
+    color: var(--text-muted); font-size: 18px; line-height: 1; cursor: default;
+  }
+
+  /* —— NOW —— */
+  .facts-now {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+  .facts-now span {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .facts-now span:nth-child(2) { text-align: center; }
+  .facts-now span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* —— A: one meta line —— */
+  .facts-a {
+    margin-top: 8px;
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .facts-a b { font-weight: 500; color: var(--text-secondary); }
+  .sep { margin: 0 .35em; color: color-mix(in srgb, var(--text-muted) 70%, transparent); }
+
+  /* —— B: two anchors —— */
+  .facts-b {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 8px;
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+  .facts-b__left {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-secondary);
+  }
+  .facts-b__left em {
+    font-style: normal;
+    color: var(--text-muted);
+  }
+  .facts-b__right {
+    flex: 0 0 auto;
+    font-variant-numeric: tabular-nums;
+  }
+  .chev { font-size: .75em; color: var(--text-muted); }
+
+  /* —— C: chips —— */
+  .facts-c {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+    color: var(--text-secondary);
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chip strong { font-weight: 600; color: var(--text-primary); }
+
+  .equity {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    gap: 12px;
+  }
+  .stack { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .label { font-size: 10px; letter-spacing: .03em; text-transform: uppercase; color: var(--text-muted); }
+  .delta { color: var(--color-down); font-size: 12px; font-weight: 600; margin-left: 8px; }
+  .value { font-size: 20px; font-weight: 650; letter-spacing: -.4px; }
+  .own { font-size: 12px; color: var(--text-secondary); }
+  .own span { color: var(--text-muted); margin-right: 4px; }
+  .spark {
+    width: 112px; flex: 0 0 auto; color: var(--color-down);
+  }
+  .spark svg { width: 100%; height: 52px; display: block; }
+  .secondary {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .secondary strong { color: var(--text-secondary); font-weight: 600; }
+  .secondary .down { color: var(--color-down); }
+
+  .pick {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .pick label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <h1>Facts — варианты</h1>
+  <p class="lead">Mobile trading card. Сейчас vs A / B / C. Выбери направление.</p>
+
+  <div class="grid">
+    <!-- NOW -->
+    <section class="variant">
+      <h2>Сейчас</h2>
+      <p>Три равные колонки space-between. Длинный счёт давит середину.</p>
+      <div class="phone"><article class="card">
+        <div class="head">
+          <div class="name-line"><span class="name">Копия хард</span><span class="id">#3</span></div>
+          <div class="right"><span class="status">Работает</span><button class="kebab" type="button">⋯</button></div>
+        </div>
+        <div class="facts-now">
+          <span>Т-Инвестиции</span>
+          <span>Брокерский счет 6</span>
+          <span>11:10</span>
+        </div>
+        <div class="equity">
+          <div class="stack">
+            <div><span class="label">Текущая</span><span class="delta">−1 515 ₽</span></div>
+            <div class="value">8 485 ₽</div>
+            <div class="own"><span>Свои</span>10 000 ₽</div>
+          </div>
+          <div class="spark"><svg viewBox="0 0 160 48" preserveAspectRatio="none"><polyline fill="none" stroke="currentColor" stroke-width="2" points="2,8 20,18 40,12 60,28 80,22 100,36 120,30 140,42 158,38"/></svg></div>
+        </div>
+        <div class="secondary"><span>За месяц</span><span>Поз. <strong>2</strong> · P&L <strong class="down">−275 ₽</strong> · W/L <strong>111/71</strong></span></div>
+      </article></div>
+    </section>
+
+    <!-- A -->
+    <section class="variant">
+      <h2>A — одна строка</h2>
+      <p><code>брокер · счёт · sync</code> через точки. Без колонок.</p>
+      <div class="phone"><article class="card">
+        <div class="head">
+          <div class="name-line"><span class="name">Копия хард</span><span class="id">#3</span></div>
+          <div class="right"><span class="status">Работает</span><button class="kebab" type="button">⋯</button></div>
+        </div>
+        <div class="facts-a">
+          Т-Инвестиции<span class="sep">·</span><b>Брокерский</b><span class="sep">·</span>11:10
+        </div>
+        <div class="equity">
+          <div class="stack">
+            <div><span class="label">Текущая</span><span class="delta">−1 515 ₽</span></div>
+            <div class="value">8 485 ₽</div>
+            <div class="own"><span>Свои</span>10 000 ₽</div>
+          </div>
+          <div class="spark"><svg viewBox="0 0 160 48" preserveAspectRatio="none"><polyline fill="none" stroke="currentColor" stroke-width="2" points="2,8 20,18 40,12 60,28 80,22 100,36 120,30 140,42 158,38"/></svg></div>
+        </div>
+        <div class="secondary"><span>За месяц</span><span>Поз. <strong>2</strong> · P&L <strong class="down">−275 ₽</strong> · W/L <strong>111/71</strong></span></div>
+      </article></div>
+      <div class="pick"><label><input type="radio" name="pick" value="A" /> Беру A</label></div>
+    </section>
+
+    <!-- B -->
+    <section class="variant">
+      <h2>B — два якоря</h2>
+      <p>Слева счёт (disclosure), справа sync. Брокер вторичен или убран.</p>
+      <div class="phone"><article class="card">
+        <div class="head">
+          <div class="name-line"><span class="name">Копия хард</span><span class="id">#3</span></div>
+          <div class="right"><span class="status">Работает</span><button class="kebab" type="button">⋯</button></div>
+        </div>
+        <div class="facts-b">
+          <span class="facts-b__left">Брокерский счет 6 <span class="chev">▾</span></span>
+          <span class="facts-b__right">11:10</span>
+        </div>
+        <div class="equity">
+          <div class="stack">
+            <div><span class="label">Текущая</span><span class="delta">−1 515 ₽</span></div>
+            <div class="value">8 485 ₽</div>
+            <div class="own"><span>Свои</span>10 000 ₽</div>
+          </div>
+          <div class="spark"><svg viewBox="0 0 160 48" preserveAspectRatio="none"><polyline fill="none" stroke="currentColor" stroke-width="2" points="2,8 20,18 40,12 60,28 80,22 100,36 120,30 140,42 158,38"/></svg></div>
+        </div>
+        <div class="secondary"><span>За месяц</span><span>Поз. <strong>2</strong> · P&L <strong class="down">−275 ₽</strong> · W/L <strong>111/71</strong></span></div>
+      </article></div>
+      <div class="pick"><label><input type="radio" name="pick" value="B" checked /> Беру B</label></div>
+    </section>
+
+    <!-- B2 portfolio -->
+    <section class="variant">
+      <h2>B · portfolio</h2>
+      <p>Для type=1: слева «N счетов ▾», справа sync. Брокер можно тихим префиксом.</p>
+      <div class="phone"><article class="card">
+        <div class="head">
+          <div class="name-line"><span class="name">Опросник Тинька</span><span class="id">#5</span></div>
+          <div class="right"><span class="status">Включён</span><button class="kebab" type="button">⋯</button></div>
+        </div>
+        <div class="facts-b">
+          <span class="facts-b__left"><em>Т-Инвестиции</em> · 7 счетов <span class="chev">▾</span></span>
+          <span class="facts-b__right">11:10</span>
+        </div>
+      </article></div>
+    </section>
+
+    <!-- C -->
+    <section class="variant">
+      <h2>C — chips</h2>
+      <p>Тихие pill’ы. Читаемее, но снова «коробки» и плотность.</p>
+      <div class="phone"><article class="card">
+        <div class="head">
+          <div class="name-line"><span class="name">Копия хард</span><span class="id">#3</span></div>
+          <div class="right"><span class="status">Работает</span><button class="kebab" type="button">⋯</button></div>
+        </div>
+        <div class="facts-c">
+          <span class="chip">Т-Инвестиции</span>
+          <span class="chip">Брокерский ▾</span>
+          <span class="chip">Sync <strong>11:10</strong></span>
+        </div>
+        <div class="equity">
+          <div class="stack">
+            <div><span class="label">Текущая</span><span class="delta">−1 515 ₽</span></div>
+            <div class="value">8 485 ₽</div>
+            <div class="own"><span>Свои</span>10 000 ₽</div>
+          </div>
+          <div class="spark"><svg viewBox="0 0 160 48" preserveAspectRatio="none"><polyline fill="none" stroke="currentColor" stroke-width="2" points="2,8 20,18 40,12 60,28 80,22 100,36 120,30 140,42 158,38"/></svg></div>
+        </div>
+        <div class="secondary"><span>За месяц</span><span>Поз. <strong>2</strong> · P&L <strong class="down">−275 ₽</strong> · W/L <strong>111/71</strong></span></div>
+      </article></div>
+      <div class="pick"><label><input type="radio" name="pick" value="C" /> Беру C</label></div>
+    </section>
+  </div>
+
+  <script>
+    document.querySelectorAll('input[name="pick"]').forEach((el) => {
+      el.addEventListener('change', () => {
+        document.title = 'Флот — facts → ' + el.value
+      })
+    })
+  </script>
+</body>
+</html>

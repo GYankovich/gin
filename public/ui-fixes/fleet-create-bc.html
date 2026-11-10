@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Создать — варианты B и C</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --card: #12121a;
+    --elevated: #181824;
+    --line: rgba(255,255,255,.08);
+    --line-strong: rgba(255,255,255,.16);
+    --text: #e8eaed;
+    --secondary: #b4bcc6;
+    --muted: #8b939e;
+    --quiet: #6d7580;
+    --up: #3dbe7a;
+    --down: #f05252;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  }
+  .board {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 20px;
+    min-height: 100vh;
+  }
+  .frame {
+    position: relative;
+    min-height: 760px;
+    padding: 18px 18px 28px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: #0c0e14;
+    overflow: hidden;
+  }
+  .label {
+    margin: 0 0 14px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .card {
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.04), transparent 42%),
+      var(--card);
+  }
+  .name {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 650;
+  }
+  .id { color: var(--quiet); font-size: 12px; font-weight: 500; }
+  .pills { display: flex; gap: 6px; margin-top: 8px; }
+  .pill {
+    padding: 3px 8px;
+    border-radius: 7px;
+    background: rgba(255,255,255,.06);
+    color: var(--secondary);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .pill.ok { color: var(--up); background: rgba(61,190,122,.14); }
+  .pill.bad { color: var(--down); background: rgba(240,82,82,.14); }
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px 14px;
+    margin: 14px 0 0;
+  }
+  .facts span { display: block; color: var(--quiet); font-size: 11px; }
+  .facts strong {
+    display: block;
+    margin-top: 3px;
+    font-size: 13px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .money { margin-top: 16px; }
+  .money span { display: block; color: var(--secondary); font-size: 12px; }
+  .money strong { display: block; margin-top: 4px; font-size: 22px; font-weight: 500; }
+  .mid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 12px; align-items: end; }
+  .chart {
+    height: 56px;
+    border-radius: 8px;
+    border: 1px dashed rgba(139,147,158,.5);
+    background: rgba(255,255,255,.03);
+    position: relative;
+  }
+  .chart i {
+    position: absolute;
+    left: 8px; right: 8px; top: 50%;
+    border-top: 1.4px dashed var(--quiet);
+  }
+  .chart em {
+    position: absolute;
+    right: 8px; bottom: 6px;
+    color: var(--quiet);
+    font-size: 11px;
+    font-style: normal;
+  }
+  .actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .btn {
+    min-height: 32px;
+    padding: 6px 12px;
+    border-radius: 10px;
+    border: 0;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .btn.primary { background: #e8eaed; color: #13161a; }
+  .btn.secondary { background: rgba(255,255,255,.08); color: var(--text); }
+  .btn.ghost { background: transparent; color: var(--secondary); }
+  .menu {
+    width: 220px;
+    padding: 6px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--elevated);
+    box-shadow: 0 4px 16px rgba(0,0,0,.4);
+  }
+  .menu button {
+    display: block;
+    width: 100%;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+  }
+  .menu button:first-child { background: rgba(255,255,255,.06); }
+  .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }
+
+  .fab-wrap {
+    position: absolute;
+    right: 22px;
+    bottom: 22px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+  .fab {
+    width: 56px;
+    height: 56px;
+    border: 0;
+    border-radius: 999px;
+    background: #e8eaed;
+    color: #13161a;
+    font-size: 28px;
+    line-height: 1;
+    box-shadow: 0 10px 28px rgba(0,0,0,.32);
+  }
+
+  .create-slot {
+    min-height: 168px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border: 1px dashed rgba(255,255,255,.22);
+    border-radius: 16px;
+    background: transparent;
+    color: var(--text);
+  }
+  .create-slot strong { font-size: 16px; font-weight: 650; }
+  .create-slot span { color: var(--muted); font-size: 12px; }
+  .plus {
+    width: 28px; height: 28px;
+    display: grid; place-items: center;
+    border-radius: 8px;
+    background: #e8eaed;
+    color: #13161a;
+    font-size: 18px;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+  <div class="board">
+    <section class="frame" aria-label="Вариант B">
+      <p class="label">B. Плавающая кнопка, меню вверх</p>
+      <div class="grid">
+        <article class="card">
+          <h3 class="name">Опросник Тинька <span class="id">#5</span></h3>
+          <div class="pills"><span class="pill ok">Включён</span></div>
+          <dl class="facts">
+            <div><span>Создан</span><strong>18.08.2026</strong></div>
+            <div><span>Обновлён</span><strong>11 мин назад</strong></div>
+            <div><span>Режим</span><strong>Опросник</strong></div>
+          </dl>
+        </article>
+        <article class="card">
+          <h3 class="name">Опросник Байбита <span class="id">#8</span></h3>
+          <div class="pills"><span class="pill ok">Включён</span></div>
+          <dl class="facts">
+            <div><span>Создан</span><strong>18.08.2026</strong></div>
+            <div><span>Обновлён</span><strong>8 мин назад</strong></div>
+            <div><span>Режим</span><strong>Опросник</strong></div>
+          </dl>
+        </article>
+        <article class="card">
+          <h3 class="name">Копия хард <span class="id">#3</span></h3>
+          <div class="pills">
+            <span class="pill bad">Ошибка</span>
+            <span class="pill">Боевой</span>
+            <span class="pill">Акции</span>
+          </div>
+          <div class="mid">
+            <div class="money"><span>Счёт</span><strong>0 ₽</strong></div>
+            <div class="chart"><i></i><em>Пока нет графика</em></div>
+          </div>
+          <dl class="facts">
+            <div><span>Стратегия</span><strong>Скальпер</strong></div>
+            <div><span>Таймфрейм</span><strong>1m</strong></div>
+            <div><span>Позиции</span><strong>0</strong></div>
+            <div><span>Цикл</span><strong>0</strong></div>
+            <div><span>Синхрон</span><strong>24 ч назад</strong></div>
+            <div><span>Свободно</span><strong>0 ₽</strong></div>
+          </dl>
+          <div class="actions">
+            <div>
+              <button class="btn primary">Монитор</button>
+              <button class="btn secondary">Бэктест</button>
+            </div>
+            <div>
+              <button class="btn ghost">Логи</button>
+              <button class="btn ghost">Клонировать</button>
+            </div>
+          </div>
+        </article>
+      </div>
+      <div class="fab-wrap">
+        <div class="menu" role="menu">
+          <button type="button">Опросник портфеля</button>
+          <hr />
+          <button type="button">Торговый робот</button>
+        </div>
+        <button class="fab" type="button" aria-label="Создать">+</button>
+      </div>
+    </section>
+
+    <section class="frame" aria-label="Вариант C">
+      <p class="label">C. Первая ячейка сетки</p>
+      <div class="grid">
+        <div>
+          <button class="create-slot" type="button">
+            <span class="plus">+</span>
+            <span>
+              <strong>Создать</strong><br />
+              <span>Опросник или робот</span>
+            </span>
+          </button>
+          <div class="menu" role="menu" style="margin-top:8px">
+            <button type="button">Опросник портфеля</button>
+            <hr />
+            <button type="button">Торговый робот</button>
+          </div>
+        </div>
+        <article class="card">
+          <h3 class="name">Опросник Тинька <span class="id">#5</span></h3>
+          <div class="pills"><span class="pill ok">Включён</span></div>
+          <dl class="facts">
+            <div><span>Создан</span><strong>18.08.2026</strong></div>
+            <div><span>Обновлён</span><strong>11 мин назад</strong></div>
+            <div><span>Режим</span><strong>Опросник</strong></div>
+          </dl>
+        </article>
+        <article class="card">
+          <h3 class="name">Опросник Байбита <span class="id">#8</span></h3>
+          <div class="pills"><span class="pill ok">Включён</span></div>
+          <dl class="facts">
+            <div><span>Создан</span><strong>18.08.2026</strong></div>
+            <div><span>Обновлён</span><strong>8 мин назад</strong></div>
+            <div><span>Режим</span><strong>Опросник</strong></div>
+          </dl>
+        </article>
+        <article class="card">
+          <h3 class="name">Копия хард <span class="id">#3</span></h3>
+          <div class="pills">
+            <span class="pill bad">Ошибка</span>
+            <span class="pill">Боевой</span>
+            <span class="pill">Акции</span>
+          </div>
+          <div class="mid">
+            <div class="money"><span>Счёт</span><strong>0 ₽</strong></div>
+            <div class="chart"><i></i><em>Пока нет графика</em></div>
+          </div>
+          <dl class="facts">
+            <div><span>Стратегия</span><strong>Скальпер</strong></div>
+            <div><span>Таймфрейм</span><strong>1m</strong></div>
+            <div><span>Позиции</span><strong>0</strong></div>
+          </dl>
+        </article>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

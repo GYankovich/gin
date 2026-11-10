@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Флот — type=2 mobile</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .board { display: grid; gap: 28px; }
+  .variant {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--page);
+    overflow: hidden;
+  }
+  .variant__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.02);
+  }
+  .variant__head h2 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 650;
+  }
+  .variant__head p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    max-width: 68ch;
+  }
+  .variant__body {
+    padding: 18px 16px 22px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+    background: #0a0c0f;
+  }
+
+  .phone {
+    width: 360px;
+    max-width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    background: var(--bg);
+    padding: 10px 10px 14px;
+    box-shadow: 0 18px 40px rgba(0,0,0,.35);
+  }
+  .phone__notch {
+    width: 96px;
+    height: 6px;
+    margin: 4px auto 12px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.08);
+  }
+  .phone__label {
+    margin: 0 6px 10px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  .stack { display: grid; gap: 10px; }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 650;
+    white-space: nowrap;
+  }
+  .badge::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .badge--ok { background: rgba(61,190,122,.16); color: var(--up); }
+  .badge--warn { background: rgba(212,160,23,.16); color: var(--warn); }
+  .badge--bad { background: rgba(227,93,106,.14); color: var(--down); }
+
+  .kebab {
+    width: 34px; height: 34px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--secondary);
+    font-size: 18px;
+    line-height: 1;
+    flex: 0 0 auto;
+  }
+
+  .name {
+    font-size: 15px;
+    font-weight: 650;
+    letter-spacing: -.2px;
+  }
+  .id { color: var(--muted); font-size: 11px; font-weight: 500; margin-left: 6px; }
+  .meta {
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.35;
+  }
+  .head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: start;
+  }
+  .name-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .tone-ok { color: var(--up); }
+  .tone-down { color: var(--down); }
+  .tone-idle { color: var(--muted); }
+
+  /* —— A: current —— */
+  .a-card {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+  }
+  .a-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 10px;
+    margin-top: 12px;
+  }
+  .a-metric span {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .a-metric strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  .a-metric em {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 10px;
+    font-style: normal;
+  }
+  .a-equity {
+    display: grid;
+    grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+    gap: 10px 12px;
+    align-items: end;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .a-equity > div:first-child span {
+    display: block;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .a-equity > div:first-child strong {
+    display: block;
+    margin-top: 3px;
+    font-size: 18px;
+    font-weight: 650;
+    letter-spacing: -.4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .a-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    min-width: 0;
+  }
+  .a-pnl {
+    font-size: 14px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  .a-spark {
+    width: 100%;
+    height: 44px;
+    display: block;
+  }
+
+  /* —— B: equity first —— */
+  .b-card {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+  }
+  .b-equity {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 12px;
+    background: rgba(255,255,255,.03);
+    border: 1px solid var(--border);
+  }
+  .b-equity__top {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .b-equity__top span {
+    display: block;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .b-equity__top strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 22px;
+    font-weight: 650;
+    letter-spacing: -.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .b-pnl {
+    font-size: 15px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .b-spark {
+    width: 100%;
+    height: 52px;
+    margin-top: 8px;
+    display: block;
+  }
+  .b-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .b-facts span {
+    padding: 6px 9px;
+    border-radius: 8px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .b-facts b {
+    color: var(--text);
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* —— C: spark band —— */
+  .c-card {
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+    overflow: hidden;
+  }
+  .c-body { padding: 14px; }
+  .c-band {
+    padding: 12px 14px 8px;
+    background: linear-gradient(180deg, rgba(255,255,255,.04), transparent);
+    border-bottom: 1px solid var(--border);
+  }
+  .c-spark {
+    width: 100%;
+    height: 56px;
+    display: block;
+  }
+  .c-fin {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .c-fin span {
+    display: block;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .c-fin strong {
+    display: block;
+    margin-top: 3px;
+    font-size: 20px;
+    font-weight: 650;
+    letter-spacing: -.4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .c-pnl {
+    font-size: 15px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  .c-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .c-row div {
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.03);
+  }
+  .c-row span {
+    display: block;
+    color: var(--muted);
+    font-size: 10px;
+  }
+  .c-row strong {
+    display: block;
+    margin-top: 3px;
+    font-size: 13px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* —— D: dense —— */
+  .d-card {
+    padding: 12px 12px 13px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+  }
+  .d-card--bad {
+    box-shadow: inset 3px 0 0 var(--down);
+  }
+  .d-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 6px;
+    align-items: center;
+  }
+  .d-name {
+    font-size: 14px;
+    font-weight: 650;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .d-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .d-line b {
+    color: var(--text);
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  .d-eq {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+    margin-top: 10px;
+  }
+  .d-eq strong {
+    font-size: 16px;
+    font-weight: 650;
+    letter-spacing: -.3px;
+    font-variant-numeric: tabular-nums;
+  }
+  .d-eq .pnl {
+    font-size: 13px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .d-spark {
+    grid-column: 1 / -1;
+    width: 100%;
+    height: 36px;
+    display: block;
+  }
+  .d-alert {
+    margin-top: 8px;
+    padding: 7px 8px;
+    border-radius: 8px;
+    border: 1px solid rgba(227,93,106,.28);
+    background: rgba(227,93,106,.1);
+    color: var(--down);
+    font-size: 11px;
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← К списку</a>
+    <div>
+      <h1>Флот — type=2 на мобилке</h1>
+      <p>Четыре композиции в phone-frame. Без кнопок Монитор/Бэктест — только ⋯. Клик по карточке → монитор.</p>
+    </div>
+    <span class="badge badge--new">для согласования</span>
+  </div>
+
+  <div class="wrap board">
+
+    <!-- A -->
+    <section class="variant" id="A">
+      <div class="variant__head">
+        <div>
+          <h2>A — как сейчас</h2>
+          <p>Шапка (имя + ⋯) → две метрики → equity/P&amp;L/spark отдельной полосой. Три зоны, знакомо с десктопа.</p>
+        </div>
+      </div>
+      <div class="variant__body">
+        <div class="phone">
+          <div class="phone__notch"></div>
+          <div class="phone__label">Работает</div>
+          <div class="stack">
+            <article class="a-card">
+              <div class="head">
+                <div>
+                  <div class="name-line">
+                    <span class="name">Momentum MOEX</span><span class="id">#3</span>
+                    <span class="badge badge--ok">Работает</span>
+                  </div>
+                  <div class="meta">Momentum · Т-Инвестиции</div>
+                </div>
+                <button class="kebab" type="button" aria-label="Меню">⋯</button>
+              </div>
+              <div class="a-metrics">
+                <div class="a-metric"><span>Синхрон</span><strong>3 мин назад</strong><em>18:42</em></div>
+                <div class="a-metric"><span>Позиции</span><strong>3</strong><em>Открытых</em></div>
+              </div>
+              <div class="a-equity">
+                <div>
+                  <span>Equity</span>
+                  <strong>1 112 480 ₽</strong>
+                </div>
+                <div class="a-side">
+                  <div class="a-pnl tone-ok">+12 480 ₽</div>
+                  <svg class="a-spark" viewBox="0 0 160 48" aria-hidden="true">
+                    <polyline fill="none" stroke="#3dbe7a" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"
+                      points="2,36 20,32 38,34 56,24 74,26 92,16 110,18 130,10 158,8" />
+                  </svg>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="phone">
+          <div class="phone__notch"></div>
+          <div class="phone__label">Пауза</div>
+          <div class="stack">
+            <article class="a-card">
+              <div class="head">
+                <div>
+                  <div class="name-line">
+                    <span class="name">Scalper paper</span><span class="id">#12</span>
+                    <span class="badge badge--warn">Приостановлен</span>
+                  </div>
+                  <div class="meta">Scalper · Т-Инвестиции</div>
+                </div>
+                <button class="kebab" type="button" aria-label="Меню">⋯</button>
+              </div>
+              <div class="a-metrics">
+                <div class="a-metric"><span>Синхрон</span><strong>Сегодня</strong><em>18:02</em></div>
+                <div class="a-metric"><span>Позиции</span><strong>0</strong><em>Открытых</em></div>
+              </div>
+              <div class="a-equity">
+                <div>
+                  <span>Equity</span>
+                  <strong>99 160 ₽</strong>
+                </div>
+                <div class="a-side">
+                  <div class="a-pnl tone-down">−840 ₽</div>
+                  <svg class="a-spark" viewBox="0 0 160 48" aria-hidden="true">
+                    <polyline fill="none" stroke="#e35d6a" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"
+                      points="2,12 24,14 48,18 72,16 96,26 120,32 158,38" />
+                  </svg>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- B -->
+    <section class="variant" id="B">
+      <div class="variant__head">
+        <div>
+          <h2>B — equity first</h2>
+          <p>Сразу после имени — финансовый блок с крупным equity и широким spark. Синхрон/позиции — чипы снизу, вторичные.</p>
+        </div>
+      </div>
+      <div class="variant__body">
+        <div class="phone">
+          <div class="phone__notch"></div>
+          <div class="phone__label">Работает</div>
+          <div class="stack">
+            <article class="b-card">
+              <div class="head">
+                <div>
+                  <div class="name-line">
+                    <span class="name">Momentum MOEX</span><span class="id">#3</span>
+                    <span class="badge badge--ok">Работает</span>
+                  </div>
+                  <div class="meta">Momentum · Т-Инвестиции</div>
+                </div>
+                <button class="kebab" type="button" aria-label="Меню">⋯</button>
+              </div>
+              <div class="b-equity">
+                <div class="b-equity__top">
+                  <div>
+                    <span>Equity</span>
+                    <strong>1 112 480 ₽</strong>
+                  </div>
+                  <div class="b-pnl tone-ok">+12 480 ₽</div>
+                </div>
+                <svg class="b-spark" viewBox="0 0 160 48" aria-hidden="true">
+                  <polyline fill="none" stroke="#3dbe7a" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"
+                    points="2,36 20,32 38,34 56,24 74,26 92,16 110,18 130,10 158,8" />
+                </svg>
+              </div>
+              <div class="b-facts">
+                <span>Синхрон <b>3 мин</b></span>
+                <span>Позиции <b>3</b></span>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="phone">
+          <div class="phone__notch"></div>
+          <div class="phone__label">Пауза</div>
+          <div class="stack">
+            <article class="b-card">
+              <div class="head">
+                <div>
+                  <div class="name-line">
+                    <span class="name">Scalper paper</span><span class="id">#12</span>
+                    <span class="badge badge--warn">Приостановлен</span>
+                  </div>
+                  <div class="meta">Scalper · Т-Инвестиции</div>
+                </div>
+                <button class="kebab" type="button" aria-label="Меню">⋯</button>
+              </div>
+              <div class="b-equity">
+                <div class="b-equity__top">
+                  <div>
+                    <span>Equity</span>
+                    <strong>99 160 ₽</strong>
+                  </div>
+                  <div class="b-pnl tone-down">−840 ₽</div>
+                </div>
+                <svg class="b-spark" viewBox="0 0 160 48" aria-hidden="true">
+                  <polyline fill="none" stroke="#e35d6a" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"
+                    points="2,12 24,14 48,18 72,16 96,26 120,32 158,38" />
+                </svg>
+              </div>
+              <div class="b-facts">
+                <span>Синхрон <b>сегодня 18:02</b></span>
+                <span>Позиции <b>0</b></span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- C -->
+    <section class="variant" id="C">
+      <div class="variant__head">
+        <div>
+          <h2>C — spark band</h2>
+          <p>График на всю ширину как «шапка» карточки. Equity/P&amp;L под ним. Метрики — компактные плитки.</p>
+        </div>
+      </div>
+      <div class="variant__body">
+        <div class="phone">
+          <div class="phone__notch"></div>
+          <div class="phone__label">Работает</div>
+          <div class="stack">
+            <article class="c-card">
+              <div class="c-band">
+                <svg class="c-spark" viewBox="0 0 160 48" aria-hidden="true">
+                  <polyline fill="none" stroke="#3dbe7a" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"
+                    points="2,36 20,32 38,34 56,24 74,26 92,16 110,18 130,10 158,8" />
+                </svg>
+              </div>
+              <div class="c-body">
+                <div class="head">
+                  <div>
+                    <div class="name-line">
+                      <span class="name">Momentum MOEX</span><span class="id">#3</span>
+                      <span class="badge badge--ok">Работает</span>
+                    </div>
+                    <div class="meta">Momentum · Т-Инвестиции</div>
+                  </div>
+                  <button class="kebab" type="button" aria-label="Меню">⋯</button>
+                </div>
+                <div class="c-fin">
+                  <div>
+                    <span>Equity</span>
+                    <strong>1 112 480 ₽</strong>
+                  </div>
+                  <div class="c-pnl tone-ok">+12 480 ₽</div>
+                </div>
+                <div class="c-row">
+                  <div><span>Синхрон</span><strong>3 мин назад</strong></div>
+                  <div><span>Позиции</span><strong>3</strong></div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="phone">
+          <div class="phone__notch"></div>
+          <div class="phone__label">Ошибка</div>
+          <div class="stack">
+            <article class="c-card">
+              <div class="c-band">
+                <svg class="c-spark" viewBox="0 0 160 48" aria-hidden="true">
+                  <polyline fill="none" stroke="#8b939c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+                    points="2,24 40,24 80,24 120,24 158,24" />
+                </svg>
+              </div>
+              <div class="c-body">
+                <div class="head">
+                  <div>
+                    <div class="name-line">
+                      <span class="name">Bybit perps</span><span class="id">#7</span>
+                      <span class="badge badge--bad">Ошибка</span>
+                    </div>
+                    <div class="meta">Grid · Bybit</div>
+                  </div>
+                  <button class="kebab" type="button" aria-label="Меню">⋯</button>
+                </div>
+                <div class="c-fin">
+                  <div>
+                    <span>Equity</span>
+                    <strong>—</strong>
+                  </div>
+                  <div class="c-pnl tone-idle">нет данных</div>
+                </div>
+                <div class="c-row">
+                  <div><span>Синхрон</span><strong>—</strong></div>
+                  <div><span>Позиции</span><strong>—</strong></div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- D -->
+    <section class="variant" id="D">
+      <div class="variant__head">
+        <div>
+          <h2>D — dense list</h2>
+          <p>Максимум плотности для длинного флота: статус рядом с меню, факты одной строкой, spark под equity. Меньше «воздуха».</p>
+        </div>
+      </div>
+      <div class="variant__body">
+        <div class="phone">
+          <div class="phone__notch"></div>
+          <div class="phone__label">Стек из трёх</div>
+          <div class="stack">
+            <article class="d-card">
+              <div class="d-top">
+                <div class="d-name">Momentum MOEX <span class="id">#3</span></div>
+                <span class="badge badge--ok">Работает</span>
+                <button class="kebab" type="button" aria-label="Меню">⋯</button>
+              </div>
+              <div class="d-line">
+                <span>Синхрон <b>3 мин</b></span>
+                <span>Поз. <b>3</b></span>
+                <span>Momentum</span>
+              </div>
+              <div class="d-eq">
+                <strong>1 112 480 ₽</strong>
+                <div class="pnl tone-ok">+12 480</div>
+                <svg class="d-spark" viewBox="0 0 160 48" aria-hidden="true">
+                  <polyline fill="none" stroke="#3dbe7a" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"
+                    points="2,36 20,32 38,34 56,24 74,26 92,16 110,18 130,10 158,8" />
+                </svg>
+              </div>
+            </article>
+
+            <article class="d-card">
+              <div class="d-top">
+                <div class="d-name">Scalper paper <span class="id">#12</span></div>
+                <span class="badge badge--warn">Пауза</span>
+                <button class="kebab" type="button" aria-label="Меню">⋯</button>
+              </div>
+              <div class="d-line">
+                <span>Синхрон <b>18:02</b></span>
+                <span>Поз. <b>0</b></span>
+                <span>Scalper</span>
+              </div>
+              <div class="d-eq">
+                <strong>99 160 ₽</strong>
+                <div class="pnl tone-down">−840</div>
+                <svg class="d-spark" viewBox="0 0 160 48" aria-hidden="true">
+                  <polyline fill="none" stroke="#e35d6a" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"
+                    points="2,12 24,14 48,18 72,16 96,26 120,32 158,38" />
+                </svg>
+              </div>
+            </article>
+
+            <article class="d-card d-card--bad">
+              <div class="d-top">
+                <div class="d-name">Bybit perps <span class="id">#7</span></div>
+                <span class="badge badge--bad">Ошибка</span>
+                <button class="kebab" type="button" aria-label="Меню">⋯</button>
+              </div>
+              <div class="d-line">
+                <span>Синхрон <b>—</b></span>
+                <span>Поз. <b>—</b></span>
+                <span>Grid</span>
+              </div>
+              <div class="d-eq">
+                <strong>—</strong>
+                <div class="pnl tone-idle">нет данных</div>
+              </div>
+              <div class="d-alert">Token expired / rate limit</div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

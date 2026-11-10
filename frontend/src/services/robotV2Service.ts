@@ -48,25 +48,80 @@ function normalizeRobot(raw: Record<string, unknown>): RobotV2 {
     }
 }
 
+export type RobotV2FleetLive = {
+    sessionState?: string | null
+    session_state?: string | null
+    equity?: number | null
+    equityCurve?: Array<Record<string, unknown>> | null
+    equity_curve?: Array<Record<string, unknown>> | null
+    openPositionsCount?: number | null
+    open_positions_count?: number | null
+    tradesCount?: number | null
+    trades_count?: number | null
+    wins?: number | null
+    losses?: number | null
+    ownFunds?: number | null
+    own_funds?: number | null
+    priceDelta?: number | null
+    price_delta?: number | null
+    periodDelta?: number | null
+    period_delta?: number | null
+    statsPeriod?: 'session' | 'week' | 'month' | 'all' | null
+    stats_period?: 'session' | 'week' | 'month' | 'all' | null
+    lastCycleAt?: string | null
+    last_cycle_at?: string | null
+    message?: string | null
+}
+
+export type RobotV2FleetAccount = {
+    accountId?: string | null
+    account_id?: string | null
+    accountName?: string | null
+    account_name?: string | null
+}
+
+export type RobotV2FleetItem = RobotV2 & {
+    accounts?: RobotV2FleetAccount[]
+    broker?: string | null
+    brokerLabel?: string | null
+    broker_label?: string | null
+    live?: RobotV2FleetLive | null
+}
+
+export type RobotV2FleetResponse = {
+    items: RobotV2FleetItem[]
+    total: number
+    hasBrokerAccounts: boolean
+}
+
 /** Client facade for /api/v2/robots. */
 export const robotV2Service = {
-    /** Lightweight module probe (layout guard — not a full fleet list). */
-    async checkModule(): Promise<{ enabled: boolean }> {
-        const { data } = await api.get<{ enabled: boolean }>('/v2/robots/module')
-        return { enabled: data.enabled !== false }
-    },
-
-    async list(params: { robot_status?: number[]; robot_type?: number[] } = {}): Promise<{
-        items: RobotV2[]
-        total: number
-    }> {
-        const { data } = await api.post<{ items: Record<string, unknown>[]; total: number }>(
-            '/v2/robots/data',
-            params,
-        )
+    async list(params: {
+        robot_status?: number[]
+        robot_type?: number[]
+        broker?: Array<'tinvest' | 'bybit' | string>
+    } = {}): Promise<RobotV2FleetResponse> {
+        const { data } = await api.post<{
+            items: Array<Record<string, unknown>>
+            total: number
+            hasBrokerAccounts?: boolean
+            has_broker_accounts?: boolean
+        }>('/v2/robots/data', params)
+        const items = (data.items || []).map(raw => {
+            const robot = normalizeRobot(raw) as RobotV2FleetItem
+            const accountsRaw = raw.accounts
+            robot.accounts = Array.isArray(accountsRaw)
+                ? (accountsRaw as RobotV2FleetAccount[])
+                : []
+            robot.broker = (raw.broker ?? null) as string | null
+            robot.brokerLabel = (raw.brokerLabel ?? raw.broker_label ?? null) as string | null
+            robot.live = (raw.live ?? null) as RobotV2FleetLive | null
+            return robot
+        })
         return {
-            items: (data.items || []).map(normalizeRobot),
+            items,
             total: data.total ?? 0,
+            hasBrokerAccounts: Boolean(data.hasBrokerAccounts ?? data.has_broker_accounts),
         }
     },
 

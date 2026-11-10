@@ -18,12 +18,32 @@ from app.core.config import settings
 SCHEMA = settings.DB_SCHEMA
 
 
+# Seeded in 0076_package_feature — «Полный» package id=1
+DEFAULT_PACKAGE_ID = 1
+
+STATUS_OFF = 0
+STATUS_ON = 1
+
+TAB_DASHBOARD = "dashboard"
+TAB_PORTFOLIO = "portfolio"
+TAB_ROBOTS = "robots"
+TAB_BACKTEST = "backtest"
+PACKAGE_TAB_CODES = (TAB_DASHBOARD, TAB_PORTFOLIO, TAB_ROBOTS, TAB_BACKTEST)
+
+
 class User(Base):
     __tablename__ = "user"
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     login = Column(String(128), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    # Numeric FK to package.id (column name kept as package_code per product contract)
+    package_code = Column(
+        BigInteger,
+        ForeignKey("package.id"),
+        nullable=False,
+        default=DEFAULT_PACKAGE_ID,
+    )
 
     # Relationships - используем строки с именами классов (без полных путей)
     emails = relationship("UserEmail", back_populates="user", cascade="all, delete-orphan")
@@ -49,6 +69,39 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+
+
+class Package(Base):
+    __tablename__ = "package"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    name = Column(String(128), nullable=False)
+    status = Column(Integer, nullable=False, default=STATUS_ON)
+    usercre = Column(BigInteger, nullable=True)
+    date_creation = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    usermod = Column(BigInteger, nullable=True)
+    date_modification = Column(DateTime(timezone=True), nullable=True)
+
+    features = relationship(
+        "PackageFeature",
+        back_populates="package",
+        cascade="all, delete-orphan",
+    )
+
+
+class PackageFeature(Base):
+    """Per-package tab visibility. robots and backtest are independent rows."""
+
+    __tablename__ = "package_feature"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    package_id = Column(BigInteger, ForeignKey("package.id", ondelete="CASCADE"), nullable=False)
+    feature = Column(String(64), nullable=False)
+    status = Column(Integer, nullable=False, default=STATUS_OFF)
+    usercre = Column(BigInteger, nullable=True)
+    date_creation = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    usermod = Column(BigInteger, nullable=True)
+    date_modification = Column(DateTime(timezone=True), nullable=True)
+
+    package = relationship("Package", back_populates="features")
 
 
 class UserEmail(Base):

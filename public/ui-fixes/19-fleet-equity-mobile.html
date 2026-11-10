@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Флот — equity mobile</title>
+<style>
+  :root {
+    --bg-page: #0b0e12;
+    --bg-card: #12161c;
+    --text-primary: #e8edf4;
+    --text-secondary: #a7b0bd;
+    --text-muted: #6f7886;
+    --border-subtle: rgba(255,255,255,.08);
+    --color-up: #3dbe7a;
+    --color-down: #e35d6a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    padding: 24px 16px 48px;
+  }
+  h1 { font-size: 18px; margin: 0 0 6px; }
+  p { margin: 0 0 18px; color: var(--text-muted); font-size: 13px; }
+  .phone {
+    width: 390px;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 14px 12px 18px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 28px;
+    background: #0e1218;
+  }
+  .phone__label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  .card {
+    padding: 8px 10px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
+    background: var(--bg-card);
+  }
+  .name-line { display: flex; align-items: baseline; gap: 6px; }
+  .name { font-size: 14px; font-weight: 500; }
+  .id { font-size: 11px; color: var(--text-muted); }
+  .status { margin-top: 4px; font-size: 11px; font-weight: 600; color: var(--color-up); }
+  .facts {
+    display: flex; justify-content: space-between; gap: 8px;
+    margin-top: 8px; font-size: 11px; color: var(--text-muted);
+  }
+
+  /* mirror trading equity mobile */
+  .equity {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .equity-primary {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+  }
+  .equity-stack {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    gap: 8px;
+    min-width: 0;
+    --equity-scale: 1;
+  }
+  .equity-hero { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .equity-hero-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 8px;
+    min-width: 0;
+  }
+  .equity-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .equity-value {
+    display: block;
+    font-size: calc(20px * var(--equity-scale, 1));
+    font-weight: 650;
+    letter-spacing: -.45px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .equity-meta { display: flex; gap: 8px; min-width: 0; }
+  .equity-meta-item { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+  .equity-meta-label { font-size: 11px; color: var(--text-muted); }
+  .equity-meta-value {
+    font-size: calc(13px * var(--equity-scale, 1));
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-secondary);
+  }
+  .pnl.is-up { color: var(--color-up); }
+  .pnl.is-down { color: var(--color-down); }
+  .pnl .equity-meta-value { color: inherit; font-size: calc(12px * var(--equity-scale, 1)); }
+  .equity-side {
+    flex: 0 0 auto;
+    width: 128px;
+    min-width: 112px;
+    max-width: 42%;
+    align-self: stretch;
+  }
+  .spark { display: block; width: 100%; height: 100%; color: var(--color-up); }
+  .equity-secondary {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    gap: 8px 10px;
+    padding-top: 10px;
+    border-top: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
+    min-width: 0;
+  }
+  .equity-period {
+    flex: 0 1 auto;
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 30%;
+  }
+  .equity-stats {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: 8px 12px;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .equity-stat {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    white-space: nowrap;
+  }
+  .equity-stat-label { font-size: 11px; color: var(--text-muted); }
+  .equity-stat-value {
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-secondary);
+  }
+  .equity-stat-value.is-up { color: var(--color-up); }
+</style>
+</head>
+<body>
+  <h1>Equity mobile preview</h1>
+  <p>Текущая композиция карточки флота на ~390px.</p>
+  <div class="phone">
+    <div class="phone__label">390 × works</div>
+    <article class="card">
+      <div class="name-line"><span class="name">Momentum MOEX</span><span class="id">#3</span></div>
+      <div class="status">● Работает</div>
+      <div class="facts"><span>Т-Инвестиции</span><span>Брокерский</span><span>3 мин</span></div>
+      <div class="equity">
+        <div class="equity-primary">
+          <div class="equity-stack">
+            <div class="equity-hero">
+              <div class="equity-hero-head">
+                <span class="equity-label">Текущая</span>
+                <span class="equity-meta-item pnl is-up"><strong class="equity-meta-value">+12 480 ₽</strong></span>
+              </div>
+              <strong class="equity-value">1 112 480 ₽</strong>
+            </div>
+            <div class="equity-meta">
+              <span class="equity-meta-item">
+                <span class="equity-meta-label">Свои</span>
+                <strong class="equity-meta-value">980 000 ₽</strong>
+              </span>
+            </div>
+          </div>
+          <div class="equity-side">
+            <svg class="spark" viewBox="0 0 160 48" preserveAspectRatio="none" aria-hidden>
+              <polyline fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+                points="2,36 20,32 38,34 56,24 74,26 92,16 110,18 130,10 158,8" />
+            </svg>
+          </div>
+        </div>
+        <div class="equity-secondary">
+          <span class="equity-period">Сессия</span>
+          <div class="equity-stats">
+            <div class="equity-stat"><span class="equity-stat-label">Поз.</span><strong class="equity-stat-value">3</strong></div>
+            <div class="equity-stat"><span class="equity-stat-label">P&L</span><strong class="equity-stat-value is-up">+12 480 ₽</strong></div>
+            <div class="equity-stat"><span class="equity-stat-label">W/L</span><strong class="equity-stat-value">2/1</strong></div>
+          </div>
+        </div>
+      </div>
+    </article>
+  </div>
+</body>
+</html>

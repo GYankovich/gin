@@ -13,6 +13,10 @@ from app.modules.robots_v2.validator import ValidationIssue
 class RobotV2ListRequest(BaseModel):
     robot_status: list[int] | None = Field(default=None, description="Filter by status dictionary values")
     robot_type: list[int] | None = Field(default=None, description="1=portfolio updater, 2=trading")
+    broker: list[str] | None = Field(
+        default=None,
+        description="Filter by token broker: tinvest | bybit",
+    )
 
 
 class RobotV2CreateRequest(BaseModel):
@@ -101,9 +105,80 @@ class RobotV2ModuleResponse(BaseModel):
     enabled: bool = True
 
 
+FleetStatsPeriod = Literal["session", "week", "month", "all"]
+
+
+class RobotV2FleetLive(BaseModel):
+    """Compact live snapshot for fleet cards (not full monitor status)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    session_state: str | None = Field(default=None, alias="sessionState")
+    equity: float | None = None
+    equity_curve: list[dict[str, Any]] | None = Field(default=None, alias="equityCurve")
+    open_positions_count: int | None = Field(default=None, alias="openPositionsCount")
+    trades_count: int | None = Field(
+        default=None,
+        alias="tradesCount",
+        description="Closed fills (SELL / exit-*) inside statsPeriod",
+    )
+    wins: int | None = Field(default=None, description="Closed fills with pnl > 0 inside statsPeriod")
+    losses: int | None = Field(default=None, description="Closed fills with pnl < 0 inside statsPeriod")
+    own_funds: float | None = Field(
+        default=None,
+        alias="ownFunds",
+        description="Net deposits on the robot accounts, same cashflows as the dashboard",
+    )
+    price_delta: float | None = Field(
+        default=None,
+        alias="priceDelta",
+        description="Latest portfolio value minus ownFunds (mark at current prices)",
+    )
+    period_delta: float | None = Field(
+        default=None,
+        alias="periodDelta",
+        description="Last equity-curve point minus the first, over statsPeriod",
+    )
+    stats_period: FleetStatsPeriod = Field(
+        default="month",
+        alias="statsPeriod",
+        description="Window for trades, W/L and periodDelta. Fleet curve uses month (30 Moscow days).",
+    )
+    last_cycle_at: str | None = Field(default=None, alias="lastCycleAt")
+    message: str | None = None
+
+
+class RobotV2FleetAccount(BaseModel):
+    """Open portfolio account linked to the robot token."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    account_id: str | None = Field(default=None, alias="accountId")
+    account_name: str | None = Field(default=None, alias="accountName")
+
+
+class RobotV2FleetItem(RobotV2Response):
+    model_config = ConfigDict(populate_by_name=True)
+
+    accounts: list[RobotV2FleetAccount] = Field(default_factory=list)
+    broker: str | None = Field(
+        default=None,
+        description="Normalized broker code from dictionary TOKEN.TYPE.string_value (tinvest | bybit)",
+    )
+    broker_label: str | None = Field(
+        default=None,
+        alias="brokerLabel",
+        description="Display name from dictionary TOKEN.TYPE.name",
+    )
+    live: RobotV2FleetLive | None = None
+
+
 class RobotV2ListResponse(BaseModel):
-    items: list[RobotV2Response]
+    model_config = ConfigDict(populate_by_name=True)
+
+    items: list[RobotV2FleetItem]
     total: int
+    has_broker_accounts: bool = Field(default=False, alias="hasBrokerAccounts")
 
 
 class RobotV2StatusResponse(BaseModel):

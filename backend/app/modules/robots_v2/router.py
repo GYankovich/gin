@@ -15,6 +15,7 @@ from app.core.database import SessionLocal, get_db
 from app.core.logging_config import get_logger
 from app.core.security import authenticate_ws_user_id, get_current_user
 from app.modules.auth.models import User
+from app.modules.auth.package_service import require_backtest_tab, require_robots_tab
 from app.modules.robots_v2 import schemas, service
 from app.modules.robots_v2.backtest import backtest_service
 from app.modules.robots_v2.backtest.schemas import (
@@ -43,6 +44,7 @@ logger = get_logger("robots_v2.router")
 
 
 def _require_v2_enabled() -> None:
+    """Process kill-switch for robots contour only (not backtest package)."""
     if not settings.ROBOTS_V2_ENABLED:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -50,12 +52,19 @@ def _require_v2_enabled() -> None:
         )
 
 
-@router.get("/module", response_model=schemas.RobotV2ModuleResponse)
-async def module_status(
+def _require_robots_access(
     _: None = Depends(_require_v2_enabled),
-):
-    """Lightweight probe for UI guard (avoids duplicate POST /data on fleet load)."""
-    return schemas.RobotV2ModuleResponse(enabled=True)
+    __: User = Depends(require_robots_tab),
+) -> None:
+    """robots package + ROBOTS_V2_ENABLED. Independent from backtest."""
+    return None
+
+
+def _require_backtest_access(
+    _: User = Depends(require_backtest_tab),
+) -> None:
+    """backtest package only — not tied to robots feature or ROBOTS_V2_ENABLED."""
+    return None
 
 
 @router.post("/data", response_model=schemas.RobotV2ListResponse)
@@ -63,10 +72,10 @@ async def list_robots(
     request: schemas.RobotV2ListRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_robots_access),
 ):
-    items = service.robots_v2_service.list_robots(db, current_user.id, request)
-    return schemas.RobotV2ListResponse(items=items, total=len(items))
+    """Single fleet read: robots + account labels + compact live + hasBrokerAccounts."""
+    return service.robots_v2_service.list_robots(db, current_user.id, request)
 
 
 @router.post("/create", response_model=schemas.RobotV2Response)
@@ -74,7 +83,7 @@ async def create_or_update_robot(
     request: schemas.RobotV2CreateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_robots_access),
 ):
     return service.robots_v2_service.create_or_update(db, current_user.id, request)
 
@@ -84,7 +93,7 @@ async def get_robot(
     robot_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_robots_access),
 ):
     return service.robots_v2_service.get_robot(db, current_user.id, robot_id)
 
@@ -94,7 +103,7 @@ async def delete_robot(
     request: schemas.RobotV2DeleteRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_robots_access),
 ):
     return await service.robots_v2_service.delete_robot(db, current_user.id, request.robot_id)
 
@@ -104,7 +113,7 @@ async def clone_robot(
     robot_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_robots_access),
 ):
     return service.robots_v2_service.clone_robot(db, current_user.id, robot_id)
 
@@ -116,7 +125,7 @@ async def get_robot_logs(
     event_type: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_robots_access),
 ):
     _ = service.robots_v2_service.get_robot(db, current_user.id, robot_id)
     items = event_bus.recent(robot_id, limit=min(max(limit, 1), 500), event_type=event_type)
@@ -127,7 +136,7 @@ async def get_robot_logs(
 async def validate_robot_config(
     request: schemas.RobotV2ValidateRequest,
     _: User = Depends(get_current_user),
-    __: None = Depends(_require_v2_enabled),
+    __: None = Depends(_require_robots_access),
 ):
     return service.robots_v2_service.validate(request)
 
@@ -137,7 +146,7 @@ async def preview_universe(
     request: schemas.RobotV2PreviewUniverseRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_robots_access),
 ):
     return await universe_service.preview(
         db,
@@ -162,7 +171,7 @@ async def run_v2_backtest(
     request: RobotV2BacktestRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_backtest_access),
 ):
     rec, enqueued = await backtest_service.start(db, current_user.id, request)
     if enqueued:
@@ -183,7 +192,7 @@ async def list_v2_backtest_runs(
     limit: int = 30,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_backtest_access),
 ):
     return await backtest_service.list_runs(
         db, user_id=current_user.id, robot_id=robot_id, limit=limit,
@@ -195,7 +204,7 @@ async def compare_v2_backtest_runs(
     request: RobotV2BacktestCompareRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_backtest_access),
 ):
     return await backtest_service.compare(
         db,
@@ -210,7 +219,7 @@ async def get_v2_backtest_status(
     run_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_backtest_access),
 ):
     return await backtest_service.get_status(run_id, user_id=current_user.id, db=db)
 
@@ -224,7 +233,7 @@ async def get_v2_backtest_details(
     reject_reason: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_backtest_access),
 ):
     return await backtest_service.get_details(
         run_id,
@@ -251,7 +260,7 @@ async def get_v2_backtest_signals(
     cycle_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_backtest_access),
 ):
     return await backtest_service.get_signals_page(
         run_id,
@@ -275,7 +284,7 @@ async def get_v2_backtest_cycle(
     cycle_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_backtest_access),
 ):
     """Decision inspector bundle for one cycle (SPEC-03 §6.2)."""
     return await backtest_service.get_cycle_bundle(
@@ -296,7 +305,7 @@ async def get_v2_backtest_universe(
     to_date: date | None = Query(default=None, alias="to"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_backtest_access),
 ):
     """Daily universe membership for a completed run (SPEC-03 P1 / [R-9])."""
     return await backtest_service.get_universe_membership(
@@ -318,7 +327,7 @@ async def get_v2_backtest_execution_events(
     limit: int = Query(default=5000, ge=1, le=25_000),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_backtest_access),
 ):
     """Intent→fill lifecycle events (SPEC-03 P2 / [R-13])."""
     return await backtest_service.get_execution_events(
@@ -338,7 +347,7 @@ async def get_v2_backtest_narrative(
     run_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_backtest_access),
 ):
     """Structured RU narrative steps (SPEC-03 P2 / [R-14])."""
     return await backtest_service.get_narrative(
@@ -359,7 +368,7 @@ async def get_v2_backtest_price_window(
     bars: int = Query(default=50, ge=1, le=200, description="Half-window bars each side"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_backtest_access),
 ):
     """Candles around a decision for chart overlay (SPEC-03 P2 / [R-12])."""
     return await backtest_service.get_price_window(
@@ -377,7 +386,7 @@ async def cancel_v2_backtest(
     run_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_backtest_access),
 ):
     rec = await backtest_service.cancel(run_id, user_id=current_user.id, db=db)
     return {"run_id": rec.run_id, "cancel_requested": True, "status": rec.status}
@@ -393,7 +402,7 @@ def save_v2_backtest_as_robot(
     request: RobotV2BacktestSaveAsRobotRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_robots_access),
 ):
     """Create a trading robot from a successful backtest run (SPEC-05 §6.5)."""
     return backtest_service.save_as_robot(
@@ -409,7 +418,7 @@ async def change_robot_status(
     request: schemas.RobotV2ChangeStatusRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_robots_access),
 ):
     return await service.robots_v2_service.change_status(db, current_user.id, request)
 
@@ -420,7 +429,7 @@ async def start_robot(
     request: schemas.RobotV2StartRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_robots_access),
 ):
     return await service.robots_v2_service.start_robot(db, current_user.id, robot_id, request)
 
@@ -431,7 +440,7 @@ async def stop_robot(
     stop_mode: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_robots_access),
 ):
     return await service.robots_v2_service.stop_robot(db, current_user.id, robot_id, stop_mode)
 
@@ -441,7 +450,7 @@ async def refresh_robot_universe(
     robot_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_robots_access),
 ):
     """Force-rebuild screener/index candidates for a running session."""
     payload = await service.robots_v2_service.refresh_universe(db, current_user.id, robot_id)
@@ -453,7 +462,7 @@ async def query_robot_audit(
     request: schemas.RobotV2AuditRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_robots_access),
 ):
     payload = service.robots_v2_service.query_audit(db, current_user.id, request)
     return schemas.RobotV2AuditResponse.model_validate(payload)
@@ -464,7 +473,7 @@ async def get_robot_status(
     robot_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    _: None = Depends(_require_v2_enabled),
+    _: None = Depends(_require_robots_access),
 ):
     payload = await service.robots_v2_service.get_status(db, current_user.id, robot_id)
     return schemas.RobotV2StatusResponse.model_validate(payload)

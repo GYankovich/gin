@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuthStore, type AuthFeatures } from '@/stores/authStore'
 import { PageLayout } from '@/components/layout/PageLayout'
 import { ToastProvider } from '@/components/ui/Toast'
 import RobotsV2Layout from '@/pages/robots-v2/RobotsV2Layout'
@@ -17,10 +17,41 @@ const BacktestLabPage = lazy(() => import('@/pages/robots-v2/BacktestLabPage'))
 const BacktestRunPage = lazy(() => import('@/pages/robots-v2/BacktestRunPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
 
+function firstAllowedPath(features: AuthFeatures): string {
+    if (features.dashboard) return '/dashboard'
+    if (features.portfolio) return '/portfolio'
+    if (features.robots) return '/robots'
+    if (features.backtest) return '/backtest'
+    return '/settings'
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
     const token = useAuthStore(s => s.token)
     if (!token) return <Navigate to="/login" replace />
     return <>{children}</>
+}
+
+function FeatureRoute({
+    tab,
+    children,
+}: {
+    tab: keyof AuthFeatures
+    children: React.ReactNode
+}) {
+    const features = useAuthStore(s => s.features)
+    const featuresLoaded = useAuthStore(s => s.featuresLoaded)
+    if (!featuresLoaded) return null
+    if (!features[tab]) {
+        return <Navigate to={firstAllowedPath(features)} replace />
+    }
+    return <>{children}</>
+}
+
+function HomeRedirect() {
+    const features = useAuthStore(s => s.features)
+    const featuresLoaded = useAuthStore(s => s.featuresLoaded)
+    if (!featuresLoaded) return null
+    return <Navigate to={firstAllowedPath(features)} replace />
 }
 
 function PageFallback() {
@@ -76,14 +107,29 @@ export function App() {
                     )}
                 />
                 <Route element={<ProtectedRoute><PageLayout /></ProtectedRoute>}>
-                    <Route index element={<Navigate to="/dashboard" replace />} />
-                    <Route path="dashboard" element={<DashboardPage />} />
-                    <Route path="portfolio" element={<PortfolioPage />} />
+                    <Route index element={<HomeRedirect />} />
+                    <Route
+                        path="dashboard"
+                        element={<FeatureRoute tab="dashboard"><DashboardPage /></FeatureRoute>}
+                    />
+                    <Route
+                        path="portfolio"
+                        element={<FeatureRoute tab="portfolio"><PortfolioPage /></FeatureRoute>}
+                    />
                     <Route path="robots/settings" element={<Navigate to="/robots" replace />} />
-                    <Route path="backtest" element={<BacktestLabPage />} />
-                    <Route path="backtest/:runId" element={<BacktestRunPage />} />
+                    <Route
+                        path="backtest"
+                        element={<FeatureRoute tab="backtest"><BacktestLabPage /></FeatureRoute>}
+                    />
+                    <Route
+                        path="backtest/:runId"
+                        element={<FeatureRoute tab="backtest"><BacktestRunPage /></FeatureRoute>}
+                    />
                     <Route path="robots/backtest" element={<RedirectToBacktestLab />} />
-                    <Route path="robots" element={<RobotsV2Layout />}>
+                    <Route
+                        path="robots"
+                        element={<FeatureRoute tab="robots"><RobotsV2Layout /></FeatureRoute>}
+                    >
                         <Route index element={<RobotsV2FleetPage />} />
                         <Route path="new" element={<RobotV2WizardPage />} />
                         <Route path="edit/:id" element={<RobotV2WizardPage />} />
@@ -98,7 +144,7 @@ export function App() {
                     <Route path="testing-v2" element={<Navigate to="/robots" replace />} />
                     <Route path="live" element={<Navigate to="/robots" replace />} />
                 </Route>
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<HomeRedirect />} />
             </Routes>
         </ToastProvider>
     )

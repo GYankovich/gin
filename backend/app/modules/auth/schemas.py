@@ -129,6 +129,23 @@ class UserOut(BaseModel):
         from_attributes = True
         populate_by_name = True
 
+
+class UserFeaturesOut(BaseModel):
+    """Tab visibility from package_feature. robots and backtest are independent."""
+
+    dashboard: bool = False
+    portfolio: bool = False
+    robots: bool = False
+    backtest: bool = False
+
+
+class MeInfoResponse(BaseModel):
+    """Session bootstrap: profile + package features for nav/routing."""
+
+    user: UserOut
+    package_code: int
+    features: UserFeaturesOut
+
 class UserCreate(BaseModel):
     """Схема для создания пользователя"""
     login: str = Field(..., min_length=3, max_length=128, description="Уникальное имя пользователя")

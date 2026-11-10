@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Флот — карточка type=2</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .board { display: grid; gap: 28px; }
+  .variant {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--page);
+    overflow: hidden;
+  }
+  .variant__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.02);
+  }
+  .variant__head h2 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 650;
+  }
+  .variant__head p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    max-width: 68ch;
+  }
+  .variant__body {
+    padding: 16px;
+    display: grid;
+    gap: 12px;
+  }
+  .stack { display: grid; gap: 10px; max-width: 980px; }
+
+  /* —— shared bits —— */
+  .tone-ok { color: var(--up); }
+  .tone-down { color: var(--down); }
+  .tone-warn { color: var(--warn); }
+  .tone-idle { color: var(--secondary); }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 7px;
+    font-size: 11px;
+    font-weight: 650;
+    white-space: nowrap;
+  }
+  .badge::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .badge--ok { background: rgba(61,190,122,.16); color: var(--up); }
+  .badge--warn { background: rgba(212,160,23,.16); color: var(--warn); }
+  .badge--bad { background: rgba(227,93,106,.14); color: var(--down); }
+  .badge--idle { background: rgba(255,255,255,.06); color: var(--secondary); }
+
+  .tag {
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(255,255,255,.06);
+    color: var(--secondary);
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .tag--strat {
+    background: rgba(66,99,235,.14);
+    color: #9db0ff;
+  }
+
+  .btn {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    border-radius: 10px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .btn--primary {
+    background: var(--text);
+    color: var(--page);
+    border-color: transparent;
+  }
+  .btn--ghost { color: var(--secondary); }
+  .kebab {
+    width: 32px; height: 32px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--secondary);
+  }
+
+  /* —— A: current —— */
+  .a-card {
+    display: grid;
+    grid-template-columns: minmax(210px, 1.5fr) repeat(3, minmax(90px, .7fr)) auto;
+    gap: 16px;
+    align-items: center;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(255,255,255,.03), transparent 50%), var(--panel);
+    border-left: 3px solid transparent;
+  }
+  .a-card--ok { border-left-color: var(--up); }
+  .a-card--warn { border-left-color: var(--warn); }
+  .a-card--bad { border-left-color: var(--down); }
+  .a-name { font-size: 15px; font-weight: 680; }
+  .a-id { color: var(--muted); font-size: 11px; margin-left: 6px; }
+  .a-tags { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .a-metric span {
+    display: block;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .a-metric strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  .a-metric em {
+    display: block;
+    margin-top: 2px;
+    color: var(--muted);
+    font-style: normal;
+    font-size: 11px;
+  }
+  .a-actions { display: flex; gap: 6px; align-items: center; }
+
+  /* —— B: equity hero + spark —— */
+  .b-card {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr auto;
+    gap: 18px;
+    align-items: stretch;
+    padding: 16px 18px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--panel);
+  }
+  .b-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .b-title { margin: 0; font-size: 16px; font-weight: 680; }
+  .b-meta {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .b-equity {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: end;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: rgba(255,255,255,.03);
+    border: 1px solid var(--border);
+  }
+  .b-equity span {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .b-equity strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 22px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.4px;
+  }
+  .b-pnl {
+    text-align: right;
+    font-size: 13px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  .spark {
+    width: 88px;
+    height: 36px;
+    display: block;
+  }
+  .b-facts {
+    display: flex;
+    gap: 14px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+    color: var(--secondary);
+    font-size: 12px;
+  }
+  .b-facts b { color: var(--text); font-weight: 650; }
+  .b-side {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 140px;
+  }
+  .b-side .btn { width: 100%; }
+  .b-side-row { display: flex; gap: 6px; }
+
+  /* —— C: terminal strip —— */
+  .c-card {
+    display: grid;
+    grid-template-columns: 8px 1fr auto;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+    overflow: hidden;
+  }
+  .c-rail { background: var(--up); }
+  .c-rail.warn { background: var(--warn); }
+  .c-rail.bad { background: var(--down); }
+  .c-rail.idle { background: rgba(255,255,255,.18); }
+  .c-body {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.4fr) repeat(4, minmax(72px, .8fr));
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+  }
+  .c-name { font-size: 14px; font-weight: 650; }
+  .c-sub { margin-top: 3px; color: var(--muted); font-size: 11px; }
+  .c-cell span {
+    display: block;
+    color: var(--muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+  .c-cell strong {
+    display: block;
+    margin-top: 3px;
+    font-size: 13px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+  .c-ops {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    border-left: 1px solid var(--border);
+  }
+
+  /* —— D: status-led focus —— */
+  .d-card {
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--panel);
+  }
+  .d-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .d-title { margin: 0; font-size: 16px; font-weight: 680; }
+  .d-tags { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .d-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .d-kpi {
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255,255,255,.03);
+    border: 1px solid rgba(255,255,255,.05);
+  }
+  .d-kpi span {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .d-kpi strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 18px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .d-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .d-account { color: var(--secondary); font-size: 12px; }
+  .d-actions { display: flex; gap: 8px; align-items: center; }
+
+  .alert {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(227,93,106,.1);
+    border: 1px solid rgba(227,93,106,.25);
+    color: var(--down);
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .alert a { color: inherit; font-weight: 650; }
+
+  .pick {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .pick label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--secondary);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .pick input { accent-color: var(--up); }
+
+  @media (max-width: 900px) {
+    .a-card, .b-card, .c-body, .d-grid { grid-template-columns: 1fr; }
+    .c-ops { border-left: 0; border-top: 1px solid var(--border); padding: 10px 12px; }
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← К списку</a>
+    <div>
+      <h1>Флот — карточка торгового робота (type=2)</h1>
+      <p>
+        Данные уже в одном <code>POST /v2/robots/data</code>: live (session/equity/позиции/цикл), accounts[], broker/brokerLabel, mode, archetype.
+        Нужно согласовать композицию карточки. Портфельные (type=1) не трогаем.
+      </p>
+    </div>
+    <span class="badge badge--new">для согласования</span>
+  </div>
+
+  <div class="wrap board">
+    <div class="note">
+      Состояния в каждом варианте: <strong>работает</strong> · <strong>пауза</strong> · <strong>ошибка</strong>.
+      Выбери букву (A–D) — после этого перенесём в React.
+      <div class="pick">
+        <label><input type="radio" name="pick" value="A" /> A — сейчас</label>
+        <label><input type="radio" name="pick" value="B" /> B — equity hero</label>
+        <label><input type="radio" name="pick" value="C" /> C — terminal strip</label>
+        <label><input type="radio" name="pick" value="D" /> D — status-led</label>
+      </div>
+    </div>
+
+    <!-- A -->
+    <section class="variant" id="A">
+      <div class="variant__head">
+        <div>
+          <h2>A — сейчас (prod)</h2>
+          <p>Идентичность + 3 метрики (PnL / позиции / sync) + Монитор / Бэктест / график / ⋯. Левый акцент по статусу.</p>
+        </div>
+        <span class="badge badge--new">baseline</span>
+      </div>
+      <div class="variant__body">
+        <div class="stack">
+          <div class="a-card a-card--ok">
+            <div>
+              <div><span class="a-name">Momentum MOEX</span><span class="a-id">#3</span>
+                <span class="badge badge--ok" style="margin-left:8px">Работает</span></div>
+              <div class="a-tags"><span class="tag">Боевой</span><span class="tag tag--strat">Momentum</span></div>
+            </div>
+            <div class="a-metric"><span>PnL</span><strong class="tone-ok">+12 480 ₽</strong><em>По кривой</em></div>
+            <div class="a-metric"><span>Позиции</span><strong>3</strong><em>Открытых</em></div>
+            <div class="a-metric"><span>Последняя синхронизация</span><strong>3 мин назад</strong><em>21:18</em></div>
+            <div class="a-actions">
+              <button class="btn btn--primary">Монитор</button>
+              <button class="btn">Бэктест</button>
+              <button class="kebab" aria-label="chart">📈</button>
+              <button class="kebab">⋯</button>
+            </div>
+          </div>
+
+          <div class="a-card a-card--warn">
+            <div>
+              <div><span class="a-name">Scalper paper</span><span class="a-id">#12</span>
+                <span class="badge badge--warn" style="margin-left:8px">Приостановлен</span></div>
+              <div class="a-tags"><span class="tag">Бумага</span><span class="tag tag--strat">Scalper</span></div>
+            </div>
+            <div class="a-metric"><span>PnL</span><strong class="tone-down">−840 ₽</strong><em>По кривой</em></div>
+            <div class="a-metric"><span>Позиции</span><strong>0</strong><em>Открытых</em></div>
+            <div class="a-metric"><span>Последняя синхронизация</span><strong>Сегодня</strong><em>18:02</em></div>
+            <div class="a-actions">
+              <button class="btn btn--primary">Монитор</button>
+              <button class="btn">Бэктест</button>
+              <button class="kebab">📈</button>
+              <button class="kebab">⋯</button>
+            </div>
+          </div>
+
+          <div class="a-card a-card--bad">
+            <div>
+              <div><span class="a-name">Bybit perps</span><span class="a-id">#7</span>
+                <span class="badge badge--bad" style="margin-left:8px">Ошибка</span></div>
+              <div class="a-tags"><span class="tag">Боевой</span><span class="tag tag--strat">Grid</span></div>
+            </div>
+            <div class="a-metric"><span>PnL</span><strong>—</strong><em>Счёт</em></div>
+            <div class="a-metric"><span>Позиции</span><strong>—</strong><em>Открытых</em></div>
+            <div class="a-metric"><span>Последняя синхронизация</span><strong>—</strong></div>
+            <div class="a-actions">
+              <button class="btn btn--primary">Монитор</button>
+              <button class="btn">Бэктест</button>
+              <button class="kebab">📈</button>
+              <button class="kebab">⋯</button>
+            </div>
+          </div>
+          <div class="alert"><span>ⓘ Token expired / rate limit</span><a href="#">Открыть логи →</a></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- B -->
+    <section class="variant" id="B">
+      <div class="variant__head">
+        <div>
+          <h2>B — equity hero + sparkline</h2>
+          <p>Главное — equity и PnL. Spark из live.equityCurve. Факты одной строкой. Один primary CTA; вторичные в ⋯. Account label виден.</p>
+        </div>
+      </div>
+      <div class="variant__body">
+        <div class="stack">
+          <article class="b-card">
+            <div>
+              <div class="b-top">
+                <h3 class="b-title">Momentum MOEX <span class="a-id">#3</span></h3>
+                <span class="badge badge--ok">Работает</span>
+              </div>
+              <div class="b-meta">Боевой · Momentum · Т-Инвестиции</div>
+              <div class="b-facts">
+                <span>Позиции <b>3</b></span>
+                <span>Синхрон <b>3 мин</b></span>
+                <span>Цикл <b>#418</b></span>
+              </div>
+            </div>
+            <div class="b-equity">
+              <div>
+                <span>Equity</span>
+                <strong>1 112 480 ₽</strong>
+              </div>
+              <div>
+                <div class="b-pnl tone-ok">+12 480</div>
+                <svg class="spark" viewBox="0 0 88 36" aria-hidden="true">
+                  <polyline fill="none" stroke="#3dbe7a" stroke-width="2"
+                    points="0,28 12,24 22,26 34,18 46,20 58,12 70,14 88,6" />
+                </svg>
+              </div>
+            </div>
+            <div class="b-side">
+              <button class="btn btn--primary">Монитор</button>
+              <div class="b-side-row">
+                <button class="btn" style="flex:1">Пауза</button>
+                <button class="kebab">⋯</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="b-card">
+            <div>
+              <div class="b-top">
+                <h3 class="b-title">Scalper paper <span class="a-id">#12</span></h3>
+                <span class="badge badge--warn">Приостановлен</span>
+              </div>
+              <div class="b-meta">Бумага · Scalper · Т-Инвестиции</div>
+              <div class="b-facts">
+                <span>Позиции <b>0</b></span>
+                <span>Синхрон <b>сегодня 18:02</b></span>
+              </div>
+            </div>
+            <div class="b-equity">
+              <div>
+                <span>Equity</span>
+                <strong>99 160 ₽</strong>
+              </div>
+              <div>
+                <div class="b-pnl tone-down">−840</div>
+                <svg class="spark" viewBox="0 0 88 36" aria-hidden="true">
+                  <polyline fill="none" stroke="#e35d6a" stroke-width="2"
+                    points="0,10 14,12 28,16 42,14 56,22 70,26 88,30" />
+                </svg>
+              </div>
+            </div>
+            <div class="b-side">
+              <button class="btn btn--primary">Запустить</button>
+              <div class="b-side-row">
+                <button class="btn" style="flex:1">Монитор</button>
+                <button class="kebab">⋯</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="b-card">
+            <div>
+              <div class="b-top">
+                <h3 class="b-title">Bybit perps <span class="a-id">#7</span></h3>
+                <span class="badge badge--bad">Ошибка</span>
+              </div>
+              <div class="b-meta">Боевой · Grid · Bybit</div>
+              <div class="alert" style="margin-top:10px"><span>ⓘ Token expired / rate limit</span><a href="#">Логи →</a></div>
+            </div>
+            <div class="b-equity">
+              <div>
+                <span>Equity</span>
+                <strong>—</strong>
+              </div>
+              <div class="b-pnl tone-idle">нет данных</div>
+            </div>
+            <div class="b-side">
+              <button class="btn btn--primary">Монитор</button>
+              <div class="b-side-row">
+                <button class="btn" style="flex:1">Правка</button>
+                <button class="kebab">⋯</button>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- C -->
+    <section class="variant" id="C">
+      <div class="variant__head">
+        <div>
+          <h2>C — terminal strip</h2>
+          <p>Плотная «строка терминала»: цветной rail статуса, колонки Eq / PnL / Pos / Sync, справа только ⋯. Клик по строке = монитор. Максимум плотности флота.</p>
+        </div>
+      </div>
+      <div class="variant__body">
+        <div class="stack">
+          <div class="c-card">
+            <div class="c-rail"></div>
+            <div class="c-body">
+              <div>
+                <div class="c-name">Momentum MOEX <span class="a-id">#3</span></div>
+                <div class="c-sub">live · momentum · Т-Инвестиции</div>
+              </div>
+              <div class="c-cell"><span>Eq</span><strong>1 112 480</strong></div>
+              <div class="c-cell"><span>PnL</span><strong class="tone-ok">+12 480</strong></div>
+              <div class="c-cell"><span>Pos</span><strong>3</strong></div>
+              <div class="c-cell"><span>Sync</span><strong>3м</strong></div>
+            </div>
+            <div class="c-ops">
+              <span class="badge badge--ok">Работает</span>
+              <button class="kebab">⋯</button>
+            </div>
+          </div>
+
+          <div class="c-card">
+            <div class="c-rail warn"></div>
+            <div class="c-body">
+              <div>
+                <div class="c-name">Scalper paper <span class="a-id">#12</span></div>
+                <div class="c-sub">paper · scalper · Т-Инвестиции</div>
+              </div>
+              <div class="c-cell"><span>Eq</span><strong>99 160</strong></div>
+              <div class="c-cell"><span>PnL</span><strong class="tone-down">−840</strong></div>
+              <div class="c-cell"><span>Pos</span><strong>0</strong></div>
+              <div class="c-cell"><span>Sync</span><strong>18:02</strong></div>
+            </div>
+            <div class="c-ops">
+              <span class="badge badge--warn">Пауза</span>
+              <button class="kebab">⋯</button>
+            </div>
+          </div>
+
+          <div class="c-card">
+            <div class="c-rail bad"></div>
+            <div class="c-body">
+              <div>
+                <div class="c-name">Bybit perps <span class="a-id">#7</span></div>
+                <div class="c-sub">live · grid · Bybit · token expired</div>
+              </div>
+              <div class="c-cell"><span>Eq</span><strong>—</strong></div>
+              <div class="c-cell"><span>PnL</span><strong>—</strong></div>
+              <div class="c-cell"><span>Pos</span><strong>—</strong></div>
+              <div class="c-cell"><span>Sync</span><strong>—</strong></div>
+            </div>
+            <div class="c-ops">
+              <span class="badge badge--bad">Ошибка</span>
+              <button class="kebab">⋯</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- D -->
+    <section class="variant" id="D">
+      <div class="variant__head">
+        <div>
+          <h2>D — status-led + KPI tiles</h2>
+          <p>Статус и имя сверху. Три KPI-плитки (Equity / PnL / Positions). Счёт слева внизу. Primary зависит от состояния: Монитор / Запустить. Бэктест и график уходят в ⋯.</p>
+        </div>
+      </div>
+      <div class="variant__body">
+        <div class="stack">
+          <article class="d-card">
+            <div class="d-head">
+              <div>
+                <h3 class="d-title">Momentum MOEX <span class="a-id">#3</span></h3>
+                <div class="d-tags">
+                  <span class="badge badge--ok">Работает</span>
+                  <span class="tag">Боевой</span>
+                  <span class="tag tag--strat">Momentum</span>
+                </div>
+              </div>
+              <button class="kebab">⋯</button>
+            </div>
+            <div class="d-grid">
+              <div class="d-kpi"><span>Equity</span><strong>1 112 480 ₽</strong></div>
+              <div class="d-kpi"><span>PnL</span><strong class="tone-ok">+12 480 ₽</strong></div>
+              <div class="d-kpi"><span>Позиции</span><strong>3</strong></div>
+            </div>
+            <div class="d-foot">
+              <div class="d-account">Т-Инвестиции · sync 3 мин назад</div>
+              <div class="d-actions">
+                <button class="btn">Пауза</button>
+                <button class="btn btn--primary">Монитор</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="d-card">
+            <div class="d-head">
+              <div>
+                <h3 class="d-title">Scalper paper <span class="a-id">#12</span></h3>
+                <div class="d-tags">
+                  <span class="badge badge--warn">Приостановлен</span>
+                  <span class="tag">Бумага</span>
+                  <span class="tag tag--strat">Scalper</span>
+                </div>
+              </div>
+              <button class="kebab">⋯</button>
+            </div>
+            <div class="d-grid">
+              <div class="d-kpi"><span>Equity</span><strong>99 160 ₽</strong></div>
+              <div class="d-kpi"><span>PnL</span><strong class="tone-down">−840 ₽</strong></div>
+              <div class="d-kpi"><span>Позиции</span><strong>0</strong></div>
+            </div>
+            <div class="d-foot">
+              <div class="d-account">Т-Инвестиции · сегодня 18:02</div>
+              <div class="d-actions">
+                <button class="btn">Монитор</button>
+                <button class="btn btn--primary">Запустить</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="d-card">
+            <div class="d-head">
+              <div>
+                <h3 class="d-title">Bybit perps <span class="a-id">#7</span></h3>
+                <div class="d-tags">
+                  <span class="badge badge--bad">Ошибка</span>
+                  <span class="tag">Боевой</span>
+                  <span class="tag tag--strat">Grid</span>
+                </div>
+              </div>
+              <button class="kebab">⋯</button>
+            </div>
+            <div class="d-grid">
+              <div class="d-kpi"><span>Equity</span><strong>—</strong></div>
+              <div class="d-kpi"><span>PnL</span><strong>—</strong></div>
+              <div class="d-kpi"><span>Позиции</span><strong>—</strong></div>
+            </div>
+            <div class="alert"><span>ⓘ Token expired / rate limit</span><a href="#">Открыть логи →</a></div>
+            <div class="d-foot">
+              <div class="d-account">Bybit</div>
+              <div class="d-actions">
+                <button class="btn">Правка</button>
+                <button class="btn btn--primary">Монитор</button>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

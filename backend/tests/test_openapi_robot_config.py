@@ -18,7 +18,8 @@ def test_openapi_robots_v2_paths_present():
     openapi = app.openapi()
     paths = openapi.get("paths") or {}
     assert "/api/v2/robots/create" in paths
-    assert "/api/v2/robots/module" in paths
+    assert "/api/v2/robots/data" in paths
+    assert "/api/v2/robots/module" not in paths
     # Legacy v1 HTTP validate-config schema is gone with the unmounted router
     schemas = (openapi.get("components") or {}).get("schemas") or {}
     assert "RobotValidateConfigResponse" not in schemas

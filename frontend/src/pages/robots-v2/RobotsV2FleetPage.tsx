@@ -5,41 +5,49 @@ import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { DropdownMenu } from '@/components/ui/DropdownMenu'
 import { RobotIllustration } from '@/components/ui/RobotIllustration'
-import { ConnectBrokerEmpty } from '@/components/ConnectBrokerEmpty'
 import { useToast } from '@/components/ui/Toast'
 import { FleetRobotCard } from '@/pages/robots-v2/components/FleetRobotCard'
 import { RobotConfirmModal } from '@/pages/robots-v2/components/RobotConfirmModal'
 import { fmtErr } from '@/pages/robots-v2/formatters'
-import { dashboardService } from '@/services/dashboardService'
-import { robotV2Service } from '@/services/robotV2Service'
+import { robotV2Service, type RobotV2FleetItem, type RobotV2FleetLive } from '@/services/robotV2Service'
 import { usePageCacheStore } from '@/stores/pageCacheStore'
-import type { DashboardAccountItem } from '@/types/api'
 import type { RobotV2, RobotV2Status } from '@/types/robotV2'
 
-type ConfirmAction =
-    | { kind: 'delete'; robot: RobotV2 }
-    | { kind: 'hardStop'; robot: RobotV2 }
-    | null
+type ConfirmAction = { kind: 'delete'; robot: RobotV2 } | null
 
-function modeOf(robot: RobotV2): string {
-    const core = (robot.config?.core || {}) as Record<string, unknown>
-    return String(core.mode || 'paper')
-}
-
-function tokenIdOf(robot: RobotV2): number | null {
-    const raw = robot.tokenId ?? robot.token_id
-    return raw != null && Number.isFinite(Number(raw)) ? Number(raw) : null
-}
-
-function brokerAccountLabel(account: DashboardAccountItem): string {
-    const name = String(account.account_name || '').trim()
-    if (name) return name
-    const broker = String(account.broker || '').toLowerCase()
-    if (broker.includes('bybit')) return 'Bybit'
-    if (broker.includes('tinvest') || broker.includes('tinkoff') || broker.includes('t-invest')) {
-        return 'Т-Инвестиции'
+function liveToSnapshot(robotId: number, live: RobotV2FleetLive | null | undefined): RobotV2Status | null {
+    if (!live) return null
+    const curve = live.equityCurve ?? live.equity_curve ?? null
+    const count = live.openPositionsCount ?? live.open_positions_count
+    const trades = live.tradesCount ?? live.trades_count
+    const wins = live.wins
+    const losses = live.losses
+    const ownFunds = live.ownFunds ?? live.own_funds
+    const priceDelta = live.priceDelta ?? live.price_delta
+    const periodDelta = live.periodDelta ?? live.period_delta
+    const statsPeriod = live.statsPeriod ?? live.stats_period ?? null
+    return {
+        robotId,
+        status: 1,
+        sessionState: live.sessionState ?? live.session_state ?? null,
+        equity: live.equity ?? null,
+        equityCurve: Array.isArray(curve) ? (curve as RobotV2Status['equityCurve']) : null,
+        openPositions: typeof count === 'number' ? Array.from({ length: count }, () => ({})) : null,
+        tradesCount: typeof trades === 'number' ? trades : null,
+        trades_count: typeof trades === 'number' ? trades : null,
+        wins: typeof wins === 'number' ? wins : null,
+        losses: typeof losses === 'number' ? losses : null,
+        ownFunds: typeof ownFunds === 'number' ? ownFunds : null,
+        own_funds: typeof ownFunds === 'number' ? ownFunds : null,
+        priceDelta: typeof priceDelta === 'number' ? priceDelta : null,
+        price_delta: typeof priceDelta === 'number' ? priceDelta : null,
+        periodDelta: typeof periodDelta === 'number' ? periodDelta : null,
+        period_delta: typeof periodDelta === 'number' ? periodDelta : null,
+        statsPeriod,
+        stats_period: statsPeriod,
+        lastCycleAt: live.lastCycleAt ?? live.last_cycle_at ?? null,
+        message: live.message ?? null,
     }
-    return account.external_account_id || `Счёт #${account.account_id}`
 }
 
 function FleetSkeleton() {
@@ -55,96 +63,43 @@ function FleetSkeleton() {
     )
 }
 
-function inferNoBrokerFromCabinCache(): boolean {
-    const { dashboard, portfolioAccounts } = usePageCacheStore.getState()
-    if (portfolioAccounts != null) return portfolioAccounts.accounts.length === 0
-    if (dashboard != null) return (dashboard.accounts?.length ?? 0) === 0
-    return false
-}
-
 export default function RobotsV2FleetPage() {
     const navigate = useNavigate()
     const toast = useToast()
     const cachedFleet = usePageCacheStore(s => s.robotsFleet)
     const setRobotsFleetCache = usePageCacheStore(s => s.setRobotsFleet)
-    const knownEmptyCabin = cachedFleet == null && inferNoBrokerFromCabinCache()
-    const [robots, setRobots] = useState<RobotV2[]>(cachedFleet?.robots ?? [])
-    const [snapshots, setSnapshots] = useState<Record<number, RobotV2Status>>({})
-    const [accountLabels, setAccountLabels] = useState<Record<number, string>>({})
-    const [hasBrokerAccounts, setHasBrokerAccounts] = useState(
-        cachedFleet?.hasBrokerAccounts ?? !knownEmptyCabin,
+    const [robots, setRobots] = useState<RobotV2FleetItem[]>(
+        (cachedFleet?.robots as RobotV2FleetItem[] | undefined) ?? [],
     )
-    const [loading, setLoading] = useState(cachedFleet == null && !knownEmptyCabin)
+    const [loading, setLoading] = useState(cachedFleet == null)
     const [error, setError] = useState<string | null>(null)
     const [busyId, setBusyId] = useState<number | null>(null)
     const [actionsMenuId, setActionsMenuId] = useState<number | null>(null)
     const [createMenuOpen, setCreateMenuOpen] = useState(false)
     const [confirm, setConfirm] = useState<ConfirmAction>(null)
 
-    const loadSnapshots = useCallback(async (items: RobotV2[]) => {
-        const trading = items.filter(robot => robot.type === 2)
-        if (trading.length === 0) {
-            setSnapshots({})
-            return
-        }
-        const settled = await Promise.all(
-            trading.map(async robot => {
-                try {
-                    const status = await robotV2Service.getStatus(robot.id)
-                    return [robot.id, status] as const
-                } catch {
-                    return null
-                }
-            }),
-        )
-        const next: Record<number, RobotV2Status> = {}
-        for (const entry of settled) {
-            if (entry) next[entry[0]] = entry[1]
-        }
-        setSnapshots(next)
-    }, [])
-
     const load = useCallback(async () => {
         const hasStale = usePageCacheStore.getState().robotsFleet != null
         if (!hasStale) setLoading(true)
         setError(null)
         try {
-            const [data, accounts] = await Promise.all([
-                robotV2Service.list(),
-                dashboardService.fetchSettingsAccounts().catch(() => [] as DashboardAccountItem[]),
-            ])
-            const hasAccounts = accounts.length > 0
-            const labels: Record<number, string> = {}
-            for (const account of accounts) {
-                const tokenId = account.last_token_id
-                if (tokenId != null) labels[tokenId] = brokerAccountLabel(account)
-            }
-            setAccountLabels(labels)
+            const data = await robotV2Service.list({})
             setRobots(data.items)
-            setHasBrokerAccounts(hasAccounts)
-            setRobotsFleetCache({ robots: data.items, hasBrokerAccounts: hasAccounts })
+            setRobotsFleetCache({
+                robots: data.items,
+                hasBrokerAccounts: data.hasBrokerAccounts,
+            })
             setLoading(false)
-            void loadSnapshots(data.items)
         } catch (e) {
             setError(fmtErr(e))
-            if (!hasStale) {
-                setRobots([])
-                setHasBrokerAccounts(false)
-            }
-            setSnapshots({})
+            if (!hasStale) setRobots([])
             setLoading(false)
         }
-    }, [loadSnapshots, setRobotsFleetCache])
+    }, [setRobotsFleetCache])
 
     useEffect(() => {
         void load()
     }, [load])
-
-    useEffect(() => {
-        if (!cachedFleet?.robots.length) return
-        void loadSnapshots(cachedFleet.robots)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
 
     const tradingRobots = useMemo(() => robots.filter(robot => robot.type === 2), [robots])
     const portfolioRobots = useMemo(() => robots.filter(robot => robot.type === 1), [robots])
@@ -168,37 +123,12 @@ export default function RobotsV2FleetPage() {
         }
     }
 
-    const runStop = async (robot: RobotV2, stopMode: 'soft' | 'hard') => {
+    const onStop = async (robot: RobotV2) => {
         setBusyId(robot.id)
         try {
-            await robotV2Service.stop(robot.id, stopMode)
-            toast.show(
-                stopMode === 'hard' ? `Робот #${robot.id}: жёсткая остановка` : `Робот #${robot.id} остановлен`,
-                'info',
-            )
+            await robotV2Service.stop(robot.id, 'soft')
+            toast.show(`Робот #${robot.id} остановлен`, 'info')
             await load()
-        } catch (e) {
-            toast.show(fmtErr(e), 'error')
-        } finally {
-            setBusyId(null)
-        }
-    }
-
-    const onStop = (robot: RobotV2, stopMode: 'soft' | 'hard' = 'soft') => {
-        if (stopMode === 'hard') {
-            setConfirm({ kind: 'hardStop', robot })
-            return
-        }
-        void runStop(robot, 'soft')
-    }
-
-    const onClone = async (robot: RobotV2) => {
-        setBusyId(robot.id)
-        try {
-            const cloned = await robotV2Service.clone(robot.id)
-            toast.show(`Создана копия #${cloned.id}`, 'success')
-            await load()
-            navigate(`/robots/edit/${cloned.id}`)
         } catch (e) {
             toast.show(fmtErr(e), 'error')
         } finally {
@@ -207,12 +137,25 @@ export default function RobotsV2FleetPage() {
     }
 
     const onTogglePortfolio = async (robot: RobotV2) => {
-        const nextStatus = robot.status === 1 ? 2 : 1
         setBusyId(robot.id)
         try {
-            await robotV2Service.changeStatus(robot.id, nextStatus)
-            toast.show(nextStatus === 1 ? 'Опросник включён' : 'Опросник выключен', 'success')
+            const next = robot.status === 1 ? 2 : 1
+            await robotV2Service.changeStatus(robot.id, next)
+            toast.show(next === 1 ? 'Опросник включён' : 'Опросник остановлен', 'success')
             await load()
+        } catch (e) {
+            toast.show(fmtErr(e), 'error')
+        } finally {
+            setBusyId(null)
+        }
+    }
+
+    const onClone = async (robot: RobotV2) => {
+        setBusyId(robot.id)
+        try {
+            const cloned = await robotV2Service.clone(robot.id)
+            toast.show('Копия создана', 'success')
+            navigate(`/robots/edit/${cloned.id}`)
         } catch (e) {
             toast.show(fmtErr(e), 'error')
         } finally {
@@ -238,35 +181,28 @@ export default function RobotsV2FleetPage() {
     }
 
     const onConfirmAction = async () => {
-        if (!confirm) return
-        const action = confirm
-        if (action.kind === 'delete') {
-            await runDelete(action.robot)
-        } else {
-            await runStop(action.robot, 'hard')
-        }
+        if (!confirm || confirm.kind !== 'delete') return
+        await runDelete(confirm.robot)
         setConfirm(null)
     }
 
-    const renderRobotCard = (robot: RobotV2) => {
-        const tokenId = tokenIdOf(robot)
-        return (
-            <FleetRobotCard
-                key={robot.id}
-                robot={robot}
-                snapshot={snapshots[robot.id] ?? null}
-                accountLabel={tokenId != null ? accountLabels[tokenId] ?? null : null}
-                busy={busyId === robot.id}
-                actionsMenuOpen={actionsMenuId === robot.id}
-                onActionsMenuOpenChange={open => setActionsMenuId(open ? robot.id : null)}
-                onStart={r => void onStart(r)}
-                onStop={onStop}
-                onTogglePortfolio={r => void onTogglePortfolio(r)}
-                onClone={r => void onClone(r)}
-                onDelete={onDelete}
-            />
-        )
-    }
+    const renderRobotCard = (robot: RobotV2FleetItem) => (
+        <FleetRobotCard
+            key={robot.id}
+            robot={robot}
+            snapshot={liveToSnapshot(robot.id, robot.live)}
+            accounts={robot.accounts ?? []}
+            brokerLabel={robot.brokerLabel ?? robot.broker_label ?? null}
+            busy={busyId === robot.id}
+            actionsMenuOpen={actionsMenuId === robot.id}
+            onActionsMenuOpenChange={open => setActionsMenuId(open ? robot.id : null)}
+            onStart={r => void onStart(r)}
+            onStop={r => void onStop(r)}
+            onTogglePortfolio={r => void onTogglePortfolio(r)}
+            onClone={r => void onClone(r)}
+            onDelete={onDelete}
+        />
+    )
 
     const createMenuItems = (
         <DropdownMenu.Panel className="robots-fleet-create-menu">
@@ -289,7 +225,7 @@ export default function RobotsV2FleetPage() {
             className="robots-create-fab"
         >
             <DropdownMenu.Trigger asChild aria-label="Создать робота">
-                <Button type="button" variant="primary" className="robots-create-fab__btn">
+                <Button type="button" variant="ghost" className="robots-create-fab__btn">
                     <svg viewBox="0 0 24 24" aria-hidden>
                         <path
                             fill="none"
@@ -305,28 +241,10 @@ export default function RobotsV2FleetPage() {
         </DropdownMenu>
     )
 
-    const hardStopMessage =
-        confirm?.kind === 'hardStop'
-            ? modeOf(confirm.robot) === 'live'
-                ? `Жёсткая остановка «${confirm.robot.name}» закроет все позиции. Продолжить?`
-                : `Жёсткая остановка «${confirm.robot.name}»?`
-            : ''
-
-    const needsBroker = !loading && !error && !hasBrokerAccounts && robots.length === 0
-
     if (loading && robots.length === 0 && !error) {
         return (
             <div className="page" data-page="robots" data-robots-view="fleet">
                 <FleetSkeleton />
-            </div>
-        )
-    }
-
-    if (needsBroker) {
-        return (
-            <div className="page" data-page="robots" data-robots-view="fleet">
-                <h1 className="dash-sr-only">Роботы</h1>
-                <ConnectBrokerEmpty />
             </div>
         )
     }
@@ -371,12 +289,6 @@ export default function RobotsV2FleetPage() {
                                 </div>
                             </section>
                         ) : null}
-
-                        {robots.length === 0 ? (
-                            <div className="robots-v2-fleet-empty">
-                                Пока нет роботов. Создайте опросник или торгового робота.
-                            </div>
-                        ) : null}
                     </>
                 )}
             </div>
@@ -395,15 +307,6 @@ export default function RobotsV2FleetPage() {
                 }
                 confirmLabel="Удалить"
                 loading={busyId != null && confirm?.kind === 'delete'}
-            />
-            <RobotConfirmModal
-                open={confirm?.kind === 'hardStop'}
-                onClose={() => setConfirm(null)}
-                onConfirm={() => void onConfirmAction()}
-                title="Жёсткая остановка"
-                message={hardStopMessage}
-                confirmLabel="Остановить"
-                loading={busyId != null && confirm?.kind === 'hardStop'}
             />
         </div>
     )

@@ -188,12 +188,15 @@ class AuthService:
 
         # Вставляем пользователя
         insert_query = queries.build_create_user_query()
+        from app.modules.auth.models import DEFAULT_PACKAGE_ID
+
         result = self._execute(
             insert_query,
             {
                 "login": user_data.login,
                 "password_hash": password_hash,
-                "created_at": now
+                "created_at": now,
+                "package_code": DEFAULT_PACKAGE_ID,
             },
             fetch_one=True
         )
@@ -747,9 +750,16 @@ class AuthService:
         return user
 
     def _persist_user(self, *, login: str, password_hash: str, email: str, now: datetime) -> dict:
+        from app.modules.auth.models import DEFAULT_PACKAGE_ID
+
         result = self._execute(
             queries.build_create_user_query(),
-            {"login": login, "password_hash": password_hash, "created_at": now},
+            {
+                "login": login,
+                "password_hash": password_hash,
+                "created_at": now,
+                "package_code": DEFAULT_PACKAGE_ID,
+            },
             fetch_one=True,
         )
         if not result:

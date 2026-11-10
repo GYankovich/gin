@@ -301,7 +301,19 @@ export default function LoginPage() {
                     ? await authService.confirmRegistration({ email: pendingEmail, code: nextCode })
                     : await authService.confirmLogin({ email: pendingEmail, code: nextCode })
                 setAuth(session.user, session.token)
-                navigate('/dashboard', { replace: true })
+                try {
+                    await authService.bootstrapSession()
+                } catch {
+                    /* nav still works; shell will retry me-info */
+                }
+                const features = useAuthStore.getState().features
+                const home =
+                    features.dashboard ? '/dashboard'
+                        : features.portfolio ? '/portfolio'
+                            : features.robots ? '/robots'
+                                : features.backtest ? '/backtest'
+                                    : '/settings'
+                navigate(home, { replace: true })
             } catch (err: unknown) {
                 setCodeError(errorText(err, 'Неверный код'))
                 setCode('')

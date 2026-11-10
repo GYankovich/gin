@@ -46,12 +46,14 @@ function IconTesting({ className }: TabIconProps) {
 const tabs = [
     {
         to: '/portfolio',
+        feature: 'portfolio' as const,
         label: 'Портфель',
         Icon: IconPortfolio,
         prefetch: () => { void import('@/pages/PortfolioPage') },
     },
     {
         to: '/robots',
+        feature: 'robots' as const,
         label: 'Роботы',
         Icon: IconRobots,
         prefetch: () => {
@@ -60,11 +62,12 @@ const tabs = [
     },
     {
         to: '/backtest',
+        feature: 'backtest' as const,
         label: 'Лаб',
         Icon: IconTesting,
         prefetch: () => { void import('@/pages/robots-v2/BacktestLabPage') },
     },
-] as const
+]
 
 function scrollToTokens() {
     document.getElementById('tokens')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -111,7 +114,15 @@ export function MobileTabBar({ hasExpiredToken }: { hasExpiredToken: boolean }) 
     const navigate = useNavigate()
     const location = useLocation()
     const user = useAuthStore(s => s.user)
+    const features = useAuthStore(s => s.features)
     const initials = user?.login?.slice(0, 2).toUpperCase() || 'U'
+    const visibleTabs = tabs.filter(tab => features[tab.feature])
+    const home =
+        features.dashboard ? '/dashboard'
+            : features.portfolio ? '/portfolio'
+                : features.robots ? '/robots'
+                    : features.backtest ? '/backtest'
+                        : '/settings'
 
     const openSettings = (event: React.MouseEvent<HTMLAnchorElement>) => {
         if (!hasExpiredToken) return
@@ -130,19 +141,25 @@ export function MobileTabBar({ hasExpiredToken }: { hasExpiredToken: boolean }) 
         <div className="mobile-dock" aria-label="Мобильная навигация">
             <nav className="mobile-dock__capsule">
                 <NavLink
-                    to="/dashboard"
-                    end
+                    to={home}
+                    end={home === '/dashboard'}
                     className={({ isActive }) => `mobile-dock__brand${isActive ? ' mobile-dock__brand--active' : ''}`}
-                    aria-label="Дашборд"
-                    onMouseEnter={() => { void import('@/pages/DashboardPage') }}
-                    onFocus={() => { void import('@/pages/DashboardPage') }}
-                    onTouchStart={() => { void import('@/pages/DashboardPage') }}
+                    aria-label="Главная"
+                    onMouseEnter={() => {
+                        if (features.dashboard) void import('@/pages/DashboardPage')
+                    }}
+                    onFocus={() => {
+                        if (features.dashboard) void import('@/pages/DashboardPage')
+                    }}
+                    onTouchStart={() => {
+                        if (features.dashboard) void import('@/pages/DashboardPage')
+                    }}
                 >
                     <img className="mobile-dock__logo" src="/favicon.svg" alt="" />
                 </NavLink>
 
                 <div className="mobile-dock__tabs">
-                    {tabs.map(({ to, label, Icon, prefetch }) => (
+                    {visibleTabs.map(({ to, label, Icon, prefetch }) => (
                         <MobileTab
                             key={to}
                             to={to}

@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Роботы — макеты создания и правки</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --card: #12121a;
+    --elevated: #181824;
+    --line: rgba(255,255,255,.08);
+    --line-strong: rgba(255,255,255,.14);
+    --text: #e8eaed;
+    --secondary: #b4bcc6;
+    --muted: #8b939e;
+    --quiet: #6d7580;
+    --up: #3dbe7a;
+    --warn: #e0a15a;
+    --field: #0e0e16;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  }
+  .page { max-width: 1280px; margin: 0 auto; padding: 28px 24px 64px; }
+  h1 { margin: 0 0 8px; font-size: 20px; font-weight: 600; letter-spacing: 0; }
+  .lede { margin: 0 0 28px; max-width: 720px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+  .variant { margin-bottom: 36px; }
+  .variant h2 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+  .variant p { margin: 0 0 14px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .frame {
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: #0c0e14;
+  }
+  .frame__tag {
+    margin: 0 0 12px;
+    color: var(--quiet);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--card);
+  }
+  .card--flat { gap: 14px; padding: 14px 16px; }
+  .head {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .head::after {
+    content: '';
+    position: absolute;
+    right: 0; bottom: -8px; left: 0;
+    height: 1px;
+    background: var(--line);
+  }
+  .card--flat .head::after { bottom: -7px; }
+  .title { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .title h3 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3; }
+  .id { color: var(--quiet); font-size: 12px; font-weight: 500; font-family: "Fira Code", ui-monospace, monospace; }
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .pill {
+    display: inline-flex; align-items: center; min-height: 24px; padding: 3px 8px;
+    border-radius: 7px; background: rgba(255,255,255,.06); color: var(--secondary);
+    font-size: 12px; font-weight: 500;
+  }
+  .pill--ok { color: var(--up); background: rgba(61,190,122,.14); }
+  .pill--idle { color: var(--muted); }
+  .back { color: var(--muted); font-size: 13px; font-weight: 500; }
+  .steps { display: flex; gap: 6px; flex-wrap: wrap; }
+  .step {
+    padding: 6px 10px; border-radius: 8px; background: transparent; color: var(--muted);
+    font-size: 13px; font-weight: 500;
+  }
+  .step--on { background: rgba(255,255,255,.06); color: var(--text); }
+  .step--done { color: var(--secondary); }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field span { color: var(--secondary); font-size: 12px; font-weight: 500; }
+  .input, .select {
+    height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--field); color: var(--text); font: 500 13px/1 Inter, sans-serif;
+    display: flex; align-items: center;
+  }
+  .input--area { height: 72px; align-items: flex-start; padding-top: 10px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .arch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .arch button, .seg button {
+    text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: transparent; color: var(--secondary); font: 500 13px/1.35 Inter, sans-serif;
+  }
+  .arch strong, .seg { display: block; color: var(--text); font-weight: 600; }
+  .arch small { display: block; margin-top: 4px; color: var(--quiet); font-size: 12px; font-weight: 500; }
+  .arch .on, .seg .on {
+    border-color: var(--line-strong);
+    background: rgba(255,255,255,.04);
+    color: var(--text);
+  }
+  .seg { display: flex; gap: 6px; }
+  .seg button { padding: 8px 12px; }
+  .actions {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .btn {
+    height: 36px; padding: 0 14px; border: 0; border-radius: 10px;
+    background: transparent; color: var(--secondary); font: 500 13px/1 Inter, sans-serif;
+  }
+  .btn--primary { background: #e8eaed; color: #13161a; }
+  .split { display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start; }
+  .preview { display: flex; flex-direction: column; gap: 14px; }
+  .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; margin: 0; }
+  .facts dt { color: var(--quiet); font-size: 11px; font-weight: 500; }
+  .facts dd { margin: 3px 0 0; color: var(--text); font-family: "Fira Code", ui-monospace, monospace; font-size: 13px; }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+  .section-card { padding: 14px 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+  .section-card h3 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
+  .pagebar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px;
+  }
+  .pagebar h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .hint { margin: 0; color: var(--quiet); font-size: 12px; line-height: 1.4; }
+  @media (max-width: 980px) {
+    .pair, .split, .grid-2, .arch { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <h1>Создание и правка</h1>
+    <p class="lede">Три варианта в том же спокойном виде, что список роботов: карточка, плашки, линия под шапкой, без неоновой шапки. Слева создание, справа правка.</p>
+
+    <section class="variant">
+      <h2>A. Одна карточка и шаги</h2>
+      <p>Как карточка на флоте, только выше. Шаги — плашки, не отдельная колонка. Правка опросника короче: два шага и то же подножие.</p>
+      <div class="pair">
+        <div class="frame">
+          <p class="frame__tag">Создание · торговый робот · шаг 2</p>
+          <article class="card">
+            <header class="head">
+              <div>
+                <div class="title"><h3>Новый робот</h3></div>
+                <div class="pills">
+                  <span class="pill">Торговый</span>
+                  <span class="pill">Бумага</span>
+                </div>
+              </div>
+              <span class="back">К списку</span>
+            </header>
+            <div class="steps">
+              <span class="step step--done">Основное</span>
+              <span class="step step--on">Стратегия</span>
+              <span class="step">Активы</span>
+              <span class="step">Риск</span>
+            </div>
+            <div class="field">
+              <span>Цель</span>
+              <div class="seg">
+                <button type="button">Осторожно</button>
+                <button type="button" class="on">Умеренно</button>
+                <button type="button">Активно</button>
+              </div>
+            </div>
+            <div class="arch">
+              <button type="button" class="on"><strong>Тренд</strong><small>Покупка на пробое максимума</small></button>
+              <button type="button"><strong>Отскок</strong><small>Вход далеко от обычной цены</small></button>
+              <button type="button"><strong>Сетка</strong><small>Уровни вокруг цены</small></button>
+              <button type="button"><strong>Скальпер</strong><small>В бэктесте недоступен</small></button>
+            </div>
+            <div class="grid-2">
+              <label class="field"><span>Таймфрейм</span><div class="select">1h</div></label>
+              <label class="field"><span>Инструмент</span><div class="select">Акции</div></label>
+            </div>
+            <div class="actions">
+              <button class="btn" type="button">Назад</button>
+              <button class="btn btn--primary" type="button">Далее</button>
+            </div>
+          </article>
+        </div>
+        <div class="frame">
+          <p class="frame__tag">Правка · опросник · шаг 2</p>
+          <article class="card card--flat">
+            <header class="head">
+              <div>
+                <div class="title"><h3>Опросник Тинька</h3><span class="id">#5</span></div>
+                <div class="pills">
+                  <span class="pill pill--ok">Включён</span>
+                  <span class="pill">Опросник</span>
+                </div>
+              </div>
+              <span class="back">К списку</span>
+            </header>
+            <div class="steps">
+              <span class="step step--done">Основное</span>
+              <span class="step step--on">Синхрон</span>
+            </div>
+            <p class="hint">Читает позиции и операции брокера и обновляет портфель в GIN.</p>
+            <div class="field">
+              <span>Дни</span>
+              <div class="seg">
+                <button type="button" class="on">Пн</button>
+                <button type="button" class="on">Вт</button>
+                <button type="button" class="on">Ср</button>
+                <button type="button" class="on">Чт</button>
+                <button type="button" class="on">Пт</button>
+                <button type="button">Сб</button>
+                <button type="button">Вс</button>
+              </div>
+            </div>
+            <div class="grid-2">
+              <label class="field"><span>Начало</span><div class="input">10:00</div></label>
+              <label class="field"><span>Интервал</span><div class="select">15 мин</div></label>
+            </div>
+            <div class="actions">
+              <button class="btn" type="button">Назад</button>
+              <button class="btn btn--primary" type="button">Сохранить</button>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="variant">
+      <h2>B. Превью карточки и форма</h2>
+      <p>Слева та же карточка, что на флоте: её видно до сохранения. Справа только текущий блок, без длинного мастера на всю ширину.</p>
+      <div class="pair">
+        <div class="frame">
+          <p class="frame__tag">Создание · торговый робот</p>
+          <div class="split">
+            <article class="card preview">
+              <header class="head">
+                <div>
+                  <div class="title"><h3>Новый робот</h3></div>
+                  <div class="pills">
+                    <span class="pill pill--idle">Черновик</span>
+                    <span class="pill">Торговый</span>
+                  </div>
+                </div>
+              </header>
+              <dl class="facts">
+                <div><dt>Стратегия</dt><dd>Тренд</dd></div>
+                <div><dt>Таймфрейм</dt><dd>1h</dd></div>
+                <div><dt>Счёт</dt><dd>—</dd></div>
+                <div><dt>Режим</dt><dd>Бумага</dd></div>
+              </dl>
+            </article>
+            <div class="stack">
+              <div class="steps">
+                <span class="step step--done">Основное</span>
+                <span class="step step--on">Стратегия</span>
+                <span class="step">Активы</span>
+                <span class="step">Риск</span>
+              </div>
+              <label class="field"><span>Название</span><div class="input">MOEX Momentum</div></label>
+              <label class="field"><span>Брокерский аккаунт</span><div class="select">Тинькофф — основной</div></label>
+              <div class="actions">
+                <button class="btn" type="button">К списку</button>
+                <button class="btn btn--primary" type="button">Далее</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="frame">
+          <p class="frame__tag">Правка · торговый робот</p>
+          <div class="split">
+            <article class="card preview">
+              <header class="head">
+                <div>
+                  <div class="title"><h3>Копия хард</h3><span class="id">#3</span></div>
+                  <div class="pills">
+                    <span class="pill pill--ok">В работе</span>
+                    <span class="pill">Боевой</span>
+                    <span class="pill">Акции</span>
+                  </div>
+                </div>
+              </header>
+              <dl class="facts">
+                <div><dt>Стратегия</dt><dd>Тренд</dd></div>
+                <div><dt>Таймфрейм</dt><dd>1h</dd></div>
+                <div><dt>Позиции</dt><dd>2</dd></div>
+                <div><dt>Свободно</dt><dd>184 200</dd></div>
+              </dl>
+            </article>
+            <div class="stack">
+              <label class="field"><span>Название</span><div class="input">Копия хард</div></label>
+              <label class="field"><span>Тикеры</span><div class="input input--area">SBER, GAZP, LKOH</div></label>
+              <div class="grid-2">
+                <label class="field"><span>Капитал</span><div class="input">500 000 ₽</div></label>
+                <label class="field"><span>Риск на сделку</span><div class="input">1%</div></label>
+              </div>
+              <div class="actions">
+                <button class="btn" type="button">К списку</button>
+                <button class="btn btn--primary" type="button">Сохранить</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="variant">
+      <h2>C. Секции карточками</h2>
+      <p>Без шагов. Каждый блок — отдельная карточка флота, всё видно сразу. Опросник остаётся коротким: две карточки.</p>
+      <div class="pair">
+        <div class="frame">
+          <p class="frame__tag">Создание · торговый робот</p>
+          <div class="pagebar">
+            <div>
+              <span class="back">К списку</span>
+              <h3>Новый робот</h3>
+            </div>
+            <button class="btn btn--primary" type="button">Создать</button>
+          </div>
+          <div class="stack">
+            <section class="section-card">
+              <h3>Основное</h3>
+              <div class="grid-2">
+                <label class="field"><span>Название</span><div class="input">MOEX Momentum</div></label>
+                <label class="field"><span>Аккаунт</span><div class="select">Тинькофф — основной</div></label>
+              </div>
+            </section>
+            <section class="section-card">
+              <h3>Стратегия</h3>
+              <div class="arch">
+                <button type="button" class="on"><strong>Тренд</strong><small>Пробой максимума</small></button>
+                <button type="button"><strong>Отскок</strong><small>Далеко от обычной цены</small></button>
+              </div>
+            </section>
+            <section class="section-card">
+              <h3>Активы и риск</h3>
+              <div class="grid-2">
+                <label class="field"><span>Тикеры</span><div class="input">SBER, GAZP</div></label>
+                <label class="field"><span>Риск на сделку</span><div class="input">1%</div></label>
+              </div>
+            </section>
+          </div>
+        </div>
+        <div class="frame">
+          <p class="frame__tag">Правка · опросник</p>
+          <div class="pagebar">
+            <div>
+              <span class="back">К списку</span>
+              <div class="title"><h3>Опросник Байбита</h3><span class="id">#8</span></div>
+              <div class="pills"><span class="pill pill--ok">Включён</span><span class="pill">Опросник</span></div>
+            </div>
+            <button class="btn btn--primary" type="button">Сохранить</button>
+          </div>
+          <div class="stack">
+            <section class="section-card">
+              <h3>Основное</h3>
+              <div class="grid-2">
+                <label class="field"><span>Название</span><div class="input">Опросник Байбита</div></label>
+                <label class="field"><span>Аккаунт</span><div class="select">Bybit — основной</div></label>
+              </div>
+            </section>
+            <section class="section-card">
+              <h3>Синхрон</h3>
+              <div class="grid-2">
+                <label class="field"><span>Начало</span><div class="input">10:00</div></label>
+                <label class="field"><span>Интервал</span><div class="select">15 мин</div></label>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

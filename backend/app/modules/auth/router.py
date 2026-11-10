@@ -194,6 +194,32 @@ async def get_current_user(
     return service.auth_service.to_user_out(user)
 
 
+@router.get("/me-info", response_model=schemas.MeInfoResponse)
+async def get_me_info(
+        token: str = Depends(get_token_from_header),
+        db: Session = Depends(get_db),
+):
+    """Session bootstrap: profile + package tab features (robots ≠ backtest)."""
+    from app.modules.auth import package_service
+
+    user = service.auth_service.get_user_from_token(db, token)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = int(user["id"])
+    package_code = package_service.package_id_for_user(db, user_id)
+    features = package_service.features_for_package(db, package_code)
+    return schemas.MeInfoResponse(
+        user=service.auth_service.to_user_out(user),
+        package_code=package_code,
+        features=schemas.UserFeaturesOut(**features),
+    )
+
+
 @users_router.post("/change", response_model=schemas.UserOut)
 async def change_user(
         payload: schemas.UserChange,

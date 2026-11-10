@@ -9,6 +9,7 @@ export const config = {
             register: '/auth/register',
             logout: '/auth/logout',
             me: '/auth/me',
+            meInfo: '/auth/me-info',
             tinvest: '/settings/tinvest'
         }
     },
