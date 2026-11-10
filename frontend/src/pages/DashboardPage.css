@@ -1570,17 +1570,26 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     flex: 0 0 auto;
 }
 
+[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__status-slot--mobile {
+    display: none;
+}
+
+[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__status-slot--desktop {
+    display: contents;
+}
+
 [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__status {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 3px 8px;
-    border-radius: 999px;
+    padding: 4px 9px;
+    border-radius: 6px;
     font-size: 11px;
     font-weight: 600;
     line-height: 1.2;
     white-space: nowrap;
     flex: 0 0 auto;
+    align-self: flex-start;
 }
 
 [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__status:before {
@@ -2860,6 +2869,11 @@ body:has([data-page='robots']) .date-popover__day--range {
     color: var(--text-muted);
 }
 
+[data-page='robots'][data-robots-view='fleet']
+.robots-v2-fleet-card--trading .robots-v2-fleet-card__identity {
+    gap: 6px;
+}
+
 /* Metrics */
 
 [data-page='robots'][data-robots-view='fleet']
@@ -3452,6 +3466,16 @@ body:has([data-page='robots']) .date-popover__day--range {
     }
 
     [data-page='robots'][data-robots-view='fleet']
+    .robots-v2-fleet-card__status-slot--desktop {
+        display: none;
+    }
+
+    [data-page='robots'][data-robots-view='fleet']
+    .robots-v2-fleet-card__status-slot--mobile {
+        display: contents;
+    }
+
+    [data-page='robots'][data-robots-view='fleet']
     .robots-v2-fleet-card__status {
         padding: 2px 7px;
         border-radius: 999px;
@@ -3464,6 +3488,7 @@ body:has([data-page='robots']) .date-popover__day--range {
         max-width: 9.5em;
         overflow: hidden;
         text-overflow: ellipsis;
+        align-self: center;
     }
 
     [data-page='robots'][data-robots-view='fleet']

@@ -23,6 +23,36 @@ def test_list_and_get_queries_use_v2_last_started_only():
         assert "legacy.last_started" not in sql
 
 
+def test_fleet_live_uses_portfolio_snapshots():
+    from app.modules.robots_v2.queries import (
+        build_fleet_latest_snapshot_query,
+        build_fleet_snapshot_curve_query,
+        build_fleet_trade_stats_query,
+    )
+
+    latest_sql, _ = build_fleet_latest_snapshot_query(user_id=1, schema="public")
+    curve_sql, curve_params = build_fleet_snapshot_curve_query(user_id=1, schema="public")
+
+    assert "portfolio_snapshots" in latest_sql
+    assert "portfolio_positions" in latest_sql
+    assert "portfolio_operations" in latest_sql
+    assert "own_funds" in latest_sql
+    assert "token_portfolio_accounts" in latest_sql
+    assert "portfolio_snapshot_daily" in curve_sql
+    assert curve_params["snapshot_days"] == 30
+    trades_sql, trades_params = build_fleet_trade_stats_query(user_id=1, schema="public")
+    assert "robots_v2_fills" in trades_sql
+    assert trades_params["snapshot_days"] == 30
+
+
+def test_fleet_accounts_come_from_token_membership():
+    list_sql, _ = build_list_robots_query(user_id=1, schema="public")
+    assert "token_portfolio_accounts" in list_sql
+    assert "tpa.token_id = r.token_id" in list_sql
+    assert "tpa.status = 1" in list_sql
+    assert "pa.last_token_id = r.token_id" not in list_sql
+
+
 def test_should_run_portfolio_respects_poll_interval():
     config = {
         "schedule": {

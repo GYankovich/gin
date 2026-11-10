@@ -413,7 +413,7 @@ export function FleetRobotCard({
         event.stopPropagation()
     }
 
-    const statusBadge = (
+    const renderStatusBadge = () => (
         <span className={`robots-v2-fleet-card__status robots-v2-fleet-card__status--${badge.tone}`}>
             {badge.label}
         </span>
@@ -527,6 +527,9 @@ export function FleetRobotCard({
                             <span className="robots-v2-fleet-card__name">{robot.name}</span>
                             <span className="robots-v2-fleet-card__id">#{robot.id}</span>
                         </div>
+                        <span className="robots-v2-fleet-card__status-slot robots-v2-fleet-card__status-slot--desktop">
+                            {renderStatusBadge()}
+                        </span>
                     </div>
                     <div className="robots-v2-fleet-card__metric robots-v2-fleet-card__metric--sync">
                         <div className="robots-v2-fleet-card__metric-label">Синхрон</div>
@@ -580,7 +583,9 @@ export function FleetRobotCard({
                         onClick={stopActions}
                         onKeyDown={stopActions}
                     >
-                        {statusBadge}
+                        <span className="robots-v2-fleet-card__status-slot robots-v2-fleet-card__status-slot--mobile">
+                            {renderStatusBadge()}
+                        </span>
                         {menu}
                     </div>
                 </div>
@@ -603,6 +608,9 @@ export function FleetRobotCard({
                         <span className="robots-v2-fleet-card__name">{robot.name}</span>
                         <span className="robots-v2-fleet-card__id">#{robot.id}</span>
                     </div>
+                    <span className="robots-v2-fleet-card__status-slot robots-v2-fleet-card__status-slot--desktop">
+                        {renderStatusBadge()}
+                    </span>
                     <div className="robots-v2-fleet-card__meta">
                         {strategy || '—'}
                     </div>
@@ -768,7 +776,9 @@ export function FleetRobotCard({
                     onClick={stopActions}
                     onKeyDown={stopActions}
                 >
-                    {statusBadge}
+                    <span className="robots-v2-fleet-card__status-slot robots-v2-fleet-card__status-slot--mobile">
+                        {renderStatusBadge()}
+                    </span>
                     {menu}
                 </div>
             </div>

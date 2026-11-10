@@ -148,6 +148,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                                     "token_id": token_id,
                                 }
                             )
+                            portfolio_svc.link_token_portfolio_account(token_id, account_in_db[0], user_id)
                             if sync_operations:
                                 await self._sync_operations_for_account(
                                     facade=facade,
@@ -190,6 +191,15 @@ class PortfolioUpdaterRobot(BaseRobot):
                         )
 
                 portfolios_updated += 1
+
+            portfolio_svc.db = self.db
+            portfolio_svc.sync_token_account_membership(
+                user_id=user_id,
+                token_id=token_id,
+                external_account_ids=[account.get("id") for account in accounts],
+                replace=True,
+            )
+            self.db.commit()
 
             execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
             self.log.info("✅ Работа завершена. Счетов: %s, снимков: %s", portfolios_updated, snapshots_saved)

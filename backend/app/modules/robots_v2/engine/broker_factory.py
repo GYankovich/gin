@@ -103,6 +103,33 @@ def persist_token_account_id(
                 "user_id": user_id,
             },
         )
+        db.execute(
+            text(f"""
+                INSERT INTO {sch}.token_portfolio_accounts
+                    (token_id, portfolio_account_id, status, usercre)
+                SELECT :token_id, pa.id, 1, :user_id
+                  FROM {sch}.portfolio_accounts pa
+                 WHERE pa.user_id = :user_id
+                   AND pa.account_id = :account_id
+                ON CONFLICT (token_id, portfolio_account_id) DO UPDATE
+                    SET status = 1,
+                        usermod = CASE
+                            WHEN token_portfolio_accounts.status IS DISTINCT FROM 1
+                                THEN EXCLUDED.usercre
+                            ELSE token_portfolio_accounts.usermod
+                        END,
+                        date_modification = CASE
+                            WHEN token_portfolio_accounts.status IS DISTINCT FROM 1
+                                THEN CURRENT_TIMESTAMP
+                            ELSE token_portfolio_accounts.date_modification
+                        END
+            """),
+            {
+                "account_id": str(account_id),
+                "token_id": token_id,
+                "user_id": user_id,
+            },
+        )
         db.commit()
     except Exception:
         logger.exception("persist_token_account_id failed token_id=%s", token_id)

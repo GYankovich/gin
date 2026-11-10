@@ -62,6 +62,21 @@ export type RobotV2Status = {
     last_virtual_capital?: number | null
     openPositions?: Array<Record<string, unknown>> | null
     open_positions?: Array<Record<string, unknown>> | null
+    /** Fleet period closed trades / W/L (optional until /data wires aggregates) */
+    tradesCount?: number | null
+    trades_count?: number | null
+    wins?: number | null
+    losses?: number | null
+    ownFunds?: number | null
+    own_funds?: number | null
+    /** Latest portfolio value minus own funds */
+    priceDelta?: number | null
+    price_delta?: number | null
+    /** Equity change over statsPeriod (last curve point minus the first) */
+    periodDelta?: number | null
+    period_delta?: number | null
+    statsPeriod?: 'session' | 'week' | 'month' | 'all' | null
+    stats_period?: 'session' | 'week' | 'month' | 'all' | null
     /** session = live ledger; broker = idle snapshot from broker */
     positionsSource?: string | null
     positions_source?: string | null

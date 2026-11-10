@@ -90,6 +90,53 @@ class TInvestService:
         result = self.db.execute(text(query), params)
         return result.first() if fetch_one else result
 
+    def link_token_portfolio_account(
+            self,
+            token_id: Optional[int],
+            portfolio_account_id: Optional[int],
+            user_id: Optional[int] = None,
+    ) -> None:
+        """Add one account to this token's list. Other tokens' lists are left as-is."""
+        if not token_id or not portfolio_account_id:
+            return
+        self._execute(
+            queries.build_link_token_portfolio_account_query(),
+            {
+                "token_id": int(token_id),
+                "portfolio_account_id": int(portfolio_account_id),
+                "user_id": int(user_id) if user_id else None,
+            },
+        )
+
+    def sync_token_account_membership(
+            self,
+            *,
+            user_id: int,
+            token_id: Optional[int],
+            external_account_ids: List[Any],
+            replace: bool = False,
+    ) -> None:
+        """Store the accounts this token listed. replace drops only this token's stale links."""
+        if not token_id:
+            return
+        seen: list[str] = []
+        for raw in external_account_ids:
+            value = str(raw or "").strip()
+            if value and value not in seen:
+                seen.append(value)
+        if not seen:
+            return
+        link_sql, link_params = queries.build_link_token_accounts_by_external_ids_query(seen)
+        link_params["token_id"] = int(token_id)
+        link_params["user_id"] = int(user_id)
+        self._execute(link_sql, link_params)
+        if not replace:
+            return
+        prune_sql, prune_params = queries.build_prune_token_accounts_query(seen)
+        prune_params["token_id"] = int(token_id)
+        prune_params["user_id"] = int(user_id)
+        self._execute(prune_sql, prune_params)
+
     def _api_tokens_has_status_column(self, db: Session) -> bool:
         if self._api_tokens_has_status_column_cache is not None:
             return self._api_tokens_has_status_column_cache
@@ -552,6 +599,7 @@ class TInvestService:
                                 "token_id": active_token_id,
                             }
                         )
+                        self.link_token_portfolio_account(active_token_id, account_in_db[0], user_id)
                         # Автосинхронизация истории операций для консистентности.
                         latest_op = self._execute(
                             queries.build_get_latest_operation_date_query(),
@@ -588,6 +636,12 @@ class TInvestService:
                     "portfolio": None
                 })
 
+        self.sync_token_account_membership(
+            user_id=user_id,
+            token_id=active_token_id,
+            external_account_ids=[account.get("id") for account in accounts],
+            replace=True,
+        )
         db.commit()
 
         return {
@@ -882,6 +936,7 @@ class TInvestService:
                 "token_id": token_id,
             }
         )
+        self.link_token_portfolio_account(token_id, account_db_id, user_id)
         db.commit()
         return {
             "account_id": account_db_id,

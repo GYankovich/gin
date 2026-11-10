@@ -261,6 +261,85 @@ def build_update_account_sync_time_query() -> str:
            """
 
 
+def build_link_token_portfolio_account_query() -> str:
+    """Remember that this token can see this portfolio account. Does not drop other tokens."""
+    return """
+           INSERT INTO token_portfolio_accounts
+               (token_id, portfolio_account_id, status, usercre)
+           VALUES (:token_id, :portfolio_account_id, 1, :user_id)
+           ON CONFLICT (token_id, portfolio_account_id) DO UPDATE
+               SET status = 1,
+                   usermod = CASE
+                       WHEN token_portfolio_accounts.status IS DISTINCT FROM 1
+                           THEN EXCLUDED.usercre
+                       ELSE token_portfolio_accounts.usermod
+                   END,
+                   date_modification = CASE
+                       WHEN token_portfolio_accounts.status IS DISTINCT FROM 1
+                           THEN CURRENT_TIMESTAMP
+                       ELSE token_portfolio_accounts.date_modification
+                   END \
+           """
+
+
+def build_link_token_accounts_by_external_ids_query(
+        account_ids: list[str],
+) -> tuple[str, dict]:
+    """Link existing portfolio rows for the external account ids this token just listed."""
+    params: dict = {}
+    placeholders = []
+    for i, account_id in enumerate(account_ids):
+        key = f"ext_account_{i}"
+        placeholders.append(f":{key}")
+        params[key] = account_id
+    in_list = ", ".join(placeholders)
+    query = f"""
+           INSERT INTO token_portfolio_accounts
+               (token_id, portfolio_account_id, status, usercre)
+           SELECT :token_id, pa.id, 1, :user_id
+             FROM portfolio_accounts pa
+            WHERE pa.user_id = :user_id
+              AND pa.account_id IN ({in_list})
+           ON CONFLICT (token_id, portfolio_account_id) DO UPDATE
+               SET status = 1,
+                   usermod = CASE
+                       WHEN token_portfolio_accounts.status IS DISTINCT FROM 1
+                           THEN EXCLUDED.usercre
+                       ELSE token_portfolio_accounts.usermod
+                   END,
+                   date_modification = CASE
+                       WHEN token_portfolio_accounts.status IS DISTINCT FROM 1
+                           THEN CURRENT_TIMESTAMP
+                       ELSE token_portfolio_accounts.date_modification
+                   END
+           """
+    return query, params
+
+
+def build_prune_token_accounts_query(account_ids: list[str]) -> tuple[str, dict]:
+    """Turn off this token's links to accounts it no longer returns. Other tokens stay."""
+    params: dict = {}
+    placeholders = []
+    for i, account_id in enumerate(account_ids):
+        key = f"keep_account_{i}"
+        placeholders.append(f":{key}")
+        params[key] = account_id
+    in_list = ", ".join(placeholders)
+    query = f"""
+           UPDATE token_portfolio_accounts tpa
+              SET status = 0,
+                  usermod = :user_id,
+                  date_modification = CURRENT_TIMESTAMP
+             FROM portfolio_accounts pa
+            WHERE tpa.portfolio_account_id = pa.id
+              AND tpa.token_id = :token_id
+              AND pa.user_id = :user_id
+              AND tpa.status <> 0
+              AND pa.account_id NOT IN ({in_list})
+           """
+    return query, params
+
+
 def build_get_token_stats_query() -> str:
     """Получение статистики по токену"""
     return """

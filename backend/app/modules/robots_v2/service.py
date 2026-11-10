@@ -25,7 +25,10 @@ from app.modules.robots_v2.schemas import (
     RobotV2AuditRequest,
     RobotV2ChangeStatusRequest,
     RobotV2CreateRequest,
+    RobotV2FleetItem,
+    RobotV2FleetLive,
     RobotV2ListRequest,
+    RobotV2ListResponse,
     RobotV2Response,
     RobotV2StartRequest,
     RobotV2ValidateRequest,
@@ -35,6 +38,7 @@ from app.modules.robots_v2.validator import (
     validate_portfolio_config,
     validate_trading_config,
 )
+from app.modules.trading_core.brokers.routing import normalize_broker_type
 
 from app.modules.robots_v2.engine.session_resume import DELETED_AT_KEY, SESSION_DESIRED_KEY
 
@@ -152,24 +156,205 @@ class RobotsV2Service:
     def validate(self, request: RobotV2ValidateRequest) -> RobotV2ValidateResponse:
         return self._validate_config(request.type, request.config)
 
-    def list_robots(self, db: Session, user_id: int, request: RobotV2ListRequest) -> list[RobotV2Response]:
+    @staticmethod
+    def _parse_fleet_accounts(raw: Any) -> list[dict[str, Any]]:
+        if raw is None:
+            return []
+        if isinstance(raw, str):
+            try:
+                raw = json.loads(raw)
+            except json.JSONDecodeError:
+                return []
+        if not isinstance(raw, list):
+            return []
+        items: list[dict[str, Any]] = []
+        for row in raw:
+            if not isinstance(row, dict):
+                continue
+            account_id = str(row.get("accountId") or row.get("account_id") or "").strip() or None
+            account_name = str(row.get("accountName") or row.get("account_name") or "").strip() or None
+            if not account_id and not account_name:
+                continue
+            items.append({"accountId": account_id, "accountName": account_name})
+        return items
+
+    def _session_state_for_trading(self, robot_id: int) -> tuple[str | None, str | None]:
+        """Running-session badge only. Equity comes from portfolio snapshots."""
         from app.modules.robots_v2.engine.session_manager import session_manager
 
+        snap = session_manager.status(robot_id)
+        if snap is None:
+            return None, None
+        state = snap.session_state.value
+        message = snap.message if state == "ERROR" else None
+        return state, message
+
+    def _portfolio_live_by_robot(self, db: Session, user_id: int) -> dict[int, dict[str, Any]]:
+        """Latest snapshot + 30-day daily curve, same bars as the /portfolio chart."""
+        latest_sql, latest_params = queries.build_fleet_latest_snapshot_query(
+            user_id=user_id,
+            schema=self.schema,
+        )
+        curve_sql, curve_params = queries.build_fleet_snapshot_curve_query(
+            user_id=user_id,
+            schema=self.schema,
+        )
+        by_robot: dict[int, dict[str, Any]] = {}
+        for row in db.execute(text(latest_sql), latest_params).fetchall():
+            equity = getattr(row, "equity", None)
+            taken_at = getattr(row, "snapshot_date", None)
+            positions = getattr(row, "positions_count", None)
+            own_funds = getattr(row, "own_funds", None)
+            equity_value = float(equity) if equity is not None else None
+            own_value = float(own_funds) if own_funds is not None else None
+            price_delta = None
+            if equity_value is not None and own_value is not None:
+                price_delta = round(equity_value - own_value, 2)
+            by_robot[int(row.robot_id)] = {
+                "equity": equity_value,
+                "lastCycleAt": taken_at.isoformat() if taken_at is not None else None,
+                "openPositionsCount": int(positions) if positions is not None else None,
+                "equityCurve": None,
+                "ownFunds": own_value,
+                "priceDelta": price_delta,
+                "periodDelta": None,
+            }
+        for row in db.execute(text(curve_sql), curve_params).fetchall():
+            robot_id = int(row.robot_id)
+            item = by_robot.setdefault(robot_id, {
+                "equity": None,
+                "lastCycleAt": None,
+                "openPositionsCount": None,
+                "equityCurve": None,
+                "ownFunds": None,
+                "priceDelta": None,
+                "periodDelta": None,
+            })
+            curve = self._parse_fleet_equity_curve(getattr(row, "equity_curve", None))
+            item["equityCurve"] = curve
+            item["periodDelta"] = self._curve_period_delta(curve)
+        return by_robot
+
+    def _trade_stats_by_robot(self, db: Session, user_id: int) -> dict[int, dict[str, int]]:
+        sql, params = queries.build_fleet_trade_stats_query(
+            user_id=user_id,
+            schema=self.schema,
+        )
+        out: dict[int, dict[str, int]] = {}
+        for row in db.execute(text(sql), params).fetchall():
+            out[int(row.robot_id)] = {
+                "tradesCount": int(row.trades_count or 0),
+                "wins": int(row.wins or 0),
+                "losses": int(row.losses or 0),
+            }
+        return out
+
+    @staticmethod
+    def _curve_period_delta(curve: list[dict[str, Any]] | None) -> float | None:
+        if not curve or len(curve) < 2:
+            return None
+        try:
+            return round(float(curve[-1]["equity"]) - float(curve[0]["equity"]), 2)
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _parse_fleet_equity_curve(raw: Any) -> list[dict[str, Any]] | None:
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            try:
+                raw = json.loads(raw)
+            except json.JSONDecodeError:
+                return None
+        if not isinstance(raw, list):
+            return None
+        points: list[dict[str, Any]] = []
+        for row in raw:
+            if not isinstance(row, dict):
+                continue
+            equity = row.get("equity")
+            taken_at = row.get("time")
+            if equity is None or taken_at is None:
+                continue
+            try:
+                value = float(equity)
+            except (TypeError, ValueError):
+                continue
+            if hasattr(taken_at, "isoformat"):
+                taken_at = taken_at.isoformat()
+            points.append({"time": str(taken_at), "equity": value})
+        return points or None
+
+    def list_robots(self, db: Session, user_id: int, request: RobotV2ListRequest) -> RobotV2ListResponse:
         query, params = queries.build_list_robots_query(
             user_id=user_id,
             robot_status=request.robot_status,
             robot_type=request.robot_type,
+            broker=request.broker,
             schema=self.schema,
         )
         rows = db.execute(text(query), params).fetchall()
-        items = [self._row_to_response(row) for row in rows]
-        for robot in items:
-            if robot.type != 2:
-                continue
-            snap = session_manager.status(robot.id)
-            if snap is not None:
-                robot.session_state = snap.session_state.value
-        return items
+        portfolio_live = self._portfolio_live_by_robot(db, user_id)
+        trade_stats = self._trade_stats_by_robot(db, user_id)
+        items: list[RobotV2FleetItem] = []
+        for row in rows:
+            base = self._row_to_response(row)
+            snap = portfolio_live.get(base.id)
+            trades = trade_stats.get(base.id)
+            session_state, session_message = (
+                self._session_state_for_trading(base.id) if base.type == 2 else (None, None)
+            )
+            live = None
+            if snap is not None or session_state is not None or trades is not None:
+                # Curve, closes and periodDelta share the 30-day Moscow window.
+                if base.type == 2:
+                    trades_count = trades["tradesCount"] if trades else 0
+                    wins = trades["wins"] if trades else 0
+                    losses = trades["losses"] if trades else 0
+                else:
+                    trades_count = trades["tradesCount"] if trades else None
+                    wins = trades["wins"] if trades else None
+                    losses = trades["losses"] if trades else None
+                live = RobotV2FleetLive(
+                    sessionState=session_state,
+                    equity=snap.get("equity") if snap else None,
+                    equityCurve=snap.get("equityCurve") if snap else None,
+                    openPositionsCount=snap.get("openPositionsCount") if snap else None,
+                    tradesCount=trades_count,
+                    wins=wins,
+                    losses=losses,
+                    ownFunds=snap.get("ownFunds") if snap else None,
+                    priceDelta=snap.get("priceDelta") if snap else None,
+                    periodDelta=snap.get("periodDelta") if snap else None,
+                    statsPeriod="month",
+                    lastCycleAt=snap.get("lastCycleAt") if snap else None,
+                    message=session_message,
+                )
+            if live is not None and live.session_state:
+                base.session_state = live.session_state
+            payload = base.model_dump(by_alias=True)
+            broker_sv = getattr(row, "broker_code", None)
+            broker_name = getattr(row, "broker_name", None)
+            broker_label = str(broker_name or "").strip() or None
+            broker = normalize_broker_type(str(broker_sv)) if broker_sv else None
+            payload["accounts"] = self._parse_fleet_accounts(getattr(row, "accounts_json", None))
+            payload["broker"] = broker
+            payload["brokerLabel"] = broker_label
+            payload["live"] = live.model_dump(by_alias=True) if live is not None else None
+            items.append(RobotV2FleetItem.model_validate(payload))
+
+        has_q, has_params = queries.build_has_broker_accounts_query(
+            user_id=user_id,
+            schema=self.schema,
+        )
+        has_row = db.execute(text(has_q), has_params).fetchone()
+        has_accounts = bool(has_row[0]) if has_row is not None else False
+        return RobotV2ListResponse(
+            items=items,
+            total=len(items),
+            hasBrokerAccounts=has_accounts,
+        )
 
     def get_robot(self, db: Session, user_id: int, robot_id: int) -> RobotV2Response:
         query, params = queries.build_get_robot_query(

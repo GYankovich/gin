@@ -15,6 +15,8 @@ type PanelCoords = {
     top?: number
     bottom?: number
     right: number
+    maxWidth: number
+    maxHeight: number
 }
 
 type DropdownContextValue = {
@@ -145,6 +147,7 @@ function Panel({ children, className }: PanelProps) {
 
     const updateCoords = useCallback(() => {
         const menu = menuRef.current
+        const panel = panelRef.current
         if (!menu) return
 
         const trigger = menu.querySelector('[aria-haspopup="menu"]') as HTMLElement | null
@@ -152,15 +155,41 @@ function Panel({ children, className }: PanelProps) {
 
         const rect = trigger.getBoundingClientRect()
         const gap = 8
-        const right = Math.max(8, window.innerWidth - rect.right)
+        const margin = 8
+        const vw = window.innerWidth
+        const vh = window.innerHeight
+        const maxWidth = Math.max(160, Math.min(320, vw - margin * 2))
+        const panelWidth = Math.min(Math.max(panel?.offsetWidth || 0, 188), maxWidth)
+        const panelHeight = panel?.offsetHeight || 0
 
-        if (placement === 'below') {
-            setCoords({ top: rect.bottom + gap, right })
+        // Align to trigger's right edge, then keep the panel inside the viewport.
+        let right = vw - rect.right
+        const maxRight = Math.max(margin, vw - panelWidth - margin)
+        right = Math.min(Math.max(margin, right), maxRight)
+
+        const spaceBelow = Math.max(0, vh - rect.bottom - gap - margin)
+        const spaceAbove = Math.max(0, rect.top - gap - margin)
+        const placeBelow = placement === 'below'
+            ? spaceBelow >= Math.min(panelHeight || 160, spaceAbove) || spaceBelow >= spaceAbove
+            : spaceAbove < 120 && spaceBelow > spaceAbove
+
+        if (placeBelow) {
+            setCoords({
+                top: rect.bottom + gap,
+                right,
+                maxWidth,
+                maxHeight: Math.max(120, spaceBelow),
+            })
             return
         }
 
-        setCoords({ bottom: window.innerHeight - rect.top + gap, right })
-    }, [menuRef, placement])
+        setCoords({
+            bottom: vh - rect.top + gap,
+            right,
+            maxWidth,
+            maxHeight: Math.max(120, spaceAbove),
+        })
+    }, [menuRef, panelRef, placement])
 
     useLayoutEffect(() => {
         if (!open || !portaled) {
@@ -169,9 +198,11 @@ function Panel({ children, className }: PanelProps) {
         }
 
         updateCoords()
+        const raf = window.requestAnimationFrame(updateCoords)
         window.addEventListener('resize', updateCoords)
         window.addEventListener('scroll', updateCoords, true)
         return () => {
+            window.cancelAnimationFrame(raf)
             window.removeEventListener('resize', updateCoords)
             window.removeEventListener('scroll', updateCoords, true)
         }
@@ -195,6 +226,10 @@ function Panel({ children, className }: PanelProps) {
                   bottom: coords.bottom,
                   right: coords.right,
                   left: 'auto',
+                  maxWidth: coords.maxWidth,
+                  maxHeight: coords.maxHeight,
+                  width: 'max-content',
+                  overflow: 'auto',
               }
             : undefined
 
