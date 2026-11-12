@@ -14,7 +14,7 @@ export function ScreenerCustomFilters({ draft, patch }: Props) {
     return (
         <div className="robots-v2-screener-custom">
             <p className="robots-v2-hint robots-v2-screener-custom__hint">
-                Ручная настройка фильтров скринера. Ноль — не применять условие.
+                Ноль — условие не применяется.
             </p>
             <div className="robots-v2-grid robots-v2-grid--2">
                 <label className="robots-v2-field">

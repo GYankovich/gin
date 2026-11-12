@@ -70,28 +70,34 @@
 
     --border-subtle: rgba(255, 255, 255, 0.06);
     --border-medium: rgba(255, 255, 255, 0.12);
-    --border-accent: var(--neon-cyan);
-
-    --neon-cyan: #00ffff;
-    --neon-magenta: #ff00ff;
-    --neon-violet: #aa00ff;
-
-    --color-up: #00ffaa;
-    --color-down: #ff3366;
-    --color-warn: #ffaa00;
 
     --text-primary: #e0e0e0;
     --text-secondary: #888888;
     --text-muted: #555555;
     --text-inverse: #0a0a0f;
 
+    /* Neutral fills — never mix cool slate/cyan into hover */
+    --fill-hover: color-mix(in srgb, #ffffff 7%, transparent);
+    --fill-active: color-mix(in srgb, #ffffff 9%, transparent);
+    --fill-active-hover: color-mix(in srgb, #ffffff 14%, transparent);
+
+    /* Accent aliases stay neutral — no cyan/magenta neon in product UI */
+    --neon-cyan: var(--text-primary);
+    --neon-magenta: var(--text-secondary);
+    --neon-violet: var(--text-secondary);
+    --border-accent: var(--border-medium);
+
+    --color-up: #00ffaa;
+    --color-down: #ff3366;
+    --color-warn: #ffaa00;
+
     --bg-elevated: #181824;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.5);
 
-    --glow-cyan: 0 0 8px rgba(0, 255, 255, 0.35), 0 0 24px rgba(0, 255, 255, 0.12);
-    --glow-magenta: 0 0 8px rgba(255, 0, 255, 0.35), 0 0 24px rgba(255, 0, 255, 0.12);
+    --glow-cyan: none;
+    --glow-magenta: none;
     --glow-up: 0 0 8px rgba(0, 255, 170, 0.35);
     --glow-down: 0 0 8px rgba(255, 51, 102, 0.35);
 
@@ -114,20 +120,26 @@
 
     --border-subtle: rgba(26, 26, 26, 0.08);
     --border-medium: rgba(26, 26, 26, 0.14);
-    --border-accent: var(--neon-cyan);
-
-    --neon-cyan: #0066CC;
-    --neon-magenta: #9900CC;
-    --neon-violet: #6600AA;
-
-    --color-up: #00AA66;
-    --color-down: #CC3333;
-    --color-warn: #CC8800;
 
     --text-primary: #1A1A1A;
     --text-secondary: #666666;
     --text-muted: #999999;
     --text-inverse: #FFFFFF;
+
+    /* Neutral fills — avoid slate/blue cast from text-primary mixes */
+    --fill-hover: color-mix(in srgb, #000000 5%, transparent);
+    --fill-active: color-mix(in srgb, #000000 7%, transparent);
+    --fill-active-hover: color-mix(in srgb, #000000 11%, transparent);
+
+    /* Accent aliases stay neutral — no blue/cyan hover accents */
+    --neon-cyan: var(--text-primary);
+    --neon-magenta: var(--text-secondary);
+    --neon-violet: var(--text-secondary);
+    --border-accent: var(--border-medium);
+
+    --color-up: #00AA66;
+    --color-down: #CC3333;
+    --color-warn: #CC8800;
 
     /* Soft elevation instead of neon glow */
     --shadow-sm: 0 1px 2px rgba(26, 26, 26, 0.05);

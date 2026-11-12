@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wizard — nav + карточка шага</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .board { display: grid; gap: 28px; padding-bottom: 48px; }
+  .variant {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--page);
+    overflow: hidden;
+  }
+  .variant__head {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.02);
+  }
+  .variant__head h2 { margin: 0; font-size: 14px; font-weight: 650; }
+  .variant__head p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+    max-width: 72ch;
+  }
+  .variant__body {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    padding: 18px;
+  }
+  @media (max-width: 900px) {
+    .variant__body { grid-template-columns: 1fr; }
+  }
+  .pane-label {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .phone {
+    max-width: 390px;
+    margin: 0 auto;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background: #0e1114;
+  }
+  .screen {
+    min-height: 280px;
+    padding: 12px;
+    border-radius: 16px;
+    background: var(--page);
+  }
+  .card {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--panel);
+  }
+  .card h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 650;
+  }
+  .card p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .field {
+    margin-top: 12px;
+    height: 38px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--input);
+  }
+  .anchors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .anchors a {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--secondary);
+    font-size: 12px;
+    text-decoration: none;
+  }
+  .note-pick {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.04);
+    color: var(--secondary);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  /* Shared: nav style J (soft select, content-width) */
+  .tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button {
+    flex: 0 0 auto;
+    min-width: max-content;
+    padding: 9px 14px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .tabs button.is-on {
+    background: color-mix(in srgb, var(--text) 8%, transparent);
+    color: var(--text);
+  }
+
+  /* A — разрыв (сейчас в продукте после отмены well) */
+  .a-screen { display: flex; flex-direction: column; gap: 12px; }
+
+  /* B — одна оболочка */
+  .b-shell {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--panel);
+    overflow: hidden;
+  }
+  .b-tabs {
+    gap: 4px;
+    padding: 8px 8px 0;
+    background: color-mix(in srgb, var(--panel) 92%, #000);
+  }
+  .b-body {
+    padding: 12px 14px 14px;
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+  }
+  .b-body .field { background: var(--input); }
+
+  /* C — стык */
+  .c-screen { display: flex; flex-direction: column; gap: 0; }
+  .c-tabs {
+    gap: 4px;
+    padding: 8px 8px 6px;
+    border: 1px solid var(--border);
+    border-bottom: 0;
+    border-radius: 16px 16px 0 0;
+    background: var(--panel);
+  }
+  .c-card {
+    border-radius: 0 0 16px 16px;
+  }
+
+  /* D — well (отменён) */
+  .d-screen {
+    padding: 10px;
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--panel) 55%, transparent);
+    border: 1px solid var(--border);
+  }
+  .d-card {
+    margin-top: 10px;
+    box-shadow: none;
+  }
+  .variant--dim { opacity: 0.55; }
+
+  /* E — pills внутри карточки */
+  .e-card { padding: 10px; }
+  .e-tabs {
+    gap: 4px;
+    padding: 4px;
+    margin-bottom: 12px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--page) 70%, transparent);
+  }
+  .e-tabs button.is-on {
+    background: var(--panel);
+    box-shadow: 0 1px 2px rgba(0,0,0,.25);
+  }
+  .e-body { padding: 4px 6px 6px; }
+
+  /* F — две панели одного материала */
+  .f-screen { display: flex; flex-direction: column; gap: 8px; }
+  .f-tabs {
+    gap: 4px;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+  }
+
+  /* light samples */
+  .light-frame {
+    --page: #eef1f5;
+    --panel: #ffffff;
+    --input: #ffffff;
+    --text: #0f172a;
+    --muted: #64748b;
+    --border: rgba(15, 23, 42, 0.1);
+    background: #dfe5ec;
+  }
+  .light-frame .screen { background: var(--page); }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← Назад</a>
+    <div>
+      <h1>Wizard — поверхность nav + карточка</h1>
+      <p>Выбрано <strong>F</strong>. Nav J · две панели `--bg-card`. Well D ✕.</p>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="anchors">
+      <a href="#a">A разрыв</a>
+      <a href="#b">B одна оболочка</a>
+      <a href="#c">C стык</a>
+      <a href="#d">D well ✕</a>
+      <a href="#e">E pills in card</a>
+      <a href="#f">F две панели</a>
+    </div>
+
+    <div class="board">
+
+      <section class="variant variant--dim" id="a">
+        <div class="variant__head">
+          <h2>A — Разрыв · архив</h2>
+          <p>Soft-select на фоне страницы, карточка отдельно. Два слоя без общей оболочки.</p>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Dark</p>
+            <div class="phone"><div class="screen a-screen">
+              <nav class="tabs a-tabs">
+                <button type="button">Основное</button>
+                <button type="button" class="is-on">Расписание</button>
+                <button type="button">Стратегия</button>
+                <button type="button">Активы</button>
+              </nav>
+              <div class="card">
+                <h3>Настройте расписание</h3>
+                <p>Рабочая область шага.</p>
+                <div class="field"></div>
+              </div>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Light</p>
+            <div class="phone light-frame"><div class="screen a-screen">
+              <nav class="tabs a-tabs">
+                <button type="button">Основное</button>
+                <button type="button" class="is-on">Расписание</button>
+                <button type="button">Стратегия</button>
+                <button type="button">Активы</button>
+              </nav>
+              <div class="card">
+                <h3>Настройте расписание</h3>
+                <p>Особенно заметно на светлой теме.</p>
+                <div class="field"></div>
+              </div>
+            </div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="variant" id="b">
+        <div class="variant__head">
+          <h2>B — Одна оболочка</h2>
+          <p>Табы и контент в одной карточке. Максимально «объединены»: один border/radius, шапка-табы внутри.</p>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Dark</p>
+            <div class="phone"><div class="screen">
+              <div class="b-shell">
+                <nav class="tabs b-tabs">
+                  <button type="button">Основное</button>
+                  <button type="button" class="is-on">Расписание</button>
+                  <button type="button">Стратегия</button>
+                  <button type="button">Активы</button>
+                </nav>
+                <div class="b-body">
+                  <h3 style="margin:0 0 8px;font-size:15px;font-weight:650">Настройте расписание</h3>
+                  <p style="margin:0;color:var(--muted);font-size:12px;line-height:1.45">Всё — один объект.</p>
+                  <div class="field"></div>
+                </div>
+              </div>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Light</p>
+            <div class="phone light-frame"><div class="screen">
+              <div class="b-shell">
+                <nav class="tabs b-tabs">
+                  <button type="button">Основное</button>
+                  <button type="button" class="is-on">Расписание</button>
+                  <button type="button">Стратегия</button>
+                  <button type="button">Активы</button>
+                </nav>
+                <div class="b-body">
+                  <h3 style="margin:0 0 8px;font-size:15px;font-weight:650;color:var(--text)">Настройте расписание</h3>
+                  <p style="margin:0;color:var(--muted);font-size:12px;line-height:1.45">Белая карта целиком.</p>
+                  <div class="field"></div>
+                </div>
+              </div>
+            </div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="variant" id="c">
+        <div class="variant__head">
+          <h2>C — Стык (attached)</h2>
+          <p>Табы сидят на том же `--bg-card`, скругление только сверху; карточка продолжает их без зазора. Визуально один блок, но табы остаются «шапкой».</p>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Dark</p>
+            <div class="phone"><div class="screen c-screen">
+              <nav class="tabs c-tabs">
+                <button type="button">Основное</button>
+                <button type="button" class="is-on">Расписание</button>
+                <button type="button">Стратегия</button>
+                <button type="button">Активы</button>
+              </nav>
+              <div class="card c-card">
+                <h3>Настройте расписание</h3>
+                <p>Шов только линия под табами.</p>
+                <div class="field"></div>
+              </div>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Light</p>
+            <div class="phone light-frame"><div class="screen c-screen">
+              <nav class="tabs c-tabs">
+                <button type="button">Основное</button>
+                <button type="button" class="is-on">Расписание</button>
+                <button type="button">Стратегия</button>
+                <button type="button">Активы</button>
+              </nav>
+              <div class="card c-card">
+                <h3>Настройте расписание</h3>
+                <p>Табы и тело — один белый силуэт.</p>
+                <div class="field"></div>
+              </div>
+            </div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="variant variant--dim" id="d">
+        <div class="variant__head">
+          <h2>D — Common well · отменён</h2>
+          <p>Общий приглушённый колодец. Оставлен для сравнения — в продукт не возвращаем без новой буквы.</p>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Dark</p>
+            <div class="phone"><div class="screen" style="padding:8px">
+              <div class="d-screen">
+                <nav class="tabs d-tabs">
+                  <button type="button">Основное</button>
+                  <button type="button" class="is-on">Расписание</button>
+                  <button type="button">Стратегия</button>
+                  <button type="button">Активы</button>
+                </nav>
+                <div class="card d-card">
+                  <h3>Настройте расписание</h3>
+                  <p>Колодец = сцена визарда.</p>
+                  <div class="field"></div>
+                </div>
+              </div>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Light</p>
+            <div class="phone light-frame"><div class="screen" style="padding:8px">
+              <div class="d-screen">
+                <nav class="tabs d-tabs">
+                  <button type="button">Основное</button>
+                  <button type="button" class="is-on">Расписание</button>
+                  <button type="button">Стратегия</button>
+                  <button type="button">Активы</button>
+                </nav>
+                <div class="card d-card">
+                  <h3>Настройте расписание</h3>
+                  <p>Серый well + белая карточка.</p>
+                  <div class="field"></div>
+                </div>
+              </div>
+            </div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="variant" id="e">
+        <div class="variant__head">
+          <h2>E — Pills внутри карточки</h2>
+          <p>Навигация — сегмент внутри рабочей карточки (как segmented). Один объект; табы не спорят с фоном страницы.</p>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Dark</p>
+            <div class="phone"><div class="screen">
+              <div class="card e-card">
+                <nav class="tabs e-tabs">
+                  <button type="button">Основное</button>
+                  <button type="button" class="is-on">Расписание</button>
+                  <button type="button">Стратегия</button>
+                  <button type="button">Активы</button>
+                </nav>
+                <div class="e-body">
+                  <h3 style="margin:0 0 8px;font-size:15px;font-weight:650">Настройте расписание</h3>
+                  <p style="margin:0;color:var(--muted);font-size:12px;line-height:1.45">Табы = контрол формы.</p>
+                  <div class="field"></div>
+                </div>
+              </div>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Light</p>
+            <div class="phone light-frame"><div class="screen">
+              <div class="card e-card">
+                <nav class="tabs e-tabs">
+                  <button type="button">Основное</button>
+                  <button type="button" class="is-on">Расписание</button>
+                  <button type="button">Стратегия</button>
+                  <button type="button">Активы</button>
+                </nav>
+                <div class="e-body">
+                  <h3 style="margin:0 0 8px;font-size:15px;font-weight:650;color:var(--text)">Настройте расписание</h3>
+                  <p style="margin:0;color:var(--muted);font-size:12px;line-height:1.45">Знакомый pattern segmented.</p>
+                  <div class="field"></div>
+                </div>
+              </div>
+            </div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="variant" id="f">
+        <div class="variant__head">
+          <h2>F — Две панели одного материала · выбрано</h2>
+          <p>Отдельная «плашка» табов и отдельная карточка контента — оба `--bg-card`. Не склеены, но один визуальный язык (не page vs card).</p>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Dark</p>
+            <div class="phone"><div class="screen f-screen">
+              <nav class="tabs f-tabs">
+                <button type="button">Основное</button>
+                <button type="button" class="is-on">Расписание</button>
+                <button type="button">Стратегия</button>
+                <button type="button">Активы</button>
+              </nav>
+              <div class="card">
+                <h3>Настройте расписание</h3>
+                <p>Два sibling-блока одного тона.</p>
+                <div class="field"></div>
+              </div>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Light</p>
+            <div class="phone light-frame"><div class="screen f-screen">
+              <nav class="tabs f-tabs">
+                <button type="button">Основное</button>
+                <button type="button" class="is-on">Расписание</button>
+                <button type="button">Стратегия</button>
+                <button type="button">Активы</button>
+              </nav>
+              <div class="card">
+                <h3>Настройте расписание</h3>
+                <p>Две белые панели на сером.</p>
+                <div class="field"></div>
+              </div>
+            </div></div>
+          </div>
+        </div>
+      </section>
+
+      <p class="note-pick">
+        Напиши букву. На десктопе левый rail уже в карточке — меняем в первую очередь mobile; desktop можно оставить как есть или подтянуть к тому же языку.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

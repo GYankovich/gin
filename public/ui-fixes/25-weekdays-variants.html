@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Дни недели — варианты</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .board { display: grid; gap: 20px; padding-bottom: 48px; }
+  .intro {
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .variant {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--page);
+    overflow: hidden;
+  }
+  .variant__head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .variant__head h2 { margin: 0; font-size: 14px; font-weight: 650; }
+  .variant__head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.4; max-width: 70ch; }
+  .tag {
+    flex: 0 0 auto;
+    align-self: flex-start;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 650;
+    color: var(--secondary);
+  }
+  .variant__body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding: 16px;
+  }
+  @media (max-width: 800px) { .variant__body { grid-template-columns: 1fr; } }
+  .pane-label {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .card {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .row span { font-size: 13px; font-weight: 500; color: var(--secondary); }
+  .tog {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--secondary);
+    font-size: 13px;
+  }
+  .tog i {
+    width: 34px;
+    height: 20px;
+    border-radius: 999px;
+    background: rgba(0,0,0,.12);
+    position: relative;
+  }
+  .tog i::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+  }
+
+  .days { display: flex; gap: 6px; }
+  .days button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 40px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  /* A — сейчас: on = серый fill (слабо) */
+  .a .on {
+    background: rgba(0,0,0,.06);
+    border-color: rgba(0,0,0,.22);
+    color: var(--text);
+  }
+
+  /* B — solid: on = тёмный fill + светлый текст */
+  .b .on {
+    background: var(--text);
+    border-color: var(--text);
+    color: var(--panel);
+  }
+
+  /* C — segmented track */
+  .c-track {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 12px;
+    background: rgba(0,0,0,.05);
+  }
+  .c-track button {
+    flex: 1 1 0;
+    min-height: 36px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .c-track button.on {
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: 0 1px 0 rgba(0,0,0,.12);
+  }
+
+  /* D — quiet weight */
+  .d button {
+    border-color: transparent;
+    background: transparent;
+    color: var(--muted);
+    min-height: 36px;
+  }
+  .d .on {
+    color: var(--text);
+    box-shadow: inset 0 -2px 0 var(--text);
+    border-radius: 0;
+  }
+
+  /* E — circles */
+  .e { justify-content: space-between; }
+  .e button {
+    flex: 0 0 auto;
+    width: 40px;
+    min-height: 40px;
+    border-radius: 50%;
+  }
+  .e .on {
+    background: var(--text);
+    border-color: var(--text);
+    color: var(--panel);
+  }
+
+  [data-theme='dark'] .tog i { background: rgba(255,255,255,.14); }
+  [data-theme='dark'] .tog i::after { background: #1a1a1a; }
+  [data-theme='dark'] .a .on { background: rgba(255,255,255,.09); border-color: rgba(255,255,255,.22); }
+  [data-theme='dark'] .c-track { background: rgba(255,255,255,.06); }
+  [data-theme='dark'] .c-track button.on { background: var(--panel); box-shadow: none; }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← индекс</a>
+    <div>
+      <h1>Дни недели — варианты</h1>
+      <p>Сейчас on = серый fill, off = белая обводка — on выглядит слабее. Выбери характер.</p>
+    </div>
+    <button class="badge" type="button" id="themeToggle">light / dark</button>
+  </div>
+
+  <div class="wrap board">
+    <div class="intro">
+      Проблема: выбранные дни (Пн–Пт) серые и «выключенные», выходные с обводкой читаются активнее.
+      Нужен ясный on/off в тихом кабинете, 7 ячеек в ряд на узком экране.
+    </div>
+
+    <section class="variant" id="a">
+      <div class="variant__head">
+        <div>
+          <h2>A — Сейчас</h2>
+          <p>On = лёгкий fill. Контраст слабый, на light почти «disabled».</p>
+        </div>
+        <span class="tag">A</span>
+      </div>
+      <div class="variant__body">
+        <div>
+          <p class="pane-label">Будни</p>
+          <div class="card a">
+            <div class="row"><span>Дни недели</span><span class="tog"><i></i>все</span></div>
+            <div class="days">
+              <button type="button" class="on">Пн</button>
+              <button type="button" class="on">Вт</button>
+              <button type="button" class="on">Ср</button>
+              <button type="button" class="on">Чт</button>
+              <button type="button" class="on">Пт</button>
+              <button type="button">Сб</button>
+              <button type="button">Вс</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <p class="pane-label">Все дни</p>
+          <div class="card a">
+            <div class="row"><span>Дни недели</span><span class="tog"><i></i>все</span></div>
+            <div class="days">
+              <button type="button" class="on">Пн</button>
+              <button type="button" class="on">Вт</button>
+              <button type="button" class="on">Ср</button>
+              <button type="button" class="on">Чт</button>
+              <button type="button" class="on">Пт</button>
+              <button type="button" class="on">Сб</button>
+              <button type="button" class="on">Вс</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="variant" id="b">
+      <div class="variant__head">
+        <div>
+          <h2>B — Solid</h2>
+          <p>On = заливка text-primary + инверсия текста. Off = тихая обводка. Самый читаемый on/off.</p>
+        </div>
+        <span class="tag">B</span>
+      </div>
+      <div class="variant__body">
+        <div>
+          <p class="pane-label">Будни</p>
+          <div class="card b">
+            <div class="row"><span>Дни недели</span><span class="tog"><i></i>все</span></div>
+            <div class="days">
+              <button type="button" class="on">Пн</button>
+              <button type="button" class="on">Вт</button>
+              <button type="button" class="on">Ср</button>
+              <button type="button" class="on">Чт</button>
+              <button type="button" class="on">Пт</button>
+              <button type="button">Сб</button>
+              <button type="button">Вс</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <p class="pane-label">Все дни</p>
+          <div class="card b">
+            <div class="row"><span>Дни недели</span><span class="tog"><i></i>все</span></div>
+            <div class="days">
+              <button type="button" class="on">Пн</button>
+              <button type="button" class="on">Вт</button>
+              <button type="button" class="on">Ср</button>
+              <button type="button" class="on">Чт</button>
+              <button type="button" class="on">Пт</button>
+              <button type="button" class="on">Сб</button>
+              <button type="button" class="on">Вс</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="variant" id="c">
+      <div class="variant__head">
+        <div>
+          <h2>C — Segmented track</h2>
+          <p>Один трек на 7 равных ячеек. On = приподнятая плашка. Ровная сетка на mobile.</p>
+        </div>
+        <span class="tag">C</span>
+      </div>
+      <div class="variant__body">
+        <div>
+          <p class="pane-label">Будни</p>
+          <div class="card">
+            <div class="row"><span>Дни недели</span><span class="tog"><i></i>все</span></div>
+            <div class="c-track">
+              <button type="button" class="on">Пн</button>
+              <button type="button" class="on">Вт</button>
+              <button type="button" class="on">Ср</button>
+              <button type="button" class="on">Чт</button>
+              <button type="button" class="on">Пт</button>
+              <button type="button">Сб</button>
+              <button type="button">Вс</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <p class="pane-label">Все дни</p>
+          <div class="card">
+            <div class="row"><span>Дни недели</span><span class="tog"><i></i>все</span></div>
+            <div class="c-track">
+              <button type="button" class="on">Пн</button>
+              <button type="button" class="on">Вт</button>
+              <button type="button" class="on">Ср</button>
+              <button type="button" class="on">Чт</button>
+              <button type="button" class="on">Пт</button>
+              <button type="button" class="on">Сб</button>
+              <button type="button" class="on">Вс</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="variant" id="d">
+      <div class="variant__head">
+        <div>
+          <h2>D — Quiet underline</h2>
+          <p>Почти без заливок: on = цвет primary + underline. Самый тихий, но слабее на touch.</p>
+        </div>
+        <span class="tag">D</span>
+      </div>
+      <div class="variant__body">
+        <div>
+          <p class="pane-label">Будни</p>
+          <div class="card d">
+            <div class="row"><span>Дни недели</span><span class="tog"><i></i>все</span></div>
+            <div class="days">
+              <button type="button" class="on">Пн</button>
+              <button type="button" class="on">Вт</button>
+              <button type="button" class="on">Ср</button>
+              <button type="button" class="on">Чт</button>
+              <button type="button" class="on">Пт</button>
+              <button type="button">Сб</button>
+              <button type="button">Вс</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <p class="pane-label">Все дни</p>
+          <div class="card d">
+            <div class="row"><span>Дни недели</span><span class="tog"><i></i>все</span></div>
+            <div class="days">
+              <button type="button" class="on">Пн</button>
+              <button type="button" class="on">Вт</button>
+              <button type="button" class="on">Ср</button>
+              <button type="button" class="on">Чт</button>
+              <button type="button" class="on">Пт</button>
+              <button type="button" class="on">Сб</button>
+              <button type="button" class="on">Вс</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="variant" id="e">
+      <div class="variant__head">
+        <div>
+          <h2>E — Circles</h2>
+          <p>Круги как в календарях. On = solid. Много воздуха, знакомый паттерн.</p>
+        </div>
+        <span class="tag">E</span>
+      </div>
+      <div class="variant__body">
+        <div>
+          <p class="pane-label">Будни</p>
+          <div class="card e">
+            <div class="row"><span>Дни недели</span><span class="tog"><i></i>все</span></div>
+            <div class="days e">
+              <button type="button" class="on">Пн</button>
+              <button type="button" class="on">Вт</button>
+              <button type="button" class="on">Ср</button>
+              <button type="button" class="on">Чт</button>
+              <button type="button" class="on">Пт</button>
+              <button type="button">Сб</button>
+              <button type="button">Вс</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <p class="pane-label">Все дни</p>
+          <div class="card e">
+            <div class="row"><span>Дни недели</span><span class="tog"><i></i>все</span></div>
+            <div class="days e">
+              <button type="button" class="on">Пн</button>
+              <button type="button" class="on">Вт</button>
+              <button type="button" class="on">Ср</button>
+              <button type="button" class="on">Чт</button>
+              <button type="button" class="on">Пт</button>
+              <button type="button" class="on">Сб</button>
+              <button type="button" class="on">Вс</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const root = document.documentElement;
+    document.getElementById('themeToggle').addEventListener('click', () => {
+      root.setAttribute('data-theme', root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+  </script>
+</body>
+</html>

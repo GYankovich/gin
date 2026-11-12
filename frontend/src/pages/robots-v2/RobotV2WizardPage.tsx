@@ -6,29 +6,26 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { FormLabelTooltip } from '@/components/ui/FormLabelTooltip'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Select } from '@/components/ui/Select'
+import { SideRail } from '@/components/ui/SideRail'
+import { TimeSelect } from '@/components/ui/TimeSelect'
 import { Toggle } from '@/components/ui/Toggle'
 import { WeekdaysMaskField } from '@/components/ui/WeekdaysMaskField'
 import { api } from '@/services/api'
 import { robotV2Service } from '@/services/robotV2Service'
 import { brokerFromTokenType, brokerLabelFromToken } from '@/modules/robots/config/tokenBroker'
 import { useToast } from '@/components/ui/Toast'
-import { RobotConfirmModal } from '@/pages/robots-v2/components/RobotConfirmModal'
 import { ScreenerCustomFilters } from '@/pages/robots-v2/components/ScreenerCustomFilters'
 import { fmtErr } from '@/pages/robots-v2/formatters'
 import {
     ARCHETYPE_CARDS,
-    PORTFOLIO_DRAFT_STORAGE_KEY,
     archetypeDefaults,
-    clearDraftLocal,
     configToDraft,
     configToPortfolioDraft,
     customScreenerFieldDefaults,
     defaultWizardDraft,
     draftToPortfolioV4Config,
     draftToV4Config,
-    loadDraftLocal,
     parseFixedList,
-    saveDraftLocal,
     type RobotV2WizardDraft,
     type WizardArchetype,
 } from '@/pages/robots-v2/wizardDraft'
@@ -41,27 +38,83 @@ type ApiToken = {
     token_type?: { type?: number; typeName?: string }
 }
 
-const TRADING_STEPS = ['Основное', 'Стратегия', 'Активы', 'Риск'] as const
-const PORTFOLIO_STEPS = ['Основное', 'Синхрон'] as const
+const TRADING_STEPS = ['Основное', 'Расписание', 'Стратегия', 'Активы', 'Риск'] as const
+const PORTFOLIO_STEPS = ['Основное', 'Расписание'] as const
 const PREVIEW_PAGE_SIZE = 20
-const GOAL_OPTIONS = [
-    { value: 'conservative', label: 'Консервативный' },
-    { value: 'moderate', label: 'Умеренный' },
-    { value: 'aggressive', label: 'Агрессивный' },
-] as const
-const MODE_OPTIONS = [
-    { value: 'paper', label: 'Paper' },
-    { value: 'live', label: 'Live' },
-] as const
 const UNIVERSE_OPTIONS = [
     { value: 'fixed', label: 'Список' },
     { value: 'index', label: 'Индекс' },
     { value: 'screener', label: 'Скринер' },
 ] as const
 const STOP_MODE_OPTIONS = [
-    { value: 'soft', label: 'Мягкая остановка' },
-    { value: 'hard', label: 'Жёсткая остановка' },
+    { value: 'soft', label: 'Мягкая' },
+    { value: 'hard', label: 'Жёсткая' },
 ] as const
+const PARAM_LABELS: Record<string, string> = {
+    maPeriod: 'Период MA',
+    volumeMultiplier: 'Множитель объёма',
+    breakoutLookback: 'Окно пробоя',
+    indicator: 'Индикатор',
+    overboughtThreshold: 'Перекупленность',
+    oversoldThreshold: 'Перепроданность',
+    rsiPeriod: 'Период RSI',
+    gridStepAtrPct: 'Шаг сетки, % ATR',
+    gridDepth: 'Уровней',
+    baseAllocationPct: 'Доля на уровень, %',
+    scaleMultiplier: 'Множитель объёма',
+    deltaThresholdPct: 'Порог дельты, %',
+    requiresWebSocket: 'Нужен WebSocket',
+    minVolumeWindow: 'Окно потока, сек',
+    cooldownSec: 'Пауза, сек',
+    stopLossCooldownSec: 'Пауза после стопа, сек',
+    trendLookbackTicks: 'Окно тренда, тиков',
+    trendBlockLongBps: 'Блок лонга, б.п.',
+    minHoldSec: 'Мин. удержание, сек',
+    minExitMoveBps: 'Мин. выход, б.п.',
+    invalidateBelowEntryBps: 'Инвалидация, б.п.',
+    minFlowTicks: 'Мин. тиков потока',
+}
+
+const SCALPER_PARAM_GROUPS: Array<{ title: string; keys: string[] }> = [
+    {
+        title: 'Вход',
+        keys: ['deltaThresholdPct', 'minVolumeWindow', 'minFlowTicks', 'trendLookbackTicks', 'trendBlockLongBps'],
+    },
+    {
+        title: 'Выход',
+        keys: ['minHoldSec', 'minExitMoveBps', 'invalidateBelowEntryBps'],
+    },
+    {
+        title: 'Паузы',
+        keys: ['cooldownSec', 'stopLossCooldownSec'],
+    },
+]
+
+function StrategyParamField({
+    name,
+    value,
+    onChange,
+}: {
+    name: string
+    value: number | string
+    onChange: (next: number | string) => void
+}) {
+    return (
+        <label className="robots-v2-field">
+            <span>{PARAM_LABELS[name] ?? name}</span>
+            <input
+                className="robots-v2-input"
+                type={typeof value === 'number' ? 'number' : 'text'}
+                value={String(value)}
+                onChange={e => {
+                    const raw = e.target.value
+                    onChange(typeof value === 'number' ? Number(raw) : raw)
+                }}
+            />
+        </label>
+    )
+}
+
 const EOD_OPTIONS = [
     { value: 'auto', label: 'Auto' },
     { value: 'on', label: 'Включён' },
@@ -107,8 +160,7 @@ export default function RobotV2WizardPage() {
 
     const [kind, setKind] = useState<'trading' | 'portfolio'>(kindFromUrl)
     const [step, setStep] = useState(0)
-    const [draft, setDraft] = useState<RobotV2WizardDraft>(defaultWizardDraft)
-    const [pendingLocalDraft, setPendingLocalDraft] = useState<RobotV2WizardDraft | null>(null)
+    const [draft, setDraft] = useState<RobotV2WizardDraft>(() => ({ ...defaultWizardDraft(), mode: 'live' }))
     const [tokens, setTokens] = useState<ApiToken[]>([])
     const [saving, setSaving] = useState(false)
     const [editLoading, setEditLoading] = useState(Boolean(editId))
@@ -161,7 +213,7 @@ export default function RobotV2WizardPage() {
                         setDraft(configToPortfolioDraft(robot.config, robot.name, robot.tokenId, robot.status))
                     } else {
                         setKind('trading')
-                        setDraft(configToDraft(robot.config, robot.name, robot.tokenId))
+                        setDraft({ ...configToDraft(robot.config, robot.name, robot.tokenId), mode: 'live' })
                     }
                 } catch (e) {
                     toast.show(fmtErr(e), 'error')
@@ -171,37 +223,12 @@ export default function RobotV2WizardPage() {
             })()
             return
         }
-        const storageKey = kindFromUrl === 'portfolio' ? PORTFOLIO_DRAFT_STORAGE_KEY : undefined
-        if (search.get('restore') === '0') {
-            clearDraftLocal(storageKey)
-            setDraft(defaultWizardDraft())
-            return
-        }
-        const local = loadDraftLocal(storageKey)
-        if (local && !search.get('fresh')) {
-            setPendingLocalDraft(local)
-            setDraft(defaultWizardDraft())
-        } else {
-            setDraft(defaultWizardDraft())
-        }
+        setDraft({ ...defaultWizardDraft(), mode: 'live' })
     }, [editId, kindFromUrl]) // eslint-disable-line react-hooks/exhaustive-deps
-
-    useEffect(() => {
-        if (editId || pendingLocalDraft) return
-        const key = kind === 'portfolio' ? PORTFOLIO_DRAFT_STORAGE_KEY : undefined
-        const t = window.setTimeout(() => saveDraftLocal(draft, key), 500)
-        return () => window.clearTimeout(t)
-    }, [draft, editId, kind, pendingLocalDraft])
 
     const selectedBroker = useMemo(() => {
         if (!draft.tokenId) return null
         return brokerFromTokenType(tokens.find(t => t.id === draft.tokenId)?.token_type)
-    }, [draft.tokenId, tokens])
-
-    const brokerShortLabel = useMemo(() => {
-        if (!draft.tokenId) return null
-        const label = brokerLabelFromToken(draft.tokenId, tokens).trim()
-        return label && label !== '—' ? label : null
     }, [draft.tokenId, tokens])
 
     const patch = (partial: Partial<RobotV2WizardDraft>) => {
@@ -224,18 +251,7 @@ export default function RobotV2WizardPage() {
 
     const steps = kind === 'portfolio' ? PORTFOLIO_STEPS : TRADING_STEPS
     const lastStep = steps.length - 1
-    const kindLabel = kind === 'portfolio' ? 'Опросник' : 'Торговый'
-    const modeLabel = draft.mode === 'live' ? 'Боевой' : 'Бумага'
-    const railTitle = editId ? 'Правка' : 'Создание'
-    const cardTitle = editId || step > 0
-        ? steps[step]
-        : (kind === 'portfolio' ? 'Новый опросник' : 'Новый робот')
-    const railMetaPrimary = editId
-        ? `${draft.name.trim() || (kind === 'portfolio' ? 'Опросник' : 'Робот')} · #${editId}`
-        : (kind === 'trading' ? `${kindLabel} · ${modeLabel}` : kindLabel)
-    const railMetaSecondary = editId
-        ? (kind === 'trading' ? `${kindLabel} · ${modeLabel}` : kindLabel)
-        : 'Черновик сохраняется локально'
+    const railTitle = `${editId ? 'Правка' : 'Создание'} ${kind === 'portfolio' ? 'опросника' : 'торгового'}`
 
     const validateStep = (s: number): string[] => {
         const errs: string[] = []
@@ -243,26 +259,24 @@ export default function RobotV2WizardPage() {
             if (!draft.name.trim()) errs.push('Укажите название')
             if (!draft.tokenId) errs.push('Выберите API-ключ')
         }
+        if (s === 1 && (kind === 'trading' || kind === 'portfolio')) {
+            if (!draft.weekdays.some(Boolean)) errs.push('Выберите хотя бы один день')
+            if (draft.timeFrom >= draft.timeTo) errs.push('timeFrom должен быть раньше timeTo')
+        }
         if (kind === 'trading') {
-            if (s === 1) {
-                if (!draft.weekdays.some(Boolean)) errs.push('Выберите хотя бы один день')
-                if (draft.timeFrom >= draft.timeTo) errs.push('timeFrom должен быть раньше timeTo')
-                if (!draft.archetype) errs.push('Выберите архетип')
-                if (draft.archetype === 'scalper' && !draft.advancedMode) errs.push('Scalper требует advanced mode')
-            }
             if (s === 2) {
+                if (!draft.archetype) errs.push('Выберите архетип')
+            }
+            if (s === 3) {
                 if (draft.universeMode === 'fixed' && parseFixedList(draft.fixedList).length === 0) {
                     errs.push('Укажите хотя бы один тикер')
                 }
                 if (draft.universeMode === 'index' && !draft.indexCode.trim()) errs.push('Укажите индекс')
             }
-            if (s === 3) {
+            if (s === 4) {
                 if (draft.mode === 'paper' && draft.capital <= 0) errs.push('Капитал должен быть > 0')
                 if (draft.stopLossPct >= draft.takeProfitPct) errs.push('SL должен быть меньше TP')
             }
-        } else if (s === 1) {
-            if (!draft.weekdays.some(Boolean)) errs.push('Выберите хотя бы один день')
-            if (draft.timeFrom >= draft.timeTo) errs.push('timeFrom должен быть раньше timeTo')
         }
         return errs
     }
@@ -358,7 +372,6 @@ export default function RobotV2WizardPage() {
                 status: andStart ? undefined : (editId || persistedRobotId ? undefined : 2),
             })
             setPersistedRobotId(robot.id)
-            clearDraftLocal()
             if (andStart) {
                 try {
                     if (draft.mode === 'live') {
@@ -419,7 +432,6 @@ export default function RobotV2WizardPage() {
                 config,
                 status: enable ? 1 : 2,
             })
-            clearDraftLocal(PORTFOLIO_DRAFT_STORAGE_KEY)
             toast.show(
                 enable
                     ? (editId ? 'Опросник сохранён и включён' : 'Опросник создан и включён')
@@ -434,52 +446,34 @@ export default function RobotV2WizardPage() {
         }
     }
 
-    const notional = draft.mode === 'live'
-        ? null
-        : (draft.capital * draft.maxPositionSharePct) / 100
-    const rr = draft.stopLossPct > 0 ? draft.takeProfitPct / draft.stopLossPct : 0
     const configComplete = allStepErrors().length === 0
 
-    const storageKey = kind === 'portfolio' ? PORTFOLIO_DRAFT_STORAGE_KEY : undefined
-
     const railNav = (
-        <aside className={`robots-v2-wizard-rail${editLoading ? ' robots-v2-wizard-rail--dim' : ''}`}>
-            <p className="robots-v2-wizard-rail__title">{railTitle}</p>
-            <nav className="robots-v2-wizard-rail__nav" aria-label="Шаги мастера">
-                {steps.map((label, i) => {
-                    const done = i < step
-                    const active = i === step
-                    return (
-                        <button
-                            key={label}
-                            type="button"
-                            className={[
-                                'robots-v2-wizard-rail__item',
-                                active ? 'robots-v2-wizard-rail__item--active' : '',
-                                done ? 'robots-v2-wizard-rail__item--done' : '',
-                            ].filter(Boolean).join(' ')}
-                            aria-current={active ? 'step' : undefined}
-                            disabled={Boolean(editLoading)}
-                            onClick={() => goToStep(i)}
-                        >
-                            <span className="robots-v2-wizard-rail__label">{label}</span>
-                            <span className="robots-v2-wizard-rail__mark" aria-hidden>
-                                {done ? '✓' : i + 1}
-                            </span>
-                        </button>
-                    )
-                })}
-            </nav>
-            <div className="robots-v2-wizard-rail__meta">
-                <div>{railMetaPrimary}</div>
-                <div>{railMetaSecondary}</div>
-            </div>
-        </aside>
+        <SideRail
+            className="robots-v2-wizard-rail"
+            title={railTitle}
+            aria-label="Шаги мастера"
+            dimmed={Boolean(editLoading)}
+        >
+            {steps.map((label, i) => {
+                const active = i === step
+                return (
+                    <SideRail.Item
+                        key={label}
+                        active={active}
+                        aria-current={active ? 'step' : undefined}
+                        disabled={Boolean(editLoading)}
+                        onClick={() => goToStep(i)}
+                        name={label}
+                    />
+                )
+            })}
+        </SideRail>
     )
 
     if (editId && editLoading) {
         return (
-            <div className="page" data-page="robots" data-robots-view="wizard">
+            <div className="page" data-page="robots" data-robots-view="wizard" data-robot-kind={kind}>
                 <div className="dashboard-layout robots-v2-wizard-layout">
                     <div className="robots-v2-wizard-rail-layout">
                         {railNav}
@@ -496,7 +490,7 @@ export default function RobotV2WizardPage() {
     }
 
     return (
-        <div className="page" data-page="robots" data-robots-view="wizard">
+        <div className="page" data-page="robots" data-robots-view="wizard" data-robot-kind={kind}>
             <div className="dashboard-layout robots-v2-wizard-layout">
                 {fieldErrors.length > 0 && (
                     <div className="robots-v2-banner robots-v2-banner--error" role="alert">
@@ -509,48 +503,6 @@ export default function RobotV2WizardPage() {
                     {railNav}
 
                 <Card className="robots-v2-wizard-card">
-                    <header className="robots-v2-wizard-card__head">
-                        <div className="robots-v2-wizard-card__lead">
-                            <div className="robots-v2-wizard-card__title">
-                                <h1 className="robots-v2-wizard-card__name">{cardTitle}</h1>
-                                {editId ? (
-                                    <span className="robots-v2-wizard-card__id mono">#{editId}</span>
-                                ) : null}
-                            </div>
-                            <div className="robots-v2-wizard-card__pills" aria-label="Тип">
-                                {!editId ? (
-                                    <span className="robots-v2-wizard-card__pill robots-v2-wizard-card__pill--draft">
-                                        Черновик
-                                    </span>
-                                ) : null}
-                                {editId && draft.name.trim() ? (
-                                    <span className="robots-v2-wizard-card__pill">{draft.name.trim()}</span>
-                                ) : null}
-                                <span className="robots-v2-wizard-card__pill">{kindLabel}</span>
-                                {kind === 'trading' ? (
-                                    <span className="robots-v2-wizard-card__pill robots-v2-wizard-card__pill--mode">
-                                        {modeLabel}
-                                    </span>
-                                ) : null}
-                                {brokerShortLabel ? (
-                                    <span className="robots-v2-wizard-card__pill">{brokerShortLabel}</span>
-                                ) : null}
-                                {kind === 'portfolio' && editId ? (
-                                    <span className={`robots-v2-wizard-card__pill${draft.portfolioEnabled ? ' robots-v2-wizard-card__pill--ok' : ''}`}>
-                                        {draft.portfolioEnabled ? 'Включён' : 'Выключен'}
-                                    </span>
-                                ) : null}
-                            </div>
-                        </div>
-                        <button
-                            type="button"
-                            className="robots-v2-wizard-card__back"
-                            onClick={() => navigate('/robots')}
-                        >
-                            К списку
-                        </button>
-                    </header>
-
                     {step === 0 && (
                         <div className="robots-v2-form">
                             {!kindPinned ? (
@@ -564,7 +516,6 @@ export default function RobotV2WizardPage() {
                                             onClick={() => selectKind('trading')}
                                         >
                                             <strong>Торговый робот</strong>
-                                            <small>Ищет сигналы, открывает позиции и контролирует риск.</small>
                                         </button>
                                         <button
                                             type="button"
@@ -573,31 +524,29 @@ export default function RobotV2WizardPage() {
                                             onClick={() => selectKind('portfolio')}
                                         >
                                             <strong>Опросник портфеля</strong>
-                                            <small>Переносит позиции и операции брокера в GIN.</small>
                                         </button>
                                     </div>
                                 </div>
                             ) : null}
                             <label className="robots-v2-field">
-                                <span>Название <small>Будет видно в списке и уведомлениях</small></span>
+                                <span>Название</span>
                                 <input
                                     className="robots-v2-input"
                                     value={draft.name}
                                     maxLength={50}
                                     onChange={e => patch({ name: e.target.value })}
-                                    placeholder={kind === 'portfolio' ? 'Portfolio sync' : 'MOEX Momentum Paper'}
+                                    placeholder={kind === 'portfolio' ? 'Portfolio sync' : 'MOEX Momentum'}
                                 />
                             </label>
                             <label className="robots-v2-field">
                                 <span>
-                                    Брокерский аккаунт
+                                    Токен брокера
                                     <FormLabelTooltip text="API-ключ определяет брокера, доступные инструменты и счёт для операций." />
-                                    <small>Ключи настраиваются в разделе профиля</small>
                                 </span>
                                 <Select
                                     className="robots-v2-select"
                                     value={draft.tokenId}
-                                    placeholder="Выберите аккаунт…"
+                                    placeholder="Выберите токен…"
                                     searchable={tokens.length > 6}
                                     options={tokens.map(token => ({
                                         value: token.id,
@@ -616,232 +565,179 @@ export default function RobotV2WizardPage() {
                                         })
                                     }}
                                 />
-                                {selectedBroker && (
-                                    <small className="robots-v2-hint">
-                                        Брокер: {selectedBroker}
-                                        {kind === 'trading' ? ' (read-only из токена)' : ''}
-                                    </small>
-                                )}
                             </label>
                         </div>
                     )}
 
-                    {kind === 'portfolio' && step === 1 && (
+                    {step === 1 && (
                         <div className="robots-v2-form">
-                            <p className="robots-v2-hint">
-                                Опросник читает позиции и операции брокера по расписанию и обновляет портфель в GIN.
-                            </p>
-                            <Toggle
-                                checked={draft.portfolioEnabled}
-                                onChange={portfolioEnabled => patch({ portfolioEnabled })}
-                                label={draft.portfolioEnabled ? 'Синхронизация включена' : 'Синхронизация выключена'}
-                            />
                             <div className="robots-v2-field">
                                 <WeekdaysMaskField
                                     value={weekdaysToMask(draft.weekdays)}
                                     onChange={mask => patch({ weekdays: maskToWeekdays(mask) })}
                                 />
-                                <div className="robots-v2-schedule-grid">
-                                    <label className="robots-v2-field">
-                                        <span>Начало</span>
-                                        <input
-                                            className="robots-v2-input"
-                                            type="time"
-                                            value={draft.timeFrom}
-                                            onChange={e => patch({ timeFrom: e.target.value })}
-                                        />
-                                    </label>
-                                    <label className="robots-v2-field">
-                                        <span>Окончание</span>
-                                        <input
-                                            className="robots-v2-input"
-                                            type="time"
-                                            value={draft.timeTo}
-                                            onChange={e => patch({ timeTo: e.target.value })}
-                                        />
-                                    </label>
-                                    <label className="robots-v2-field">
-                                        <span>Частота опроса</span>
-                                        <Select
-                                            className="robots-v2-select"
-                                            value={draft.pollInterval}
-                                            searchable={false}
-                                            options={[
-                                                { value: '1m', label: 'Каждую минуту' },
-                                                { value: '5m', label: 'Каждые 5 минут' },
-                                                { value: '15m', label: 'Каждые 15 минут' },
-                                                { value: '1h', label: 'Каждый час' },
-                                            ]}
-                                            onChange={value => patch({
-                                                pollInterval: value as RobotV2WizardDraft['pollInterval'],
-                                            })}
-                                        />
-                                    </label>
-                                </div>
                             </div>
-                        </div>
-                    )}
-
-                    {kind === 'trading' && step === 1 && (
-                        <div className="robots-v2-form">
-                            <label className="robots-v2-field">
-                                <span>Цель</span>
-                                <SegmentedControl
-                                    className="robots-v2-segmented"
-                                    aria-label="Цель стратегии"
-                                    options={[...GOAL_OPTIONS]}
-                                    value={draft.goal}
-                                    onChange={goal => patch({ goal })}
-                                />
-                            </label>
-                            <label className="robots-v2-field">
-                                <span>Тип инструмента</span>
-                                <Select
-                                    className="robots-v2-select"
-                                    value={draft.instrumentType}
-                                    searchable={false}
-                                    options={selectedBroker === 'bybit'
-                                        ? [
-                                            { value: 'perpetual', label: 'Perpetual (USDT linear)' },
-                                            { value: 'coin_futures', label: 'Coin futures (inverse)' },
-                                        ]
-                                        : [
-                                            { value: 'stock', label: 'Акции' },
-                                            { value: 'futures', label: 'Фьючерсы' },
+                            <div className="robots-v2-schedule-grid">
+                                <label className="robots-v2-field">
+                                    <span>Начало</span>
+                                    <TimeSelect
+                                        className="robots-v2-time"
+                                        aria-label="Начало"
+                                        value={draft.timeFrom}
+                                        onChange={timeFrom => patch({ timeFrom })}
+                                    />
+                                </label>
+                                <label className="robots-v2-field">
+                                    <span>Окончание</span>
+                                    <TimeSelect
+                                        className="robots-v2-time"
+                                        aria-label="Окончание"
+                                        value={draft.timeTo}
+                                        onChange={timeTo => patch({ timeTo })}
+                                    />
+                                </label>
+                                <label className="robots-v2-field">
+                                    <span>Интервал</span>
+                                    <Select
+                                        className="robots-v2-select"
+                                        value={draft.pollInterval}
+                                        searchable={false}
+                                        options={[
+                                            { value: '1m', label: '1 мин' },
+                                            { value: '5m', label: '5 мин' },
+                                            { value: '15m', label: '15 мин' },
+                                            { value: '1h', label: '1 час' },
                                         ]}
-                                    onChange={value =>
-                                        patch({
-                                            instrumentType: value as RobotV2WizardDraft['instrumentType'],
-                                        })
-                                    }
-                                />
-                                {selectedBroker === 'bybit' && (
-                                    <small className="robots-v2-hint">
-                                        Paper short разрешён. EOD flatten выключен для crypto.
-                                    </small>
-                                )}
-                            </label>
-                            <div className="robots-v2-archetype-grid">
-                                {archetypeCards.map(card => (
-                                    <button
-                                        key={card.id}
-                                        type="button"
-                                        className={`robots-v2-archetype ${draft.archetype === card.id ? 'robots-v2-archetype--on' : ''}`}
-                                        onClick={() => selectArchetype(card.id)}
-                                    >
-                                        <strong>{card.title}</strong>
-                                        <span>{card.description}</span>
-                                    </button>
-                                ))}
-                            </div>
-                            <label className="robots-v2-field">
-                                <span>Таймфрейм</span>
-                                <Select
-                                    className="robots-v2-select"
-                                    value={draft.timeframe}
-                                    searchable={false}
-                                    options={['1m', '5m', '15m', '1h', '4h', '1d'].map(tf => ({
-                                        value: tf,
-                                        label: tf,
-                                    }))}
-                                    onChange={timeframe => patch({ timeframe })}
-                                />
-                            </label>
-                            <div className="robots-v2-params">
-                                {Object.entries(draft.strategyParams).map(([key, val]) => (
-                                    <label key={key} className="robots-v2-field">
-                                        <span>{key}</span>
-                                        <input
-                                            className="robots-v2-input"
-                                            type={typeof val === 'number' ? 'number' : 'text'}
-                                            value={String(val)}
-                                            onChange={e => {
-                                                const raw = e.target.value
-                                                const next = typeof val === 'number' ? Number(raw) : raw
-                                                patch({ strategyParams: { ...draft.strategyParams, [key]: next } })
-                                            }}
-                                        />
-                                    </label>
-                                ))}
-                            </div>
-                            {draft.archetype === 'scalper' && (
-                                <Toggle
-                                    checked={draft.advancedMode}
-                                    onChange={advancedMode => patch({ advancedMode })}
-                                    label="Advanced mode (обязателен для scalper)"
-                                />
-                            )}
-                            <label className="robots-v2-field">
-                                <span>
-                                    Режим
-                                    <FormLabelTooltip text="Paper симулирует сделки. Live отправляет реальные заявки брокеру." />
-                                </span>
-                                <SegmentedControl
-                                    className="robots-v2-segmented"
-                                    aria-label="Режим торговли"
-                                    options={[...MODE_OPTIONS]}
-                                    value={draft.mode}
-                                    onChange={mode => patch({ mode })}
-                                />
-                                <small className="robots-v2-hint">
-                                    Бэктест на исторических свечах запускается в лаборатории.
-                                </small>
-                            </label>
-                            <div className="robots-v2-field">
-                                <WeekdaysMaskField
-                                    value={weekdaysToMask(draft.weekdays)}
-                                    onChange={mask => patch({ weekdays: maskToWeekdays(mask) })}
-                                />
-                                <div className="robots-v2-schedule-grid">
-                                    <label className="robots-v2-field">
-                                        <span>Начало</span>
-                                        <input
-                                            className="robots-v2-input"
-                                            type="time"
-                                            value={draft.timeFrom}
-                                            onChange={e => patch({ timeFrom: e.target.value })}
-                                        />
-                                    </label>
-                                    <label className="robots-v2-field">
-                                        <span>Окончание</span>
-                                        <input
-                                            className="robots-v2-input"
-                                            type="time"
-                                            value={draft.timeTo}
-                                            onChange={e => patch({ timeTo: e.target.value })}
-                                        />
-                                    </label>
-                                    <label className="robots-v2-field">
-                                        <span>Частота проверки</span>
-                                        <Select
-                                            className="robots-v2-select"
-                                            value={draft.pollInterval}
-                                            searchable={false}
-                                            options={[
-                                                { value: '1m', label: 'Каждую минуту' },
-                                                { value: '5m', label: 'Каждые 5 минут' },
-                                                { value: '15m', label: 'Каждые 15 минут' },
-                                                { value: '1h', label: 'Каждый час' },
-                                            ]}
-                                            onChange={value => patch({
-                                                pollInterval: value as RobotV2WizardDraft['pollInterval'],
-                                            })}
-                                        />
-                                    </label>
-                                </div>
+                                        onChange={value => patch({
+                                            pollInterval: value as RobotV2WizardDraft['pollInterval'],
+                                        })}
+                                    />
+                                </label>
                             </div>
                         </div>
                     )}
 
                     {kind === 'trading' && step === 2 && (
+                        <div className="robots-v2-form">
+                            <div className="robots-v2-form-group">
+                                <div className="robots-v2-field">
+                                    <span>Архетип</span>
+                                    <div className="robots-v2-archetype-grid">
+                                        {archetypeCards.map(card => (
+                                            <button
+                                                key={card.id}
+                                                type="button"
+                                                className={`robots-v2-archetype ${draft.archetype === card.id ? 'robots-v2-archetype--on' : ''}`}
+                                                onClick={() => selectArchetype(card.id)}
+                                            >
+                                                <strong>{card.title}</strong>
+                                                <span>{card.description}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="robots-v2-form-group">
+                                <div className="robots-v2-grid robots-v2-grid--2">
+                                    <label className="robots-v2-field">
+                                        <span>Тип инструмента</span>
+                                        <Select
+                                            className="robots-v2-select"
+                                            value={draft.instrumentType}
+                                            searchable={false}
+                                            options={selectedBroker === 'bybit'
+                                                ? [
+                                                    { value: 'perpetual', label: 'Perpetual (USDT linear)' },
+                                                    { value: 'coin_futures', label: 'Coin futures (inverse)' },
+                                                ]
+                                                : [
+                                                    { value: 'stock', label: 'Акции' },
+                                                    { value: 'futures', label: 'Фьючерсы' },
+                                                ]}
+                                            onChange={value =>
+                                                patch({
+                                                    instrumentType: value as RobotV2WizardDraft['instrumentType'],
+                                                })
+                                            }
+                                        />
+                                    </label>
+                                    <label className="robots-v2-field">
+                                        <span>Таймфрейм</span>
+                                        <Select
+                                            className="robots-v2-select"
+                                            value={draft.timeframe}
+                                            searchable={false}
+                                            options={['1m', '5m', '15m', '1h', '4h', '1d'].map(tf => ({
+                                                value: tf,
+                                                label: tf,
+                                            }))}
+                                            onChange={timeframe => patch({ timeframe })}
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+                            {draft.archetype === 'scalper' ? (
+                                SCALPER_PARAM_GROUPS.map(group => {
+                                    const fields = group.keys.filter(key => {
+                                        const val = draft.strategyParams[key]
+                                        return val != null && typeof val !== 'boolean'
+                                    })
+                                    if (!fields.length) return null
+                                    return (
+                                        <div key={group.title} className="robots-v2-form-group">
+                                            <p className="robots-v2-param-group__title">{group.title}</p>
+                                            <div className="robots-v2-grid robots-v2-grid--2">
+                                                {fields.map(key => {
+                                                    const val = draft.strategyParams[key]
+                                                    if (val == null || typeof val === 'boolean') return null
+                                                    return (
+                                                        <StrategyParamField
+                                                            key={key}
+                                                            name={key}
+                                                            value={val}
+                                                            onChange={next => patch({
+                                                                strategyParams: { ...draft.strategyParams, [key]: next },
+                                                            })}
+                                                        />
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )
+                                })
+                            ) : Object.keys(draft.strategyParams).length > 0 && (
+                                <div className="robots-v2-form-group">
+                                    <div className="robots-v2-grid robots-v2-grid--3">
+                                        {Object.entries(draft.strategyParams).flatMap(([key, val]) => (
+                                            typeof val === 'boolean' ? [] : [(
+                                                <StrategyParamField
+                                                    key={key}
+                                                    name={key}
+                                                    value={val}
+                                                    onChange={next => patch({
+                                                        strategyParams: { ...draft.strategyParams, [key]: next },
+                                                    })}
+                                                />
+                                            )]
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {kind === 'trading' && step === 3 && (
                     <div className="robots-v2-form">
-                        <SegmentedControl
-                            className="robots-v2-segmented"
-                            aria-label="Источник активов"
-                            options={[...UNIVERSE_OPTIONS]}
-                            value={draft.universeMode}
-                            onChange={universeMode => patch({ universeMode })}
-                        />
+                        <label className="robots-v2-field">
+                            <span>Источник активов</span>
+                            <SegmentedControl
+                                className="robots-v2-segmented"
+                                aria-label="Источник активов"
+                                options={[...UNIVERSE_OPTIONS]}
+                                value={draft.universeMode}
+                                onChange={universeMode => patch({ universeMode })}
+                            />
+                        </label>
                         {draft.universeMode === 'fixed' && (
                             <label className="robots-v2-field">
                                 <span>Тикеры через запятую</span>
@@ -896,7 +792,7 @@ export default function RobotV2WizardPage() {
                                 )}
                             </>
                         )}
-                        <div className="robots-v2-inline">
+                        <div className="robots-v2-grid robots-v2-grid--2">
                             <label className="robots-v2-field">
                                 <span>Макс. активов</span>
                                 <input
@@ -908,11 +804,14 @@ export default function RobotV2WizardPage() {
                                     onChange={e => patch({ maxAssets: Number(e.target.value) })}
                                 />
                             </label>
-                            <Toggle
-                                checked={draft.exitOnDrop}
-                                onChange={exitOnDrop => patch({ exitOnDrop })}
-                                label="Закрывать позицию при исключении актива"
-                            />
+                            <div className="robots-v2-toggle-row">
+                                <span>Закрывать при исключении</span>
+                                <Toggle
+                                    checked={draft.exitOnDrop}
+                                    aria-label="Закрывать позицию при исключении актива"
+                                    onChange={exitOnDrop => patch({ exitOnDrop })}
+                                />
+                            </div>
                         </div>
                         <Button type="button" variant="secondary" loading={previewLoading} onClick={() => void runPreview(1)}>
                             Превью состава
@@ -920,19 +819,19 @@ export default function RobotV2WizardPage() {
                         {preview && (
                             <div className="robots-v2-preview">
                                 <div className="robots-v2-preview__meta">
-                                    Страница {preview.page ?? previewPage} · показано {preview.assets?.length ?? 0} из {preview.total}
+                                    Показано {preview.assets?.length ?? 0} из {preview.total}
                                 </div>
-                                <ul className="robots-v2-preview__list">
+                                <div className="robots-v2-preview__rows">
                                     {(preview.assets || []).map(a => (
-                                        <li key={a.ticker}>
+                                        <div key={a.ticker} className="robots-v2-preview__row">
                                             <strong>{a.ticker}</strong>
-                                            {a.name ? ` — ${a.name}` : ''}
-                                            {a.price != null ? ` · ${a.price}` : ''}
-                                        </li>
+                                            <span>{a.name || ''}</span>
+                                            <em>{a.price != null ? a.price : ''}</em>
+                                        </div>
                                     ))}
-                                </ul>
+                                </div>
                                 {preview.total > PREVIEW_PAGE_SIZE && (
-                                    <div className="robots-v2-inline" style={{ marginTop: 'var(--space-2)' }}>
+                                    <div className="robots-v2-preview__pager">
                                         <Button
                                             type="button"
                                             size="sm"
@@ -960,19 +859,18 @@ export default function RobotV2WizardPage() {
                                     </div>
                                 )}
                                 {preview.rejectedSample && preview.rejectedSample.length > 0 && (
-                                    <div className="robots-v2-preview__rejected" style={{ marginTop: 'var(--space-3)' }}>
-                                        <strong>Отклонено (пример):</strong>
-                                        <ul className="robots-v2-preview__list">
-                                            {preview.rejectedSample.map((row, i) => {
-                                                const ticker = String(row.ticker ?? row.code ?? `#${i + 1}`)
-                                                const reason = String(row.reason ?? row.message ?? row.detail ?? '—')
-                                                return (
-                                                    <li key={`${ticker}-${i}`}>
-                                                        <strong>{ticker}</strong> — {reason}
-                                                    </li>
-                                                )
-                                            })}
-                                        </ul>
+                                    <div className="robots-v2-preview__rejected">
+                                        <strong>Отклонено</strong>
+                                        {preview.rejectedSample.map((row, i) => {
+                                            const ticker = String(row.ticker ?? row.code ?? `#${i + 1}`)
+                                            const reason = String(row.reason ?? row.message ?? row.detail ?? '—')
+                                            return (
+                                                <div key={`${ticker}-${i}`} className="robots-v2-preview__row">
+                                                    <strong>{ticker}</strong>
+                                                    <span>{reason}</span>
+                                                </div>
+                                            )
+                                        })}
                                     </div>
                                 )}
                             </div>
@@ -980,131 +878,132 @@ export default function RobotV2WizardPage() {
                     </div>
                     )}
 
-                    {kind === 'trading' && step === 3 && (
-                    <div className="robots-v2-form robots-v2-form--risk">
-                        <label className="robots-v2-field">
-                            <span>{selectedBroker === 'bybit' ? 'Капитал (USDT)' : 'Капитал'}</span>
-                            {draft.mode === 'live' ? (
-                                <p className="robots-v2-hint">
-                                    В live капитал берётся со счёта брокера при синхронизации (не эмулируется).
-                                </p>
-                            ) : (
-                                <input
-                                    className="robots-v2-input"
-                                    type="number"
-                                    value={draft.capital}
-                                    onChange={e => patch({ capital: Number(e.target.value) })}
-                                />
-                            )}
-                        </label>
-                        <label className="robots-v2-field">
-                            <span>Доля позиции, %</span>
-                            <input
-                                className="robots-v2-input"
-                                type="number"
-                                value={draft.maxPositionSharePct}
-                                onChange={e => patch({ maxPositionSharePct: Number(e.target.value) })}
-                            />
-                            <small className="robots-v2-hint">
-                                {notional == null
-                                    ? 'Нотионал = доля % от equity счёта'
-                                    : `≈ ${notional.toLocaleString('ru-RU')} на сделку`}
-                            </small>
-                        </label>
-                        <div className="robots-v2-inline">
-                            <label className="robots-v2-field">
-                                <span>Stop-loss %</span>
-                                <input
-                                    className="robots-v2-input"
-                                    type="number"
-                                    value={draft.stopLossPct}
-                                    onChange={e => patch({ stopLossPct: Number(e.target.value) })}
-                                />
-                            </label>
-                            <label className="robots-v2-field">
-                                <span>Take-profit %</span>
-                                <input
-                                    className="robots-v2-input"
-                                    type="number"
-                                    value={draft.takeProfitPct}
-                                    onChange={e => patch({ takeProfitPct: Number(e.target.value) })}
-                                />
-                            </label>
+                    {kind === 'trading' && step === 4 && (
+                    <div className="robots-v2-form">
+                        <div className="robots-v2-form-group">
+                            <div className="robots-v2-grid robots-v2-grid--3">
+                                <label className="robots-v2-field">
+                                    <span>{selectedBroker === 'bybit' ? 'Капитал (USDT)' : 'Капитал'}</span>
+                                    {draft.mode === 'live' ? (
+                                        <p className="robots-v2-hint">
+                                            Берётся со счёта при синхронизации.
+                                        </p>
+                                    ) : (
+                                        <input
+                                            className="robots-v2-input"
+                                            type="number"
+                                            value={draft.capital}
+                                            onChange={e => patch({ capital: Number(e.target.value) })}
+                                        />
+                                    )}
+                                </label>
+                                <label className="robots-v2-field">
+                                    <span>Доля позиции, %</span>
+                                    <input
+                                        className="robots-v2-input"
+                                        type="number"
+                                        value={draft.maxPositionSharePct}
+                                        onChange={e => patch({ maxPositionSharePct: Number(e.target.value) })}
+                                    />
+                                </label>
+                                <label className="robots-v2-field">
+                                    <span>Макс. позиций</span>
+                                    <input
+                                        className="robots-v2-input"
+                                        type="number"
+                                        min={1}
+                                        max={10}
+                                        value={draft.maxConcurrentPositions}
+                                        onChange={e => patch({ maxConcurrentPositions: Number(e.target.value) })}
+                                    />
+                                </label>
+                            </div>
                         </div>
-                        <small className="robots-v2-hint">Risk/Reward ≈ {rr.toFixed(2)}</small>
-                        <div className="robots-v2-inline">
-                            <label className="robots-v2-field">
-                                <span>Макс. дневной убыток</span>
-                                <input
-                                    className="robots-v2-input"
-                                    type="number"
-                                    value={draft.maxDailyLoss}
-                                    onChange={e => patch({ maxDailyLoss: Number(e.target.value) })}
-                                />
-                            </label>
-                            <label className="robots-v2-field">
-                                <span>Макс. просадка %</span>
-                                <input
-                                    className="robots-v2-input"
-                                    type="number"
-                                    value={draft.maxDrawdownPct}
-                                    onChange={e => patch({ maxDrawdownPct: Number(e.target.value) })}
-                                />
-                            </label>
-                            <label className="robots-v2-field">
-                                <span>Макс. позиций</span>
-                                <input
-                                    className="robots-v2-input"
-                                    type="number"
-                                    min={1}
-                                    max={10}
-                                    value={draft.maxConcurrentPositions}
-                                    onChange={e => patch({ maxConcurrentPositions: Number(e.target.value) })}
-                                />
-                            </label>
+                        <div className="robots-v2-form-group">
+                            <div className="robots-v2-grid robots-v2-grid--2">
+                                <label className="robots-v2-field">
+                                    <span>Stop-loss %</span>
+                                    <input
+                                        className="robots-v2-input"
+                                        type="number"
+                                        value={draft.stopLossPct}
+                                        onChange={e => patch({ stopLossPct: Number(e.target.value) })}
+                                    />
+                                </label>
+                                <label className="robots-v2-field">
+                                    <span>Take-profit %</span>
+                                    <input
+                                        className="robots-v2-input"
+                                        type="number"
+                                        value={draft.takeProfitPct}
+                                        onChange={e => patch({ takeProfitPct: Number(e.target.value) })}
+                                    />
+                                </label>
+                                <label className="robots-v2-field">
+                                    <span>Макс. дневной убыток</span>
+                                    <input
+                                        className="robots-v2-input"
+                                        type="number"
+                                        value={draft.maxDailyLoss}
+                                        onChange={e => patch({ maxDailyLoss: Number(e.target.value) })}
+                                    />
+                                </label>
+                                <label className="robots-v2-field">
+                                    <span>Макс. просадка %</span>
+                                    <input
+                                        className="robots-v2-input"
+                                        type="number"
+                                        value={draft.maxDrawdownPct}
+                                        onChange={e => patch({ maxDrawdownPct: Number(e.target.value) })}
+                                    />
+                                </label>
+                            </div>
                         </div>
-                        <label className="robots-v2-field">
-                            <span>
-                                Режим остановки
-                                <FormLabelTooltip text="Мягкая остановка не открывает новые позиции. Жёсткая также закрывает текущие." />
-                            </span>
-                            <SegmentedControl
-                                className="robots-v2-segmented"
-                                aria-label="Режим остановки"
-                                options={[...STOP_MODE_OPTIONS]}
-                                value={draft.stopMode}
-                                onChange={stopMode => patch({ stopMode })}
-                            />
-                        </label>
-                        <div className="robots-v2-field">
-                            <span>
-                                Закрытие позиций к концу сессии
-                                <FormLabelTooltip text="Auto включает закрытие для акций MOEX и выключает его для круглосуточных рынков." />
-                            </span>
-                            <SegmentedControl
-                                className="robots-v2-segmented"
-                                aria-label="Закрытие позиций к концу сессии"
-                                options={[...EOD_OPTIONS]}
-                                value={draft.eodFlattenEnabled === null ? 'auto' : draft.eodFlattenEnabled ? 'on' : 'off'}
-                                onChange={value => patch({
-                                    eodFlattenEnabled: value === 'auto' ? null : value === 'on',
-                                })}
-                            />
+                        <div className="robots-v2-form-group">
                             <label className="robots-v2-field">
-                                <span>За сколько минут до закрытия</span>
-                                <input
-                                    className="robots-v2-input"
-                                    type="number"
-                                    min={1}
-                                    max={120}
-                                    value={draft.eodMinutesBeforeClose}
-                                    onChange={e => patch({ eodMinutesBeforeClose: Number(e.target.value) })}
+                                <span>
+                                    Режим остановки
+                                    <FormLabelTooltip text="Мягкая остановка не открывает новые позиции. Жёсткая также закрывает текущие." />
+                                </span>
+                                <SegmentedControl
+                                    className="robots-v2-segmented"
+                                    aria-label="Режим остановки"
+                                    options={[...STOP_MODE_OPTIONS]}
+                                    value={draft.stopMode}
+                                    onChange={stopMode => patch({ stopMode })}
                                 />
                             </label>
+                            <label className="robots-v2-field">
+                                <span>
+                                    Закрытие к концу сессии
+                                    <FormLabelTooltip text="Auto включает закрытие для акций MOEX и выключает его для круглосуточных рынков." />
+                                </span>
+                                <SegmentedControl
+                                    className="robots-v2-segmented"
+                                    aria-label="Закрытие позиций к концу сессии"
+                                    options={[...EOD_OPTIONS]}
+                                    value={draft.eodFlattenEnabled === null ? 'auto' : draft.eodFlattenEnabled ? 'on' : 'off'}
+                                    onChange={value => patch({
+                                        eodFlattenEnabled: value === 'auto' ? null : value === 'on',
+                                    })}
+                                />
+                            </label>
+                            <div className="robots-v2-grid robots-v2-grid--2">
+                                <label className="robots-v2-field">
+                                    <span>Минут до закрытия</span>
+                                    <input
+                                        className="robots-v2-input"
+                                        type="number"
+                                        min={1}
+                                        max={120}
+                                        value={draft.eodMinutesBeforeClose}
+                                        onChange={e => patch({ eodMinutesBeforeClose: Number(e.target.value) })}
+                                    />
+                                </label>
+                            </div>
                         </div>
-                        <details className="robots-v2-advanced">
-                            <summary>Расширенные: комиссия / налог / slippage</summary>
-                            <div className="robots-v2-inline">
+                        <div className="robots-v2-form-group">
+                            <div className="robots-v2-grid robots-v2-grid--3">
                                 <label className="robots-v2-field">
                                     <span>Комиссия %</span>
                                     <input
@@ -1135,73 +1034,57 @@ export default function RobotV2WizardPage() {
                                     />
                                 </label>
                             </div>
-                        </details>
+                        </div>
                     </div>
                     )}
 
                     <footer className="robots-v2-wizard-footer">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            disabled={step === 0}
-                            onClick={() => setStep(s => Math.max(0, s - 1))}
-                        >
-                            Назад
-                        </Button>
+                        {step > 0 ? (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => setStep(s => Math.max(0, s - 1))}
+                            >
+                                Назад
+                            </Button>
+                        ) : (
+                            <span />
+                        )}
                         <div className="robots-v2-wizard-footer__right">
-                            {kind === 'portfolio' ? (
+                            {step < lastStep ? (
+                                <Button type="button" onClick={goNext}>Далее</Button>
+                            ) : kind === 'portfolio' ? (
                                 <Button type="button" loading={saving} onClick={() => void savePortfolioRobot()}>
                                     {editId
                                         ? (draft.portfolioEnabled && configComplete ? 'Сохранить и включить' : 'Сохранить')
                                         : (draft.portfolioEnabled && configComplete ? 'Создать и включить' : 'Создать')}
                                 </Button>
                             ) : (
-                                <Button
-                                    type="button"
-                                    variant="secondary"
-                                    loading={saving}
-                                    onClick={() => void saveRobot(false)}
-                                >
-                                    {editId || persistedRobotId ? 'Сохранить' : 'Создать'}
-                                </Button>
+                                <>
+                                    <Button
+                                        type="button"
+                                        variant="secondary"
+                                        loading={saving}
+                                        onClick={() => void saveRobot(false)}
+                                    >
+                                        {editId || persistedRobotId ? 'Сохранить' : 'Создать'}
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        loading={saving}
+                                        disabled={!configComplete}
+                                        title={configComplete ? undefined : 'Заполнение всех шагов нужно только для запуска'}
+                                        onClick={() => void saveRobot(true)}
+                                    >
+                                        {persistedRobotId || editId ? 'Сохранить и запустить' : 'Создать и запустить'}
+                                    </Button>
+                                </>
                             )}
-                            {kind === 'trading' ? (
-                                <Button
-                                    type="button"
-                                    loading={saving}
-                                    disabled={!configComplete}
-                                    title={configComplete ? undefined : 'Заполнение всех шагов нужно только для запуска'}
-                                    onClick={() => void saveRobot(true)}
-                                >
-                                    {persistedRobotId || editId ? 'Сохранить и запустить' : 'Создать и запустить'}
-                                </Button>
-                            ) : null}
-                            {step < lastStep ? (
-                                <Button type="button" variant="ghost" onClick={goNext}>Далее</Button>
-                            ) : null}
                         </div>
                     </footer>
                 </Card>
                 </div>
             </div>
-
-            <RobotConfirmModal
-                open={pendingLocalDraft != null}
-                onClose={() => {
-                    clearDraftLocal(storageKey)
-                    setPendingLocalDraft(null)
-                    setDraft(defaultWizardDraft())
-                }}
-                onConfirm={() => {
-                    if (pendingLocalDraft) setDraft(pendingLocalDraft)
-                    setPendingLocalDraft(null)
-                }}
-                title="Восстановить черновик?"
-                message="Есть несохранённый черновик. Восстановить его и продолжить настройку?"
-                confirmLabel="Восстановить"
-                confirmVariant="primary"
-                cancelLabel="Начать заново"
-            />
         </div>
     )
 }

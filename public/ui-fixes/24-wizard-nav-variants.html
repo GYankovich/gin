@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wizard nav — новые варианты</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .board { display: grid; gap: 24px; padding-bottom: 48px; }
+  .intro {
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .intro strong { color: var(--secondary); font-weight: 650; }
+
+  .variant {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--page);
+    overflow: hidden;
+  }
+  .variant__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.02);
+  }
+  .variant__head h2 { margin: 0; font-size: 14px; font-weight: 650; }
+  .variant__head p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+    max-width: 78ch;
+  }
+  .tag {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--secondary);
+    font-size: 11px;
+    font-weight: 650;
+  }
+  .variant__body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    padding: 18px;
+  }
+  @media (max-width: 900px) {
+    .variant__body { grid-template-columns: 1fr; }
+  }
+  .pane-label {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .phone {
+    width: 100%;
+    max-width: 390px;
+    margin: 0 auto;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background: #0e1114;
+  }
+  .phone__screen {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 240px;
+    padding: 10px;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--panel) 55%, transparent);
+    border: 1px solid var(--border);
+  }
+  .desk {
+    display: grid;
+    grid-template-columns: 208px minmax(0, 1fr);
+    gap: 12px;
+    min-height: 240px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: #0e1114;
+  }
+  .card {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+  }
+  .card h3 { margin: 0 0 8px; font-size: 15px; font-weight: 650; }
+  .card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+  .fake-field {
+    margin-top: 12px;
+    height: 36px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--input);
+  }
+
+  .nav-scroll {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .nav-scroll::-webkit-scrollbar { display: none; }
+
+  /* —— H segmented track —— */
+  .h-track {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 12px;
+    background: rgba(255,255,255,.05);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .h-track::-webkit-scrollbar { display: none; }
+  .h-track button {
+    flex: 1 1 auto;
+    min-width: max-content;
+    padding: 9px 12px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .h-track button.is-active {
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: 0 1px 0 rgba(0,0,0,.25);
+  }
+  .h-desk {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+  }
+  .h-desk button {
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+  }
+  .h-desk button.is-active {
+    background: rgba(255,255,255,.07);
+    color: var(--text);
+  }
+
+  /* —— I title + dots —— */
+  .i-block { display: flex; flex-direction: column; gap: 10px; }
+  .i-title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .i-title-row strong { font-size: 16px; font-weight: 650; }
+  .i-title-row span {
+    color: var(--muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .i-dots {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .i-dots button {
+    flex: 1 1 0;
+    height: 6px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255,255,255,.12);
+  }
+  .i-dots button.is-done { background: rgba(255,255,255,.28); }
+  .i-dots button.is-active { background: var(--text); }
+  .i-desk {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+  }
+  .i-desk button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+  }
+  .i-desk button.is-active {
+    background: rgba(255,255,255,.07);
+    color: var(--text);
+  }
+  .i-desk .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.18);
+  }
+  .i-desk button.is-active .dot { background: var(--text); }
+  .i-desk button.is-done .dot { background: rgba(255,255,255,.4); }
+
+  /* —— J edge bar / soft select —— */
+  .j-row {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .j-row::-webkit-scrollbar { display: none; }
+  .j-row button {
+    flex: 0 0 auto;
+    padding: 9px 14px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .j-row button.is-active {
+    background: rgba(255,255,255,.08);
+    color: var(--text);
+  }
+  .j-desk {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+  }
+  .j-desk button {
+    position: relative;
+    padding: 10px 12px 10px 14px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+  }
+  .j-desk button.is-active {
+    background: rgba(255,255,255,.06);
+    color: var(--text);
+  }
+  .j-desk button.is-active::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--text);
+  }
+
+  /* —— K wrap grid —— */
+  .k-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .k-grid button {
+    padding: 10px 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+  }
+  .k-grid button.is-active {
+    border-color: transparent;
+    background: rgba(255,255,255,.09);
+    color: var(--text);
+  }
+  .k-desk {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+  }
+  .k-desk button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+  }
+  .k-desk button .n {
+    color: var(--muted);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    opacity: .7;
+  }
+  .k-desk button.is-active {
+    background: rgba(255,255,255,.07);
+    color: var(--text);
+  }
+  .k-desk button.is-active .n { color: var(--secondary); opacity: 1; }
+
+  /* —— L step select —— */
+  .l-select {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 650;
+    text-align: left;
+  }
+  .l-select span { color: var(--muted); font-size: 12px; font-weight: 500; }
+  .l-select .chev {
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .l-list {
+    margin-top: 8px;
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+  }
+  .l-list.is-open { display: flex; }
+  .l-list button {
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+  }
+  .l-list button.is-active {
+    background: rgba(255,255,255,.07);
+    color: var(--text);
+  }
+  .l-desk {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+  }
+  .l-desk button {
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+  }
+  .l-desk button.is-active {
+    background: rgba(255,255,255,.07);
+    color: var(--text);
+  }
+
+  /* —— M content-width pills —— */
+  .m-row {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 2px 0;
+  }
+  .m-row::-webkit-scrollbar { display: none; }
+  .m-row button {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .m-row button.is-active {
+    background: rgba(255,255,255,.1);
+    color: var(--text);
+  }
+  .m-fade {
+    position: relative;
+  }
+  .m-fade::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 28px;
+    pointer-events: none;
+    background: linear-gradient(to left, color-mix(in srgb, var(--panel) 55%, transparent), transparent);
+  }
+  .m-desk {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+  }
+  .m-desk button {
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+  }
+  .m-desk button.is-active {
+    background: rgba(255,255,255,.07);
+    color: var(--text);
+  }
+
+  /* light theme samples */
+  [data-theme='light'] {
+    --bg: #f4f5f7;
+    --page: #eceef1;
+    --panel: #ffffff;
+    --elevated: #f7f8fa;
+    --input: #f3f4f6;
+    --text: #111827;
+    --secondary: #374151;
+    --muted: #6b7280;
+    --border: rgba(15, 23, 42, 0.1);
+    --picker: #ffffff;
+  }
+  [data-theme='light'] .phone,
+  [data-theme='light'] .desk { background: #e5e7eb; }
+  [data-theme='light'] .phone__screen {
+    background: color-mix(in srgb, #fff 72%, #eceef1);
+  }
+  [data-theme='light'] .h-track { background: rgba(0,0,0,.05); }
+  [data-theme='light'] .h-track button.is-active,
+  [data-theme='light'] .j-row button.is-active,
+  [data-theme='light'] .m-row button.is-active,
+  [data-theme='light'] .k-grid button.is-active,
+  [data-theme='light'] .h-desk button.is-active,
+  [data-theme='light'] .i-desk button.is-active,
+  [data-theme='light'] .j-desk button.is-active,
+  [data-theme='light'] .k-desk button.is-active,
+  [data-theme='light'] .l-desk button.is-active,
+  [data-theme='light'] .l-list button.is-active,
+  [data-theme='light'] .m-desk button.is-active {
+    background: rgba(0,0,0,.06);
+  }
+  [data-theme='light'] .i-dots button { background: rgba(0,0,0,.1); }
+  [data-theme='light'] .i-dots button.is-done { background: rgba(0,0,0,.22); }
+  [data-theme='light'] .i-dots button.is-active { background: var(--text); }
+  [data-theme='light'] .m-fade::after {
+    background: linear-gradient(to left, color-mix(in srgb, #fff 72%, #eceef1), transparent);
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← индекс</a>
+    <div>
+      <h1>Wizard nav — новые варианты</h1>
+      <p>Underline D отменяем. Свежие идеи для <code>side-rail__nav</code> (5 шагов торгового). Поверхность well как сейчас. Без правок приложения.</p>
+    </div>
+    <button class="badge" type="button" id="themeToggle">dark / light</button>
+  </div>
+
+  <div class="wrap board">
+    <div class="intro">
+      Уже смотрели в <a href="./22-side-rail-variants.html">22</a>: stack · номера · прогресс · underline · stepper · chips · pager.
+      Здесь <strong>H–M</strong> — другой характер: сегмент, минимум хрома, мягкий select, сетка, dropdown, content-width pills.
+      Пиши букву.
+    </div>
+
+    <!-- H -->
+    <section class="variant" id="h">
+      <div class="variant__head">
+        <div>
+          <h2>H — Segmented track</h2>
+          <p>Один «трек» как iOS segmented: активный — мягкая плашка внутри. Шаги делят ширину; если не влезают — горизонтальный скролл без underline.</p>
+        </div>
+        <span class="tag">H</span>
+      </div>
+      <div class="variant__body">
+        <div>
+          <p class="pane-label">Mobile</p>
+          <div class="phone"><div class="phone__screen">
+            <div class="h-track" role="tablist">
+              <button type="button">Основное</button>
+              <button type="button" class="is-active">Расписание</button>
+              <button type="button">Стратегия</button>
+              <button type="button">Активы</button>
+              <button type="button">Риск</button>
+            </div>
+            <div class="card"><h3>Расписание</h3><p>Окно торгов и дни недели.</p><div class="fake-field"></div></div>
+          </div></div>
+        </div>
+        <div>
+          <p class="pane-label">Desktop</p>
+          <div class="desk">
+            <nav class="h-desk" aria-label="Шаги">
+              <button type="button">Основное</button>
+              <button type="button" class="is-active">Расписание</button>
+              <button type="button">Стратегия</button>
+              <button type="button">Активы</button>
+              <button type="button">Риск</button>
+            </nav>
+            <div class="card"><h3>Расписание</h3><p>Та же тихая плашка слева.</p><div class="fake-field"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- I -->
+    <section class="variant" id="i">
+      <div class="variant__head">
+        <div>
+          <h2>I — Title + dots</h2>
+          <p>На мобиле почти нет списка шагов: крупный заголовок текущего + тонкие сегменты-точки. Меньше шума при 5 шагах. Desktop — точки слева у названий.</p>
+        </div>
+        <span class="tag">I</span>
+      </div>
+      <div class="variant__body">
+        <div>
+          <p class="pane-label">Mobile</p>
+          <div class="phone"><div class="phone__screen">
+            <div class="i-block">
+              <div class="i-title-row">
+                <strong>Расписание</strong>
+                <span>2 / 5</span>
+              </div>
+              <div class="i-dots" role="tablist" aria-label="Шаги">
+                <button type="button" class="is-done" aria-label="Основное"></button>
+                <button type="button" class="is-active" aria-label="Расписание"></button>
+                <button type="button" aria-label="Стратегия"></button>
+                <button type="button" aria-label="Активы"></button>
+                <button type="button" aria-label="Риск"></button>
+              </div>
+            </div>
+            <div class="card"><h3>Расписание</h3><p>Переключение шагов — тап по сегменту или Назад/Далее.</p><div class="fake-field"></div></div>
+          </div></div>
+        </div>
+        <div>
+          <p class="pane-label">Desktop</p>
+          <div class="desk">
+            <nav class="i-desk" aria-label="Шаги">
+              <button type="button" class="is-done"><span class="dot"></span>Основное</button>
+              <button type="button" class="is-active"><span class="dot"></span>Расписание</button>
+              <button type="button"><span class="dot"></span>Стратегия</button>
+              <button type="button"><span class="dot"></span>Активы</button>
+              <button type="button"><span class="dot"></span>Риск</button>
+            </nav>
+            <div class="card"><h3>Расписание</h3><p>Все labels видны слева.</p><div class="fake-field"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- J -->
+    <section class="variant" id="j">
+      <div class="variant__head">
+        <div>
+          <h2>J — Soft select / edge bar</h2>
+          <p>Mobile: ширина по тексту, без растягивания на всю nav; активный — мягкий фон. Desktop: тихая полоска слева у активного (классика sidebar).</p>
+        </div>
+        <span class="tag">J</span>
+      </div>
+      <div class="variant__body">
+        <div>
+          <p class="pane-label">Mobile</p>
+          <div class="phone"><div class="phone__screen">
+            <div class="j-row" role="tablist">
+              <button type="button">Основное</button>
+              <button type="button" class="is-active">Расписание</button>
+              <button type="button">Стратегия</button>
+              <button type="button">Активы</button>
+              <button type="button">Риск</button>
+            </div>
+            <div class="card"><h3>Расписание</h3><p>Нет длинного underline на всю кнопку.</p><div class="fake-field"></div></div>
+          </div></div>
+        </div>
+        <div>
+          <p class="pane-label">Desktop</p>
+          <div class="desk">
+            <nav class="j-desk" aria-label="Шаги">
+              <button type="button">Основное</button>
+              <button type="button" class="is-active">Расписание</button>
+              <button type="button">Стратегия</button>
+              <button type="button">Активы</button>
+              <button type="button">Риск</button>
+            </nav>
+            <div class="card"><h3>Расписание</h3><p>Edge bar только у active.</p><div class="fake-field"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- K -->
+    <section class="variant" id="k">
+      <div class="variant__head">
+        <div>
+          <h2>K — Wrap grid</h2>
+          <p>На мобиле шаги сеткой 3×2 — все видны сразу, без горизонтального скролла. Desktop — вертикальный список с номером справа.</p>
+        </div>
+        <span class="tag">K</span>
+      </div>
+      <div class="variant__body">
+        <div>
+          <p class="pane-label">Mobile</p>
+          <div class="phone"><div class="phone__screen">
+            <div class="k-grid" role="tablist">
+              <button type="button">Основное</button>
+              <button type="button" class="is-active">Расписание</button>
+              <button type="button">Стратегия</button>
+              <button type="button">Активы</button>
+              <button type="button">Риск</button>
+            </div>
+            <div class="card"><h3>Расписание</h3><p>Всё на одном экране, без обрезания labels.</p><div class="fake-field"></div></div>
+          </div></div>
+        </div>
+        <div>
+          <p class="pane-label">Desktop</p>
+          <div class="desk">
+            <nav class="k-desk" aria-label="Шаги">
+              <button type="button">Основное<span class="n">1</span></button>
+              <button type="button" class="is-active">Расписание<span class="n">2</span></button>
+              <button type="button">Стратегия<span class="n">3</span></button>
+              <button type="button">Активы<span class="n">4</span></button>
+              <button type="button">Риск<span class="n">5</span></button>
+            </nav>
+            <div class="card"><h3>Расписание</h3><p>Номера вторичны.</p><div class="fake-field"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- L -->
+    <section class="variant" id="l">
+      <div class="variant__head">
+        <div>
+          <h2>L — Step select</h2>
+          <p>Mobile: один контрол «2 · Расписание ▾», список по тапу. Максимум места карточке. Desktop остаётся обычным вертикальным списком.</p>
+        </div>
+        <span class="tag">L</span>
+      </div>
+      <div class="variant__body">
+        <div>
+          <p class="pane-label">Mobile</p>
+          <div class="phone"><div class="phone__screen">
+            <button type="button" class="l-select" id="lSelect" aria-expanded="false">
+              <span style="display:flex;flex-direction:column;gap:2px;align-items:flex-start">
+                <span>Шаг 2 из 5</span>
+                Расписание
+              </span>
+              <span class="chev">▾</span>
+            </button>
+            <div class="l-list" id="lList" role="listbox">
+              <button type="button">Основное</button>
+              <button type="button" class="is-active">Расписание</button>
+              <button type="button">Стратегия</button>
+              <button type="button">Активы</button>
+              <button type="button">Риск</button>
+            </div>
+            <div class="card"><h3>Расписание</h3><p>Nav почти не занимает высоту.</p><div class="fake-field"></div></div>
+          </div></div>
+        </div>
+        <div>
+          <p class="pane-label">Desktop</p>
+          <div class="desk">
+            <nav class="l-desk" aria-label="Шаги">
+              <button type="button">Основное</button>
+              <button type="button" class="is-active">Расписание</button>
+              <button type="button">Стратегия</button>
+              <button type="button">Активы</button>
+              <button type="button">Риск</button>
+            </nav>
+            <div class="card"><h3>Расписание</h3><p>Без dropdown на широком экране.</p><div class="fake-field"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- M -->
+    <section class="variant" id="m">
+      <div class="variant__head">
+        <div>
+          <h2>M — Content-width pills</h2>
+          <p>Горизонтальный ряд pill по ширине текста (не stretch). Активный — заливка, не линия. Fade справа если есть скролл. Ближе к chips из 22F, но без обводки у каждого.</p>
+        </div>
+        <span class="tag">M</span>
+      </div>
+      <div class="variant__body">
+        <div>
+          <p class="pane-label">Mobile</p>
+          <div class="phone"><div class="phone__screen">
+            <div class="m-fade">
+              <div class="m-row" role="tablist">
+                <button type="button">Основное</button>
+                <button type="button" class="is-active">Расписание</button>
+                <button type="button">Стратегия</button>
+                <button type="button">Активы</button>
+                <button type="button">Риск</button>
+              </div>
+            </div>
+            <div class="card"><h3>Расписание</h3><p>Тихий scroll-row, как вкладки мессенджера.</p><div class="fake-field"></div></div>
+          </div></div>
+        </div>
+        <div>
+          <p class="pane-label">Desktop</p>
+          <div class="desk">
+            <nav class="m-desk" aria-label="Шаги">
+              <button type="button">Основное</button>
+              <button type="button" class="is-active">Расписание</button>
+              <button type="button">Стратегия</button>
+              <button type="button">Активы</button>
+              <button type="button">Риск</button>
+            </nav>
+            <div class="card"><h3>Расписание</h3><p>Обычный quiet list.</p><div class="fake-field"></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const root = document.documentElement;
+    document.getElementById('themeToggle').addEventListener('click', () => {
+      root.setAttribute('data-theme', root.getAttribute('data-theme') === 'light' ? 'dark' : 'light');
+    });
+    const sel = document.getElementById('lSelect');
+    const list = document.getElementById('lList');
+    sel.addEventListener('click', () => {
+      const open = list.classList.toggle('is-open');
+      sel.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  </script>
+</body>
+</html>

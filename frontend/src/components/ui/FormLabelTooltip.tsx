@@ -5,16 +5,14 @@ type Props = {
     text: string
 }
 
-/** Classic light square-question–style mark (FA Pro Light not in free packages). */
-function SquareQuestionIcon() {
+/** Classic light circle-question mark (FA Pro Light not in free packages). */
+function CircleQuestionIcon() {
     return (
         <svg className="form-label-tooltip__icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden>
-            <rect
-                x="1.25"
-                y="1.25"
-                width="13.5"
-                height="13.5"
-                rx="1.5"
+            <circle
+                cx="8"
+                cy="8"
+                r="6.75"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="1.25"
@@ -35,7 +33,7 @@ function SquareQuestionIcon() {
 export function FormLabelTooltip({ text }: Props) {
     return (
         <Tooltip text={text}>
-            <SquareQuestionIcon />
+            <CircleQuestionIcon />
         </Tooltip>
     )
 }

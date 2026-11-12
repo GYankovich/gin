@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Side rail — варианты</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .board { display: grid; gap: 28px; padding-bottom: 48px; }
+  .variant {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--page);
+    overflow: hidden;
+  }
+  .variant__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.02);
+  }
+  .variant__head h2 { margin: 0; font-size: 14px; font-weight: 650; }
+  .variant__head p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+    max-width: 72ch;
+  }
+  .variant__body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    padding: 18px;
+  }
+  @media (max-width: 900px) {
+    .variant__body { grid-template-columns: 1fr; }
+  }
+  .pane-label {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .phone {
+    width: 100%;
+    max-width: 390px;
+    margin: 0 auto;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    background: #0e1114;
+  }
+  .phone__screen {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 220px;
+    padding: 12px;
+    border-radius: 16px;
+    background: var(--page);
+  }
+  .desk {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 12px;
+    min-height: 220px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: #0e1114;
+  }
+  .card {
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+  }
+  .card h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+    font-weight: 650;
+  }
+  .card p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .fake-field {
+    margin-top: 12px;
+    height: 36px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--input);
+  }
+
+  /* —— shared item bits —— */
+  .mark {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: rgba(255,255,255,.08);
+    color: inherit;
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1;
+  }
+  .is-active .mark {
+    background: var(--text);
+    color: var(--page);
+  }
+
+  /* A — сейчас: stack number / label, equal width */
+  .rail-a {
+    display: flex;
+    gap: 4px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+  }
+  .rail-a button {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 4px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+  }
+  .rail-a button.is-active {
+    background: rgba(255,255,255,.06);
+    color: var(--text);
+  }
+  .rail-a--desk {
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+  }
+  .rail-a--desk button {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    font-size: 13px;
+    text-align: left;
+  }
+
+  /* B — только номера */
+  .rail-b {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+  }
+  .rail-b button {
+    flex: 1 1 0;
+    display: grid;
+    place-items: center;
+    padding: 8px 0;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+  }
+  .rail-b button .mark {
+    width: 28px;
+    height: 28px;
+    font-size: 13px;
+  }
+  .rail-b button.is-active {
+    background: rgba(255,255,255,.06);
+    color: var(--text);
+  }
+  .rail-b__caption {
+    margin-top: 8px;
+    text-align: center;
+    color: var(--secondary);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .rail-b--desk {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .rail-b--desk button {
+    justify-content: flex-start;
+    place-items: center start;
+    padding: 10px 12px;
+    border-radius: 10px;
+  }
+  .rail-b--desk button .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+  }
+  .rail-b--desk .name {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  /* C — прогресс + заголовок шага */
+  .rail-c {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+  }
+  .rail-c__top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .rail-c__top strong {
+    font-size: 14px;
+    font-weight: 650;
+  }
+  .rail-c__top span {
+    color: var(--muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .rail-c__bar {
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.08);
+    overflow: hidden;
+  }
+  .rail-c__bar > i {
+    display: block;
+    height: 100%;
+    width: 25%;
+    border-radius: inherit;
+    background: var(--text);
+  }
+  .rail-c__dots {
+    display: flex;
+    gap: 6px;
+  }
+  .rail-c__dots button {
+    flex: 1 1 0;
+    height: 4px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(255,255,255,.1);
+  }
+  .rail-c__dots button.is-active,
+  .rail-c__dots button.is-done {
+    background: var(--text);
+  }
+  .rail-c__dots button.is-done { opacity: 0.45; }
+
+  /* D — текст без номеров, underline active */
+  .rail-d {
+    display: flex;
+    gap: 0;
+    padding: 0 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .rail-d button {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 10px 6px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+  }
+  .rail-d button.is-active {
+    color: var(--text);
+    border-bottom-color: var(--text);
+  }
+  .rail-d--desk {
+    flex-direction: column;
+    border-bottom: 0;
+    gap: 2px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+  }
+  .rail-d--desk button {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 0;
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  .rail-d--desk button.is-active {
+    background: rgba(255,255,255,.06);
+  }
+
+  /* E — stepper с линией */
+  .rail-e {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0;
+    padding: 12px 8px 8px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+    position: relative;
+  }
+  .rail-e::before {
+    content: "";
+    position: absolute;
+    left: 22px;
+    right: 22px;
+    top: 21px;
+    height: 1px;
+    background: rgba(255,255,255,.12);
+  }
+  .rail-e button {
+    position: relative;
+    z-index: 1;
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 600;
+    text-align: center;
+  }
+  .rail-e button.is-active { color: var(--text); }
+  .rail-e button.is-done { color: var(--secondary); }
+  .rail-e--desk {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 8px;
+  }
+  .rail-e--desk::before {
+    left: 20px;
+    right: auto;
+    top: 22px;
+    bottom: 22px;
+    width: 1px;
+    height: auto;
+  }
+  .rail-e--desk button {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 8px 10px;
+    font-size: 13px;
+    text-align: left;
+  }
+
+  /* F — compact chips, scroll */
+  .rail-f {
+    display: flex;
+    gap: 6px;
+    padding: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .rail-f::-webkit-scrollbar { display: none; }
+  .rail-f button {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .rail-f button.is-active {
+    background: rgba(255,255,255,.08);
+    color: var(--text);
+    border-color: transparent;
+  }
+  .rail-f--desk {
+    flex-direction: column;
+    overflow: visible;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+  }
+  .rail-f--desk button {
+    width: 100%;
+    border-radius: 10px;
+    justify-content: space-between;
+  }
+
+  /* G — fraction only + prev/next feel */
+  .rail-g {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+  }
+  .rail-g__mid {
+    min-width: 0;
+    text-align: center;
+  }
+  .rail-g__mid strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 650;
+  }
+  .rail-g__mid span {
+    color: var(--muted);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+  .rail-g button {
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--secondary);
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .note-pick {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.04);
+    color: var(--secondary);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .anchors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 0 8px;
+  }
+  .anchors a {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--secondary);
+    font-size: 12px;
+    text-decoration: none;
+  }
+  .anchors a:hover { color: var(--text); }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← Назад</a>
+    <div>
+      <h1>Side rail — варианты</h1>
+      <p>Wizard `/robots/new` (+ тот же язык для settings broker). Mobile + desktop. Выбери букву.</p>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="anchors">
+      <a href="#a">A сейчас</a>
+      <a href="#b">B номера</a>
+      <a href="#c">C прогресс</a>
+      <a href="#d">D underline</a>
+      <a href="#e">E stepper</a>
+      <a href="#f">F chips</a>
+      <a href="#g">G pager</a>
+    </div>
+
+    <div class="board">
+
+      <!-- A -->
+      <section class="variant" id="a">
+        <div class="variant__head">
+          <div>
+            <h2>A — Сейчас (stack)</h2>
+            <p>Номер над подписью, равная ширина слотов. На десктопе — подпись слева, номер справа в карточке-рельсе.</p>
+          </div>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Mobile</p>
+            <div class="phone"><div class="phone__screen">
+              <nav class="rail-a" aria-label="Шаги">
+                <button type="button" class="is-active"><span class="mark">1</span>Основное</button>
+                <button type="button"><span class="mark">2</span>Стратегия</button>
+                <button type="button"><span class="mark">3</span>Активы</button>
+                <button type="button"><span class="mark">4</span>Риск</button>
+              </nav>
+              <div class="card">
+                <h3>Назовите робота и выберите токен</h3>
+                <p>Рабочая карточка шага.</p>
+                <div class="fake-field"></div>
+              </div>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Desktop</p>
+            <div class="desk">
+              <nav class="rail-a rail-a--desk" aria-label="Шаги">
+                <button type="button" class="is-active">Основное<span class="mark">1</span></button>
+                <button type="button">Стратегия<span class="mark">2</span></button>
+                <button type="button">Активы<span class="mark">3</span></button>
+                <button type="button">Риск<span class="mark">4</span></button>
+              </nav>
+              <div class="card">
+                <h3>Назовите робота и выберите токен</h3>
+                <p>Тот же контент шага.</p>
+                <div class="fake-field"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- B -->
+      <section class="variant" id="b">
+        <div class="variant__head">
+          <div>
+            <h2>B — Только номера</h2>
+            <p>На мобилке — крупные кружки + подпись текущего шага отдельной строкой. Нет обрезки длинных лейблов в слотах.</p>
+          </div>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Mobile</p>
+            <div class="phone"><div class="phone__screen">
+              <div>
+                <nav class="rail-b" aria-label="Шаги">
+                  <button type="button" class="is-active"><span class="mark">1</span></button>
+                  <button type="button"><span class="mark">2</span></button>
+                  <button type="button"><span class="mark">3</span></button>
+                  <button type="button"><span class="mark">4</span></button>
+                </nav>
+                <div class="rail-b__caption">Основное</div>
+              </div>
+              <div class="card">
+                <h3>Назовите робота и выберите токен</h3>
+                <p>Заголовок карточки дублирует смысл шага.</p>
+                <div class="fake-field"></div>
+              </div>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Desktop</p>
+            <div class="desk">
+              <nav class="rail-b rail-b--desk" aria-label="Шаги">
+                <button type="button" class="is-active"><span class="row"><span class="mark">1</span><span class="name">Основное</span></span></button>
+                <button type="button"><span class="row"><span class="mark">2</span><span class="name">Стратегия</span></span></button>
+                <button type="button"><span class="row"><span class="mark">3</span><span class="name">Активы</span></span></button>
+                <button type="button"><span class="row"><span class="mark">4</span><span class="name">Риск</span></span></button>
+              </nav>
+              <div class="card">
+                <h3>Назовите робота и выберите токен</h3>
+                <p>Десктоп — номер слева от имени.</p>
+                <div class="fake-field"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- C -->
+      <section class="variant" id="c">
+        <div class="variant__head">
+          <div>
+            <h2>C — Прогресс-бар</h2>
+            <p>Один заголовок текущего шага + доля «1 / 4» и тонкая полоса. Переход — тап по сегментам или кнопки в футере карточки.</p>
+          </div>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Mobile</p>
+            <div class="phone"><div class="phone__screen">
+              <div class="rail-c">
+                <div class="rail-c__top">
+                  <strong>Основное</strong>
+                  <span>1 / 4</span>
+                </div>
+                <div class="rail-c__bar"><i></i></div>
+                <div class="rail-c__dots" aria-label="Шаги">
+                  <button type="button" class="is-active" aria-label="1"></button>
+                  <button type="button" aria-label="2"></button>
+                  <button type="button" aria-label="3"></button>
+                  <button type="button" aria-label="4"></button>
+                </div>
+              </div>
+              <div class="card">
+                <h3>Назовите робота и выберите токен</h3>
+                <p>Минимум хрома над формой.</p>
+                <div class="fake-field"></div>
+              </div>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Desktop</p>
+            <div class="desk">
+              <div class="rail-c" style="align-self:start">
+                <div class="rail-c__top">
+                  <strong>Создание торгового</strong>
+                  <span>1 / 4</span>
+                </div>
+                <div class="rail-c__bar"><i></i></div>
+                <button type="button" style="all:unset;display:block;padding:8px 0;color:var(--text);font-size:13px;font-weight:600;cursor:pointer">Основное</button>
+                <button type="button" style="all:unset;display:block;padding:8px 0;color:var(--muted);font-size:13px;font-weight:500;cursor:pointer">Стратегия</button>
+                <button type="button" style="all:unset;display:block;padding:8px 0;color:var(--muted);font-size:13px;font-weight:500;cursor:pointer">Активы</button>
+                <button type="button" style="all:unset;display:block;padding:8px 0;color:var(--muted);font-size:13px;font-weight:500;cursor:pointer">Риск</button>
+              </div>
+              <div class="card">
+                <h3>Назовите робота и выберите токен</h3>
+                <p>Слева список + общий прогресс сверху.</p>
+                <div class="fake-field"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- D -->
+      <section class="variant" id="d">
+        <div class="variant__head">
+          <div>
+            <h2>D — Underline tabs · выбрано</h2>
+            <p>Только текст, все будущие шаги видны. Активный — нижняя линия (mobile) / тихий fill (desktop). Без кружков.</p>
+          </div>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Mobile</p>
+            <div class="phone"><div class="phone__screen">
+              <nav class="rail-d" aria-label="Шаги">
+                <button type="button" class="is-active">Основное</button>
+                <button type="button">Стратегия</button>
+                <button type="button">Активы</button>
+                <button type="button">Риск</button>
+              </nav>
+              <div class="card">
+                <h3>Назовите робота и выберите токен</h3>
+                <p>Как сегменты в настройках.</p>
+                <div class="fake-field"></div>
+              </div>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Desktop</p>
+            <div class="desk">
+              <nav class="rail-d rail-d--desk" aria-label="Шаги">
+                <button type="button" class="is-active">Основное</button>
+                <button type="button">Стратегия</button>
+                <button type="button">Активы</button>
+                <button type="button">Риск</button>
+              </nav>
+              <div class="card">
+                <h3>Назовите робота и выберите токен</h3>
+                <p>Тихий список без марок.</p>
+                <div class="fake-field"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- E -->
+      <section class="variant" id="e">
+        <div class="variant__head">
+          <div>
+            <h2>E — Stepper с линией</h2>
+            <p>Классический wizard-stepper: узлы на оси, подписи мелкие. Хорошо читается «где я» и «сколько осталось».</p>
+          </div>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Mobile</p>
+            <div class="phone"><div class="phone__screen">
+              <nav class="rail-e" aria-label="Шаги">
+                <button type="button" class="is-active"><span class="mark">1</span>Основное</button>
+                <button type="button"><span class="mark">2</span>Стратегия</button>
+                <button type="button"><span class="mark">3</span>Активы</button>
+                <button type="button"><span class="mark">4</span>Риск</button>
+              </nav>
+              <div class="card">
+                <h3>Назовите робота и выберите токен</h3>
+                <p>Ось связывает шаги визуально.</p>
+                <div class="fake-field"></div>
+              </div>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Desktop</p>
+            <div class="desk">
+              <nav class="rail-e rail-e--desk" aria-label="Шаги">
+                <button type="button" class="is-active"><span class="mark">1</span>Основное</button>
+                <button type="button"><span class="mark">2</span>Стратегия</button>
+                <button type="button"><span class="mark">3</span>Активы</button>
+                <button type="button"><span class="mark">4</span>Риск</button>
+              </nav>
+              <div class="card">
+                <h3>Назовите робота и выберите токен</h3>
+                <p>Вертикальная ось слева.</p>
+                <div class="fake-field"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- F -->
+      <section class="variant" id="f">
+        <div class="variant__head">
+          <div>
+            <h2>F — Chips / scroll</h2>
+            <p>Горизонтальные pill без растягивания. На 4 шагах обычно влезают; на узких экранах — лёгкий скролл, без сжатия текста.</p>
+          </div>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Mobile</p>
+            <div class="phone"><div class="phone__screen">
+              <nav class="rail-f" aria-label="Шаги">
+                <button type="button" class="is-active"><span class="mark">1</span>Основное</button>
+                <button type="button"><span class="mark">2</span>Стратегия</button>
+                <button type="button"><span class="mark">3</span>Активы</button>
+                <button type="button"><span class="mark">4</span>Риск</button>
+              </nav>
+              <div class="card">
+                <h3>Назовите робота и выберите токен</h3>
+                <p>Контент не борется за ширину слота.</p>
+                <div class="fake-field"></div>
+              </div>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Desktop</p>
+            <div class="desk">
+              <nav class="rail-f rail-f--desk" aria-label="Шаги">
+                <button type="button" class="is-active">Основное<span class="mark">1</span></button>
+                <button type="button">Стратегия<span class="mark">2</span></button>
+                <button type="button">Активы<span class="mark">3</span></button>
+                <button type="button">Риск<span class="mark">4</span></button>
+              </nav>
+              <div class="card">
+                <h3>Назовите робота и выберите токен</h3>
+                <p>Почти как A, но мягче active.</p>
+                <div class="fake-field"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- G -->
+      <section class="variant" id="g">
+        <div class="variant__head">
+          <div>
+            <h2>G — Pager</h2>
+            <p>Только текущий шаг + стрелки. Максимум места форме; прямого прыжка на шаг 3 нет (или прыжок через меню «⋯»).</p>
+          </div>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Mobile</p>
+            <div class="phone"><div class="phone__screen">
+              <div class="rail-g">
+                <button type="button" aria-label="Назад">‹</button>
+                <div class="rail-g__mid">
+                  <strong>Основное</strong>
+                  <span>шаг 1 из 4</span>
+                </div>
+                <button type="button" aria-label="Далее">›</button>
+              </div>
+              <div class="card">
+                <h3>Назовите робота и выберите токен</h3>
+                <p>Самый спокойный chrome.</p>
+                <div class="fake-field"></div>
+              </div>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Desktop</p>
+            <div class="desk">
+              <div class="card" style="align-self:start">
+                <p class="pane-label" style="margin:0 0 8px">Создание торгового</p>
+                <div class="rail-g" style="padding:0;border:0;background:transparent">
+                  <button type="button">‹</button>
+                  <div class="rail-g__mid">
+                    <strong>Основное</strong>
+                    <span>1 / 4</span>
+                  </div>
+                  <button type="button">›</button>
+                </div>
+                <p style="margin:12px 0 0;color:var(--muted);font-size:12px;line-height:1.4">На десктопе pager слабее списка — обычно комбинируют с C/D слева.</p>
+              </div>
+              <div class="card">
+                <h3>Назовите робота и выберите токен</h3>
+                <p>Рабочая область.</p>
+                <div class="fake-field"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <p class="note-pick">
+        Напиши букву (или «mobile: F / desktop: A»). Учту отдельно mobile и desktop, если нужно.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

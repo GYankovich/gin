@@ -196,7 +196,9 @@ export function Select({
                                     onClick={() => handleSelect(opt)}
                                 >
                                     {opt.icon && <span className="gin-select__icon">{opt.icon}</span>}
-                                    <span className="gin-select__option-label">{opt.label}</span>
+                                    <span className="gin-select__option-label">
+                                        <span className="gin-select__option-label-text">{opt.label}</span>
+                                    </span>
                                     {opt.tag ? (
                                         <span className="dashboard-settings-row__tag">{opt.tag}</span>
                                     ) : null}

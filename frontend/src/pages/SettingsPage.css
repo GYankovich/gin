@@ -57,128 +57,6 @@
     align-items: start;
 }
 
-.settings-broker-rail__nav {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 4px 0 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-}
-
-.settings-broker-rail__item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 11px 14px;
-    border: 1px solid transparent;
-    border-radius: 10px;
-    background: transparent;
-    color: var(--text-muted);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-    transition:
-        background 160ms ease,
-        border-color 160ms ease,
-        box-shadow 160ms ease,
-        color 160ms ease;
-}
-
-.settings-broker-rail__item .dashboard-icon {
-    flex-shrink: 0;
-    width: 15px;
-    height: 15px;
-}
-
-.settings-broker-rail__item-text {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.settings-broker-rail__item-name {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.25;
-    color: inherit;
-}
-
-.settings-broker-rail__item-meta {
-    font-size: 12px;
-    line-height: 1.25;
-    color: var(--text-muted);
-}
-
-.settings-broker-rail__item:hover {
-    color: var(--text-primary);
-    background: color-mix(in srgb, var(--bg-input) 70%, transparent);
-}
-
-.settings-broker-rail__item.is-active {
-    color: var(--text-primary);
-    background: var(--bg-card);
-    border-color: var(--border-subtle);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
-}
-
-[data-theme='light'] .settings-broker-rail__item:hover {
-    background: var(--bg-page);
-}
-
-[data-theme='light'] .settings-broker-rail__item.is-active {
-    background: var(--bg-card);
-    border-color: var(--border-subtle);
-    box-shadow: var(--shadow-sm);
-}
-
-.settings-broker-rail__item.is-active .settings-broker-rail__item-meta {
-    color: var(--text-secondary);
-}
-
-.settings-broker-rail__add {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 8px;
-    width: 100%;
-    margin-top: 4px;
-    padding: 10px 14px;
-    border: 0;
-    border-radius: 10px;
-    background: transparent;
-    color: var(--text-muted);
-    font: inherit;
-    font-size: 13px;
-    font-weight: 500;
-    text-align: left;
-    cursor: pointer;
-    transition:
-        background 160ms ease,
-        color 160ms ease;
-}
-
-.settings-broker-rail__add-plus {
-    font-size: 15px;
-    line-height: 1;
-    opacity: 0.8;
-}
-
-.settings-broker-rail__add:hover,
-.settings-broker-rail__add:focus-visible {
-    color: var(--text-primary);
-    background: color-mix(in srgb, var(--bg-input) 55%, transparent);
-    outline: none;
-}
-
-[data-theme='light'] .settings-broker-rail__add:hover,
-[data-theme='light'] .settings-broker-rail__add:focus-visible {
-    background: var(--bg-page);
-}
-
 .settings-broker-rail__panel.card,
 .settings-broker-rail__panel.dashboard-totals-card.card,
 .settings-broker-rail__panel.dashboard-totals-card.card:hover {
@@ -823,6 +701,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+    animation: slideInUp 0.4s ease both;
 }
 
 .settings-sessions-card.card,
@@ -983,6 +862,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .settings-sessions-wrap {
+        animation: none;
+    }
+
     .settings-sessions__collapse,
     .settings-sessions__body,
     .settings-sessions__chev {
@@ -1821,6 +1704,59 @@ button.settings-field__value {
     outline: none;
 }
 
+.settings-sheet-seg-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin: 12px 12px 14px;
+    padding: 14px;
+    border-radius: 12px;
+    background: var(--bg-input);
+    text-align: center;
+}
+
+.settings-sheet-seg-empty__title {
+    margin: 0;
+    padding: 2px 0 0;
+    color: var(--text-secondary);
+    font-size: 13.5px;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.settings-sheet-seg-empty__cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 36px;
+    margin: 0;
+    padding: 0 12px;
+    border: 1px solid var(--border-medium);
+    border-radius: 8px;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.settings-sheet-seg-empty__icon {
+    width: 9px;
+    height: 9px;
+    font-size: 9px;
+}
+
+.settings-sheet-seg-empty__cta:hover,
+.settings-sheet-seg-empty__cta:focus-visible {
+    border-color: color-mix(in srgb, var(--text-muted) 45%, var(--border-medium));
+    outline: none;
+}
+
 .settings-sheet-feed__list {
     min-width: 0;
     padding-bottom: 0;
@@ -1860,7 +1796,7 @@ button.settings-field__value {
 
 .settings-sheet-seg-token__main:focus-visible {
     outline: none;
-    background: color-mix(in srgb, var(--text-primary) 4%, transparent);
+    background: var(--fill-hover);
 }
 
 .settings-sheet-seg-token__copy {
@@ -1872,13 +1808,22 @@ button.settings-field__value {
 }
 
 .settings-sheet-seg-token__name {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    max-width: 100%;
     font-size: 14.5px;
-    font-weight: 600;
     line-height: 1.25;
     color: var(--text-primary);
+}
+
+.settings-sheet-seg-token__name-text {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-weight: 400;
 }
 
 .settings-sheet-seg-token__meta {
@@ -1939,8 +1884,17 @@ button.settings-field__value {
     border-color: var(--border-subtle);
 }
 
-[data-theme='light'] .settings-sheet-token-well {
+[data-theme='light'] .settings-sheet-seg-empty {
     background: var(--bg-page);
+}
+
+[data-theme='light'] .settings-sheet-seg-empty__cta {
+    background: var(--bg-card);
+    border-color: var(--border-subtle);
+}
+
+[data-theme='light'] .settings-sheet-token-well {
+    background: transparent;
 }
 
 .settings-sheet-token-well__cred {
@@ -2046,6 +2000,10 @@ button.settings-field__value {
     cursor: default;
 }
 
+[data-theme='light'] .settings-sheet-token-well__tool {
+    background: var(--bg-page);
+}
+
 .settings-sheet-token-well__tool--danger {
     color: color-mix(in srgb, var(--color-down) 85%, var(--text-secondary));
 }
@@ -2063,10 +2021,19 @@ button.settings-field__value {
 }
 
 .settings-sheet-token-well__status {
-    margin: 2px 2px 0;
-    font-size: 11.5px;
-    line-height: 1.3;
-    color: var(--text-muted);
+    flex-shrink: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--color-up);
+}
+
+.settings-sheet-token-well__status.is-err {
+    background: var(--color-down);
+}
+
+.settings-sheet-token-well__status.is-warn {
+    background: var(--color-warn);
 }
 
 .settings-sheet-token-well .settings-hint {
@@ -2132,22 +2099,6 @@ button.settings-field__value {
         gap: 10px;
     }
 
-    .settings-broker-rail__nav {
-        flex-direction: row;
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        gap: 4px;
-        padding: 0;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: thin;
-    }
-
-    .settings-broker-rail__item {
-        flex: 0 0 auto;
-        width: auto;
-        max-width: 180px;
-    }
-
     .settings-broker-rail__panel.card,
     .settings-broker-rail__panel.dashboard-totals-card.card {
         padding: 16px;
@@ -2164,7 +2115,27 @@ button.settings-field__value {
     }
 }
 
+@media (max-width: 767px) and (hover: none) {
+    .settings-page[data-settings-layout='sheet'] button:hover,
+    .settings-page[data-settings-layout='sheet'] button:focus,
+    .settings-page[data-settings-layout='sheet'] button:focus-visible,
+    .settings-page[data-settings-layout='sheet'] a:hover,
+    .settings-page[data-settings-layout='sheet'] a:focus,
+    .settings-page[data-settings-layout='sheet'] a:focus-visible,
+    .settings-page[data-settings-layout='sheet'] [role='tab']:hover,
+    .settings-page[data-settings-layout='sheet'] [role='tab']:focus,
+    .settings-page[data-settings-layout='sheet'] [role='tab']:focus-visible {
+        outline: none;
+    }
+}
+
 @media (max-width: 767px) {
+    .settings-page[data-settings-layout='sheet'] button,
+    .settings-page[data-settings-layout='sheet'] a,
+    .settings-page[data-settings-layout='sheet'] [role='tab'] {
+        -webkit-tap-highlight-color: transparent;
+    }
+
     .settings-page[data-settings-layout='sheet'] {
         display: flex;
         flex-direction: column;

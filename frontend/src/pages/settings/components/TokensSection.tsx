@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faArrowsRotate, faChevronRight, faCopy, faPlus, faTrashCan } from '@fortawesome/free-solid-svg-icons'
 import { Card } from '@/components/ui/Card'
+import { SideRail } from '@/components/ui/SideRail'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Toggle } from '@/components/ui/Toggle'
 import { useToast } from '@/components/ui/Toast'
@@ -148,7 +149,20 @@ function TokenLine({
                     >
                         <span className="settings-sheet-seg-token__copy">
                             <span className="settings-sheet-seg-token__name">
-                                {token.name || 'API key'}
+                                <span
+                                    className={[
+                                        'settings-sheet-token-well__status',
+                                        statusDotClass || undefined,
+                                    ]
+                                        .filter(Boolean)
+                                        .join(' ')}
+                                    title={statusLabel}
+                                    role="status"
+                                    aria-label={statusLabel}
+                                />
+                                <span className="settings-sheet-seg-token__name-text">
+                                    {token.name || 'API key'}
+                                </span>
                             </span>
                             {metaLine ? (
                                 <span className="settings-sheet-seg-token__meta">{metaLine}</span>
@@ -235,9 +249,6 @@ function TokenLine({
                                     <span>Удалить</span>
                                 </button>
                             </div>
-                            <p className="settings-sheet-token-well__status" role="status">
-                                {statusLabel}
-                            </p>
                         </div>
                     </div>
                 ) : null}
@@ -492,44 +503,60 @@ function BrokerDetail({
                 {sheetTab === 'tokens' ? (
                     <div className="settings-sheet-seg-panel" role="tabpanel">
                         {bucket.tokens.length === 0 ? (
-                            <p className="settings-broker-card__empty">Нет токенов</p>
-                        ) : (
-                            <div className="settings-sheet-feed__list" role="list">
-                                {bucket.tokens.map(token => {
-                                    const health = healthMap[token.id] || {
-                                        status: token.status === 1 ? 'unknown' : 'inactive',
-                                    }
-                                    return (
-                                        <div key={token.id} role="listitem">
-                                            <TokenLine
-                                                token={token}
-                                                health={health}
-                                                testing={testingId === token.id}
-                                                onTest={onTest}
-                                                onDelete={onDelete}
-                                                sheet
-                                            />
-                                        </div>
-                                    )
-                                })}
+                            <div className="settings-sheet-seg-empty">
+                                <p className="settings-sheet-seg-empty__title">Нет токенов</p>
+                                <button
+                                    type="button"
+                                    className="settings-sheet-seg-empty__cta"
+                                    onClick={onAddToken}
+                                >
+                                    <FontAwesomeIcon icon={faPlus} className="settings-sheet-seg-empty__icon" />
+                                    Добавить токен
+                                </button>
                             </div>
+                        ) : (
+                            <>
+                                <div className="settings-sheet-feed__list" role="list">
+                                    {bucket.tokens.map(token => {
+                                        const health = healthMap[token.id] || {
+                                            status: token.status === 1 ? 'unknown' : 'inactive',
+                                        }
+                                        return (
+                                            <div key={token.id} role="listitem">
+                                                <TokenLine
+                                                    token={token}
+                                                    health={health}
+                                                    testing={testingId === token.id}
+                                                    onTest={onTest}
+                                                    onDelete={onDelete}
+                                                    sheet
+                                                />
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                                <button
+                                    type="button"
+                                    className="settings-sheet-seg-panel__add-row"
+                                    onClick={onAddToken}
+                                >
+                                    <FontAwesomeIcon icon={faPlus} className="settings-sheet-seg-panel__add-row-icon" />
+                                    Добавить токен
+                                </button>
+                            </>
                         )}
-                        <button
-                            type="button"
-                            className="settings-sheet-seg-panel__add-row"
-                            onClick={onAddToken}
-                        >
-                            <FontAwesomeIcon icon={faPlus} className="settings-sheet-seg-panel__add-row-icon" />
-                            Добавить токен
-                        </button>
                     </div>
                 ) : (
                     <div className="settings-sheet-seg-panel" role="tabpanel">
-                        <p className="settings-sheet-seg-panel__hint">
-                            Тумблер — показывать счёт в сводке дашборда
-                        </p>
+                        {bucket.accounts.length > 0 ? (
+                            <p className="settings-sheet-seg-panel__hint">
+                                Тумблер — показывать счёт в сводке дашборда
+                            </p>
+                        ) : null}
                         {bucket.accounts.length === 0 ? (
-                            <p className="settings-broker-card__empty">Нет счетов</p>
+                            <div className="settings-sheet-seg-empty">
+                                <p className="settings-sheet-seg-empty__title">Нет счетов</p>
+                            </div>
                         ) : (
                             <div className="settings-sheet-feed__list" role="list">
                                 {bucket.accounts.map(account => (
@@ -862,7 +889,7 @@ export function TokensSection({
                 </div>
             ) : (
                 <div className="settings-broker-rail">
-                    <nav className="settings-broker-rail__nav" aria-label="Брокеры">
+                    <SideRail aria-label="Брокеры">
                         {buckets.map(bucket => {
                             const selected = bucket.kind === selectedKind
                             const summary = [
@@ -876,38 +903,21 @@ export function TokensSection({
                                 .filter(Boolean)
                                 .join(' · ')
                             return (
-                                <button
+                                <SideRail.Item
                                     key={bucket.kind}
-                                    type="button"
-                                    className={`settings-broker-rail__item${selected ? ' is-active' : ''}`}
+                                    active={selected}
                                     aria-current={selected ? 'page' : undefined}
                                     onClick={() => setSelectedKind(bucket.kind)}
-                                >
-                                    <BrokerIcon kind={bucket.kind} className="dashboard-icon" />
-                                    <span className="settings-broker-rail__item-text">
-                                        <span className="settings-broker-rail__item-name">
-                                            {brokerLabel(bucket.kind)}
-                                        </span>
-                                        {summary ? (
-                                            <span className="settings-broker-rail__item-meta">
-                                                {summary}
-                                            </span>
-                                        ) : null}
-                                    </span>
-                                </button>
+                                    icon={<BrokerIcon kind={bucket.kind} className="dashboard-icon" />}
+                                    name={brokerLabel(bucket.kind)}
+                                    meta={summary || undefined}
+                                />
                             )
                         })}
-                        <button
-                            type="button"
-                            className="settings-broker-rail__add"
-                            onClick={() => openCreate(null)}
-                        >
-                            <span className="settings-broker-rail__add-plus" aria-hidden>
-                                +
-                            </span>
+                        <SideRail.Add onClick={() => openCreate(null)}>
                             Добавить брокера
-                        </button>
-                    </nav>
+                        </SideRail.Add>
+                    </SideRail>
 
                     {selectedBucket ? (
                         <BrokerDetail

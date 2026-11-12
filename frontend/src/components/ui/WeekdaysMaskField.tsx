@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from 'react'
-import { FormLabelTooltip } from '@/components/ui/FormLabelTooltip'
+import React from 'react'
 import { Toggle } from '@/components/ui/Toggle'
 import {
     WEEKDAY_FULL_WEEK_OPTION,
@@ -19,8 +18,6 @@ export type WeekdaysMaskFieldProps = {
     showAdvancedMask?: boolean
 }
 
-const WEEKDAYS_TOOLTIP = 'Выберите дни, когда робот должен работать. Вся неделя = пн–вс (маска 127)'
-
 export function WeekdaysMaskField({
     value,
     onChange,
@@ -29,33 +26,19 @@ export function WeekdaysMaskField({
 }: WeekdaysMaskFieldProps) {
     const mask = clampWeekdaysMask(value)
     const fullWeek = isFullWeekMask(mask)
-    const [fullWeekLocked, setFullWeekLocked] = useState(false)
-
-    useEffect(() => {
-        if (!fullWeek) setFullWeekLocked(false)
-    }, [fullWeek])
 
     return (
         <div className={`weekdays-mask-field ${className}`.trim()}>
-            <div className="weekdays-mask-field__header">
-                <div className="form-label">
-                    Дни недели
-                    <FormLabelTooltip text={WEEKDAYS_TOOLTIP} />
-                </div>
-                <Toggle
-                    className="weekdays-mask-field__full-week"
-                    checked={fullWeek}
-                    title={WEEKDAY_FULL_WEEK_OPTION.label}
-                    label="Вся неделя (пн–вс)"
-                    onChange={(on) => {
-                        setFullWeekLocked(on)
-                        onChange(toggleFullWeek(mask, on))
-                    }}
-                />
-            </div>
-
+            <div className="form-label weekdays-mask-field__label">Дни недели</div>
+            <Toggle
+                className="weekdays-mask-field__full-week"
+                checked={fullWeek}
+                title={WEEKDAY_FULL_WEEK_OPTION.label}
+                label="все"
+                onChange={(on) => onChange(toggleFullWeek(mask, on))}
+            />
             <div
-                className={`weekdays-mask-field__days ${fullWeekLocked ? 'weekdays-mask-field__days--locked' : ''}`}
+                className="weekdays-mask-field__days"
                 role="group"
                 aria-label="Дни недели"
             >

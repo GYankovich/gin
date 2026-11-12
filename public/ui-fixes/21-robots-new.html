@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>/robots/new — макеты в стиле флота</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .board { display: grid; gap: 28px; }
+  .variant {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--page);
+    overflow: hidden;
+  }
+  .variant__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.02);
+  }
+  .variant__head h2 { margin: 0; font-size: 14px; font-weight: 650; }
+  .variant__head p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    max-width: 72ch;
+    line-height: 1.45;
+  }
+  .pick {
+    flex: 0 0 auto;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(61,190,122,.35);
+    color: var(--up);
+    font-size: 11px;
+    font-weight: 650;
+    white-space: nowrap;
+  }
+  .variant__body { padding: 16px; display: grid; gap: 14px; }
+  .desk {
+    max-width: 980px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .desk--wide { max-width: 1100px; }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 650;
+    background: rgba(255,255,255,.06);
+    color: var(--secondary);
+  }
+  .status::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .status--idle { color: var(--secondary); }
+  .status--draft { color: var(--warn); background: rgba(212,160,23,.14); }
+  .status--ok { color: var(--up); background: rgba(61,190,122,.14); }
+
+  .tag {
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(255,255,255,.06);
+    color: var(--secondary);
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .tag--mode { background: rgba(66,99,235,.14); color: #9db0ff; }
+
+  .btn {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .btn--primary {
+    background: var(--text);
+    color: var(--page);
+    border-color: transparent;
+  }
+  .btn--ghost { color: var(--secondary); border-color: transparent; }
+  .btn--sm { padding: 6px 10px; font-size: 12px; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field > span {
+    color: var(--secondary);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .field > span small {
+    display: block;
+    margin-top: 2px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .input, .select {
+    min-height: 38px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--input);
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg button {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--secondary);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .seg button.on {
+    background: rgba(255,255,255,.06);
+    color: var(--text);
+  }
+  .arch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .arch button {
+    text-align: left;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .arch small {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .arch .on { background: rgba(255,255,255,.06); }
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .type-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .type-card {
+    text-align: left;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text);
+  }
+  .type-card strong { display: block; font-size: 13px; font-weight: 650; }
+  .type-card small {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .type-card.on { background: rgba(255,255,255,.06); }
+
+  /* —— NOW / A shell —— */
+  .wiz {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--panel);
+  }
+  .wiz__head {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 16px;
+  }
+  .wiz__head::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 1px;
+    background: var(--border);
+  }
+  .wiz__name-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .wiz__name { margin: 0; font-size: 16px; font-weight: 650; }
+  .wiz__id { color: var(--muted); font-size: 12px; font-family: ui-monospace, monospace; }
+  .wiz__tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .wiz__back {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+    background: none;
+    border: 0;
+    padding: 0;
+  }
+  .steps { display: flex; flex-wrap: wrap; gap: 6px; }
+  .step {
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .step--on { background: rgba(255,255,255,.06); color: var(--text); }
+  .step--done { color: var(--secondary); }
+  .form { display: grid; gap: 14px; }
+  .foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .foot__right { margin-left: auto; display: flex; gap: 8px; }
+
+  /* —— B split —— */
+  .split {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .fleet-preview {
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--panel);
+    position: sticky;
+    top: 16px;
+  }
+  .fleet-preview__top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .fleet-preview__equity {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,.03);
+  }
+  .fleet-preview__equity span {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .fleet-preview__equity strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 22px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.4px;
+  }
+  .fleet-preview__facts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 12px;
+    margin-top: 14px;
+  }
+  .fleet-preview__facts dt {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .fleet-preview__facts dd {
+    margin: 2px 0 0;
+    font-size: 13px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .fleet-preview__hint {
+    margin: 12px 0 0;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .form-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--panel);
+  }
+
+  /* —— C sections —— */
+  .pagebar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+  .pagebar h3 { margin: 4px 0 0; font-size: 18px; font-weight: 650; }
+  .pagebar .wiz__tags { margin-top: 8px; }
+  .stack { display: grid; gap: 12px; }
+  .section {
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--panel);
+  }
+  .section__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .section__head h4 { margin: 0; font-size: 14px; font-weight: 650; }
+  .section__head span {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  /* —— D rail —— */
+  .rail-layout {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .rail {
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--panel);
+  }
+  .rail__title {
+    margin: 0 0 10px;
+    padding: 0 4px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .rail button {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+  }
+  .rail button.on {
+    background: rgba(255,255,255,.06);
+    color: var(--text);
+  }
+  .rail button .n {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: rgba(255,255,255,.08);
+    color: inherit;
+    font-size: 11px;
+    font-weight: 650;
+  }
+  .rail button.on .n {
+    background: var(--text);
+    color: var(--page);
+  }
+  .rail button.done { color: var(--secondary); }
+  .rail__meta {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .note {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px dashed var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  @media (max-width: 900px) {
+    .split, .rail-layout, .arch, .type-grid, .grid-2 { grid-template-columns: 1fr; }
+    .fleet-preview { position: static; }
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← К списку</a>
+    <div>
+      <h1>/robots/new в стиле /robots</h1>
+      <p>Сейчас визард уже в карточке. Ниже — четыре направления дальше: полировка, живое превью флота, секции без шагов, рельс слева. Desktop · торговый робот.</p>
+    </div>
+    <span class="badge badge--new">макеты</span>
+  </div>
+
+  <div class="wrap">
+    <div class="board">
+
+      <!-- NOW -->
+      <section class="variant">
+        <div class="variant__head">
+          <div>
+            <h2>Сейчас</h2>
+            <p>Одна карточка, плашки шагов, форма внутри. Уже близко к флоту: radius 16, hairline под шапкой, pills, спокойные поля.</p>
+          </div>
+        </div>
+        <div class="variant__body">
+          <div class="desk">
+            <article class="wiz">
+              <header class="wiz__head">
+                <div>
+                  <div class="wiz__name-line"><h3 class="wiz__name">Новый робот</h3></div>
+                  <div class="wiz__tags">
+                    <span class="tag">Торговый</span>
+                    <span class="tag">Бумага</span>
+                  </div>
+                </div>
+                <button type="button" class="wiz__back">К списку</button>
+              </header>
+              <nav class="steps" aria-label="Шаги">
+                <span class="step step--on">Основное</span>
+                <span class="step">Стратегия</span>
+                <span class="step">Активы</span>
+                <span class="step">Риск</span>
+              </nav>
+              <div class="form">
+                <div class="field">
+                  <span>Что нужно автоматизировать?</span>
+                  <div class="type-grid">
+                    <button type="button" class="type-card on">
+                      <strong>Торговый робот</strong>
+                      <small>Ищет сигналы, открывает позиции и контролирует риск.</small>
+                    </button>
+                    <button type="button" class="type-card">
+                      <strong>Опросник портфеля</strong>
+                      <small>Переносит позиции и операции брокера в GIN.</small>
+                    </button>
+                  </div>
+                </div>
+                <label class="field">
+                  <span>Название <small>Будет видно в списке и уведомлениях</small></span>
+                  <div class="input">MOEX Momentum</div>
+                </label>
+                <label class="field">
+                  <span>Брокерский аккаунт</span>
+                  <div class="select">Тинькофф — основной ▾</div>
+                </label>
+              </div>
+              <footer class="foot">
+                <button type="button" class="btn btn--ghost">Отмена</button>
+                <div class="foot__right">
+                  <button type="button" class="btn btn--primary">Далее</button>
+                </div>
+              </footer>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- A -->
+      <section class="variant" id="a">
+        <div class="variant__head">
+          <div>
+            <h2>A. Карточка флота + статус</h2>
+            <p>Та же одна карточка, но identity как на /robots: status-led «Черновик», теги режима/брокера, шаги спокойнее. Минимум перестройки IA.</p>
+          </div>
+          <span class="pick">ближе к флоту</span>
+        </div>
+        <div class="variant__body">
+          <div class="desk">
+            <article class="wiz">
+              <header class="wiz__head">
+                <div>
+                  <div class="wiz__name-line">
+                    <h3 class="wiz__name">MOEX Momentum</h3>
+                  </div>
+                  <div class="wiz__tags">
+                    <span class="status status--draft">Черновик</span>
+                    <span class="tag">Торговый</span>
+                    <span class="tag tag--mode">Бумага</span>
+                    <span class="tag">Тинькофф</span>
+                  </div>
+                </div>
+                <button type="button" class="wiz__back">К списку</button>
+              </header>
+              <nav class="steps">
+                <span class="step step--done">Основное</span>
+                <span class="step step--on">Стратегия</span>
+                <span class="step">Активы</span>
+                <span class="step">Риск</span>
+              </nav>
+              <div class="form">
+                <label class="field">
+                  <span>Цель</span>
+                  <div class="seg">
+                    <button type="button">Консервативный</button>
+                    <button type="button" class="on">Умеренный</button>
+                    <button type="button">Агрессивный</button>
+                  </div>
+                </label>
+                <div class="arch">
+                  <button type="button" class="on"><strong>Тренд</strong><small>Покупка на пробое максимума</small></button>
+                  <button type="button"><strong>Отскок</strong><small>Вход далеко от обычной цены</small></button>
+                  <button type="button"><strong>Сетка</strong><small>Уровни вокруг цены</small></button>
+                  <button type="button"><strong>Скальпер</strong><small>В бэктесте недоступен</small></button>
+                </div>
+                <div class="grid-2">
+                  <label class="field"><span>Таймфрейм</span><div class="select">1h ▾</div></label>
+                  <label class="field"><span>Инструмент</span><div class="select">Акции ▾</div></label>
+                </div>
+              </div>
+              <footer class="foot">
+                <button type="button" class="btn btn--ghost">Назад</button>
+                <div class="foot__right">
+                  <button type="button" class="btn btn--primary">Далее</button>
+                </div>
+              </footer>
+            </article>
+          </div>
+          <p class="note">Плюс: почти drop-in в текущий wizard. Минус: форма всё ещё «не список» — continuity только через chrome.</p>
+        </div>
+      </section>
+
+      <!-- B -->
+      <section class="variant" id="b">
+        <div class="variant__head">
+          <div>
+            <h2>B. Живое превью карточки флота</h2>
+            <p>Слева — та же карточка, что появится в списке после создания: equity-плейсхолдер, facts, статус. Справа только текущий шаг. Пользователь сразу видит «как это будет выглядеть на /robots».</p>
+          </div>
+        </div>
+        <div class="variant__body">
+          <div class="desk desk--wide">
+            <div class="split">
+              <aside class="fleet-preview" aria-label="Превью на флоте">
+                <div class="fleet-preview__top">
+                  <div>
+                    <div class="wiz__name-line">
+                      <strong class="wiz__name" style="font-size:15px">MOEX Momentum</strong>
+                    </div>
+                    <div class="wiz__tags">
+                      <span class="tag">Торговый</span>
+                      <span class="tag tag--mode">Бумага</span>
+                    </div>
+                  </div>
+                  <span class="status status--draft">Черновик</span>
+                </div>
+                <div class="fleet-preview__equity">
+                  <span>Капитал · после создания</span>
+                  <strong>— ₽</strong>
+                </div>
+                <dl class="fleet-preview__facts">
+                  <div><dt>Стратегия</dt><dd>Тренд</dd></div>
+                  <div><dt>Таймфрейм</dt><dd>1h</dd></div>
+                  <div><dt>Счёт</dt><dd>Тинькофф</dd></div>
+                  <div><dt>Риск</dt><dd>—</dd></div>
+                </dl>
+                <p class="fleet-preview__hint">Заполняется по мере шагов. После «Создать» эта карточка окажется в списке флота.</p>
+              </aside>
+              <div class="form-pane">
+                <nav class="steps">
+                  <span class="step step--done">Основное</span>
+                  <span class="step step--on">Стратегия</span>
+                  <span class="step">Активы</span>
+                  <span class="step">Риск</span>
+                </nav>
+                <label class="field">
+                  <span>Цель</span>
+                  <div class="seg">
+                    <button type="button">Консервативный</button>
+                    <button type="button" class="on">Умеренный</button>
+                    <button type="button">Агрессивный</button>
+                  </div>
+                </label>
+                <div class="arch">
+                  <button type="button" class="on"><strong>Тренд</strong><small>Пробой максимума</small></button>
+                  <button type="button"><strong>Отскок</strong><small>Далеко от обычной цены</small></button>
+                  <button type="button"><strong>Сетка</strong><small>Уровни вокруг цены</small></button>
+                  <button type="button"><strong>Скальпер</strong><small>Недоступен</small></button>
+                </div>
+                <div class="grid-2">
+                  <label class="field"><span>Таймфрейм</span><div class="select">1h ▾</div></label>
+                  <label class="field"><span>Инструмент</span><div class="select">Акции ▾</div></label>
+                </div>
+                <footer class="foot">
+                  <button type="button" class="btn btn--ghost">Назад</button>
+                  <div class="foot__right">
+                    <button type="button" class="btn btn--primary">Далее</button>
+                  </div>
+                </footer>
+              </div>
+            </div>
+          </div>
+          <p class="note">Плюс: сильнейшая связь с /robots. Минус: на узких экранах превью уезжает вверх; для опросника превью короче (sync instead of equity).</p>
+        </div>
+      </section>
+
+      <!-- C -->
+      <section class="variant" id="c">
+        <div class="variant__head">
+          <div>
+            <h2>C. Секции карточками флота</h2>
+            <p>Без мастера. Каждый блок — отдельная карточка того же радиуса/бордера, что у флота. Всё видно сразу; Create в pagebar. Для опросника — две карточки.</p>
+          </div>
+        </div>
+        <div class="variant__body">
+          <div class="desk">
+            <div class="pagebar">
+              <div>
+                <button type="button" class="wiz__back">← К списку</button>
+                <h3>Новый робот</h3>
+                <div class="wiz__tags">
+                  <span class="status status--draft">Черновик</span>
+                  <span class="tag">Торговый</span>
+                  <span class="tag tag--mode">Бумага</span>
+                </div>
+              </div>
+              <button type="button" class="btn btn--primary">Создать</button>
+            </div>
+            <div class="stack">
+              <section class="section">
+                <div class="section__head">
+                  <h4>Основное</h4>
+                  <span>имя · счёт · режим</span>
+                </div>
+                <div class="grid-2">
+                  <label class="field"><span>Название</span><div class="input">MOEX Momentum</div></label>
+                  <label class="field"><span>Аккаунт</span><div class="select">Тинькофф — основной ▾</div></label>
+                </div>
+              </section>
+              <section class="section">
+                <div class="section__head">
+                  <h4>Стратегия</h4>
+                  <span>архетип · таймфрейм</span>
+                </div>
+                <div class="arch">
+                  <button type="button" class="on"><strong>Тренд</strong><small>Пробой максимума</small></button>
+                  <button type="button"><strong>Отскок</strong><small>Далеко от обычной цены</small></button>
+                </div>
+              </section>
+              <section class="section">
+                <div class="section__head">
+                  <h4>Активы и риск</h4>
+                  <span>universe · капитал</span>
+                </div>
+                <div class="grid-2">
+                  <label class="field"><span>Тикеры</span><div class="input">SBER, GAZP, LKOH</div></label>
+                  <label class="field"><span>Риск на сделку</span><div class="input">1%</div></label>
+                </div>
+              </section>
+            </div>
+          </div>
+          <p class="note">Плюс: ощущение «ещё карточки флота». Минус: длинная страница; сложные шаги (скринер/превью) тяжелее без wizard focus.</p>
+        </div>
+      </section>
+
+      <!-- D -->
+      <section class="variant" id="d">
+        <div class="variant__head">
+          <div>
+            <h2>D. Рельс шагов + рабочая карточка</h2>
+            <p>Слева вертикальный список шагов как на мониторе/настройках; справа одна рабочая карточка флота. Прогресс и тип всегда на виду, форма не растёт в высоту.</p>
+          </div>
+          <span class="pick">выбрано</span>
+        </div>
+        <div class="variant__body">
+          <div class="desk desk--wide">
+            <div class="rail-layout">
+              <aside class="rail">
+                <p class="rail__title">Создание</p>
+                <button type="button" class="done"><span>Основное</span><span class="n">✓</span></button>
+                <button type="button" class="on"><span>Стратегия</span><span class="n">2</span></button>
+                <button type="button"><span>Активы</span><span class="n">3</span></button>
+                <button type="button"><span>Риск</span><span class="n">4</span></button>
+                <div class="rail__meta">
+                  Торговый · Бумага<br />
+                  Черновик сохраняется локально
+                </div>
+              </aside>
+              <article class="wiz">
+                <header class="wiz__head">
+                  <div>
+                    <div class="wiz__name-line">
+                      <h3 class="wiz__name">Стратегия</h3>
+                    </div>
+                    <div class="wiz__tags">
+                      <span class="status status--draft">Черновик</span>
+                      <span class="tag">MOEX Momentum</span>
+                    </div>
+                  </div>
+                  <button type="button" class="wiz__back">К списку</button>
+                </header>
+                <div class="form">
+                  <div class="arch">
+                    <button type="button" class="on"><strong>Тренд</strong><small>Пробой максимума</small></button>
+                    <button type="button"><strong>Отскок</strong><small>Далеко от обычной цены</small></button>
+                    <button type="button"><strong>Сетка</strong><small>Уровни вокруг цены</small></button>
+                    <button type="button"><strong>Скальпер</strong><small>Недоступен</small></button>
+                  </div>
+                  <div class="grid-2">
+                    <label class="field"><span>Таймфрейм</span><div class="select">1h ▾</div></label>
+                    <label class="field"><span>Инструмент</span><div class="select">Акции ▾</div></label>
+                  </div>
+                </div>
+                <footer class="foot">
+                  <button type="button" class="btn btn--ghost">Назад</button>
+                  <div class="foot__right">
+                    <button type="button" class="btn btn--primary">Далее</button>
+                  </div>
+                </footer>
+              </article>
+            </div>
+          </div>
+          <p class="note">Плюс: ясный прогресс, меньше горизонтального шума шагов. Минус: ещё один chrome-паттерн рядом с флотом; на mobile рельс станет top tabs.</p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</body>
+</html>

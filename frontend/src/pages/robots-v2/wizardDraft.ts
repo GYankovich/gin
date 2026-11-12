@@ -48,10 +48,6 @@ export type RobotV2WizardDraft = {
     portfolioEnabled: boolean
 }
 
-export const DRAFT_STORAGE_KEY = 'gin-robots-v2-wizard-draft'
-export const PORTFOLIO_DRAFT_STORAGE_KEY = 'gin-robots-v2-wizard-draft-portfolio'
-const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000
-
 export function defaultWizardDraft(): RobotV2WizardDraft {
     return {
         name: '',
@@ -320,7 +316,9 @@ export function draftToV4Config(draft: RobotV2WizardDraft): Record<string, unkno
         strategy: {
             archetype: draft.archetype || 'momentum',
             timeframe: draft.timeframe,
-            params: draft.strategyParams,
+            params: draft.archetype === 'scalper'
+                ? { ...draft.strategyParams, requiresWebSocket: true }
+                : draft.strategyParams,
         },
         universe,
         risk: {
@@ -449,43 +447,6 @@ export function configToPortfolioDraft(
         timeTo: String(schedule.timeTo || base.timeTo),
         pollInterval: (schedule.pollInterval as RobotV2WizardDraft['pollInterval']) || base.pollInterval,
         portfolioEnabled: status !== 2,
-    }
-}
-
-export function saveDraftLocal(draft: RobotV2WizardDraft, key?: string): void {
-    const storageKey = key ?? DRAFT_STORAGE_KEY
-    try {
-        localStorage.setItem(
-            storageKey,
-            JSON.stringify({ savedAt: Date.now(), draft }),
-        )
-    } catch {
-        /* ignore quota */
-    }
-}
-
-export function loadDraftLocal(key?: string): RobotV2WizardDraft | null {
-    const storageKey = key ?? DRAFT_STORAGE_KEY
-    try {
-        const raw = localStorage.getItem(storageKey)
-        if (!raw) return null
-        const parsed = JSON.parse(raw) as { savedAt?: number; draft?: RobotV2WizardDraft }
-        if (!parsed?.draft || !parsed.savedAt) return null
-        if (Date.now() - parsed.savedAt > DRAFT_TTL_MS) {
-            localStorage.removeItem(storageKey)
-            return null
-        }
-        return { ...defaultWizardDraft(), ...parsed.draft }
-    } catch {
-        return null
-    }
-}
-
-export function clearDraftLocal(key?: string): void {
-    try {
-        localStorage.removeItem(key ?? DRAFT_STORAGE_KEY)
-    } catch {
-        /* ignore */
     }
 }
 
