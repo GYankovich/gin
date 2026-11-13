@@ -7,16 +7,17 @@ import {
 type Props = {
     draft: RobotV2WizardDraft
     patch: (partial: Partial<RobotV2WizardDraft>) => void
+    columns?: 2 | 3
 }
 
-export function ScreenerCustomFilters({ draft, patch }: Props) {
+export function ScreenerCustomFilters({ draft, patch, columns = 2 }: Props) {
     const crypto = isCryptoInstrument(draft.instrumentType)
     return (
         <div className="robots-v2-screener-custom">
             <p className="robots-v2-hint robots-v2-screener-custom__hint">
                 Ноль — условие не применяется.
             </p>
-            <div className="robots-v2-grid robots-v2-grid--2">
+            <div className={`robots-v2-grid robots-v2-grid--${columns}`}>
                 <label className="robots-v2-field">
                     <span>{crypto ? 'Мин. объём 24ч, $' : 'Мин. объём'}</span>
                     <input

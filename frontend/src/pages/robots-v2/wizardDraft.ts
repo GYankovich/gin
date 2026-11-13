@@ -43,7 +43,7 @@ export type RobotV2WizardDraft = {
     taxPct: number
     slippagePct: number
     stopMode: 'soft' | 'hard'
-    eodFlattenEnabled: boolean | null
+    eodFlattenEnabled: boolean
     eodMinutesBeforeClose: number
     portfolioEnabled: boolean
 }
@@ -90,7 +90,7 @@ export function defaultWizardDraft(): RobotV2WizardDraft {
         taxPct: 13,
         slippagePct: 0.5,
         stopMode: 'soft',
-        eodFlattenEnabled: null,
+        eodFlattenEnabled: true,
         eodMinutesBeforeClose: 15,
         portfolioEnabled: true,
     }
@@ -342,6 +342,12 @@ export function draftToV4Config(draft: RobotV2WizardDraft): Record<string, unkno
     }
 }
 
+/** Old configs stored enabled=null as "auto": on for stocks, off otherwise. */
+function eodEnabledFromConfig(enabled: boolean | null | undefined, instrumentType: string): boolean {
+    if (typeof enabled === 'boolean') return enabled
+    return instrumentType === 'stock'
+}
+
 export function configToDraft(config: Record<string, unknown>, name: string, tokenId: number | null): RobotV2WizardDraft {
     const base = defaultWizardDraft()
     const core = (config.core || {}) as Record<string, unknown>
@@ -394,8 +400,10 @@ export function configToDraft(config: Record<string, unknown>, name: string, tok
         taxPct: Number(risk.taxPct ?? base.taxPct),
         slippagePct: Number(risk.slippagePct ?? base.slippagePct),
         stopMode: (risk.stopMode as 'soft' | 'hard') || 'soft',
-        eodFlattenEnabled:
-            (risk.eodFlatten as { enabled?: boolean | null } | undefined)?.enabled ?? null,
+        eodFlattenEnabled: eodEnabledFromConfig(
+            (risk.eodFlatten as { enabled?: boolean | null } | undefined)?.enabled,
+            String(core.instrumentType || base.instrumentType),
+        ),
         eodMinutesBeforeClose: Number(
             (risk.eodFlatten as { minutesBeforeClose?: number } | undefined)?.minutesBeforeClose ?? 15,
         ),

@@ -13,7 +13,7 @@ type Props = {
  */
 export function Tooltip({ text, children, className = '' }: Props) {
     const tipId = useId()
-    const triggerRef = useRef<HTMLSpanElement>(null)
+    const triggerRef = useRef<HTMLButtonElement>(null)
     const bubbleRef = useRef<HTMLSpanElement>(null)
     const [open, setOpen] = useState(false)
     const [pos, setPos] = useState({ top: 0, left: 0 })
@@ -63,22 +63,24 @@ export function Tooltip({ text, children, className = '' }: Props) {
 
     return (
         <>
-            <span
+            <button
                 ref={triggerRef}
+                type="button"
                 className={`form-label-tooltip ${className}`.trim()}
-                tabIndex={0}
-                role="note"
                 aria-label={text}
                 aria-describedby={open ? tipId : undefined}
                 onMouseEnter={show}
                 onMouseLeave={hide}
                 onFocus={show}
                 onBlur={hide}
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => e.stopPropagation()}
+                onMouseDown={e => e.preventDefault()}
+                onClick={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                }}
             >
                 {children}
-            </span>
+            </button>
             {open &&
                 createPortal(
                     <span

@@ -8022,18 +8022,29 @@ select:focus:not(:focus-visible) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin-left: 0;
+    box-sizing: border-box;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
     font-size: 11px;
     color: var(--text-secondary);
     cursor: help;
     position: relative;
     vertical-align: middle;
-    flex-shrink: 0;
+    flex: 0 0 auto;
     line-height: 1;
 }
 
 .form-label-tooltip__icon {
     display: block;
+    width: 14px;
+    height: 14px;
+    max-width: none;
+    flex: none;
 }
 
 .form-label-tooltip:hover,
@@ -8044,7 +8055,7 @@ select:focus:not(:focus-visible) {
 
 .form-label-tooltip__bubble {
     position: fixed;
-    z-index: calc(var(--z-modal-backdrop) + 20);
+    z-index: var(--z-popover);
     width: max-content;
     max-width: min(280px, calc(100vw - 16px));
     padding: 8px 10px;

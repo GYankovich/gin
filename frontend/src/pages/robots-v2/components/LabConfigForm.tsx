@@ -31,16 +31,11 @@ const UNIVERSE_OPTIONS = [
     { value: 'screener', label: 'Скринер' },
 ] as const
 
-const STOP_MODE_OPTIONS = [
-    { value: 'soft', label: 'Мягкая' },
-    { value: 'hard', label: 'Жёсткая' },
-] as const
-
 const EOD_OPTIONS = [
-    { value: 'auto', label: 'Авто' },
-    { value: 'on', label: 'Вкл' },
-    { value: 'off', label: 'Выкл' },
+    { value: 'on', label: 'Включён' },
+    { value: 'off', label: 'Выключен' },
 ] as const
+const EOD_TOOLTIP = 'За указанное число минут до конца расписания робот закрывает все позиции и не открывает новые до следующей сессии.'
 
 function weekdaysToMask(days: boolean[]): number {
     return days.reduce((mask, selected, index) => (selected ? mask | (1 << index) : mask), 0)
@@ -496,36 +491,20 @@ export function LabConfigForm({ draft, onChange, compact = true, presetSlot }: L
                         </label>
                     </div>
                     <div className="robots-v2-grid robots-v2-grid--2">
-                        <label className="robots-v2-field">
+                        <div className="robots-v2-field">
                             <span>
-                                Режим остановки
-                                <FormLabelTooltip text="Мягкая: робот перестаёт открывать новые позиции. Жёсткая: дополнительно закрывает уже открытые." />
+                                Закрытие сессии
+                                <FormLabelTooltip text={EOD_TOOLTIP} />
                             </span>
                             <SegmentedControl
                                 className="robots-v2-segmented"
-                                aria-label="Режим остановки"
-                                options={[...STOP_MODE_OPTIONS]}
-                                value={draft.stopMode}
-                                onChange={stopMode => patch({ stopMode })}
-                            />
-                            <small className="robots-v2-hint">Мягкая — без новых входов. Жёсткая — ещё закрыть текущие.</small>
-                        </label>
-                        <label className="robots-v2-field">
-                            <span>
-                                Закрытие к концу дня
-                                <FormLabelTooltip text="EOD flatten: перед закрытием сессии все позиции сбрасываются в ноль. Авто включает это для акций MOEX и выключает для круглосуточных рынков." />
-                            </span>
-                            <SegmentedControl
-                                className="robots-v2-segmented"
-                                aria-label="Закрытие к концу дня"
+                                aria-label="Закрытие сессии"
                                 options={[...EOD_OPTIONS]}
-                                value={draft.eodFlattenEnabled === null ? 'auto' : draft.eodFlattenEnabled ? 'on' : 'off'}
-                                onChange={value => patch({
-                                    eodFlattenEnabled: value === 'auto' ? null : value === 'on',
-                                })}
+                                value={draft.eodFlattenEnabled ? 'on' : 'off'}
+                                onChange={value => patch({ eodFlattenEnabled: value === 'on' })}
                             />
-                            <small className="robots-v2-hint">Сбросить позиции до конца сессии. Авто — для акций.</small>
-                        </label>
+                            <small className="robots-v2-hint">Закрыть позиции перед концом расписания.</small>
+                        </div>
                     </div>
                     <div className="robots-v2-grid robots-v2-grid--3">
                         <label className="robots-v2-field">
