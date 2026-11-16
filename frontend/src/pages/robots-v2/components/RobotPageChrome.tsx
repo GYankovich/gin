@@ -34,6 +34,8 @@ type RobotPageChromeProps = {
     variant?: 'hero' | 'quiet'
     /** Status beside the title in the quiet variant. */
     status?: React.ReactNode
+    /** Quiet variant: block between the title row and the section tabs. */
+    notice?: React.ReactNode
 }
 
 /**
@@ -51,6 +53,7 @@ export function RobotPageChrome({
     className = 'dashboard-hero--node',
     variant = 'hero',
     status,
+    notice,
 }: RobotPageChromeProps) {
     const navigate = useNavigate()
     const isNarrow = useMediaQuery('(max-width: 767px)')
@@ -128,6 +131,7 @@ export function RobotPageChrome({
                     </div>
                     {actions ? <div className="robots-quiet-chrome__actions">{actions}</div> : null}
                 </div>
+                {notice}
                 {showDesktopNav ? (
                     <nav className="robots-quiet-chrome__nav" aria-label="Разделы робота">
                         {desktopNav}

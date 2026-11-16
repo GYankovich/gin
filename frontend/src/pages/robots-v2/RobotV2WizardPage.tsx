@@ -114,10 +114,6 @@ function StrategyParamField({
     )
 }
 
-const EOD_OPTIONS = [
-    { value: 'on', label: 'Включён' },
-    { value: 'off', label: 'Выключен' },
-] as const
 const EOD_TOOLTIP = 'За указанное число минут до конца расписания робот закрывает все позиции и не открывает новые до следующей сессии.'
 
 function weekdaysToMask(days: boolean[]): number {
@@ -969,21 +965,18 @@ export default function RobotV2WizardPage() {
                             </div>
                         </div>
                         <div className="robots-v2-form-group">
-                            <p className="robots-v2-param-group__title">Остановка</p>
-                            <div className="robots-v2-grid robots-v2-grid--2">
-                                <div className="robots-v2-field">
-                                    <span>
-                                        Закрытие сессии
-                                        <FormLabelTooltip text={EOD_TOOLTIP} />
-                                    </span>
-                                    <SegmentedControl
-                                        className="robots-v2-segmented"
-                                        aria-label="Закрытие сессии"
-                                        options={[...EOD_OPTIONS]}
-                                        value={draft.eodFlattenEnabled ? 'on' : 'off'}
-                                        onChange={value => patch({ eodFlattenEnabled: value === 'on' })}
-                                    />
-                                </div>
+                            <div className="robots-v2-toggle-row robots-v2-eod-toggle">
+                                <span>
+                                    Закрытие сессии
+                                    <FormLabelTooltip text={EOD_TOOLTIP} />
+                                </span>
+                                <Toggle
+                                    checked={draft.eodFlattenEnabled}
+                                    aria-label="Закрытие сессии"
+                                    onChange={eodFlattenEnabled => patch({ eodFlattenEnabled })}
+                                />
+                            </div>
+                            {draft.eodFlattenEnabled && (
                                 <label className="robots-v2-field">
                                     <span>Минут до закрытия</span>
                                     <input
@@ -995,7 +988,7 @@ export default function RobotV2WizardPage() {
                                         onChange={e => patch({ eodMinutesBeforeClose: Number(e.target.value) })}
                                     />
                                 </label>
-                            </div>
+                            )}
                         </div>
                         <div className="robots-v2-form-group">
                             <p className="robots-v2-param-group__title">Издержки</p>
@@ -1057,25 +1050,13 @@ export default function RobotV2WizardPage() {
                                         : (draft.portfolioEnabled && configComplete ? 'Создать и включить' : 'Создать')}
                                 </Button>
                             ) : (
-                                <>
-                                    <Button
-                                        type="button"
-                                        variant="secondary"
-                                        loading={saving}
-                                        onClick={() => void saveRobot(false)}
-                                    >
-                                        {editId || persistedRobotId ? 'Сохранить' : 'Создать'}
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        loading={saving}
-                                        disabled={!configComplete}
-                                        title={configComplete ? undefined : 'Заполнение всех шагов нужно только для запуска'}
-                                        onClick={() => void saveRobot(true)}
-                                    >
-                                        {persistedRobotId || editId ? 'Сохранить и запустить' : 'Создать и запустить'}
-                                    </Button>
-                                </>
+                                <Button
+                                    type="button"
+                                    loading={saving}
+                                    onClick={() => void saveRobot(false)}
+                                >
+                                    {editId || persistedRobotId ? 'Сохранить' : 'Создать'}
+                                </Button>
                             )}
                         </div>
                     </footer>

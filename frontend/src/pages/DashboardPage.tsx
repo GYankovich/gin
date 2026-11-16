@@ -177,11 +177,11 @@ export default function DashboardPage() {
     return (
         <div className="page" data-page="dashboard">
             <h1 className="dash-sr-only">Дашборд</h1>
-            {currencyHeader}
             {!hasContent ? (
                 <ConnectBrokerEmpty />
             ) : (
                 <div className="dashboard-layout">
+                    {currencyHeader}
                     {isMobile ? (
                         activeCurrencyRow ? (
                             <CurrencyRowSection

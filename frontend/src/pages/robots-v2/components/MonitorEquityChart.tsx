@@ -1,21 +1,17 @@
 import React from 'react'
-import { Card } from '@/components/ui/Card'
 import { Chart } from '@/components/ui/Chart'
 import type { IChartApi } from '@/components/ui/Chart'
+import { useMediaQuery } from '@/hooks/useMediaQuery'
 
 type MonitorEquityChartProps = {
     onReady: (chart: IChartApi | null) => void
 }
 
 export function MonitorEquityChart({ onReady }: MonitorEquityChartProps) {
+    const narrow = useMediaQuery('(max-width: 767px)')
     return (
-        <Card className="dashboard-assets-card robots-v2-monitor-chart robots-v2-cockpit-chart-card">
-            <div className="dashboard-assets-card__head">
-                <h3 className="dashboard-panel-title">Стоимость</h3>
-            </div>
-            <div className="robots-v2-cockpit-chart-card__body">
-                <Chart height={260} onReady={onReady} />
-            </div>
-        </Card>
+        <div className="robots-monitor-chart">
+            <Chart height={narrow ? 160 : 220} onReady={onReady} />
+        </div>
     )
 }

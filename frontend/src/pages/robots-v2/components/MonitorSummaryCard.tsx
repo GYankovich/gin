@@ -1,7 +1,5 @@
 import React from 'react'
-import { Card } from '@/components/ui/Card'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { StatTile } from '@/components/ui/StatTile'
 
 type PnlTone = 'up' | 'down' | 'neutral'
 
@@ -16,29 +14,31 @@ type MonitorSummaryCardProps = {
     equityLabel: string | null
     /** Formatted cash; show «—» when null */
     cashLabel: string | null
-    equityTileLabel: string
     cashTileLabel: string
-    /** Honesty footnote; null when no footnote */
-    balanceFootnote: string | null
-    /** Optional «обновлено …» suffix appended to footnote */
-    balanceAsOfLabel: string | null
     /** Live expected but balances null → one-line empty (not fake zeros) */
     showBalanceUnavailable: boolean
-    /** Session cycle number (always shown in cockpit strip) */
+    /** Session cycle number */
     cycle: number | string
     positionsCount: number
     openOrderCount: number
-    /** When syncing / idle — muted session hint under KPIs (optional) */
+    /** When syncing / idle — muted session hint under the numbers */
     sessionHint?: string | null
-    /** Cycle stage, shown as a thin bar under the tiles. */
-    stageLabel?: string | null
-    stageProgress?: number | null
-    stageDetail?: string | null
+}
+
+function tradeCountLabel(count: number): string | null {
+    if (count <= 0) return null
+    const mod10 = count % 10
+    const mod100 = count % 100
+    const word = mod10 === 1 && mod100 !== 11
+        ? 'сделка'
+        : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
+            ? 'сделки'
+            : 'сделок'
+    return `${count} ${word}`
 }
 
 /**
- * Cockpit KPI strip (UX-08 zone K): merges UX-06 day + balance + session into one row.
- * Δ дня · Equity · Cash · Цикл · Позиции · Заявки
+ * Left side of the monitor cockpit: equity hero, day result, cash / positions / orders / cycle.
  */
 export function MonitorSummaryCard({
     dayLabel,
@@ -48,97 +48,71 @@ export function MonitorSummaryCard({
     showBalance,
     equityLabel,
     cashLabel,
-    equityTileLabel,
     cashTileLabel,
-    balanceFootnote,
-    balanceAsOfLabel,
     showBalanceUnavailable,
     cycle,
     positionsCount,
     openOrderCount,
     sessionHint,
-    stageLabel,
-    stageProgress,
-    stageDetail,
 }: MonitorSummaryCardProps) {
-    const footnoteText = (() => {
-        if (!balanceFootnote && !balanceAsOfLabel) return null
-        if (balanceFootnote && balanceAsOfLabel) return `${balanceFootnote} · ${balanceAsOfLabel}`
-        return balanceFootnote || balanceAsOfLabel
-    })()
+    const trades = tradeCountLabel(dayTrades)
 
-    return (
-        <Card className="dashboard-totals-card robots-v2-cockpit-kpi-card">
-            <div className="dashboard-totals-card__head">
-                <h3 className="dashboard-panel-title">Сводка · {dayLabel}</h3>
-            </div>
-            {!statusLoaded ? (
-                <div className="portfolio-stats-grid robots-v2-cockpit-kpis" aria-busy="true" aria-label="Загрузка сводки">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                        <div key={i} className="portfolio-stat-tile">
-                            <Skeleton width="40%" height="12px" borderRadius="4px" />
-                            <div style={{ marginTop: 'var(--space-2)' }}>
-                                <Skeleton width="70%" height="22px" borderRadius="4px" />
-                            </div>
-                        </div>
+    if (!statusLoaded) {
+        return (
+            <div className="robots-monitor-hero" aria-busy="true" aria-label="Загрузка сводки">
+                <Skeleton width="46%" height="12px" borderRadius="4px" />
+                <div style={{ marginTop: 10 }}>
+                    <Skeleton width="62%" height="32px" borderRadius="6px" />
+                </div>
+                <div style={{ marginTop: 10 }}>
+                    <Skeleton width="48%" height="14px" borderRadius="4px" />
+                </div>
+                <div className="robots-monitor-hero__mini">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <Skeleton key={i} width="70%" height="28px" borderRadius="4px" />
                     ))}
                 </div>
-            ) : (
-                <div className="portfolio-stats-grid robots-v2-cockpit-kpis">
-                    <StatTile
-                        label={dayTrades > 0 ? `Прибыль за день · ${dayTrades} сделок` : 'Прибыль за день'}
-                        value={dayDelta.text}
-                        valueClassName={`robots-v2-pnl--${dayDelta.tone}`}
-                    />
-                    <StatTile
-                        label={equityTileLabel || 'Equity'}
-                        value={showBalance && equityLabel != null ? equityLabel : '—'}
-                    />
-                    <StatTile
-                        label={cashTileLabel || 'Cash'}
-                        value={showBalance && cashLabel != null ? cashLabel : '—'}
-                    />
-                    <StatTile label="Позиции" value={positionsCount} />
-                    <StatTile
-                        label="Заявки"
-                        value={openOrderCount}
-                        valueClassName={openOrderCount > 0 ? 'color-warn' : ''}
-                        hint={openOrderCount > 0 ? 'open' : undefined}
-                    />
-                    <StatTile label="Цикл" value={cycle} />
+            </div>
+        )
+    }
+
+    return (
+        <div className="robots-monitor-hero">
+            <div className="robots-monitor-hero__label">Стоимость · {dayLabel}</div>
+            <div className="robots-monitor-hero__value">
+                {showBalance && equityLabel != null ? equityLabel : '—'}
+            </div>
+            <p className={`robots-monitor-hero__delta robots-v2-pnl--${dayDelta.tone}`}>
+                {dayDelta.text}
+                <span>
+                    {' '}за день
+                    {trades ? ` · ${trades}` : ''}
+                </span>
+            </p>
+            <div className="robots-monitor-hero__mini">
+                <div>
+                    <span>{cashTileLabel || 'Cash'}</span>
+                    <strong>{showBalance && cashLabel != null ? cashLabel : '—'}</strong>
                 </div>
-            )}
-
-            {statusLoaded && showBalance && footnoteText ? (
-                <p className="dashboard-empty robots-v2-balance-footnote">{footnoteText}</p>
-            ) : null}
-
-            {statusLoaded && !showBalance && showBalanceUnavailable ? (
+                <div>
+                    <span>Позиции</span>
+                    <strong>{positionsCount}</strong>
+                </div>
+                <div>
+                    <span>Заявки</span>
+                    <strong className={openOrderCount > 0 ? 'color-warn' : undefined}>{openOrderCount}</strong>
+                </div>
+                <div>
+                    <span>Цикл</span>
+                    <strong>{cycle}</strong>
+                </div>
+            </div>
+            {showBalanceUnavailable ? (
                 <p className="dashboard-empty robots-v2-balance-empty">Баланс недоступен</p>
             ) : null}
-
-            {statusLoaded && sessionHint ? (
+            {sessionHint ? (
                 <p className="dashboard-empty robots-v2-session-placeholder">{sessionHint}</p>
             ) : null}
-
-            {statusLoaded && stageLabel ? (
-                <div className="robots-monitor-stage">
-                    <div className="robots-monitor-stage__row">
-                        <span>Этап</span>
-                        <span>
-                            {stageLabel}
-                            {stageProgress != null ? ` · ${Math.round(stageProgress)}%` : ''}
-                        </span>
-                    </div>
-                    <div className="robots-v2-stage-progress" role="meter" aria-label="Прогресс этапа цикла" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(stageProgress ?? 0)}>
-                        <div
-                            className="robots-v2-stage-progress__bar"
-                            style={{ width: `${Math.round(stageProgress ?? 0)}%` }}
-                        />
-                    </div>
-                    {stageDetail ? <p className="robots-v2-hint">{stageDetail}</p> : null}
-                </div>
-            ) : null}
-        </Card>
+        </div>
     )
 }

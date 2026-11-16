@@ -11,6 +11,10 @@ type MonitorEventsCardProps = {
     isRunning: boolean
     hasToken: boolean
     bare?: boolean
+    /** How many rows to show. Omit to show the full list. */
+    limit?: number
+    /** Stream status line above the list. */
+    showStatus?: boolean
 }
 
 export function MonitorEventsCard({
@@ -19,15 +23,18 @@ export function MonitorEventsCard({
     isRunning,
     hasToken,
     bare = false,
+    limit,
+    showStatus = true,
 }: MonitorEventsCardProps) {
+    const shown = limit != null ? events.slice(0, limit) : events
     const body = (
         <>
-            {bare ? (
+            {bare && showStatus ? (
                 <p className="robots-v2-hint robots-v2-universe-caption">
                     {streamConnected ? 'Стрим подключён' : 'Стрим офлайн'}
                 </p>
             ) : null}
-            {events.length === 0 ? (
+            {shown.length === 0 ? (
                 <p className="dashboard-empty">
                     {isRunning
                         ? (streamConnected
@@ -39,7 +46,7 @@ export function MonitorEventsCard({
                 </p>
             ) : (
                 <ul className="robots-v2-event-list robots-v2-event-list--compact">
-                    {events.map((ev, i) => (
+                    {shown.map((ev, i) => (
                         <li key={`${ev.ts}-${i}`}>
                             <span className="mono robots-v2-monitor-events__ts">
                                 {new Date(ev.ts).toLocaleTimeString('ru-RU')}

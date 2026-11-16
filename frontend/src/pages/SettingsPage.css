@@ -2139,16 +2139,12 @@ button.settings-field__value {
     .settings-page[data-settings-layout='sheet'] {
         display: flex;
         flex-direction: column;
+        flex: 1 1 auto;
         gap: 0;
-        /* Fill main-content so logout can sit at the bottom */
-        min-height: calc(
-            100dvh
-            - var(--space-3)
-            - env(safe-area-inset-top, 0px)
-            - var(--tabbar-h)
-            - 16px
-            - env(safe-area-inset-bottom, 0px)
-        );
+        min-height: 0;
+        overflow-x: clip;
+        overflow-y: auto;
+        overscroll-behavior: contain;
     }
 
     .settings-page[data-settings-layout='sheet'] .settings-page__stack {
