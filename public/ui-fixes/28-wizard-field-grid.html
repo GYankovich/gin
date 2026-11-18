@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wizard — плотная сетка полей</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  :root {
+    --bg-page: #0a0a0f;
+    --bg-card: #12121a;
+    --text-primary: #e0e0e0;
+    --text-secondary: #888;
+    --text-muted: #555;
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-medium: rgba(255, 255, 255, 0.12);
+    --fill-active: rgba(255, 255, 255, 0.09);
+  }
+  body { background: #07080b; }
+  .board { display: grid; gap: 22px; max-width: 920px; }
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 16px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    background: var(--bg-card);
+  }
+  .card h2 {
+    margin: 0 0 12px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .group { display: flex; flex-direction: column; gap: 8px; }
+  .group + .group {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .group__title {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.2;
+  }
+  .grid {
+    display: grid;
+    gap: 8px;
+    align-items: end;
+  }
+  .c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .c4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .c5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .span2 { grid-column: span 2; }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .field > span, .toggle-row > span {
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.25;
+  }
+  .control, .seg {
+    box-sizing: border-box;
+    height: 38px;
+    min-height: 38px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .control {
+    width: 100%;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .control em { color: var(--text-muted); font-style: normal; font-size: 11px; }
+  .seg {
+    display: flex;
+    width: 100%;
+    overflow: hidden;
+    padding: 0;
+  }
+  .seg i {
+    flex: 1 1 0;
+    display: grid;
+    place-items: center;
+    font-style: normal;
+    border-right: 1px solid var(--border-subtle);
+  }
+  .seg i:last-child { border-right: 0; }
+  .seg i.on { background: var(--fill-active); }
+  .arch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .arch button {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 0;
+    padding: 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-primary);
+    text-align: left;
+  }
+  .arch button.on { padding-left: 18px; }
+  .arch button.on::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 10px;
+    bottom: 10px;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--text-primary);
+  }
+  .arch strong { font-size: 13px; font-weight: 600; }
+  .arch span { color: var(--text-muted); font-size: 12px; line-height: 1.35; }
+  .arch button.on span { color: var(--text-secondary); }
+  .hint {
+    margin: 0;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.35;
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 38px;
+  }
+  .switch {
+    width: 34px;
+    height: 20px;
+    border-radius: 999px;
+    background: var(--fill-active);
+    position: relative;
+    flex: 0 0 auto;
+  }
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 16px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--text-primary);
+  }
+  .row-actions {
+    display: flex;
+    align-items: end;
+    gap: 8px;
+  }
+  .row-actions .field { flex: 1 1 0; }
+  .btn {
+    height: 38px;
+    padding: 0 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border-subtle);
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .btn--solid {
+    background: var(--text-primary);
+    color: #12121a;
+    border-color: transparent;
+  }
+  .preview {
+    margin-top: 8px;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 8px;
+  }
+  .preview__meta { margin: 0 0 6px; color: var(--text-muted); font-size: 12px; }
+  .preview__row {
+    display: grid;
+    grid-template-columns: 72px 1fr auto;
+    gap: 8px;
+    align-items: center;
+    min-height: 28px;
+    font-size: 13px;
+  }
+  .preview__row span { color: var(--text-secondary); }
+  .preview__row em { color: var(--text-muted); font-style: normal; }
+  .foot {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .spec {
+    margin: 0;
+    color: var(--secondary);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .spec strong { color: var(--text); }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 920px) 390px;
+    gap: 28px;
+    align-items: start;
+  }
+  .phone-col { position: sticky; top: 16px; }
+  .phone-col > p {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .phone {
+    width: 390px;
+    max-width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    background: #050608;
+  }
+  .phone .board { max-width: none; gap: 12px; }
+  .phone .card { padding: 12px; border-radius: 14px; }
+  .phone .c3,
+  .phone .c4,
+  .phone .c5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .phone .span2,
+  .phone .wide { grid-column: 1 / -1; }
+  .phone .assets-actions > .field { grid-column: 1; grid-row: 1; }
+  .phone .assets-actions > .btn { grid-column: 2; grid-row: 1; width: 100%; }
+  .phone .assets-actions > .toggle-row { grid-column: 1 / -1; grid-row: 2; }
+  .phone .arch span { font-size: 11px; }
+  @media (max-width: 1180px) {
+    .layout { grid-template-columns: 1fr; }
+    .phone-col { position: static; width: 390px; }
+  }
+</style>
+</head>
+<body>
+  <header class="picker">
+    <a class="picker__back" href="./index.html">Все макеты</a>
+    <div>
+      <h1>Сетка полей — Стратегия, Активы, Риск</h1>
+      <p class="spec">Слева широкий экран. Справа телефон 390: числа по два в ряд, сегменты и тогл на всю ширину.</p>
+    </div>
+  </header>
+  <main class="wrap">
+    <div class="layout">
+    <div class="board" id="desk">
+
+      <section class="card" aria-label="Стратегия">
+        <h2>Стратегия</h2>
+        <div class="group">
+          <div class="field">
+            <span>Архетип</span>
+            <div class="arch">
+              <button type="button"><strong>Тренд</strong><span>Покупка на пробое максимума, если объём выше обычного</span></button>
+              <button type="button"><strong>Отскок</strong><span>Вход, когда цена слишком далеко от обычного значения</span></button>
+              <button type="button"><strong>Сетка</strong><span>Несколько уровней вокруг цены с фиксированным шагом</span></button>
+              <button type="button" class="on"><strong>Скальпер</strong><span>Очень короткие входы. В бэктесте по свечам недоступен</span></button>
+            </div>
+          </div>
+        </div>
+        <div class="group">
+          <div class="grid c2">
+            <label class="field"><span>Тип инструмента</span><div class="control">Акции <em>▾</em></div></label>
+            <label class="field"><span>Таймфрейм</span><div class="control">1m <em>▾</em></div></label>
+          </div>
+        </div>
+        <div class="group">
+          <p class="group__title">Вход</p>
+          <div class="grid c5">
+            <label class="field"><span>Порог дельты, %</span><div class="control">0.35</div></label>
+            <label class="field"><span>Окно потока, сек</span><div class="control">30</div></label>
+            <label class="field"><span>Мин. тиков потока</span><div class="control">5</div></label>
+            <label class="field"><span>Окно тренда, тиков</span><div class="control">10</div></label>
+            <label class="field"><span>Блок лонга, б.п.</span><div class="control">12</div></label>
+          </div>
+        </div>
+        <div class="group">
+          <p class="group__title">Выход</p>
+          <div class="grid c4">
+            <label class="field"><span>Мин. удержание, сек</span><div class="control">90</div></label>
+            <label class="field"><span>Мин. выход, б.п.</span><div class="control">80</div></label>
+            <label class="field"><span>Инвалидация, б.п.</span><div class="control">25</div></label>
+          </div>
+        </div>
+        <div class="group">
+          <p class="group__title">Паузы</p>
+          <div class="grid c4">
+            <label class="field"><span>Пауза, сек</span><div class="control">180</div></label>
+            <label class="field"><span>Пауза после стопа, сек</span><div class="control">600</div></label>
+          </div>
+        </div>
+        <div class="foot">
+          <button class="btn" type="button">Назад</button>
+          <button class="btn btn--solid" type="button">Далее</button>
+        </div>
+      </section>
+
+      <section class="card" aria-label="Активы">
+        <h2>Активы</h2>
+        <div class="group">
+          <div class="grid c4">
+            <label class="field span2 wide">
+              <span>Источник активов</span>
+              <div class="seg"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div>
+            </label>
+            <label class="field span2 wide">
+              <span>Пресет</span>
+              <div class="control">Свой <em>▾</em></div>
+            </label>
+          </div>
+        </div>
+        <div class="group">
+          <p class="group__title">Свой отбор</p>
+          <p class="hint" style="min-height:0">Ноль — условие не применяется.</p>
+          <div class="grid c3">
+            <label class="field"><span>Мин. объём</span><div class="control">0</div></label>
+            <label class="field"><span>Мин. ср. объём (20д)</span><div class="control">0</div></label>
+            <label class="field"><span>Макс. спред %</span><div class="control">0</div></label>
+            <label class="field"><span>Мин. ATR %</span><div class="control">0</div></label>
+            <label class="field"><span>Мин. цена</span><div class="control">0</div></label>
+            <label class="field"><span>Макс. цена</span><div class="control">0</div></label>
+          </div>
+        </div>
+        <div class="group">
+          <div class="grid c4 assets-actions">
+            <label class="field"><span>Макс. активов</span><div class="control">20</div></label>
+            <div class="toggle-row span2">
+              <span>Закрывать при исключении</span>
+              <i class="switch"></i>
+            </div>
+            <button class="btn" type="button">Превью состава</button>
+          </div>
+          <div class="preview">
+            <p class="preview__meta">Показано 3 из 48</p>
+            <div class="preview__row"><strong>SBER</strong><span>Сбербанк</span><em>312.4</em></div>
+            <div class="preview__row"><strong>GAZP</strong><span>Газпром</span><em>128.1</em></div>
+            <div class="preview__row"><strong>LKOH</strong><span>Лукойл</span><em>7420</em></div>
+          </div>
+        </div>
+        <div class="foot">
+          <button class="btn" type="button">Назад</button>
+          <button class="btn btn--solid" type="button">Далее</button>
+        </div>
+      </section>
+
+      <section class="card" aria-label="Риск">
+        <h2>Риск</h2>
+        <div class="group">
+          <p class="group__title">Размер</p>
+          <div class="grid c3">
+            <div class="field wide"><span>Капитал</span><p class="hint">Берётся со счёта при синхронизации.</p></div>
+            <label class="field"><span>Доля позиции, %</span><div class="control">10</div></label>
+            <label class="field"><span>Макс. позиций</span><div class="control">3</div></label>
+          </div>
+        </div>
+        <div class="group">
+          <p class="group__title">Выход</p>
+          <div class="grid c4">
+            <label class="field"><span>Stop-loss %</span><div class="control">2</div></label>
+            <label class="field"><span>Take-profit %</span><div class="control">4</div></label>
+            <label class="field"><span>Макс. дневной убыток</span><div class="control">5000</div></label>
+            <label class="field"><span>Макс. просадка %</span><div class="control">8</div></label>
+          </div>
+        </div>
+        <div class="group">
+          <p class="group__title">Остановка</p>
+          <div class="grid c3">
+            <label class="field wide">
+              <span>Режим остановки</span>
+              <div class="seg"><i class="on">Мягкая</i><i>Жёсткая</i></div>
+            </label>
+            <label class="field wide">
+              <span>Закрытие к концу сессии</span>
+              <div class="seg"><i class="on">Auto</i><i>Включён</i><i>Выключен</i></div>
+            </label>
+            <label class="field"><span>Минут до закрытия</span><div class="control">15</div></label>
+          </div>
+        </div>
+        <div class="group">
+          <p class="group__title">Издержки</p>
+          <div class="grid c3">
+            <label class="field"><span>Комиссия %</span><div class="control">0.05</div></label>
+            <label class="field"><span>Налог %</span><div class="control">13</div></label>
+            <label class="field"><span>Slippage %</span><div class="control">0.1</div></label>
+          </div>
+        </div>
+        <div class="foot">
+          <button class="btn" type="button">Назад</button>
+          <button class="btn btn--solid" type="button">Сохранить</button>
+        </div>
+      </section>
+
+    </div>
+    <aside class="phone-col">
+      <p>Мобилка · 390</p>
+      <div class="phone" id="phone"></div>
+    </aside>
+    </div>
+  </main>
+  <script>
+    document.getElementById('phone').appendChild(document.getElementById('desk').cloneNode(true))
+  </script>
+</body>
+</html>

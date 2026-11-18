@@ -132,6 +132,12 @@ export default function LoginPage() {
     const [devCode, setDevCode] = useState<string | null>(null)
     const [codeError, setCodeError] = useState('')
     const codeDigitRefs = useRef<Array<HTMLInputElement | null>>([])
+    const codeDigitRefSetters = useRef(
+        Array.from({ length: 6 }, (_, index) => (el: HTMLInputElement | null) => {
+            codeDigitRefs.current[index] = el
+        }),
+    )
+    const digitHandledRef = useRef(false)
     const loginInputRef = useRef<HTMLInputElement>(null)
     const busyRef = useRef(false)
     const autoSubmitRef = useRef(false)
@@ -330,21 +336,49 @@ export default function LoginPage() {
         await submitCode(code)
     }
 
+    const focusCodeCell = (index: number) => {
+        const idx = Math.min(Math.max(index, 0), 5)
+        const focus = () => {
+            const el = codeDigitRefs.current[idx]
+            if (!el) return
+            el.focus({ preventScroll: true })
+            const end = el.value.length
+            try {
+                el.setSelectionRange(end, end)
+            } catch {
+                /* selection is unsupported on some input types */
+            }
+        }
+        focus()
+        window.requestAnimationFrame(focus)
+    }
+
     const setCodeDigits = (nextRaw: string, focusIndex?: number) => {
         const next = nextRaw.replace(/\D/g, '').slice(0, 6)
         setCode(next)
         if (isWrongCode(codeError)) setCodeError('')
-        if (typeof focusIndex === 'number') {
-            const idx = Math.min(Math.max(focusIndex, 0), 5)
-            window.requestAnimationFrame(() => {
-                codeDigitRefs.current[idx]?.focus({ preventScroll: true })
-                codeDigitRefs.current[idx]?.select()
-            })
-        }
+        if (typeof focusIndex === 'number' && next.length < 6) focusCodeCell(focusIndex)
         if (next.length === 6 && !autoSubmitRef.current) {
             autoSubmitRef.current = true
             void submitCode(next)
         }
+    }
+
+    const writeDigits = (index: number, digits: string) => {
+        const clean = digits.replace(/\D/g, '')
+        if (!clean) return
+        if (digitHandledRef.current) return
+        digitHandledRef.current = true
+        queueMicrotask(() => {
+            digitHandledRef.current = false
+        })
+        if (codeError) {
+            const next = clean.slice(0, 6)
+            setCodeDigits(next, Math.min(next.length, 5))
+            return
+        }
+        const next = `${code.slice(0, index)}${clean}${code.slice(index + clean.length)}`.slice(0, 6)
+        setCodeDigits(next, Math.min(index + clean.length, 5))
     }
 
     const resendCode = async () => {
@@ -583,41 +617,73 @@ export default function LoginPage() {
                             {Array.from({ length: 6 }, (_, index) => (
                                 <input
                                     key={index}
-                                    ref={el => { codeDigitRefs.current[index] = el }}
+                                    ref={codeDigitRefSetters.current[index]}
                                     id={index === 0 ? 'auth-code' : undefined}
                                     className="auth-otp__cell"
                                     inputMode="numeric"
                                     autoComplete={index === 0 ? 'one-time-code' : 'off'}
                                     pattern="\d*"
-                                    maxLength={1}
+                                    maxLength={6}
                                     value={code[index] ?? ''}
                                     aria-label={`Цифра ${index + 1}`}
                                     aria-invalid={isWrongCode(codeError) || undefined}
                                     required={index === 0}
-                                    onChange={e => {
-                                        const digit = e.target.value.replace(/\D/g, '').slice(-1)
-                                        if (!digit) {
-                                            setCodeDigits(code.slice(0, index), index)
-                                            return
-                                        }
-                                        // После ошибки любой новый символ начинает код заново
-                                        if (codeError) {
-                                            setCodeDigits(digit, 1)
-                                            return
-                                        }
-                                        const next = `${code.slice(0, index)}${digit}${code.slice(index + 1)}`.slice(0, 6)
-                                        setCodeDigits(next, Math.min(index + 1, 5))
-                                    }}
                                     onKeyDown={e => {
-                                        if (e.key === 'Backspace' && !code[index] && index > 0) {
+                                        if (e.metaKey || e.ctrlKey || e.altKey) return
+                                        if (/^\d$/.test(e.key)) {
                                             e.preventDefault()
-                                            setCodeDigits(code.slice(0, index - 1), index - 1)
+                                            writeDigits(index, e.key)
+                                            return
                                         }
+                                        if (e.key === 'Backspace') {
+                                            e.preventDefault()
+                                            if (code[index]) {
+                                                setCodeDigits(code.slice(0, index) + code.slice(index + 1), index)
+                                            } else if (index > 0) {
+                                                setCodeDigits(code.slice(0, index - 1) + code.slice(index), index - 1)
+                                            }
+                                            return
+                                        }
+                                        if (e.key === 'Delete') {
+                                            e.preventDefault()
+                                            setCodeDigits(code.slice(0, index) + code.slice(index + 1), index)
+                                            return
+                                        }
+                                        if (e.key === 'ArrowLeft' && index > 0) {
+                                            e.preventDefault()
+                                            focusCodeCell(index - 1)
+                                            return
+                                        }
+                                        if (e.key === 'ArrowRight' && index < 5) {
+                                            e.preventDefault()
+                                            focusCodeCell(index + 1)
+                                        }
+                                    }}
+                                    onBeforeInput={e => {
+                                        const data = e.data ?? ''
+                                        if (!data) return
+                                        if (!/^\d+$/.test(data)) {
+                                            e.preventDefault()
+                                            return
+                                        }
+                                        e.preventDefault()
+                                        writeDigits(index, data)
+                                    }}
+                                    onChange={e => {
+                                        if (digitHandledRef.current) return
+                                        const raw = e.target.value.replace(/\D/g, '')
+                                        if (!raw) {
+                                            setCodeDigits(code.slice(0, index) + code.slice(index + 1), index)
+                                            return
+                                        }
+                                        writeDigits(index, raw)
                                     }}
                                     onPaste={e => {
                                         e.preventDefault()
                                         const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
-                                        setCodeDigits(pasted, Math.min(Math.max(pasted.length, 1) - 1, 5))
+                                        if (!pasted) return
+                                        digitHandledRef.current = false
+                                        writeDigits(index, pasted)
                                     }}
                                 />
                             ))}

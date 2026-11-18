@@ -1,6 +1,5 @@
-import React, { useMemo } from 'react'
+import React from 'react'
 import { Card } from '@/components/ui/Card'
-import { DataTable, type Column } from '@/components/ui/DataTable'
 import { TickerWarningMark } from '@/pages/robots-v2/components/TickerWarningMark'
 
 export type MonitorPositionRow = {
@@ -12,6 +11,7 @@ export type MonitorPositionRow = {
     entry: string
     breakEven: string
     current: string
+    currentTone: 'up' | 'down' | 'neutral'
     sl: string
     tp: string
 }
@@ -34,83 +34,20 @@ export function MonitorPositionsCard({
     isRunning,
     bare = false,
 }: MonitorPositionsCardProps) {
-    const columns = useMemo<Column<MonitorPositionRow>[]>(() => [
-        {
-            key: 'tickerLabel',
-            header: 'Тикер',
-            sortable: true,
-            render: r => (
-                <span className="robots-v2-ticker-cell">
-                    {r.tickerWarning ? <TickerWarningMark text={r.tickerWarning} /> : null}
-                    {r.tickerLabel}
-                </span>
-            ),
-        },
-        { key: 'side', header: 'Сторона' },
-        { key: 'quantity', header: 'Кол-во', render: r => <span className="mono">{r.quantity}</span> },
-        { key: 'entry', header: 'Вход', render: r => <span className="mono">{r.entry}</span> },
-        {
-            key: 'breakEven',
-            header: 'Точка безубыточности',
-            render: r => <span className="mono">{r.breakEven}</span>,
-        },
-        { key: 'current', header: 'Текущая', render: r => <span className="mono">{r.current}</span> },
-        { key: 'sl', header: 'SL', render: r => <span className="mono">{r.sl}</span> },
-        { key: 'tp', header: 'TP', render: r => <span className="mono">{r.tp}</span> },
-    ], [])
-
+    const empty = isRunning
+        ? 'Нет открытых позиций — робот ещё не вошёл в сделку'
+        : 'Нет открытых позиций на брокере (в universe / по audit fills)'
     const body = (
         <>
-            {positionsUpdatedAt ? (
-                <p className="robots-v2-hint robots-v2-universe-caption">
-                    Данные обновлены
-                    <span className="mono">
-                        {' '}
-                        · {new Date(positionsUpdatedAt).toLocaleString('ru-RU', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                        })}
-                    </span>
-                </p>
-            ) : null}
             {brokerSoftStopHint ? (
                 <p className="robots-v2-hint robots-v2-universe-caption">
                     Сессия остановлена · позиции с брокера (soft stop их не закрывает).
                     После Start робот подхватит и продолжит торговать.
                 </p>
             ) : null}
-            <DataTable
-                columns={columns}
-                data={rows}
-                keyField="id"
-                emptyText={
-                    isRunning
-                        ? 'Нет открытых позиций — робот ещё не вошёл в сделку'
-                        : 'Нет открытых позиций на брокере (в universe / по audit fills)'
-                }
-                maxHeight={320}
-                mobilePrimary={r => (
-                    <div className="portfolio-mobile-split">
-                        <strong>{r.tickerLabel}</strong>
-                        <span className="mono">{r.quantity}</span>
-                    </div>
-                )}
-                mobileDetails={r => (
-                    <span className="mono">
-                        {r.side} · вход {r.entry} · тек. {r.current}
-                    </span>
-                )}
-            />
             <div className="robots-monitor-position-cards" aria-label="Открытые позиции">
                 {rows.length === 0 ? (
-                    <p className="dashboard-empty">
-                        {isRunning
-                            ? 'Нет открытых позиций — робот ещё не вошёл в сделку'
-                            : 'Нет открытых позиций на брокере (в universe / по audit fills)'}
-                    </p>
+                    <p className="dashboard-empty">{empty}</p>
                 ) : (
                     rows.map(r => (
                         <article key={r.id} className="robots-monitor-position-card">
@@ -118,19 +55,35 @@ export function MonitorPositionsCard({
                                 <strong className="robots-monitor-position-card__title">
                                     {r.tickerWarning ? <TickerWarningMark text={r.tickerWarning} /> : null}
                                     {r.tickerLabel}
-                                    <span> · {r.side}</span>
                                 </strong>
+                                <span>{r.side} · {r.quantity}</span>
                             </div>
-                            <div className="robots-monitor-position-card__grid">
-                                <div><span>Кол-во</span><strong className="mono">{r.quantity}</strong></div>
-                                <div><span>Вход</span><strong className="mono">{r.entry}</strong></div>
-                                <div><span>Сейчас</span><strong className="mono">{r.current}</strong></div>
-                                <div><span>SL / TP</span><strong className="mono">{r.sl} / {r.tp}</strong></div>
+                            <div className="robots-monitor-position-card__line">
+                                <span>Вход <strong className="mono">{r.entry}</strong></span>
+                                <span>Сейчас <strong className={`mono robots-v2-pnl--${r.currentTone}`}>{r.current}</strong></span>
+                            </div>
+                            <div className="robots-monitor-position-card__line">
+                                <span>Безубыток <strong className="mono">{r.breakEven}</strong></span>
+                                <span>SL / TP <strong className="mono">{r.sl} / {r.tp}</strong></span>
                             </div>
                         </article>
                     ))
                 )}
             </div>
+            {positionsUpdatedAt ? (
+                <p className="robots-v2-hint robots-v2-universe-caption">
+                    Цены обновлены
+                    <span className="mono">
+                        {' '}
+                        · {new Date(positionsUpdatedAt).toLocaleString('ru-RU', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                        })}
+                    </span>
+                </p>
+            ) : null}
         </>
     )
 

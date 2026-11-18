@@ -1,7 +1,27 @@
 import React from 'react'
-import { Badge } from '@/components/ui/Badge'
 import { Card } from '@/components/ui/Card'
 import { stageLabel } from '@/pages/robots-v2/monitorUtils'
+
+const EVENT_KIND: Record<string, string> = {
+    stage: 'этап',
+    cycle: 'цикл',
+    positions: 'позиции',
+    decision: 'решение',
+    order: 'заявка',
+    orders: 'заявка',
+    equity_snapshot: 'капитал',
+}
+
+function eventKind(type: string): string {
+    const key = type.trim().toLowerCase()
+    return EVENT_KIND[key] || key || 'событие'
+}
+
+function eventClock(ts: string): string {
+    const date = new Date(ts)
+    if (Number.isNaN(date.getTime())) return ''
+    return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+}
 
 type MonitorEvent = { ts: string; type: string; payload: unknown }
 
@@ -48,11 +68,9 @@ export function MonitorEventsCard({
                 <ul className="robots-v2-event-list robots-v2-event-list--compact">
                     {shown.map((ev, i) => (
                         <li key={`${ev.ts}-${i}`}>
-                            <span className="mono robots-v2-monitor-events__ts">
-                                {new Date(ev.ts).toLocaleTimeString('ru-RU')}
-                            </span>
-                            <Badge variant="cyan">{ev.type}</Badge>
-                            {ev.type === 'stage' && ev.payload && typeof ev.payload === 'object' ? (
+                            <span className="mono robots-v2-monitor-events__ts">{eventClock(ev.ts)}</span>
+                            <span className="robots-monitor-event__kind">{eventKind(ev.type)}</span>
+                            {ev.type.toLowerCase() === 'stage' && ev.payload && typeof ev.payload === 'object' ? (
                                 <span className="robots-v2-hint">
                                     {stageLabel(String((ev.payload as { stage?: string }).stage || ''))}
                                 </span>
@@ -72,9 +90,7 @@ export function MonitorEventsCard({
         <Card className="dashboard-assets-card robots-v2-monitor-events">
             <div className="dashboard-assets-card__head">
                 <h3 className="dashboard-panel-title">Живой поток</h3>
-                <Badge variant={streamConnected ? 'up' : 'neutral'}>
-                    {streamConnected ? 'стрим' : 'стрим офлайн'}
-                </Badge>
+                <span className="robots-v2-hint">{streamConnected ? 'стрим' : 'стрим офлайн'}</span>
             </div>
             {body}
         </Card>

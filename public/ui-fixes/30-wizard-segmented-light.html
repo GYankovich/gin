@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wizard — segmented, светлая</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  [data-theme='light'] {
+    --bg: #ececee;
+    --page: #f5f5f7;
+    --panel: #ffffff;
+    --text: #1a1a1a;
+    --secondary: #444;
+    --muted: #777;
+    --border: rgba(26, 26, 26, 0.1);
+    --picker: #f5f5f7;
+  }
+  body { background: var(--bg); }
+  .board { display: grid; gap: 18px; }
+  .intro {
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #fff;
+    color: #444;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .intro strong { color: #1a1a1a; font-weight: 650; }
+  .intro code { font-size: 12px; }
+
+  .variant {
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: #f5f5f7;
+    overflow: hidden;
+  }
+  .variant__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    background: #fff;
+  }
+  .variant__head h2 { margin: 0; font-size: 14px; font-weight: 650; color: #1a1a1a; }
+  .variant__head p { margin: 4px 0 0; color: #666; font-size: 12px; line-height: 1.45; max-width: 78ch; }
+  .tag {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: #444;
+    font-size: 11px;
+    font-weight: 650;
+  }
+  .variant__body {
+    display: grid;
+    grid-template-columns: minmax(0, 390px) minmax(0, 1fr);
+    gap: 18px;
+    padding: 18px;
+    align-items: start;
+  }
+  @media (max-width: 1100px) { .variant__body { grid-template-columns: 1fr; } }
+  .pane-label {
+    margin: 0 0 8px;
+    color: #999;
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .phone {
+    width: 100%;
+    max-width: 390px;
+    margin: 0 auto;
+    padding: 10px;
+    border: 1px solid rgba(26, 26, 26, 0.1);
+    border-radius: 28px;
+    background: #e6e6eb;
+  }
+  .screen {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 14px;
+    border-radius: 18px;
+    background: #fff;
+    border: 1px solid rgba(26, 26, 26, 0.08);
+  }
+  .desk {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 16px;
+    background: #fff;
+    border: 1px solid rgba(26, 26, 26, 0.08);
+  }
+  .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .field > span { color: #666; font-size: 13px; font-weight: 500; }
+  .desk-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 260px));
+    gap: 12px;
+    align-items: end;
+  }
+  .desk .universe { max-width: 420px; }
+
+  .seg {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    overflow: hidden;
+    border: 1px solid rgba(26, 26, 26, 0.08);
+    border-radius: 10px;
+    background: transparent;
+  }
+  .seg i {
+    flex: 1 1 0;
+    display: grid;
+    place-items: center;
+    min-width: 0;
+    padding: 0 6px;
+    border-right: 1px solid rgba(26, 26, 26, 0.08);
+    color: #999;
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 500;
+    background: transparent;
+  }
+  .seg i:last-child { border-right: 0; }
+
+  /* A — то, что сейчас перебивает светлую тему в визарде */
+  .a .seg i.on {
+    background: rgba(0, 0, 0, 0.07);
+    color: #1a1a1a;
+  }
+
+  /* B — как дни: белый трек, текст и подчёркивание */
+  .b .seg {
+    background: #fff;
+    border-color: rgba(0, 0, 0, 0.12);
+    border-radius: 12px;
+  }
+  .b .seg i { border-right-color: rgba(0, 0, 0, 0.1); }
+  .b .seg i.on {
+    color: #1a1a1a;
+    background: transparent;
+    box-shadow: inset 0 -2px 0 #1a1a1a;
+  }
+  .b .phone .seg i.on { font-weight: 500; }
+  .b .desk .seg i.on { font-weight: 700; }
+
+  /* C — серый трек, активный белый */
+  .c .seg {
+    background: #eaeaee;
+    border-color: rgba(0, 0, 0, 0.12);
+  }
+  .c .seg i { color: #666; border-right-color: rgba(0, 0, 0, 0.08); }
+  .c .seg i.on {
+    background: #fff;
+    color: #1a1a1a;
+  }
+
+  /* D — активный как главная кнопка светлой темы */
+  .d .seg { border-color: rgba(26, 26, 26, 0.14); }
+  .d .seg i { color: #666; }
+  .d .seg i.on {
+    background: #1a1a1a;
+    color: #fff;
+  }
+
+  /* E — та же схема, что A, но заливка 14% */
+  .e .seg i.on {
+    background: rgba(0, 0, 0, 0.14);
+    color: #1a1a1a;
+  }
+</style>
+</head>
+<body>
+  <header class="picker">
+    <a class="picker__back" href="./index.html">Все макеты</a>
+    <div>
+      <h1>segmented-control · robots-v2-segmented · светлая</h1>
+      <p>Только цвета выбора. Карточка белая, страница #F5F5F7. Телефон — контрол на всю ширину. Десктоп — «Источник» на две колонки, «Остановка» и «Конец сессии» в узкой ячейке ~260px.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="board">
+      <div class="intro">
+        <strong>В визарде светлая тема не синяя.</strong>
+        Общее правило страницы роботов красит активный пункт в <code>#0066cc</code> на треке <code>#eef2f8</code>.
+        Правило <code>[data-robots-view=wizard] .robots-v2-segmented</code> его закрывает: трек прозрачный, активный — <code>--fill-active</code> (7% чёрного), текст <code>#1A1A1A</code>.
+        На белой карточке эта заливка почти не отличается от соседнего пункта. Дни недели в светлой уже другие: белый трек и чёрное подчёркивание.
+      </div>
+
+      <section class="variant a" id="a">
+        <div class="variant__head">
+          <div>
+            <h2>A · Сейчас</h2>
+            <p>Трек прозрачный, рамка 8% чёрного, простой текст #999, активный фон rgba(0,0,0,0.07). Так визард выглядит в светлой теме сегодня.</p>
+          </div>
+          <span class="tag">как в коде</span>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Телефон · на всю ширину</p>
+            <div class="phone"><div class="screen">
+              <label class="field"><span>Источник активов</span><div class="seg"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div></label>
+              <label class="field"><span>Режим остановки</span><div class="seg"><i class="on">Мягкая</i><i>Жёсткая</i></div></label>
+              <label class="field"><span>Закрытие к концу сессии</span><div class="seg"><i>Auto</i><i class="on">Включён</i><i>Выключен</i></div></label>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Десктоп · узкая ячейка</p>
+            <div class="desk">
+              <label class="field universe"><span>Источник активов</span><div class="seg"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div></label>
+              <div class="desk-row">
+                <label class="field"><span>Режим остановки</span><div class="seg"><i class="on">Мягкая</i><i>Жёсткая</i></div></label>
+                <label class="field"><span>Закрытие к концу сессии</span><div class="seg"><i>Auto</i><i class="on">Включён</i><i>Выключен</i></div></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="variant b" id="b">
+        <div class="variant__head">
+          <div>
+            <h2>B · Как дни</h2>
+            <p>Белый трек, рамка rgba(0,0,0,0.12). Активный без заливки: цвет #1A1A1A и линия снизу 2px. На телефоне вес 500, на десктопе 700 — как у дней недели.</p>
+          </div>
+          <span class="tag">выбрано</span>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Телефон · на всю ширину</p>
+            <div class="phone"><div class="screen">
+              <label class="field"><span>Источник активов</span><div class="seg"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div></label>
+              <label class="field"><span>Режим остановки</span><div class="seg"><i class="on">Мягкая</i><i>Жёсткая</i></div></label>
+              <label class="field"><span>Закрытие к концу сессии</span><div class="seg"><i>Auto</i><i class="on">Включён</i><i>Выключен</i></div></label>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Десктоп · узкая ячейка</p>
+            <div class="desk">
+              <label class="field universe"><span>Источник активов</span><div class="seg"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div></label>
+              <div class="desk-row">
+                <label class="field"><span>Режим остановки</span><div class="seg"><i class="on">Мягкая</i><i>Жёсткая</i></div></label>
+                <label class="field"><span>Закрытие к концу сессии</span><div class="seg"><i>Auto</i><i class="on">Включён</i><i>Выключен</i></div></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="variant c" id="c">
+        <div class="variant__head">
+          <div>
+            <h2>C · Серый трек</h2>
+            <p>Трек #EAEAEE, это --bg-input. Активный пункт белый, текст #1A1A1A, простой текст #666. Рамка 12%.</p>
+          </div>
+          <span class="tag">белый на сером</span>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Телефон · на всю ширину</p>
+            <div class="phone"><div class="screen">
+              <label class="field"><span>Источник активов</span><div class="seg"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div></label>
+              <label class="field"><span>Режим остановки</span><div class="seg"><i class="on">Мягкая</i><i>Жёсткая</i></div></label>
+              <label class="field"><span>Закрытие к концу сессии</span><div class="seg"><i>Auto</i><i class="on">Включён</i><i>Выключен</i></div></label>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Десктоп · узкая ячейка</p>
+            <div class="desk">
+              <label class="field universe"><span>Источник активов</span><div class="seg"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div></label>
+              <div class="desk-row">
+                <label class="field"><span>Режим остановки</span><div class="seg"><i class="on">Мягкая</i><i>Жёсткая</i></div></label>
+                <label class="field"><span>Закрытие к концу сессии</span><div class="seg"><i>Auto</i><i class="on">Включён</i><i>Выключен</i></div></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="variant d" id="d">
+        <div class="variant__head">
+          <div>
+            <h2>D · Чернила</h2>
+            <p>Активный пункт #1A1A1A, текст белый — та же пара, что у главной кнопки в светлой теме. Простой текст #666, рамка 14%.</p>
+          </div>
+          <span class="tag">как primary</span>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Телефон · на всю ширину</p>
+            <div class="phone"><div class="screen">
+              <label class="field"><span>Источник активов</span><div class="seg"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div></label>
+              <label class="field"><span>Режим остановки</span><div class="seg"><i class="on">Мягкая</i><i>Жёсткая</i></div></label>
+              <label class="field"><span>Закрытие к концу сессии</span><div class="seg"><i>Auto</i><i class="on">Включён</i><i>Выключен</i></div></label>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Десктоп · узкая ячейка</p>
+            <div class="desk">
+              <label class="field universe"><span>Источник активов</span><div class="seg"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div></label>
+              <div class="desk-row">
+                <label class="field"><span>Режим остановки</span><div class="seg"><i class="on">Мягкая</i><i>Жёсткая</i></div></label>
+                <label class="field"><span>Закрытие к концу сессии</span><div class="seg"><i>Auto</i><i class="on">Включён</i><i>Выключен</i></div></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="variant e" id="e">
+        <div class="variant__head">
+          <div>
+            <h2>E · Плотнее, чем сейчас</h2>
+            <p>Та же прозрачная схема, что A. Меняется только активный фон: rgba(0,0,0,0.14) вместо 0.07. Текст по-прежнему #1A1A1A.</p>
+          </div>
+          <span class="tag">минимальная правка</span>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Телефон · на всю ширину</p>
+            <div class="phone"><div class="screen">
+              <label class="field"><span>Источник активов</span><div class="seg"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div></label>
+              <label class="field"><span>Режим остановки</span><div class="seg"><i class="on">Мягкая</i><i>Жёсткая</i></div></label>
+              <label class="field"><span>Закрытие к концу сессии</span><div class="seg"><i>Auto</i><i class="on">Включён</i><i>Выключен</i></div></label>
+            </div></div>
+          </div>
+          <div>
+            <p class="pane-label">Десктоп · узкая ячейка</p>
+            <div class="desk">
+              <label class="field universe"><span>Источник активов</span><div class="seg"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div></label>
+              <div class="desk-row">
+                <label class="field"><span>Режим остановки</span><div class="seg"><i class="on">Мягкая</i><i>Жёсткая</i></div></label>
+                <label class="field"><span>Закрытие к концу сессии</span><div class="seg"><i>Auto</i><i class="on">Включён</i><i>Выключен</i></div></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

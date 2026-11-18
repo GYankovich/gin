@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Монитор — телефон</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  html[data-theme='light'] {
+    --bg: #f4f5f7;
+    --page: #ffffff;
+    --panel: #f7f8fa;
+    --elevated: #eef0f3;
+    --input: #ffffff;
+    --text: #1c1f24;
+    --secondary: #3d4450;
+    --muted: #6b7280;
+    --border: rgba(20, 24, 30, 0.1);
+    --line: rgba(20, 24, 30, 0.16);
+    --accent: #1c1f24;
+    --on-accent: #fff;
+    --up: #1f8a4c;
+    --down: #c43b4a;
+    --picker: #fff;
+  }
+  html[data-theme='light'] body { background: var(--bg); }
+  html[data-theme='light'] .dock { background: rgba(255, 255, 255, 0.94); }
+  html[data-theme='light'] .dock .on { color: var(--text); }
+
+  .thesis { margin: 0 0 18px; max-width: 62ch; color: var(--secondary); font-size: 14px; line-height: 1.5; }
+  .thesis strong { color: var(--text); }
+
+  .stage { display: flex; justify-content: center; padding: 8px 0 40px; }
+  .phone {
+    width: 390px;
+    max-width: 100%;
+    height: 844px;
+    position: relative;
+    border-radius: 32px;
+    border: 1px solid var(--border);
+    background: var(--page);
+    overflow: hidden;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  }
+  .scroll {
+    height: 100%;
+    overflow: auto;
+    padding: 16px 14px 88px;
+  }
+  .scroll::-webkit-scrollbar { width: 0; }
+
+  .top { display: flex; flex-direction: column; gap: 10px; }
+  .name { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+  .run {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--up);
+  }
+  .run i { width: 6px; height: 6px; border-radius: 50%; background: var(--up); display: block; }
+  .meta { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+  .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .acts button { padding: 8px 12px; border-radius: 10px; font-size: 13px; font-weight: 550; }
+
+  .tabs {
+    display: flex; gap: 18px; margin: 14px 0 0; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted);
+  }
+  .tabs .on { color: var(--text); font-weight: 600; box-shadow: inset 0 -1px 0 var(--text); padding-bottom: 8px; }
+
+  .phase { padding: 14px 0 4px; }
+  .track { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px 8px; }
+  .step { min-width: 0; }
+  .step__bar { height: 3px; border-radius: 99px; background: var(--line); margin-bottom: 5px; }
+  .step--done .step__bar, .step--now .step__bar { background: var(--text); }
+  .step span { display: block; font-size: 10px; line-height: 1.25; color: var(--muted); }
+  .step--now span, .step--done span { color: var(--text); font-weight: 600; }
+  .phase__why { margin: 8px 0 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+
+  .money { padding: 12px 0 0; }
+  .money h3, .block h3, .feed h3, .pool h3 {
+    margin: 0; font-size: 12px; font-weight: 500; color: var(--muted);
+  }
+  .eq { margin-top: 4px; font-size: 30px; font-weight: 560; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+  .side, .foot { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+  .plot { height: 120px; margin-top: 8px; color: var(--up); }
+  .plot svg { width: 100%; height: 100%; display: block; }
+
+  .papers { display: grid; gap: 8px; padding: 14px 0 0; }
+  .paper { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; background: var(--panel); }
+  .paper__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .paper__head b { font-size: 13px; letter-spacing: 0.02em; }
+  .paper__head span, .paper__line { font-size: 12px; color: var(--muted); }
+  .paper__line { display: flex; justify-content: space-between; gap: 8px; margin-top: 3px; }
+  .paper__line strong { font-weight: 560; color: var(--text); font-variant-numeric: tabular-nums; }
+  .fresh { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+
+  .block { padding: 16px 0 0; }
+  .block__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+  .mode { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 999px; }
+  .mode__btn, .more-btn { border: 0; background: transparent; color: var(--muted); font-size: 12px; font-weight: 550; }
+  .mode__btn { border-radius: 999px; padding: 3px 10px; }
+  .mode__btn--on { background: var(--elevated); color: var(--text); }
+  .more-btn { padding: 0; }
+
+  .orow { padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; }
+  .orow__top, .orow__sub { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .orow__top time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .orow__top b { font-weight: 650; }
+  .orow__id { display: flex; gap: 8px; align-items: baseline; }
+  .orow__sub { margin-top: 2px; color: var(--muted); font-size: 12px; }
+  .orow__sub span:first-child { min-width: 0; }
+  .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .drow {
+    display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px;
+    padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px;
+  }
+  .drow b { font-weight: 650; }
+  .drow span { color: var(--secondary); }
+
+  .feed, .pool { padding: 14px 0 0; }
+  .feed h3 span { margin-left: 8px; font-weight: 400; }
+  .frow {
+    display: grid; grid-template-columns: 46px 52px minmax(0, 1fr); gap: 8px;
+    padding: 7px 0; border-top: 1px solid var(--border); font-size: 13px;
+  }
+  .frow time { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .pool h3 { margin-bottom: 8px; }
+  .strip { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill {
+    display: inline-flex; align-items: baseline; gap: 6px;
+    padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border);
+    color: var(--muted); font-size: 12px;
+  }
+  .pill em { font-style: normal; font-weight: 400; }
+  .pill--pos { color: var(--text); border-color: var(--line); }
+
+  .dock {
+    background: color-mix(in srgb, var(--page) 88%, transparent);
+    backdrop-filter: blur(16px);
+    height: 58px;
+  }
+  .dock span { font-size: 10px; gap: 2px; }
+  .dock b { font-size: 13px; font-weight: 650; line-height: 1; }
+  .theme-btn {
+    border: 1px solid var(--border); background: transparent; color: var(--secondary);
+    border-radius: 10px; padding: 8px 12px; font-size: 13px;
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">Все макеты</a>
+    <div>
+      <h1>Монитор · телефон 390</h1>
+      <p>Тот же экран, что B+C: фаза, график, короткие карточки, заявки, решения, лента, пул. Прокрутка внутри рамки.</p>
+    </div>
+    <button class="theme-btn" type="button" id="theme">Светлая</button>
+  </div>
+
+  <div class="wrap">
+    <p class="thesis">
+      <strong>Десять стадий цикла в две строки, текущая залита целиком.</strong>
+      Заявка на узкой ширине в две строки: время и тикер сверху, выставленная цена, сигнал и статус снизу. «Все» дописывает сегодняшние сделки в тот же список.
+      Цифры составные, для формы.
+    </p>
+    <div class="stage">
+      <div class="phone">
+        <div class="scroll">
+          <div class="top">
+            <div>
+              <h2 class="name">Копия хард <span class="run"><i></i>Работает</span></h2>
+              <p class="meta">#3 · live · цикл 5123</p>
+            </div>
+            <div class="acts">
+              <button class="btn btn--ghost" type="button">Пауза</button>
+              <button class="btn btn--danger" type="button">Стоп</button>
+            </div>
+          </div>
+          <div class="tabs"><span>Флот</span><span class="on">Лайв</span><span>История</span></div>
+
+          <div class="phase">
+            <div class="track">
+              <div class="step step--done"><div class="step__bar"></div><span>Ожидание</span></div>
+              <div class="step step--now"><div class="step__bar"></div><span>Цены · 11%</span></div>
+              <div class="step"><div class="step__bar"></div><span>Сверка</span></div>
+              <div class="step"><div class="step__bar"></div><span>Расписание</span></div>
+              <div class="step"><div class="step__bar"></div><span>Выходы SL/TP</span></div>
+              <div class="step"><div class="step__bar"></div><span>Стратегия</span></div>
+              <div class="step"><div class="step__bar"></div><span>Риск</span></div>
+              <div class="step"><div class="step__bar"></div><span>Исполнение</span></div>
+              <div class="step"><div class="step__bar"></div><span>Метрики</span></div>
+              <div class="step"><div class="step__bar"></div><span>Цикл завершён</span></div>
+            </div>
+            <p class="phase__why">триггер: price_tick</p>
+          </div>
+
+          <div class="money">
+            <h3>Стоимость</h3>
+            <div class="eq">8 294 ₽</div>
+            <p class="side">0 ₽ за день · 0 сделок · кэш 42 ₽</p>
+            <div class="plot">
+              <svg viewBox="0 0 360 120" preserveAspectRatio="none" aria-hidden="true">
+                <polyline fill="none" stroke="currentColor" stroke-width="1.75" vector-effect="non-scaling-stroke" points="0,96 28,90 56,86 84,88 112,70 140,72 168,52 196,56 224,36 252,40 280,28 308,32 336,24 360,26" />
+              </svg>
+            </div>
+            <p class="foot">Счёт · обновлено 15.11, 18:42</p>
+          </div>
+
+          <div class="papers">
+            <article class="paper">
+              <div class="paper__head"><b>CNRU</b><span>long · 12</span></div>
+              <div class="paper__line"><span>Вход <strong>186.40</strong></span><span>Сейчас <strong class="up">187.10</strong></span></div>
+              <div class="paper__line"><span>Безубыток <strong>186.90</strong></span><span>SL / TP <strong>180 / 195</strong></span></div>
+            </article>
+            <article class="paper">
+              <div class="paper__head"><b>NVTK</b><span>long · 4</span></div>
+              <div class="paper__line"><span>Вход <strong>1 120</strong></span><span>Сейчас <strong class="up">1 134</strong></span></div>
+              <div class="paper__line"><span>Безубыток <strong>1 126</strong></span><span>SL / TP <strong>1 080 / 1 180</strong></span></div>
+            </article>
+            <article class="paper">
+              <div class="paper__head"><b>PLZL</b><span>long · 2</span></div>
+              <div class="paper__line"><span>Вход <strong>2 410</strong></span><span>Сейчас <strong class="down">2 398</strong></span></div>
+              <div class="paper__line"><span>Безубыток <strong>2 418</strong></span><span>SL / TP <strong>2 390 / 2 520</strong></span></div>
+            </article>
+            <article class="paper">
+              <div class="paper__head"><b>ROSN</b><span>long · 8</span></div>
+              <div class="paper__line"><span>Вход <strong>512</strong></span><span>Сейчас <strong class="up">518</strong></span></div>
+              <div class="paper__line"><span>Безубыток <strong>514</strong></span><span>SL / TP <strong>490 / 540</strong></span></div>
+            </article>
+            <article class="paper">
+              <div class="paper__head"><b>SBER</b><span>long · 6</span></div>
+              <div class="paper__line"><span>Вход <strong>301.20</strong></span><span>Сейчас <strong class="up">304.10</strong></span></div>
+              <div class="paper__line"><span>Безубыток <strong>302.40</strong></span><span>SL / TP <strong>292 / 318</strong></span></div>
+            </article>
+            <p class="fresh">Цены обновлены · 15.11, 18:41</p>
+          </div>
+
+          <section class="block">
+            <div class="block__head">
+              <h3>Заявки</h3>
+              <div class="mode" role="tablist" aria-label="Режим заявок">
+                <button class="mode__btn mode__btn--on" type="button" data-mode="open">Текущие · 4</button>
+                <button class="mode__btn" type="button" data-mode="all">Все</button>
+              </div>
+            </div>
+            <div class="orow">
+              <div class="orow__top"><span class="orow__id"><time>10:44</time><b>CNRU</b></span><span class="num up">+103 ₽</span></div>
+              <div class="orow__sub"><span>лимит · выст. 195 · факт —</span><span>открыта</span></div>
+              <div class="orow__sub"><span>Пробой + объём</span></div>
+            </div>
+            <div class="orow">
+              <div class="orow__top"><span class="orow__id"><time>10:38</time><b>NVTK</b></span><span class="num up">+240 ₽</span></div>
+              <div class="orow__sub"><span>лимит · выст. 1 180 · факт —</span><span>открыта</span></div>
+              <div class="orow__sub"><span>RSI перепродан</span></div>
+            </div>
+            <div class="orow">
+              <div class="orow__top"><span class="orow__id"><time>10:21</time><b>ROSN</b></span><span class="num up">+224 ₽</span></div>
+              <div class="orow__sub"><span>лимит · выст. 540 · факт —</span><span>открыта</span></div>
+              <div class="orow__sub"><span>Пробой + объём</span></div>
+            </div>
+            <div class="orow">
+              <div class="orow__top"><span class="orow__id"><time>10:05</time><b>SBER</b></span><span class="num up">+101 ₽</span></div>
+              <div class="orow__sub"><span>лимит · выст. 318 · факт —</span><span>открыта</span></div>
+              <div class="orow__sub"><span>Скальп: дельта</span></div>
+            </div>
+            <div id="order-history" hidden>
+              <div class="orow">
+                <div class="orow__top"><span class="orow__id"><time>10:12</time><b>CNRU</b></span><span class="num up">+103 ₽</span></div>
+                <div class="orow__sub"><span>продажа · выст. 195 · факт 194.20</span><span>исполнено</span></div>
+                <div class="orow__sub"><span>Тейк-профит</span></div>
+              </div>
+              <div class="orow">
+                <div class="orow__top"><span class="orow__id"><time>09:41</time><b>GAZP</b></span><span class="num down">−420 ₽</span></div>
+                <div class="orow__sub"><span>продажа · выст. 168 · факт 164</span><span>исполнено</span></div>
+                <div class="orow__sub"><span>Стоп-лосс</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="block">
+            <div class="block__head">
+              <h3>Решения</h3>
+              <button class="more-btn" type="button" id="more-decisions">ещё 4</button>
+            </div>
+            <div class="drow"><b>NO_SIGNAL</b><span>стратегия молчит · price_tick</span></div>
+            <div class="drow"><b>NO_SIGNAL</b><span>PLZL · ждём цену у SL</span></div>
+            <div class="drow"><b>NO_SIGNAL</b><span>пул 15 · сигнала нет</span></div>
+            <div class="drow"><b>NO_SIGNAL</b><span>CNRU · ждём TP</span></div>
+            <div id="decision-more" hidden>
+              <div class="drow"><b>NO_SIGNAL</b><span>NVTK · ждём TP</span></div>
+              <div class="drow"><b>NO_SIGNAL</b><span>GAZP · нет свечей</span></div>
+              <div class="drow"><b>NO_SIGNAL</b><span>TATN · прогрев</span></div>
+              <div class="drow"><b>NO_SIGNAL</b><span>AFLT · вне сессии</span></div>
+            </div>
+          </section>
+
+          <section class="feed">
+            <h3>Лента <span>стрим офлайн</span></h3>
+            <div class="frow"><time>18:41</time><b>этап</b><span>Цены</span></div>
+            <div class="frow"><time>18:40</time><b>этап</b><span>Ожидание</span></div>
+            <div class="frow"><time>18:39</time><b>цикл</b><span>5123</span></div>
+          </section>
+
+          <section class="pool">
+            <h3>Пул · 15 · скан 18:41</h3>
+            <div class="strip">
+              <span class="pill pill--pos">CNRU</span>
+              <span class="pill pill--pos">NVTK</span>
+              <span class="pill pill--pos">PLZL</span>
+              <span class="pill pill--pos">ROSN</span>
+              <span class="pill pill--pos">SBER</span>
+              <span class="pill">GAZP <em>нет свечей</em></span>
+              <span class="pill">LKOH <em>нет сигнала</em></span>
+              <span class="pill">TATN <em>прогрев</em></span>
+              <span class="pill">MTSS <em>нет свечей</em></span>
+              <span class="pill">GMKN <em>нет сигнала</em></span>
+              <span class="pill">NLMK <em>прогрев</em></span>
+              <span class="pill">CHMF <em>нет сигнала</em></span>
+              <span class="pill">MAGN <em>нет свечей</em></span>
+              <span class="pill">AFLT <em>вне сессии</em></span>
+              <span class="pill">ALRS <em>нет сигнала</em></span>
+            </div>
+          </section>
+        </div>
+        <div class="dock" aria-label="Навигация">
+          <span><b>G</b></span>
+          <span>Портфель</span>
+          <span class="on">Роботы</span>
+          <span>Лаб</span>
+          <span>GY</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const root = document.documentElement
+    const btn = document.getElementById('theme')
+    btn.addEventListener('click', () => {
+      const light = root.getAttribute('data-theme') === 'light'
+      root.setAttribute('data-theme', light ? 'dark' : 'light')
+      btn.textContent = light ? 'Светлая' : 'Тёмная'
+    })
+    const history = document.getElementById('order-history')
+    document.querySelectorAll('.mode__btn').forEach((button) => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('.mode__btn').forEach((item) => {
+          item.classList.toggle('mode__btn--on', item === button)
+        })
+        history.hidden = button.dataset.mode !== 'all'
+      })
+    })
+    const moreDecisions = document.getElementById('more-decisions')
+    const decisionMore = document.getElementById('decision-more')
+    moreDecisions.addEventListener('click', () => {
+      decisionMore.hidden = !decisionMore.hidden
+      moreDecisions.textContent = decisionMore.hidden ? 'ещё 4' : 'свернуть'
+    })
+  </script>
+</body>
+</html>

@@ -25,8 +25,8 @@ type MonitorSummaryCardProps = {
     sessionHint?: string | null
 }
 
-function tradeCountLabel(count: number): string | null {
-    if (count <= 0) return null
+function tradeCountLabel(count: number): string {
+    if (count <= 0) return '0 сделок'
     const mod10 = count % 10
     const mod100 = count % 100
     const word = mod10 === 1 && mod100 !== 11
@@ -85,9 +85,11 @@ export function MonitorSummaryCard({
             <p className={`robots-monitor-hero__delta robots-v2-pnl--${dayDelta.tone}`}>
                 {dayDelta.text}
                 <span>
-                    {' '}за день
-                    {trades ? ` · ${trades}` : ''}
+                    {' '}за день · {trades}
                 </span>
+                {showBalance && cashLabel != null ? (
+                    <span className="robots-monitor-hero__cash"> · кэш {cashLabel}</span>
+                ) : null}
             </p>
             <div className="robots-monitor-hero__mini">
                 <div>

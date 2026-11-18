@@ -1,118 +1,69 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Card } from '@/components/ui/Card'
-import { DataTable, type Column } from '@/components/ui/DataTable'
 import type { OrderDisplayRow } from '@/pages/robots-v2/monitorUtils'
 
 type MonitorOrdersCardProps = {
     rows: OrderDisplayRow[]
     openOrderCount: number
-    bare?: boolean
 }
 
-export function MonitorOrdersCard({ rows, openOrderCount, bare = false }: MonitorOrdersCardProps) {
-    const columns = useMemo<Column<OrderDisplayRow>[]>(() => [
-        {
-            key: 'ticker',
-            header: 'Тикер',
-            sortable: true,
-            render: r => <strong>{r.ticker}</strong>,
-        },
-        {
-            key: 'dateMs',
-            header: 'Время покупки',
-            sortable: true,
-            render: r => <span className="mono">{r.buyAtLabel}</span>,
-        },
-        {
-            key: 'buyPriceLabel',
-            header: 'Цена покупки',
-            render: r => <span className="mono">{r.buyPriceLabel}</span>,
-        },
-        {
-            key: 'sellAtLabel',
-            header: 'Время продажи',
-            render: r => <span className="mono">{r.sellAtLabel}</span>,
-        },
-        {
-            key: 'sellListedLabel',
-            header: 'Цена продажи выст.',
-            render: r => <span className="mono">{r.sellListedLabel}</span>,
-        },
-        {
-            key: 'sellFillLabel',
-            header: 'Цена продажи факт',
-            render: r => <span className="mono">{r.sellFillLabel}</span>,
-        },
-        {
-            key: 'statusRank',
-            header: 'Статус',
-            sortable: true,
-            render: r => r.statusLabel,
-        },
-        {
-            key: 'pocket',
-            header: 'В карман',
-            sortable: true,
-            render: r => (
-                <span className={`mono robots-v2-pnl--${r.pocketTone}`} title={r.pocketTitle}>
-                    {r.pocketText}
-                </span>
-            ),
-        },
-        {
-            key: 'reasonLabel',
-            header: 'Причина',
-            render: r => r.reasonLabel,
-        },
-    ], [])
-
-    const body = (
-        <>
-            <p className="robots-v2-hint robots-v2-universe-caption">
-                Сделки: покупка → продажа. «Цена продажи выставленная» — лимит TP; «факт» — исполнение.
-            </p>
-            <DataTable
-                columns={columns}
-                data={rows}
-                keyField="id"
-                emptyText="Пока нет сделок"
-                maxHeight={360}
-                defaultSortKey="dateMs"
-                defaultSortDir="desc"
-                secondarySortKey="ticker"
-                mobilePrimary={r => (
-                    <div className="portfolio-mobile-split">
-                        <strong>{r.ticker}</strong>
-                        <span className={`mono robots-v2-pnl--${r.pocketTone}`}>{r.pocketText}</span>
-                    </div>
-                )}
-                mobileDetails={r => (
-                    <div className="portfolio-mobile-stack">
-                        <span>{r.statusLabel} · {r.buyAtLabel}</span>
-                        <span className="mono">{r.buyPriceLabel} → {r.sellFillLabel}</span>
-                        <span>{r.reasonLabel}</span>
-                    </div>
-                )}
-            />
-        </>
-    )
-
-    if (bare) {
-        return <div className="robots-v2-monitor-orders">{body}</div>
-    }
+export function MonitorOrdersCard({ rows, openOrderCount }: MonitorOrdersCardProps) {
+    const [mode, setMode] = useState<'open' | 'all'>('open')
+    const shown = useMemo(() => {
+        const list = mode === 'open' ? rows.filter(row => row.isOpen) : rows
+        return [...list].sort((a, b) => b.dateMs - a.dateMs || a.ticker.localeCompare(b.ticker))
+    }, [mode, rows])
 
     return (
         <Card className="dashboard-assets-card robots-v2-monitor-orders">
-            <div className="dashboard-assets-card__head">
+            <div className="dashboard-assets-card__head robots-monitor-orders__head">
                 <h3 className="dashboard-panel-title">Заявки</h3>
-                {rows.length > 0 ? (
-                    <span className="robots-v2-hint">
-                        {openOrderCount > 0 ? `${openOrderCount} открытых · ` : ''}
-                        {rows.length}
-                    </span>
-                ) : null}
+                <div className="robots-monitor-mode" role="tablist" aria-label="Режим заявок">
+                    <button
+                        type="button"
+                        className={`robots-monitor-mode__btn${mode === 'open' ? ' robots-monitor-mode__btn--on' : ''}`}
+                        onClick={() => setMode('open')}
+                    >
+                        Текущие{openOrderCount > 0 ? ` · ${openOrderCount}` : ''}
+                    </button>
+                    <button
+                        type="button"
+                        className={`robots-monitor-mode__btn${mode === 'all' ? ' robots-monitor-mode__btn--on' : ''}`}
+                        onClick={() => setMode('all')}
+                    >
+                        Все
+                    </button>
+                </div>
             </div>
-            {body}
+            {shown.length === 0 ? (
+                <p className="dashboard-empty">
+                    {mode === 'open' ? 'Нет открытых заявок' : 'Пока нет сделок'}
+                </p>
+            ) : (
+                <div className="robots-monitor-orders">
+                    {shown.map(row => (
+                        <div className="robots-monitor-order" key={row.id}>
+                            <div className="robots-monitor-order__top">
+                                <span className="robots-monitor-order__id">
+                                    <time className="mono">{row.timeLabel}</time>
+                                    <b>{row.ticker}</b>
+                                </span>
+                                <span
+                                    className={`mono robots-monitor-order__outcome robots-v2-pnl--${row.outcomeTone}`}
+                                    title={row.outcomeTitle}
+                                >
+                                    {row.outcomeText}
+                                </span>
+                            </div>
+                            <div className="robots-monitor-order__sub">
+                                <span className="robots-monitor-order__detail">{row.detailLabel}</span>
+                                <span className="robots-monitor-order__state">{row.statusLabel}</span>
+                            </div>
+                            <span className="robots-monitor-order__signal">{row.reasonLabel}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </Card>
     )
 }

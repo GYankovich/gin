@@ -94,6 +94,20 @@ export function appendEquityPoint(
     return normalizeEquityPoints([...prev, { time: t as Time, value }])
 }
 
+/** Same order as backend CYCLE_STAGES. Bootstrap and skip sit outside the track. */
+export const CYCLE_STAGE_ORDER = [
+    'idle',
+    'prices',
+    'reconcile',
+    'schedule',
+    'exits',
+    'strategy',
+    'risk',
+    'execution',
+    'metrics',
+    'done',
+] as const
+
 export const STAGE_LABELS: Record<string, string> = {
     idle: 'Ожидание',
     prices: 'Цены',
@@ -386,6 +400,9 @@ export type OrderDisplayRow = {
     id: string
     ticker: string
     dateMs: number
+    timeLabel: string
+    detailLabel: string
+    isOpen: boolean
     buyAtLabel: string
     buyPriceLabel: string
     sellAtLabel: string
@@ -398,7 +415,22 @@ export type OrderDisplayRow = {
     pocketText: string
     pocketTone: 'up' | 'down' | 'neutral'
     pocketTitle?: string
+    outcomeText: string
+    outcomeTone: 'up' | 'down' | 'neutral'
+    outcomeTitle?: string
     reasonLabel: string
+}
+
+const OPEN_ORDER_STATUSES = new Set(['open', 'resting', 'submitted', 'new'])
+
+function fmtOrderClock(ts: string | null | undefined): string {
+    if (!ts) return '—'
+    const d = new Date(ts)
+    if (!Number.isFinite(d.getTime())) return '—'
+    if (isMoscowToday(ts)) {
+        return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+    }
+    return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 const ORDERS_STATUS_RANK: Record<string, number> = {
@@ -423,17 +455,54 @@ export function toOrderDisplayRow(row: RobotV2RoundTrip): OrderDisplayRow {
     const netPnl = pickRoundTripField<number | null>(row, 'netPnl', 'net_pnl')
     const realizedPnl = pickRoundTripField<number | null>(row, 'realizedPnl', 'realized_pnl')
     const pocket = fmtNetPnl(netPnl)
-    const listedLabel = sellListed != null && Number(sellListed) > 0
+    const statusKey = String(row.status || '').toLowerCase()
+    const isOpen = OPEN_ORDER_STATUSES.has(statusKey)
+    const listedOk = sellListed != null && Number(sellListed) > 0
+    const fillOk = sellFill != null && Number(sellFill) > 0
+    const listedLabel = listedOk
         ? fmtPrice(sellListed)
-        : String(row.status).toLowerCase() === 'resting'
+        : statusKey === 'resting'
             ? '—'
-            : sellFill != null
+            : fillOk
                 ? 'рынок'
                 : '—'
+    const listedText = listedOk ? fmtPrice(sellListed) : null
+    const fillText = fillOk ? fmtPrice(sellFill) : null
+    const buyText = buyPrice != null && Number(buyPrice) > 0 ? fmtPriceQty(buyPrice, buyQty) : null
+    const detailLabel = isOpen && listedText
+        ? `лимит · выст. ${listedText} · факт —`
+        : listedText && fillText
+            ? `продажа · выст. ${listedText} · факт ${fillText}`
+            : fillText
+                ? `продажа · факт ${fillText}`
+                : buyText
+                    ? `покупка · ${buyText}`
+                    : orderStatusLabel(row.status)
+    const qtyN = Number(sellQty || buyQty)
+    const buyN = Number(buyPrice)
+    const listedN = Number(sellListed)
+    const planned = isOpen && buyN > 0 && listedN > 0 && qtyN > 0
+        ? (listedN - buyN) * qtyN
+        : null
+    const outcome = !isOpen && tripPocketValue(row) != null
+        ? fmtNetPnl(tripPocketValue(row))
+        : planned != null
+            ? fmtNetPnl(planned)
+            : fmtNetPnl(null)
+    const outcomeTitle = !isOpen && tripPocketValue(row) != null
+        ? (realizedPnl != null && Number.isFinite(Number(realizedPnl))
+            ? `В кармане. До НДФЛ: ${Number(realizedPnl).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽`
+            : 'В кармане, после комиссии и налога')
+        : planned != null
+            ? 'Если лимит исполнится, до комиссии и налога'
+            : undefined
     return {
         id: String(row.id),
         ticker: String(row.ticker || ''),
         dateMs: tripDateMs(row) ?? 0,
+        timeLabel: fmtOrderClock((isOpen ? buyAt : sellAt) || buyAt || sellAt),
+        detailLabel,
+        isOpen,
         buyAtLabel: fmtTime(buyAt),
         buyPriceLabel: fmtPriceQty(buyPrice, buyQty),
         sellAtLabel: fmtTime(sellAt),
@@ -449,6 +518,9 @@ export function toOrderDisplayRow(row: RobotV2RoundTrip): OrderDisplayRow {
             realizedPnl != null && Number.isFinite(Number(realizedPnl))
                 ? `До НДФЛ: ${Number(realizedPnl).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽`
                 : undefined,
+        outcomeText: outcome.text,
+        outcomeTone: outcome.tone,
+        outcomeTitle,
         reasonLabel: tradeReasonLabel(reason),
     }
 }

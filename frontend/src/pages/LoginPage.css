@@ -282,8 +282,8 @@ body:has(.auth-screen) {
 }
 
 .auth-otp__cell:focus {
-    border-color: var(--auth-line);
-    box-shadow: var(--auth-inset), 0 0 0 3px var(--auth-focus);
+    border-color: var(--auth-text);
+    box-shadow: var(--auth-inset), 0 0 0 3px var(--auth-focus, rgba(15, 23, 42, 0.16));
     outline: none;
 }
 
@@ -582,6 +582,7 @@ body:has(.auth-screen) {
     --auth-line: rgba(255, 255, 255, 0.22);
     --auth-accent: #e8eaed;
     --auth-accent-hover: #ffffff;
+    --auth-focus: rgba(255, 255, 255, 0.2);
     --auth-on-accent: #13161a;
     --auth-inset: inset 0 1px 2px rgba(0, 0, 0, 0.45);
     background: var(--auth-panel);
@@ -601,6 +602,7 @@ body:has(.auth-screen) {
     --auth-line: rgba(15, 23, 42, 0.28);
     --auth-accent: #0f172a;
     --auth-accent-hover: #1e293b;
+    --auth-focus: rgba(15, 23, 42, 0.16);
     --auth-on-accent: #ffffff;
     --auth-inset: inset 0 1px 1px rgba(15, 23, 42, 0.04);
 }

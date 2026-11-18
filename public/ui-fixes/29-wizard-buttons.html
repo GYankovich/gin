@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wizard — кнопки /robots/new?kind=</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  :root {
+    --bg: #07080b;
+    --bg-page: #0a0a0f;
+    --bg-card: #12121a;
+    --text-primary: #e0e0e0;
+    --text-secondary: #888;
+    --text-muted: #555;
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-medium: rgba(255, 255, 255, 0.12);
+    --fill-active: rgba(255, 255, 255, 0.09);
+    --frame: #0e1114;
+    --track: #1c2025;
+    --track-border: var(--border-subtle);
+    --primary-bg: #fff;
+    --primary-fg: #12121a;
+    --head: rgba(255, 255, 255, 0.02);
+  }
+  [data-theme='light'] {
+    --bg: #ececee;
+    --page: #f5f5f7;
+    --panel: #ffffff;
+    --elevated: #f0f1f5;
+    --input: #eaeaee;
+    --text: #1a1a1a;
+    --secondary: #444;
+    --muted: #777;
+    --border: rgba(26, 26, 26, 0.1);
+    --line: rgba(26, 26, 26, 0.22);
+    --accent: #1a1a1a;
+    --on-accent: #fff;
+    --picker: #f5f5f7;
+    --bg-page: #F5F5F7;
+    --bg-card: #FFFFFF;
+    --text-primary: #1A1A1A;
+    --text-secondary: #666666;
+    --text-muted: #999999;
+    --border-subtle: rgba(26, 26, 26, 0.08);
+    --border-medium: rgba(26, 26, 26, 0.14);
+    --fill-active: rgba(0, 0, 0, 0.07);
+    --frame: #e6e6eb;
+    --track: #ffffff;
+    --track-border: rgba(0, 0, 0, 0.12);
+    --primary-bg: #1A1A1A;
+    --primary-fg: #FFFFFF;
+    --head: rgba(0, 0, 0, 0.03);
+  }
+  body { background: var(--bg); }
+  .board { display: grid; gap: 22px; }
+  .intro {
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .intro strong { color: var(--secondary); font-weight: 650; }
+  .intro a { color: var(--text); }
+
+  .inv {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  @media (max-width: 900px) { .inv { grid-template-columns: 1fr 1fr; } }
+  .inv article {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--panel);
+  }
+  .inv h2 {
+    margin: 0 0 4px;
+    font-size: 12px;
+    font-weight: 650;
+  }
+  .inv p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+  .inv em { font-style: normal; color: var(--secondary); }
+
+  .variant {
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--page);
+    overflow: hidden;
+  }
+  .variant__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--head);
+  }
+  .variant__head h2 { margin: 0; font-size: 14px; font-weight: 650; }
+  .variant__head p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+    max-width: 82ch;
+  }
+  .tag {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--secondary);
+    font-size: 11px;
+    font-weight: 650;
+  }
+  .variant__body {
+    display: grid;
+    grid-template-columns: 390px minmax(0, 1fr);
+    gap: 18px;
+    padding: 18px;
+    align-items: start;
+  }
+  @media (max-width: 980px) {
+    .variant__body { grid-template-columns: 1fr; }
+  }
+  .pane-label {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .phone {
+    width: 100%;
+    max-width: 390px;
+    margin: 0 auto;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    background: var(--frame);
+  }
+  .phone__screen {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 18px;
+    background: var(--bg-page);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .desk {
+    display: grid;
+    grid-template-columns: 168px minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--frame);
+  }
+  .rail p {
+    margin: 2px 8px 8px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .rail button {
+    display: block;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    text-align: left;
+  }
+  .rail button.is-on {
+    position: relative;
+    color: var(--text-primary);
+  }
+  .rail button.is-on::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--text-primary);
+  }
+  .main { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+
+  .card {
+    padding: 14px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    background: var(--bg-card);
+  }
+  .card h3, .slice h3 {
+    margin: 0 0 8px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .group + .group {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 0 6px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .arch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .arch button {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-primary);
+    text-align: left;
+  }
+  .arch button span { color: var(--text-muted); font-size: 12px; line-height: 1.35; }
+  .arch button.on { padding-left: 18px; }
+  .arch button.on::before {
+    content: "";
+    position: absolute;
+    left: 8px;
+    top: 10px;
+    bottom: 10px;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--text-primary);
+  }
+  .phone .arch button span { font-size: 11px; }
+
+  .seg, .track {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    background: transparent;
+  }
+  .seg i, .track i {
+    flex: 1 1 0;
+    display: grid;
+    place-items: center;
+    min-width: 0;
+    padding: 0 4px;
+    border-right: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    font-size: 13px;
+    font-style: normal;
+    font-weight: 500;
+  }
+  .seg i:last-child, .track i:last-child { border-right: 0; }
+  .seg i.on { background: var(--fill-active); color: var(--text-primary); }
+  .track {
+    background: var(--track);
+    border-color: var(--track-border);
+    border-radius: 12px;
+  }
+  .track i.on {
+    color: var(--text-primary);
+    font-weight: 700;
+    box-shadow: inset 0 -2px 0 var(--text-primary);
+  }
+  [data-theme='light'] .track i { border-right-color: rgba(0, 0, 0, 0.1); }
+  .hint {
+    margin: 6px 0 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .assets {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    align-items: end;
+  }
+  .assets--desk { grid-template-columns: 160px max-content; }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .field span { color: var(--text-secondary); font-size: 13px; font-weight: 500; }
+  .control {
+    height: 38px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    color: var(--text-primary);
+    font-size: 13px;
+  }
+  .control em { color: var(--text-muted); font-style: normal; font-size: 11px; }
+
+  .btn {
+    box-sizing: border-box;
+    height: 38px;
+    min-height: 38px;
+    padding: 0 14px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.15;
+  }
+  .btn--primary {
+    border-color: transparent;
+    background: var(--primary-bg);
+    color: var(--primary-fg);
+    font-weight: 600;
+  }
+  .btn--ghost { background: var(--bg-card); }
+  .btn--text {
+    height: auto;
+    min-height: 32px;
+    padding: 6px 2px;
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+  }
+  .btn--quiet {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 12px;
+  }
+  .btn--quiet em { color: var(--text-muted); font-style: normal; font-size: 12px; font-weight: 500; }
+  .btn--chev {
+    width: 32px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 18px;
+  }
+
+  .preview {
+    margin-top: 8px;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  .preview div {
+    display: grid;
+    grid-template-columns: 64px 1fr auto;
+    gap: 8px;
+    padding: 7px 0;
+    border-top: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+  }
+  .preview strong { color: var(--text-primary); font-weight: 600; }
+  .pager {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 6px;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  .pager .btn { height: 32px; min-height: 32px; padding: 0 10px; font-size: 12px; }
+
+  .slice h3 { margin-top: 4px; }
+  .state { display: flex; flex-direction: column; gap: 6px; }
+  .state > span {
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .foot--equal { display: flex; gap: 8px; }
+  .foot--equal .btn {
+    flex: 1 1 0;
+    width: auto;
+    height: auto;
+    min-width: 0;
+    padding: 8px;
+    white-space: normal;
+    text-align: center;
+  }
+  .foot--split {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .foot--split .right { display: flex; gap: 8px; margin-left: auto; }
+  .foot--split .btn { width: auto; white-space: nowrap; }
+  .foot--stack { display: flex; flex-direction: column; gap: 6px; }
+  .foot--stack .text-row { display: flex; justify-content: space-between; align-items: center; }
+  .foot--stack .btn--primary { width: 100%; }
+
+  .cap {
+    height: 10px;
+    border: 1px solid var(--border-subtle);
+    border-bottom: 0;
+    border-radius: 12px 12px 0 0;
+    background: var(--bg-card);
+  }
+  .card-foot {
+    padding: 12px;
+    border: 1px solid var(--border-subtle);
+    border-top: 0;
+    border-radius: 0 0 12px 12px;
+    background: var(--bg-card);
+  }
+  .states {
+    display: grid;
+    gap: 8px;
+  }
+  .states--2 { grid-template-columns: 1fr 1fr; }
+
+  .tabbar {
+    position: static;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    width: auto;
+    height: auto;
+    margin-top: 4px;
+    padding: 8px 4px 6px;
+    border-radius: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    font-size: 10px;
+    text-align: center;
+    z-index: auto;
+  }
+  .tabbar b { display: block; color: var(--text-primary); font-size: 10px; font-weight: 650; }
+  .theme-switch {
+    display: flex;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+  }
+  .theme-switch button {
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 650;
+  }
+  .theme-switch button.is-on {
+    background: var(--text);
+    color: var(--bg);
+  }
+  .phone--stuck .state--finish {
+    margin: 0 -12px;
+    padding: 10px 12px 8px;
+    background: var(--bg-card);
+    border-top: 1px solid var(--border-subtle);
+  }
+  .phone--stuck .tabbar {
+    margin: 0 -12px -12px;
+    border-radius: 0 0 16px 16px;
+    border-top: 0;
+  }
+</style>
+</head>
+<body>
+  <header class="picker">
+    <a class="picker__back" href="./index.html">Все макеты</a>
+    <div>
+      <h1>Кнопки · /robots/new?kind=</h1>
+      <p>kind в адресе зафиксирован, карточки «торговый / опросник» скрыты. Рельс шагов и дни недели уже выбраны — здесь остальные кнопки.</p>
+    </div>
+    <div class="theme-switch" role="group" aria-label="Тема">
+      <button type="button" data-theme-set="dark" class="is-on">Тёмная</button>
+      <button type="button" data-theme-set="light">Светлая</button>
+    </div>
+    <span class="badge badge--new">для согласования</span>
+  </header>
+
+  <main class="wrap">
+    <div class="board">
+      <div class="intro">
+        <strong>Четыре роли, один рост 38px.</strong>
+        Выбор (архетип, сегменты), действие в форме (превью), листание превью и коммит в футере сейчас выглядят как одно семейство рамок.
+        На телефоне финиш торгового — три равные кнопки, «Создать и запустить» переносится.
+        «Назад» в пейджере и «Назад» в футере — разные действия с одним словом.
+        В светлой теме главная кнопка залита #1A1A1A, текст белый. «Назад» на белом футере остаётся тонкой рамкой.
+        Правка длиннее: «Сохранить» / «Сохранить и запустить». Пока шаги не заполнены, запуск disabled при той же заливке главной кнопки.
+        <a href="#a">A</a> · <a href="#b">B</a> · <a href="#c">C</a> · <a href="#d">D</a>
+      </div>
+
+      <div class="inv">
+        <article>
+          <h2>Уже решено</h2>
+          <p><em>Рельс</em> — J, на телефоне мягкий выбор, на десктопе полоска у края. <em>Дни</em> — D, трек и подчёркивание. Тогглы и селекты — поля, не кнопки.</p>
+        </article>
+        <article>
+          <h2>Выбор</h2>
+          <p><em>Архетип</em> — 4 карточки, только trading. <em>Источник</em> Список / Индекс / Скринер. <em>Остановка</em> Мягкая / Жёсткая. <em>Конец сессии</em> Auto / Включён / Выключен.</p>
+        </article>
+        <article>
+          <h2>В форме</h2>
+          <p><em>Превью состава</em> — secondary в сетке чисел. <em>Пейджер</em> — ghost «Назад» и «Далее», те же слова, что у шагов.</p>
+        </article>
+        <article>
+          <h2>Футер</h2>
+          <p>Шаг 0 — только «Далее». Середина — «Назад» + «Далее». Финиш trading — ещё «Создать» и «Создать и запустить». Опросник — одна «Создать и включить».</p>
+        </article>
+      </div>
+
+      <section class="variant" id="a">
+        <div class="variant__head">
+          <div>
+            <h2>A · Сейчас</h2>
+            <p>Телефон: кнопки футера делят строку поровну, фон прозрачный, «Назад» залит цветом карточки. Десктоп: футер приклеен к карточке, кнопки по содержимому. Превью стоит в ячейке рядом с «Макс. активов». Иерархия плавает: на карточке «Назад» и «Создать» почти одинаковые рамки, заливка только у главной.</p>
+          </div>
+          <span class="tag">как в коде</span>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Телефон · 390</p>
+            <div class="phone">
+              <div class="phone__screen">
+                <div class="slice">
+                  <h3>Стратегия</h3>
+                  <div class="arch">
+                    <button type="button" class="on"><strong>Тренд</strong><span>Покупка на пробое максимума, если объём выше обычного</span></button>
+                    <button type="button"><strong>Отскок</strong><span>Цена слишком далеко от обычного значения</span></button>
+                    <button type="button"><strong>Сетка</strong><span>Уровни вокруг цены с фиксированным шагом</span></button>
+                    <button type="button"><strong>Скальпер</strong><span>Короткие входы. В бэктесте по свечам недоступен</span></button>
+                  </div>
+                </div>
+                <div class="slice">
+                  <h3>Активы</h3>
+                  <div class="seg" aria-hidden="true"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div>
+                  <div class="assets" style="margin-top:8px">
+                    <label class="field"><span>Макс. активов</span><div class="control">20</div></label>
+                    <button type="button" class="btn">Превью состава</button>
+                  </div>
+                  <div class="preview">
+                    <div>Показано 20 из 48</div>
+                    <div><strong>SBER</strong><span>Сбербанк</span><em>312</em></div>
+                    <div><strong>GAZP</strong><span>Газпром</span><em>128</em></div>
+                  </div>
+                  <div class="pager">
+                    <button type="button" class="btn btn--ghost">Назад</button>
+                    <span>2 / 4</span>
+                    <button type="button" class="btn btn--ghost">Далее</button>
+                  </div>
+                </div>
+                <div class="state">
+                  <span>Основное</span>
+                  <div class="foot--equal"><button type="button" class="btn btn--primary">Далее</button></div>
+                </div>
+                <div class="state">
+                  <span>Середина</span>
+                  <div class="foot--equal">
+                    <button type="button" class="btn btn--ghost">Назад</button>
+                    <button type="button" class="btn btn--primary">Далее</button>
+                  </div>
+                </div>
+                <div class="state">
+                  <span>Финиш · торговый</span>
+                  <div class="foot--equal">
+                    <button type="button" class="btn btn--ghost">Назад</button>
+                    <button type="button" class="btn">Создать</button>
+                    <button type="button" class="btn btn--primary">Создать и запустить</button>
+                  </div>
+                </div>
+                <div class="state">
+                  <span>Финиш · опросник</span>
+                  <div class="foot--equal">
+                    <button type="button" class="btn btn--ghost">Назад</button>
+                    <button type="button" class="btn btn--primary">Создать и включить</button>
+                  </div>
+                </div>
+                <div class="tabbar"><span>Портфель</span><span><b>Роботы</b></span><span>Лаборатория</span><span>Ещё</span></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <p class="pane-label">Десктоп · футер приклеен к карточке</p>
+            <div class="desk">
+              <aside class="rail">
+                <p>Торговый</p>
+                <button type="button">Основное</button>
+                <button type="button">Расписание</button>
+                <button type="button">Стратегия</button>
+                <button type="button" class="is-on">Активы</button>
+                <button type="button">Риск</button>
+              </aside>
+              <div class="main">
+                <div class="card">
+                  <div class="group">
+                    <h3>Архетип</h3>
+                    <div class="arch">
+                      <button type="button" class="on"><strong>Тренд</strong><span>Покупка на пробое максимума, если объём выше обычного</span></button>
+                      <button type="button"><strong>Отскок</strong><span>Цена слишком далеко от обычного значения</span></button>
+                      <button type="button"><strong>Сетка</strong><span>Уровни вокруг цены с фиксированным шагом</span></button>
+                      <button type="button"><strong>Скальпер</strong><span>Короткие входы. В бэктесте по свечам недоступен</span></button>
+                    </div>
+                  </div>
+                  <div class="group">
+                    <h3>Активы</h3>
+                    <div class="seg" aria-hidden="true"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div>
+                    <div class="assets assets--desk" style="margin-top:8px">
+                      <label class="field"><span>Макс. активов</span><div class="control">20</div></label>
+                      <button type="button" class="btn">Превью состава</button>
+                    </div>
+                    <div class="pager">
+                      <button type="button" class="btn btn--ghost">Назад</button>
+                      <span>2 / 4</span>
+                      <button type="button" class="btn btn--ghost">Далее</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="states">
+                  <div class="state"><span>Основное</span><div class="cap"></div><div class="card-foot"><div class="foot--split"><span></span><button type="button" class="btn btn--primary">Далее</button></div></div></div>
+                  <div class="state"><span>Середина</span><div class="cap"></div><div class="card-foot"><div class="foot--split"><button type="button" class="btn btn--ghost">Назад</button><button type="button" class="btn btn--primary">Далее</button></div></div></div>
+                  <div class="state"><span>Финиш · торговый</span><div class="cap"></div><div class="card-foot"><div class="foot--split"><button type="button" class="btn btn--ghost">Назад</button><div class="right"><button type="button" class="btn">Создать</button><button type="button" class="btn btn--primary">Создать и запустить</button></div></div></div></div>
+                  <div class="state"><span>Финиш · опросник</span><div class="cap"></div><div class="card-foot"><div class="foot--split"><button type="button" class="btn btn--ghost">Назад</button><button type="button" class="btn btn--primary">Создать и включить</button></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="variant" id="b">
+        <div class="variant__head">
+          <div>
+            <h2>B · Одна заливка</h2>
+            <p>Заливка только у шага вперёд: «Далее», «Создать и запустить», «Создать и включить». «Назад» и «Создать» — текст без рамки. На телефоне текст сверху, заливка на всю ширину, футер остаётся в потоке страницы. Превью уезжает из сетки чисел в подпись группы. Пейджер — стрелки, без слов «Назад» и «Далее».</p>
+          </div>
+          <span class="tag">текст + solid</span>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Телефон · 390</p>
+            <div class="phone">
+              <div class="phone__screen">
+                <div class="slice">
+                  <h3>Стратегия</h3>
+                  <div class="arch">
+                    <button type="button" class="on"><strong>Тренд</strong><span>Покупка на пробое максимума, если объём выше обычного</span></button>
+                    <button type="button"><strong>Отскок</strong><span>Цена слишком далеко от обычного значения</span></button>
+                    <button type="button"><strong>Сетка</strong><span>Уровни вокруг цены с фиксированным шагом</span></button>
+                    <button type="button"><strong>Скальпер</strong><span>Короткие входы. В бэктесте по свечам недоступен</span></button>
+                  </div>
+                </div>
+                <div class="slice">
+                  <div class="label"><span>Активы</span><button type="button" class="btn btn--text">Превью состава →</button></div>
+                  <div class="seg" aria-hidden="true"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div>
+                  <label class="field" style="margin-top:8px"><span>Макс. активов</span><div class="control">20</div></label>
+                  <div class="preview">
+                    <div>Показано 20 из 48</div>
+                    <div><strong>SBER</strong><span>Сбербанк</span><em>312</em></div>
+                  </div>
+                  <div class="pager">
+                    <button type="button" class="btn btn--chev" aria-label="Предыдущая страница">‹</button>
+                    <span>2 / 4</span>
+                    <button type="button" class="btn btn--chev" aria-label="Следующая страница">›</button>
+                  </div>
+                </div>
+                <div class="state">
+                  <span>Основное</span>
+                  <div class="foot--stack"><button type="button" class="btn btn--primary">Далее</button></div>
+                </div>
+                <div class="state">
+                  <span>Середина</span>
+                  <div class="foot--stack">
+                    <div class="text-row"><button type="button" class="btn btn--text">Назад</button></div>
+                    <button type="button" class="btn btn--primary">Далее</button>
+                  </div>
+                </div>
+                <div class="state">
+                  <span>Финиш · торговый</span>
+                  <div class="foot--stack">
+                    <div class="text-row">
+                      <button type="button" class="btn btn--text">Назад</button>
+                      <button type="button" class="btn btn--text">Создать</button>
+                    </div>
+                    <button type="button" class="btn btn--primary">Создать и запустить</button>
+                  </div>
+                </div>
+                <div class="state">
+                  <span>Финиш · опросник</span>
+                  <div class="foot--stack">
+                    <div class="text-row"><button type="button" class="btn btn--text">Назад</button></div>
+                    <button type="button" class="btn btn--primary">Создать и включить</button>
+                  </div>
+                </div>
+                <div class="tabbar"><span>Портфель</span><span><b>Роботы</b></span><span>Лаборатория</span><span>Ещё</span></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <p class="pane-label">Десктоп</p>
+            <div class="desk">
+              <aside class="rail">
+                <p>Торговый</p>
+                <button type="button">Основное</button>
+                <button type="button">Расписание</button>
+                <button type="button">Стратегия</button>
+                <button type="button" class="is-on">Активы</button>
+                <button type="button">Риск</button>
+              </aside>
+              <div class="main">
+                <div class="card">
+                  <div class="group">
+                    <h3>Архетип</h3>
+                    <div class="arch">
+                      <button type="button" class="on"><strong>Тренд</strong><span>Покупка на пробое максимума, если объём выше обычного</span></button>
+                      <button type="button"><strong>Отскок</strong><span>Цена слишком далеко от обычного значения</span></button>
+                      <button type="button"><strong>Сетка</strong><span>Уровни вокруг цены с фиксированным шагом</span></button>
+                      <button type="button"><strong>Скальпер</strong><span>Короткие входы. В бэктесте по свечам недоступен</span></button>
+                    </div>
+                  </div>
+                  <div class="group">
+                    <div class="label"><span>Активы</span><button type="button" class="btn btn--text">Превью состава →</button></div>
+                    <div class="seg" aria-hidden="true"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div>
+                    <label class="field" style="margin-top:8px;max-width:180px"><span>Макс. активов</span><div class="control">20</div></label>
+                    <div class="pager">
+                      <button type="button" class="btn btn--chev" aria-label="Предыдущая страница">‹</button>
+                      <span>2 / 4</span>
+                      <button type="button" class="btn btn--chev" aria-label="Следующая страница">›</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="states">
+                  <div class="state"><span>Основное</span><div class="cap"></div><div class="card-foot"><div class="foot--split"><span></span><button type="button" class="btn btn--primary">Далее</button></div></div></div>
+                  <div class="state"><span>Середина</span><div class="cap"></div><div class="card-foot"><div class="foot--split"><button type="button" class="btn btn--text">Назад</button><button type="button" class="btn btn--primary">Далее</button></div></div></div>
+                  <div class="state"><span>Финиш · торговый</span><div class="cap"></div><div class="card-foot"><div class="foot--split"><button type="button" class="btn btn--text">Назад</button><div class="right"><button type="button" class="btn btn--text">Создать</button><button type="button" class="btn btn--primary">Создать и запустить</button></div></div></div></div>
+                  <div class="state"><span>Финиш · опросник</span><div class="cap"></div><div class="card-foot"><div class="foot--split"><button type="button" class="btn btn--text">Назад</button><button type="button" class="btn btn--primary">Создать и включить</button></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="variant" id="c">
+        <div class="variant__head">
+          <div>
+            <h2>C · Трек и полоса</h2>
+            <p>Короткий выбор говорит языком дней недели: трек и подчёркивание. Архетип — четыре доли в одном треке, описание только у выбранного, на обоих размерах. Превью — тихая строка на всю ширину, не ячейка сетки. На телефоне коммит липнет над доком: текст «Назад» / «Создать», под ним кнопка с заливкой. На десктопе липкости нет, футер остаётся хвостом карточки.</p>
+          </div>
+          <span class="tag">mobile ≠ desktop</span>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Телефон · полоса над доком</p>
+            <div class="phone phone--stuck">
+              <div class="phone__screen">
+                <div class="slice">
+                  <h3>Стратегия</h3>
+                  <div class="track" aria-hidden="true"><i class="on">Тренд</i><i>Отскок</i><i>Сетка</i><i>Скальпер</i></div>
+                  <p class="hint">Покупка на пробое максимума, если объём выше обычного.</p>
+                </div>
+                <div class="slice">
+                  <h3>Активы</h3>
+                  <div class="track" aria-hidden="true"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div>
+                  <label class="field" style="margin-top:8px"><span>Макс. активов</span><div class="control">20</div></label>
+                  <button type="button" class="btn btn--quiet" style="margin-top:8px">Превью состава<em>20 из 48</em></button>
+                  <div class="pager">
+                    <button type="button" class="btn btn--chev" aria-label="Предыдущая страница">‹</button>
+                    <span>2 / 4</span>
+                    <button type="button" class="btn btn--chev" aria-label="Следующая страница">›</button>
+                  </div>
+                </div>
+                <div class="state">
+                  <span>Основное · в потоке</span>
+                  <div class="foot--stack"><button type="button" class="btn btn--primary">Далее</button></div>
+                </div>
+                <div class="state">
+                  <span>Середина · в потоке</span>
+                  <div class="foot--stack">
+                    <div class="text-row"><button type="button" class="btn btn--text">Назад</button></div>
+                    <button type="button" class="btn btn--primary">Далее</button>
+                  </div>
+                </div>
+                <div class="state">
+                  <span>Опросник · в потоке</span>
+                  <div class="foot--stack">
+                    <div class="text-row"><button type="button" class="btn btn--text">Назад</button></div>
+                    <button type="button" class="btn btn--primary">Создать и включить</button>
+                  </div>
+                </div>
+                <div class="state state--finish">
+                  <span>Финиш · липнет</span>
+                  <div class="foot--stack">
+                    <div class="text-row">
+                      <button type="button" class="btn btn--text">Назад</button>
+                      <button type="button" class="btn btn--text">Создать</button>
+                    </div>
+                    <button type="button" class="btn btn--primary">Создать и запустить</button>
+                  </div>
+                </div>
+                <div class="tabbar"><span>Портфель</span><span><b>Роботы</b></span><span>Лаборатория</span><span>Ещё</span></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <p class="pane-label">Десктоп · без липкой полосы</p>
+            <div class="desk">
+              <aside class="rail">
+                <p>Торговый</p>
+                <button type="button">Основное</button>
+                <button type="button">Расписание</button>
+                <button type="button">Стратегия</button>
+                <button type="button" class="is-on">Активы</button>
+                <button type="button">Риск</button>
+              </aside>
+              <div class="main">
+                <div class="card">
+                  <div class="group">
+                    <h3>Архетип</h3>
+                    <div class="track" aria-hidden="true"><i class="on">Тренд</i><i>Отскок</i><i>Сетка</i><i>Скальпер</i></div>
+                    <p class="hint">Покупка на пробое максимума, если объём выше обычного.</p>
+                  </div>
+                  <div class="group">
+                    <h3>Активы</h3>
+                    <div class="track" aria-hidden="true"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div>
+                    <label class="field" style="margin-top:8px;max-width:180px"><span>Макс. активов</span><div class="control">20</div></label>
+                    <button type="button" class="btn btn--quiet" style="margin-top:8px">Превью состава<em>20 из 48</em></button>
+                    <div class="pager">
+                      <button type="button" class="btn btn--chev" aria-label="Предыдущая страница">‹</button>
+                      <span>2 / 4</span>
+                      <button type="button" class="btn btn--chev" aria-label="Следующая страница">›</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="states">
+                  <div class="state"><span>Основное</span><div class="cap"></div><div class="card-foot"><div class="foot--split"><span></span><button type="button" class="btn btn--primary">Далее</button></div></div></div>
+                  <div class="state"><span>Середина</span><div class="cap"></div><div class="card-foot"><div class="foot--split"><button type="button" class="btn btn--text">Назад</button><button type="button" class="btn btn--primary">Далее</button></div></div></div>
+                  <div class="state"><span>Финиш · торговый</span><div class="cap"></div><div class="card-foot"><div class="foot--split"><button type="button" class="btn btn--text">Назад</button><div class="right"><button type="button" class="btn btn--text">Создать</button><button type="button" class="btn btn--primary">Создать и запустить</button></div></div></div></div>
+                  <div class="state"><span>Финиш · опросник</span><div class="cap"></div><div class="card-foot"><div class="foot--split"><button type="button" class="btn btn--text">Назад</button><button type="button" class="btn btn--primary">Создать и включить</button></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="variant" id="d">
+        <div class="variant__head">
+          <div>
+            <h2>D · Короткие подписи</h2>
+            <p>Геометрия A не меняется. На телефоне финиш говорит короче, чтобы три кнопки сели в одну строку: «Назад», «Сохранить», «Запуск». Опросник — «Включить». Превью на телефоне — «Состав». На десктопе подписи полные, как сейчас. Пейджер на обоих размерах — стрелки, чтобы не спорить с футером.</p>
+          </div>
+          <span class="tag">минимум вёрстки</span>
+        </div>
+        <div class="variant__body">
+          <div>
+            <p class="pane-label">Телефон · короткие слова</p>
+            <div class="phone">
+              <div class="phone__screen">
+                <div class="slice">
+                  <h3>Стратегия</h3>
+                  <div class="arch">
+                    <button type="button" class="on"><strong>Тренд</strong><span>Покупка на пробое максимума, если объём выше обычного</span></button>
+                    <button type="button"><strong>Отскок</strong><span>Цена слишком далеко от обычного значения</span></button>
+                    <button type="button"><strong>Сетка</strong><span>Уровни вокруг цены с фиксированным шагом</span></button>
+                    <button type="button"><strong>Скальпер</strong><span>Короткие входы. В бэктесте по свечам недоступен</span></button>
+                  </div>
+                </div>
+                <div class="slice">
+                  <h3>Активы</h3>
+                  <div class="seg" aria-hidden="true"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div>
+                  <div class="assets" style="margin-top:8px">
+                    <label class="field"><span>Макс. активов</span><div class="control">20</div></label>
+                    <button type="button" class="btn">Состав</button>
+                  </div>
+                  <div class="pager">
+                    <button type="button" class="btn btn--chev" aria-label="Предыдущая страница">‹</button>
+                    <span>2 / 4</span>
+                    <button type="button" class="btn btn--chev" aria-label="Следующая страница">›</button>
+                  </div>
+                </div>
+                <div class="state">
+                  <span>Основное</span>
+                  <div class="foot--equal"><button type="button" class="btn btn--primary">Далее</button></div>
+                </div>
+                <div class="state">
+                  <span>Середина</span>
+                  <div class="foot--equal">
+                    <button type="button" class="btn btn--ghost">Назад</button>
+                    <button type="button" class="btn btn--primary">Далее</button>
+                  </div>
+                </div>
+                <div class="state">
+                  <span>Финиш · торговый</span>
+                  <div class="foot--equal">
+                    <button type="button" class="btn btn--ghost">Назад</button>
+                    <button type="button" class="btn">Сохранить</button>
+                    <button type="button" class="btn btn--primary">Запуск</button>
+                  </div>
+                </div>
+                <div class="state">
+                  <span>Финиш · опросник</span>
+                  <div class="foot--equal">
+                    <button type="button" class="btn btn--ghost">Назад</button>
+                    <button type="button" class="btn btn--primary">Включить</button>
+                  </div>
+                </div>
+                <div class="tabbar"><span>Портфель</span><span><b>Роботы</b></span><span>Лаборатория</span><span>Ещё</span></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <p class="pane-label">Десктоп · полные подписи</p>
+            <div class="desk">
+              <aside class="rail">
+                <p>Торговый</p>
+                <button type="button">Основное</button>
+                <button type="button">Расписание</button>
+                <button type="button">Стратегия</button>
+                <button type="button" class="is-on">Активы</button>
+                <button type="button">Риск</button>
+              </aside>
+              <div class="main">
+                <div class="card">
+                  <div class="group">
+                    <h3>Архетип</h3>
+                    <div class="arch">
+                      <button type="button" class="on"><strong>Тренд</strong><span>Покупка на пробое максимума, если объём выше обычного</span></button>
+                      <button type="button"><strong>Отскок</strong><span>Цена слишком далеко от обычного значения</span></button>
+                      <button type="button"><strong>Сетка</strong><span>Уровни вокруг цены с фиксированным шагом</span></button>
+                      <button type="button"><strong>Скальпер</strong><span>Короткие входы. В бэктесте по свечам недоступен</span></button>
+                    </div>
+                  </div>
+                  <div class="group">
+                    <h3>Активы</h3>
+                    <div class="seg" aria-hidden="true"><i>Список</i><i>Индекс</i><i class="on">Скринер</i></div>
+                    <div class="assets assets--desk" style="margin-top:8px">
+                      <label class="field"><span>Макс. активов</span><div class="control">20</div></label>
+                      <button type="button" class="btn">Превью состава</button>
+                    </div>
+                    <div class="pager">
+                      <button type="button" class="btn btn--chev" aria-label="Предыдущая страница">‹</button>
+                      <span>2 / 4</span>
+                      <button type="button" class="btn btn--chev" aria-label="Следующая страница">›</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="states">
+                  <div class="state"><span>Основное</span><div class="cap"></div><div class="card-foot"><div class="foot--split"><span></span><button type="button" class="btn btn--primary">Далее</button></div></div></div>
+                  <div class="state"><span>Середина</span><div class="cap"></div><div class="card-foot"><div class="foot--split"><button type="button" class="btn btn--ghost">Назад</button><button type="button" class="btn btn--primary">Далее</button></div></div></div>
+                  <div class="state"><span>Финиш · торговый</span><div class="cap"></div><div class="card-foot"><div class="foot--split"><button type="button" class="btn btn--ghost">Назад</button><div class="right"><button type="button" class="btn">Создать</button><button type="button" class="btn btn--primary">Создать и запустить</button></div></div></div></div>
+                  <div class="state"><span>Финиш · опросник</span><div class="cap"></div><div class="card-foot"><div class="foot--split"><button type="button" class="btn btn--ghost">Назад</button><button type="button" class="btn btn--primary">Создать и включить</button></div></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script>
+    const root = document.documentElement
+    const themeButtons = [...document.querySelectorAll('[data-theme-set]')]
+    function applyTheme(theme) {
+      root.dataset.theme = theme
+      themeButtons.forEach(button => {
+        button.classList.toggle('is-on', button.dataset.themeSet === theme)
+      })
+    }
+    themeButtons.forEach(button => {
+      button.addEventListener('click', () => applyTheme(button.dataset.themeSet))
+    })
+  </script>
+</body>
+</html>

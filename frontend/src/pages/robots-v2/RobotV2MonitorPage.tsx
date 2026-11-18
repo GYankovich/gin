@@ -11,7 +11,6 @@ import { MonitorEventsCard } from '@/pages/robots-v2/components/MonitorEventsCar
 import { MonitorOrdersCard } from '@/pages/robots-v2/components/MonitorOrdersCard'
 import { MonitorPositionsCard } from '@/pages/robots-v2/components/MonitorPositionsCard'
 import { MonitorSummaryCard } from '@/pages/robots-v2/components/MonitorSummaryCard'
-import { MonitorUniverseCard } from '@/pages/robots-v2/components/MonitorUniverseCard'
 import { RobotConfirmModal } from '@/pages/robots-v2/components/RobotConfirmModal'
 import { RobotPageChrome } from '@/pages/robots-v2/components/RobotPageChrome'
 import { fmtErr, fmtNum, readCssColor, sessionStateLabel } from '@/pages/robots-v2/formatters'
@@ -30,6 +29,7 @@ import {
     normalizeEquityPoints,
     isMoscowToday,
     parseBalanceSource,
+    CYCLE_STAGE_ORDER,
     pick,
     pickOpenPositions,
     posPrice,
@@ -47,7 +47,9 @@ import {
 import { robotV2Service } from '@/services/robotV2Service'
 import type { RobotV2, RobotV2RoundTrip, RobotV2Status, RobotV2TickerScan } from '@/types/robotV2'
 import type { IChartApi, ISeriesApi, Time } from '@/components/ui/Chart'
+import { formatLocalChartTime } from '@/components/ui/Chart'
 import { LineSeries } from 'lightweight-charts'
+import type { MonitorChartHover } from '@/pages/robots-v2/components/MonitorEquityChart'
 
 export default function RobotV2MonitorPage() {
     const { id } = useParams()
@@ -59,6 +61,9 @@ export default function RobotV2MonitorPage() {
     const [statusLoaded, setStatusLoaded] = useState(false)
     const [events, setEvents] = useState<Array<{ ts: string; type: string; payload: unknown }>>([])
     const [equityPoints, setEquityPoints] = useState<Array<{ time: Time; value: number }>>([])
+    const [chartHover, setChartHover] = useState<MonitorChartHover | null>(null)
+    const equityPointsRef = useRef(equityPoints)
+    equityPointsRef.current = equityPoints
     const [liveStage, setLiveStage] = useState<{
         stage: string
         label?: string
@@ -72,6 +77,7 @@ export default function RobotV2MonitorPage() {
     const [roundTrips, setRoundTrips] = useState<RobotV2RoundTrip[]>([])
     const [busy, setBusy] = useState(false)
     const [hardStopOpen, setHardStopOpen] = useState(false)
+    const [decisionsOpen, setDecisionsOpen] = useState(false)
     const [universeBusy, setUniverseBusy] = useState(false)
     const seenEventKeys = useRef(new Set<string>())
     const positionsFreshAtRef = useRef(0)
@@ -442,7 +448,7 @@ export default function RobotV2MonitorPage() {
         [orderRows],
     )
     const openOrderCount = useMemo(
-        () => dayOrderRows.filter(r => ['open', 'resting'].includes(String(r.status).toLowerCase())).length,
+        () => dayOrderRows.filter(r => ['open', 'resting', 'submitted', 'new'].includes(String(r.status).toLowerCase())).length,
         [dayOrderRows],
     )
     const dayStats = useMemo(() => computeDayTradeStats(roundTrips), [roundTrips])
@@ -486,6 +492,18 @@ export default function RobotV2MonitorPage() {
     const positionTableRows = useMemo(
         () => positions.map((p, i) => {
             const row = p as Record<string, unknown>
+            const readPx = (...keys: string[]) => {
+                for (const key of keys) {
+                    const n = Number(row[key])
+                    if (Number.isFinite(n) && n > 0) return n
+                }
+                return null
+            }
+            const entryN = readPx('entry_price', 'entryPrice', 'avg_entry_price', 'avgEntryPrice')
+            const currentN = readPx('current_price', 'currentPrice')
+            const currentTone: 'up' | 'down' | 'neutral' = entryN != null && currentN != null
+                ? (currentN > entryN ? 'up' : currentN < entryN ? 'down' : 'neutral')
+                : 'neutral'
             return {
                 id: String(row.ticker ?? row.secid ?? row.figi ?? i),
                 tickerLabel: String(row.ticker ?? row.figi ?? '—'),
@@ -495,6 +513,7 @@ export default function RobotV2MonitorPage() {
                 entry: posPrice(row, 'entry_price', 'entryPrice', 'avg_entry_price', 'avgEntryPrice'),
                 breakEven: posPrice(row, 'break_even_price', 'breakEvenPrice'),
                 current: posPrice(row, 'current_price', 'currentPrice'),
+                currentTone,
                 sl: posPrice(row, 'stop_loss_price', 'stopLossPrice'),
                 tp: posPrice(row, 'take_profit_price', 'takeProfitPrice'),
             }
@@ -547,6 +566,14 @@ export default function RobotV2MonitorPage() {
     ].filter(Boolean).join(' · ')
     const balanceNote = [balanceFootnote, balanceAsOfLabel].filter(Boolean).join(' · ') || null
     const showStage = statusLoaded && Boolean(stageText) && stageText !== '—'
+    const stageIndex = CYCLE_STAGE_ORDER.indexOf(stageKey as typeof CYCLE_STAGE_ORDER[number])
+    const decisionList = Array.isArray(decisions) ? decisions : []
+    const decisionLimit = decisionsOpen ? decisionList.length : 4
+    const poolTickers = displayUniverse.length > 0
+        ? displayUniverse
+        : displayTickerScan.map(row => row.ticker)
+    const scanByTicker = new Map(displayTickerScan.map(row => [row.ticker.toUpperCase(), row]))
+    const heldTickers = new Set(positions.map(positionTicker))
 
     return (
         <div className="page" data-page="robots" data-robots-view="monitor">
@@ -562,28 +589,6 @@ export default function RobotV2MonitorPage() {
                     </span>
                 )}
                 subtitle={headerMeta ? <p className="robots-quiet-chrome__meta">{headerMeta}</p> : undefined}
-                notice={showStage ? (
-                    <div className="robots-monitor-stage robots-monitor-stage--top">
-                        <div className="robots-monitor-stage__row">
-                            <span>{stageText}</span>
-                            <span>{stagePct}%</span>
-                        </div>
-                        <div
-                            className="robots-v2-stage-progress"
-                            role="meter"
-                            aria-label="Прогресс этапа цикла"
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-valuenow={stagePct}
-                        >
-                            <div
-                                className="robots-v2-stage-progress__bar"
-                                style={{ width: `${stagePct}%` }}
-                            />
-                        </div>
-                        {stageDetailLine ? <p className="robots-v2-hint">{stageDetailLine}</p> : null}
-                    </div>
-                ) : null}
                 actions={
                     !statusLoaded ? (
                         <Button type="button" size="sm" loading disabled>
@@ -622,6 +627,34 @@ export default function RobotV2MonitorPage() {
 
             <div className="dashboard-layout">
                 <Card className="dashboard-totals-card robots-monitor-cockpit">
+                    {showStage ? (
+                        <div className="robots-monitor-phase">
+                            <div className="robots-monitor-phase__track">
+                                {CYCLE_STAGE_ORDER.map((key, index) => {
+                                    const state = stageIndex < 0
+                                        ? ''
+                                        : index < stageIndex
+                                            ? 'done'
+                                            : index === stageIndex
+                                                ? 'now'
+                                                : ''
+                                    return (
+                                        <div
+                                            key={key}
+                                            className={`robots-monitor-phase__step${state ? ` robots-monitor-phase__step--${state}` : ''}`}
+                                        >
+                                            <div className="robots-monitor-phase__bar" />
+                                            <span>
+                                                {stageLabel(key)}
+                                                {state === 'now' ? ` · ${stagePct}%` : ''}
+                                            </span>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                            {stageDetailLine ? <p className="robots-monitor-phase__why">{stageDetailLine}</p> : null}
+                        </div>
+                    ) : null}
                     <div className="robots-monitor-cockpit__grid">
                     <MonitorSummaryCard
                         dayLabel={dayLabel}
@@ -639,19 +672,44 @@ export default function RobotV2MonitorPage() {
                         sessionHint={sessionHint}
                     />
                     <MonitorEquityChart
+                        hover={chartHover}
                         onReady={chart => {
                             if (!chart) {
                                 chartRef.current = null
                                 seriesRef.current = null
+                                setChartHover(null)
                                 return
                             }
                             chartRef.current = chart
                             const series = chart.addSeries(LineSeries, {
                                 color: readCssColor('--color-up', '#3dbe7a'),
                                 lineWidth: 2,
+                                priceLineVisible: false,
+                                lastValueVisible: true,
                             })
                             seriesRef.current = series
-                            if (equityPoints.length) series.setData(equityPoints)
+                            if (equityPointsRef.current.length) series.setData(equityPointsRef.current)
+                            chart.subscribeCrosshairMove(param => {
+                                const points = equityPointsRef.current
+                                const point = param.seriesData?.get(series) as { value?: number } | undefined
+                                if (!param.time || point?.value == null) {
+                                    setChartHover(null)
+                                    return
+                                }
+                                const key = String(param.time)
+                                const idx = points.findIndex(item => String(item.time) === key)
+                                const prev = idx > 0 ? points[idx - 1]?.value : null
+                                const delta = prev != null ? point.value - prev : null
+                                const deltaPct = prev != null && prev !== 0 && delta != null
+                                    ? (delta / prev) * 100
+                                    : null
+                                setChartHover({
+                                    time: formatLocalChartTime(param.time),
+                                    value: point.value,
+                                    delta: delta != null ? Number(delta.toFixed(2)) : null,
+                                    deltaPct: deltaPct != null ? Number(deltaPct.toFixed(2)) : null,
+                                })
+                            })
                         }}
                     />
                     {balanceNote ? (
@@ -672,37 +730,84 @@ export default function RobotV2MonitorPage() {
                         }
                         isRunning={isRunning}
                     />
+                    <div className="robots-monitor-desk">
                     <MonitorOrdersCard rows={orderDisplayRows} openOrderCount={openOrderCount} />
-                    <section className="robots-monitor-why" aria-label="Почему">
-                        <div>
-                            <h3 className="dashboard-panel-title">Решения</h3>
-                            <MonitorDecisionsCard
-                                bare
-                                limit={4}
-                                decisions={Array.isArray(decisions) ? decisions : []}
-                            />
-                        </div>
-                        <div>
-                            <h3 className="dashboard-panel-title">Лента</h3>
-                            <MonitorEventsCard
-                                bare
-                                limit={4}
-                                showStatus={false}
-                                events={todayEvents}
-                                streamConnected={streamConnected}
-                                isRunning={isRunning}
-                                hasToken={Boolean(token)}
-                            />
-                        </div>
+                    <section>
+                            <div className="robots-monitor-desk__head">
+                                <h3 className="dashboard-panel-title">Решения</h3>
+                                {decisionList.length > 4 ? (
+                                    <button
+                                        type="button"
+                                        className="robots-monitor-more"
+                                        onClick={() => setDecisionsOpen(open => !open)}
+                                    >
+                                        {decisionsOpen ? 'свернуть' : `ещё ${decisionList.length - 4}`}
+                                    </button>
+                                ) : null}
+                            </div>
+                            <MonitorDecisionsCard bare limit={decisionLimit} decisions={decisionList} />
                     </section>
-                    <MonitorUniverseCard
-                        displayTickerScan={displayTickerScan}
-                        displayUniverse={displayUniverse}
-                        tickerScanAt={tickerScanAt}
-                        canRefreshUniverse={canRefreshUniverse}
-                        universeBusy={universeBusy}
-                        onRefreshUniverse={() => void onRefreshUniverse()}
-                    />
+                    </div>
+                    <section className="robots-monitor-feed">
+                        <h3 className="dashboard-panel-title">
+                            Лента
+                            <span>{streamConnected ? 'стрим' : 'стрим офлайн'}</span>
+                        </h3>
+                        <MonitorEventsCard
+                            bare
+                            limit={3}
+                            showStatus={false}
+                            events={todayEvents}
+                            streamConnected={streamConnected}
+                            isRunning={isRunning}
+                            hasToken={Boolean(token)}
+                        />
+                    </section>
+                    <section className="robots-monitor-pool">
+                        <div className="robots-monitor-desk__head">
+                            <h3 className="dashboard-panel-title">
+                                Пул · {poolTickers.length}
+                                {tickerScanAt ? (
+                                    <span className="mono">
+                                        {' '}· скан {new Date(tickerScanAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                ) : null}
+                            </h3>
+                            {canRefreshUniverse ? (
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    loading={universeBusy}
+                                    disabled={universeBusy}
+                                    onClick={() => void onRefreshUniverse()}
+                                >
+                                    Обновить пул
+                                </Button>
+                            ) : null}
+                        </div>
+                        {poolTickers.length === 0 ? (
+                            <p className="dashboard-empty">Пул пуст</p>
+                        ) : (
+                            <div className="robots-monitor-pool__row">
+                                {poolTickers.map(ticker => {
+                                    const key = ticker.toUpperCase()
+                                    const held = heldTickers.has(key)
+                                    const scan = scanByTicker.get(key)
+                                    const reason = !held ? (scan?.message || scan?.code || '') : ''
+                                    return (
+                                        <span
+                                            key={key}
+                                            className={`robots-monitor-pill${held ? ' robots-monitor-pill--on' : ''}`}
+                                        >
+                                            {key}
+                                            {reason ? <em>{reason}</em> : null}
+                                        </span>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </section>
                 </div>
             </div>
 

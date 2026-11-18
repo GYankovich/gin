@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Монитор — новые компоненты</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  html[data-theme='light'] {
+    --bg: #f4f5f7;
+    --page: #ffffff;
+    --panel: #f7f8fa;
+    --elevated: #eef0f3;
+    --input: #ffffff;
+    --text: #1c1f24;
+    --secondary: #3d4450;
+    --muted: #6b7280;
+    --border: rgba(20, 24, 30, 0.1);
+    --line: rgba(20, 24, 30, 0.16);
+    --accent: #1c1f24;
+    --on-accent: #fff;
+    --up: #1f8a4c;
+    --down: #c43b4a;
+    --picker: #fff;
+  }
+  html[data-theme='light'] body { background: var(--bg); }
+  html[data-theme='light'] .nav { background: #fff; }
+  html[data-theme='light'] .nav-link--active { background: #1c1f24; color: #fff; }
+  html[data-theme='light'] .frame { box-shadow: 0 12px 32px rgba(20, 24, 30, 0.06); }
+
+  .thesis { margin: 0 0 14px; max-width: 68ch; color: var(--secondary); font-size: 14px; line-height: 1.5; }
+  .thesis strong { color: var(--text); }
+  .replaces { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+  .stack { display: flex; flex-direction: column; gap: 36px; }
+
+  .screen { padding: 0 0 18px; }
+  .top {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+    padding: 16px 18px 12px;
+  }
+  .name { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+  .meta { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+  .run {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; color: var(--up);
+  }
+  .run i { width: 6px; height: 6px; border-radius: 50%; background: var(--up); display: block; }
+  .acts { display: flex; gap: 8px; }
+  .acts button { padding: 7px 12px; border-radius: 10px; font-size: 13px; font-weight: 550; }
+  .tabs {
+    display: flex; gap: 18px; padding: 0 18px 10px;
+    border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted);
+  }
+  .tabs .on { color: var(--text); font-weight: 600; box-shadow: inset 0 -1px 0 var(--text); padding-bottom: 8px; }
+
+  /* A blotter */
+  .rail {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px 24px;
+    align-items: end;
+    padding: 14px 18px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .rail__stage { font-size: 13px; color: var(--secondary); }
+  .rail__stage b { color: var(--text); font-weight: 600; }
+  .rail__money { text-align: right; }
+  .rail__money strong { display: block; font-size: 28px; font-weight: 560; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+  .rail__money span { font-size: 12px; color: var(--muted); }
+  .blotter { width: 100%; border-collapse: collapse; }
+  .blotter th {
+    text-align: left; font-size: 11px; font-weight: 500; color: var(--muted);
+    padding: 8px 10px; border-bottom: 1px solid var(--border);
+  }
+  .blotter th:first-child, .blotter td:first-child { padding-left: 18px; }
+  .blotter th:last-child, .blotter td:last-child { padding-right: 18px; text-align: right; }
+  .blotter td { padding: 9px 10px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: baseline; }
+  .blotter tr:last-child td { border-bottom: 0; }
+  .tk { font-weight: 650; letter-spacing: 0.02em; }
+  .why { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); font-weight: 400; }
+  .num { font-variant-numeric: tabular-nums; }
+  .strip {
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    padding: 12px 18px 4px; font-size: 12px; color: var(--muted);
+  }
+  .pill {
+    padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border);
+    color: var(--secondary); font-size: 11px; letter-spacing: 0.03em;
+  }
+  .pill--dim { opacity: 0.45; }
+
+  /* B phase */
+  .phase { padding: 18px 18px 6px; }
+  .phase--mix { grid-column: 1 / -1; padding: 2px 0 12px; }
+  .phase__why { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+  .track { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .step { min-width: 0; }
+  .step__bar { height: 3px; border-radius: 99px; background: var(--line); margin-bottom: 8px; }
+  .step--now .step__bar { background: var(--text); width: 11%; }
+  .step--done .step__bar { background: var(--text); }
+  .step span { font-size: 12px; color: var(--muted); }
+  .step--now span, .step--done span { color: var(--text); font-weight: 600; }
+  .now {
+    margin: 16px 0 0; font-size: 20px; font-weight: 550; letter-spacing: -0.02em; line-height: 1.35;
+  }
+  .now em { font-style: normal; color: var(--muted); font-weight: 450; font-size: 14px; display: block; margin-top: 4px; }
+  .facts {
+    display: flex; gap: 22px; padding: 14px 18px 4px; font-size: 13px; color: var(--muted);
+  }
+  .facts b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .holds { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 18px 4px; }
+  .hold {
+    min-width: 132px; padding: 10px 12px; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--panel);
+  }
+  .hold b { display: block; font-size: 13px; }
+  .hold span { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .queue { padding: 8px 18px 0; }
+  .queue h3 { margin: 8px 0; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .qrow {
+    display: grid; grid-template-columns: 72px 1fr auto; gap: 12px;
+    padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px;
+  }
+
+  /* C book */
+  .books { display: grid; grid-template-columns: 280px 1fr; min-height: 280px; }
+  .book { padding: 16px 18px; }
+  .book + .book { border-left: 1px solid var(--border); }
+  .book h3 { margin: 0 0 8px; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .eq { font-size: 32px; font-weight: 560; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+  .spark { display: block; margin: 8px 0 10px; }
+  .side { margin: 0; font-size: 12px; color: var(--muted); }
+  .bar { display: grid; grid-template-columns: 58px 1fr 36px; gap: 8px; align-items: center; margin: 7px 0; font-size: 12px; }
+  .bar i { display: block; height: 6px; border-radius: 99px; background: var(--text); opacity: 0.85; }
+  .bar em { font-style: normal; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+  .tape { border-top: 1px solid var(--border); padding: 4px 18px 8px; }
+  .tape h3 { margin: 12px 0 4px; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .ev {
+    display: grid; grid-template-columns: 52px 88px 1fr; gap: 10px;
+    padding: 7px 0; font-size: 13px; border-top: 1px solid var(--border);
+  }
+  .ev time { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ev b { font-weight: 600; }
+
+  .theme-btn {
+    border: 1px solid var(--border); background: transparent; color: var(--secondary);
+    border-radius: 10px; padding: 8px 12px; font-size: 13px;
+  }
+
+  .mix { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 8px 18px; align-items: end; padding: 16px 18px 14px; border-bottom: 1px solid var(--border); }
+  .mix-money h3, .block h3 { margin: 0 0 8px; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .mix-eq { font-size: 30px; font-weight: 560; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+  .mix-side, .mix-now, .mix-note { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+  .mix-now { color: var(--secondary); font-size: 13px; }
+  .mix-plot { height: 92px; color: var(--text); }
+  .mix-plot svg { width: 100%; height: 100%; display: block; }
+  .papers { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; padding: 14px; }
+  .paper { grid-column: span 2; border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; background: var(--panel); min-width: 0; }
+  .paper__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .paper__head b { font-size: 13px; letter-spacing: 0.02em; }
+  .paper__head span { font-size: 12px; color: var(--muted); }
+  .paper__line { display: flex; justify-content: space-between; gap: 8px; margin-top: 3px; font-size: 12px; color: var(--muted); }
+  .paper__line strong { font-weight: 560; color: var(--text); font-variant-numeric: tabular-nums; }
+  .paper__line strong.up { color: var(--up); }
+  .paper__line strong.down { color: var(--down); }
+  .desk { display: grid; grid-template-columns: 1.25fr 0.75fr; border-top: 1px solid var(--border); align-items: start; }
+  .block { padding: 14px 18px 16px; min-width: 0; }
+  .block + .block { border-left: 1px solid var(--border); }
+  .block h3.block__sub { margin-top: 18px; }
+  .block__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  .block__head h3 { margin: 0; }
+  .mode { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 999px; }
+  .mode__btn { border: 0; background: transparent; color: var(--muted); border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 550; }
+  .mode__btn--on { background: var(--elevated); color: var(--text); }
+  .orow, .drow, .hrow {
+    display: grid; gap: 10px; align-items: baseline;
+    padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px;
+  }
+  .orow { grid-template-columns: 46px 52px minmax(0, 1.35fr) minmax(0, 0.9fr) auto auto; gap: 8px; }
+  .orow time, .orow .state, .orow .signal { color: var(--muted); font-size: 12px; }
+  .orow time { font-variant-numeric: tabular-nums; }
+  .orow .state, .orow .num { text-align: right; }
+  .more-btn { border: 0; background: transparent; color: var(--muted); font-size: 12px; padding: 0; }
+  .feed { padding: 4px 18px 14px; border-top: 1px solid var(--border); }
+  .feed h3 { margin: 10px 0 0; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .feed h3 span { margin-left: 8px; }
+  .frow { display: grid; grid-template-columns: 52px 64px 1fr; gap: 10px; padding: 7px 0; border-top: 1px solid var(--border); font-size: 13px; }
+  .frow time { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .pill em { margin-left: 6px; font-style: normal; color: var(--muted); font-weight: 400; }
+  .hrow { grid-template-columns: 52px 64px 1fr auto; }
+  .hrow time { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .drow { grid-template-columns: 92px 1fr; }
+  .orow b, .drow b { font-weight: 650; }
+  .pool { padding: 14px 18px 16px; border-top: 1px solid var(--border); }
+  .pool h3 { margin: 0 0 10px; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .pool .strip { padding: 0; }
+  .pill--pos { color: var(--text); border-color: var(--line); }
+  @media (max-width: 720px) {
+    .papers { grid-template-columns: 1fr; }
+    .paper { grid-column: auto; }
+    .desk { grid-template-columns: 1fr; }
+    .block + .block { border-left: 0; border-top: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">Все макеты</a>
+    <div>
+      <h1>Монитор — другие компоненты</h1>
+      <p>Сборка B+C сверху. Цифры составные, для формы: 8 294 ₽, этап «Цены».</p>
+    </div>
+    <button class="theme-btn" type="button" id="theme">Светлая</button>
+  </div>
+
+  <div class="wrap stack">
+    <section id="bc">
+      <div class="frame-label"><span>B + C</span></div>
+      <p class="thesis"><strong>Сначала фаза цикла, под ней график, дальше карточки бумаг.</strong> На карточке только цены. Заявка живёт в списке заявок, решение — короткой строкой, пул — тикерами.</p>
+      <div class="frame">
+        <div class="nav">
+          <div class="brand">GINITY</div>
+          <div class="nav-pill">
+            <button class="nav-link">Дашборд</button>
+            <button class="nav-link nav-link--active">Роботы</button>
+            <button class="nav-link">Портфель</button>
+          </div>
+          <div class="avatar">G</div>
+        </div>
+        <div class="screen">
+          <div class="top">
+            <div>
+              <h2 class="name">Копия хард <span class="run"><i></i>Работает</span></h2>
+              <p class="meta">#3 · live · цикл 5123</p>
+            </div>
+            <div class="acts">
+              <button class="btn btn--ghost">Пауза</button>
+              <button class="btn btn--danger">Стоп</button>
+            </div>
+          </div>
+          <div class="tabs"><span>Флот</span><span class="on">Лайв</span><span>История</span></div>
+          <div class="mix">
+            <div class="phase phase--mix">
+              <div class="track">
+                <div class="step step--done"><div class="step__bar"></div><span>Скан</span></div>
+                <div class="step step--now"><div class="step__bar"></div><span>Цены · 11%</span></div>
+                <div class="step"><div class="step__bar"></div><span>Сигнал</span></div>
+                <div class="step"><div class="step__bar"></div><span>Заявка</span></div>
+                <div class="step"><div class="step__bar"></div><span>Ждём</span></div>
+              </div>
+              <p class="phase__why">price_tick · ждём 200 свечей · сигнала нет</p>
+            </div>
+            <div class="mix-money">
+              <h3>Стоимость</h3>
+              <div class="mix-eq">8 294 ₽</div>
+              <p class="mix-side">0 ₽ за день · 0 сделок · кэш 42 ₽</p>
+              <p class="mix-note">Счёт · обновлено 15.11, 18:42</p>
+            </div>
+            <div class="mix-plot">
+              <svg viewBox="0 0 640 92" preserveAspectRatio="none" aria-hidden="true">
+                <polyline fill="none" stroke="currentColor" stroke-width="1.75" vector-effect="non-scaling-stroke" points="0,74 48,70 96,66 144,68 192,54 240,56 288,40 336,44 384,28 432,32 480,22 528,26 576,18 640,20" />
+              </svg>
+            </div>
+          </div>
+          <div class="papers">
+            <article class="paper">
+              <div class="paper__head"><b>CNRU</b><span>long · 12</span></div>
+              <div class="paper__line"><span>Вход <strong>186.40</strong></span><span>Сейчас <strong class="up">187.10</strong></span></div>
+              <div class="paper__line"><span>Безубыток <strong>186.90</strong></span><span>SL / TP <strong>180 / 195</strong></span></div>
+            </article>
+            <article class="paper">
+              <div class="paper__head"><b>NVTK</b><span>long · 4</span></div>
+              <div class="paper__line"><span>Вход <strong>1 120</strong></span><span>Сейчас <strong class="up">1 134</strong></span></div>
+              <div class="paper__line"><span>Безубыток <strong>1 126</strong></span><span>SL / TP <strong>1 080 / 1 180</strong></span></div>
+            </article>
+            <article class="paper">
+              <div class="paper__head"><b>PLZL</b><span>long · 2</span></div>
+              <div class="paper__line"><span>Вход <strong>2 410</strong></span><span>Сейчас <strong class="down">2 398</strong></span></div>
+              <div class="paper__line"><span>Безубыток <strong>2 418</strong></span><span>SL / TP <strong>2 390 / 2 520</strong></span></div>
+            </article>
+            <article class="paper">
+              <div class="paper__head"><b>ROSN</b><span>long · 8</span></div>
+              <div class="paper__line"><span>Вход <strong>512</strong></span><span>Сейчас <strong class="up">518</strong></span></div>
+              <div class="paper__line"><span>Безубыток <strong>514</strong></span><span>SL / TP <strong>490 / 540</strong></span></div>
+            </article>
+            <article class="paper">
+              <div class="paper__head"><b>SBER</b><span>long · 6</span></div>
+              <div class="paper__line"><span>Вход <strong>301.20</strong></span><span>Сейчас <strong class="up">304.10</strong></span></div>
+              <div class="paper__line"><span>Безубыток <strong>302.40</strong></span><span>SL / TP <strong>292 / 318</strong></span></div>
+            </article>
+          </div>
+          <div class="desk">
+            <section class="block">
+              <div class="block__head">
+                <h3>Заявки</h3>
+                <div class="mode" role="tablist" aria-label="Режим заявок">
+                  <button class="mode__btn mode__btn--on" type="button" data-mode="open">Текущие</button>
+                  <button class="mode__btn" type="button" data-mode="all">Все</button>
+                </div>
+              </div>
+              <div class="orow"><time>10:44</time><b>CNRU</b><span>лимит · выст. 195 · факт —</span><span class="signal">Пробой + объём</span><span class="state">открыта</span><span class="num up">+103 ₽</span></div>
+              <div class="orow"><time>10:38</time><b>NVTK</b><span>лимит · выст. 1 180 · факт —</span><span class="signal">RSI перепродан</span><span class="state">открыта</span><span class="num up">+240 ₽</span></div>
+              <div class="orow"><time>10:21</time><b>ROSN</b><span>лимит · выст. 540 · факт —</span><span class="signal">Пробой + объём</span><span class="state">открыта</span><span class="num up">+224 ₽</span></div>
+              <div class="orow"><time>10:05</time><b>SBER</b><span>лимит · выст. 318 · факт —</span><span class="signal">Скальп: дельта</span><span class="state">открыта</span><span class="num up">+101 ₽</span></div>
+              <div id="order-history" hidden>
+                <div class="orow"><time>10:12</time><b>CNRU</b><span>покупка 12 · факт 186.40</span><span class="signal">Пробой + объём</span><span class="state">исполнено</span><span class="num up">+103 ₽</span></div>
+                <div class="orow"><time>09:58</time><b>ROSN</b><span>покупка 8 · факт 512</span><span class="signal">Пробой + объём</span><span class="state">исполнено</span><span class="num up">+224 ₽</span></div>
+                <div class="orow"><time>09:41</time><b>SBER</b><span>покупка 6 · факт 301.20</span><span class="signal">Скальп: дельта</span><span class="state">исполнено</span><span class="num up">+101 ₽</span></div>
+                <div class="orow"><time>вчера</time><b>LKOH</b><span>продажа 3 · выст. 7 210 · факт 7 240</span><span class="signal">Тейк-профит</span><span class="state">исполнено</span><span class="num up">+860 ₽</span></div>
+                <div class="orow"><time>вчера</time><b>GAZP</b><span>продажа 5 · выст. 168 · факт 164</span><span class="signal">Стоп-лосс</span><span class="state">исполнено</span><span class="num down">−420 ₽</span></div>
+              </div>
+            </section>
+            <section class="block">
+              <div class="block__head">
+                <h3>Решения</h3>
+                <button class="more-btn" type="button" id="more-decisions">ещё 4</button>
+              </div>
+              <div class="drow"><b>NO_SIGNAL</b><span>стратегия молчит · price_tick</span></div>
+              <div class="drow"><b>NO_SIGNAL</b><span>PLZL · ждём цену у SL</span></div>
+              <div class="drow"><b>NO_SIGNAL</b><span>пул 15 · сигнала нет</span></div>
+              <div class="drow"><b>NO_SIGNAL</b><span>CNRU · ждём TP</span></div>
+              <div id="decision-more" hidden>
+                <div class="drow"><b>NO_SIGNAL</b><span>NVTK · ждём TP</span></div>
+                <div class="drow"><b>NO_SIGNAL</b><span>GAZP · нет свечей</span></div>
+                <div class="drow"><b>NO_SIGNAL</b><span>TATN · прогрев</span></div>
+                <div class="drow"><b>NO_SIGNAL</b><span>AFLT · вне сессии</span></div>
+              </div>
+            </section>
+          </div>
+          <section class="feed">
+            <h3>Лента <span>стрим офлайн</span></h3>
+            <div class="frow"><time>18:41</time><b>этап</b><span>Цены</span></div>
+            <div class="frow"><time>18:40</time><b>этап</b><span>Скан</span></div>
+            <div class="frow"><time>18:39</time><b>цикл</b><span>5123</span></div>
+          </section>
+          <section class="pool">
+            <h3>Пул · 15 тикеров, 5 в позиции · скан 18:41</h3>
+            <div class="strip">
+              <span class="pill pill--pos">CNRU</span>
+              <span class="pill pill--pos">NVTK</span>
+              <span class="pill pill--pos">PLZL</span>
+              <span class="pill pill--pos">ROSN</span>
+              <span class="pill pill--pos">SBER</span>
+              <span class="pill pill--dim">GAZP <em>нет свечей</em></span>
+              <span class="pill pill--dim">LKOH <em>нет сигнала</em></span>
+              <span class="pill pill--dim">TATN <em>прогрев</em></span>
+              <span class="pill pill--dim">MTSS <em>нет свечей</em></span>
+              <span class="pill pill--dim">GMKN <em>нет сигнала</em></span>
+              <span class="pill pill--dim">NLMK <em>прогрев</em></span>
+              <span class="pill pill--dim">CHMF <em>нет сигнала</em></span>
+              <span class="pill pill--dim">MAGN <em>нет свечей</em></span>
+              <span class="pill pill--dim">AFLT <em>вне сессии</em></span>
+              <span class="pill pill--dim">ALRS <em>нет сигнала</em></span>
+            </div>
+          </section>
+        </div>
+      </div>
+      <p class="replaces">У заявки виден исходный сигнал: у входа и его лимита один и тот же, у выхода — тейк или стоп. Справа планируемый исход.</p>
+    </section>
+
+    <section id="a">
+      <div class="frame-label"><span>A · Блоттер</span></div>
+      <p class="thesis"><strong>Одна строка — одна позиция.</strong> Заявка и причина живут в той же строке, отдельных таблиц и полосы «почему» нет. Пул — тикеры внизу, без своей таблицы.</p>
+      <div class="frame">
+        <div class="nav">
+          <div class="brand">GINITY</div>
+          <div class="nav-pill">
+            <button class="nav-link">Дашборд</button>
+            <button class="nav-link nav-link--active">Роботы</button>
+            <button class="nav-link">Портфель</button>
+          </div>
+          <div class="avatar">G</div>
+        </div>
+        <div class="screen">
+          <div class="top">
+            <div>
+              <h2 class="name">Копия хард <span class="run"><i></i>Работает</span></h2>
+              <p class="meta">#3 · live</p>
+            </div>
+            <div class="acts">
+              <button class="btn btn--ghost">Пауза</button>
+              <button class="btn btn--danger">Стоп</button>
+            </div>
+          </div>
+          <div class="tabs"><span>Флот</span><span class="on">Лайв</span><span>История</span></div>
+          <div class="rail">
+            <div class="rail__stage">Сейчас <b>Цены</b> · 11% · price_tick</div>
+            <div class="rail__money">
+              <strong>8 294 ₽</strong>
+              <span>0 ₽ за день · кэш 42 ₽</span>
+            </div>
+          </div>
+          <table class="blotter">
+            <thead>
+              <tr><th>Позиция</th><th>Вход → сейчас</th><th>SL / TP</th><th>Заявка</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="tk">CNRU</span> long 12<span class="why">NO_SIGNAL · стратегия молчит</span></td>
+                <td class="num">186.4 → 187.1</td>
+                <td class="num">180 / 195</td>
+                <td>лимит на продажу</td>
+              </tr>
+              <tr>
+                <td><span class="tk">NVTK</span> long 4<span class="why">держим до TP</span></td>
+                <td class="num">1 120 → 1 134</td>
+                <td class="num">1 080 / 1 180</td>
+                <td>лимит на продажу</td>
+              </tr>
+              <tr>
+                <td><span class="tk">PLZL</span> long 2<span class="why">ждём цену</span></td>
+                <td class="num">2 410 → 2 398</td>
+                <td class="num">2 390 / 2 520</td>
+                <td class="muted">нет заявки</td>
+              </tr>
+              <tr>
+                <td><span class="tk">ROSN</span> long 8<span class="why">держим до TP</span></td>
+                <td class="num">512 → 518</td>
+                <td class="num">490 / 540</td>
+                <td>лимит на продажу</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="strip">
+            Пул
+            <span class="pill">CNRU</span><span class="pill">NVTK</span><span class="pill">PLZL</span><span class="pill">ROSN</span>
+            <span class="pill pill--dim">SBER</span><span class="pill pill--dim">GAZP</span><span class="pill pill--dim">LKOH</span>
+            <span class="muted">+7 без позиции</span>
+          </div>
+        </div>
+      </div>
+      <p class="replaces">Вместо: карточка стоимости, таблица позиций, таблица заявок, решения, лента, пул.</p>
+    </section>
+
+    <section id="b">
+      <div class="frame-label"><span>B · Фаза цикла</span></div>
+      <p class="thesis"><strong>Страница отвечает «что робот делает прямо сейчас».</strong> Трек фаз и одна фраза вместо графика и пачки цифр. Позиции — короткие карточки. Внизу только открытые заявки, не история сделок.</p>
+      <div class="frame">
+        <div class="nav">
+          <div class="brand">GINITY</div>
+          <div class="nav-pill">
+            <button class="nav-link">Дашборд</button>
+            <button class="nav-link nav-link--active">Роботы</button>
+            <button class="nav-link">Портфель</button>
+          </div>
+          <div class="avatar">G</div>
+        </div>
+        <div class="screen">
+          <div class="top">
+            <div>
+              <h2 class="name">Копия хард <span class="run"><i></i>Работает</span></h2>
+              <p class="meta">#3 · цикл 5123</p>
+            </div>
+            <div class="acts">
+              <button class="btn btn--ghost">Пауза</button>
+              <button class="btn btn--danger">Стоп</button>
+            </div>
+          </div>
+          <div class="tabs"><span>Флот</span><span class="on">Лайв</span><span>История</span></div>
+          <div class="phase">
+            <div class="track">
+              <div class="step step--done"><div class="step__bar"></div><span>Скан</span></div>
+              <div class="step step--now"><div class="step__bar"></div><span>Цены · 11%</span></div>
+              <div class="step"><div class="step__bar"></div><span>Сигнал</span></div>
+              <div class="step"><div class="step__bar"></div><span>Заявка</span></div>
+              <div class="step"><div class="step__bar"></div><span>Ждём</span></div>
+            </div>
+            <p class="now">Сейчас снимает цены.<em>Сигнала нет. Стратегия молчит, пока не наберётся 200 свечей.</em></p>
+          </div>
+          <div class="facts">
+            <span>Стоимость <b>8 294 ₽</b></span>
+            <span>День <b>0 ₽</b></span>
+            <span>Позиции <b>8</b></span>
+            <span>Открытые заявки <b>10</b></span>
+          </div>
+          <div class="holds">
+            <div class="hold"><b>CNRU</b><span>187.1 · SL 180 · TP 195</span></div>
+            <div class="hold"><b>NVTK</b><span>1 134 · SL 1 080 · TP 1 180</span></div>
+            <div class="hold"><b>PLZL</b><span>2 398 · SL 2 390 · TP 2 520</span></div>
+            <div class="hold"><b>ROSN</b><span>518 · SL 490 · TP 540</span></div>
+            <div class="hold"><b>+4</b><span>ещё в книге</span></div>
+          </div>
+          <div class="queue">
+            <h3>Открытые заявки</h3>
+            <div class="qrow"><b>CNRU</b><span>лимит на продажу</span><span class="num">195</span></div>
+            <div class="qrow"><b>NVTK</b><span>лимит на продажу</span><span class="num">1 180</span></div>
+            <div class="qrow"><b>ROSN</b><span>лимит на продажу</span><span class="num">540</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="replaces">Вместо: полоса этапа, график, таблица позиций, полная таблица сделок, лента событий.</p>
+    </section>
+
+    <section id="c">
+      <div class="frame-label"><span>C · Две книги</span></div>
+      <p class="thesis"><strong>Слева деньги, справа риск.</strong> График встроен в число, позиции — полосы доли, а не колонки входа и стопа. Заявки и решения склеены в одну ленту по времени.</p>
+      <div class="frame">
+        <div class="nav">
+          <div class="brand">GINITY</div>
+          <div class="nav-pill">
+            <button class="nav-link">Дашборд</button>
+            <button class="nav-link nav-link--active">Роботы</button>
+            <button class="nav-link">Портфель</button>
+          </div>
+          <div class="avatar">G</div>
+        </div>
+        <div class="screen">
+          <div class="top">
+            <div>
+              <h2 class="name">Копия хард <span class="run"><i></i>Работает</span></h2>
+              <p class="meta">#3 · live · цены 11%</p>
+            </div>
+            <div class="acts">
+              <button class="btn btn--ghost">Пауза</button>
+              <button class="btn btn--danger">Стоп</button>
+            </div>
+          </div>
+          <div class="tabs"><span>Флот</span><span class="on">Лайв</span><span>История</span></div>
+          <div class="books">
+            <div class="book">
+              <h3>Деньги</h3>
+              <div class="eq">8 294 ₽</div>
+              <svg class="spark" width="220" height="48" viewBox="0 0 220 48" aria-hidden="true">
+                <polyline fill="none" stroke="currentColor" stroke-width="1.6" points="0,36 24,34 48,30 72,32 96,22 120,24 144,16 168,18 196,12 220,14" />
+              </svg>
+              <p class="side">День 0 ₽ · кэш 42 ₽ · цикл 5123</p>
+            </div>
+            <div class="book">
+              <h3>Риск · доля книги</h3>
+              <div class="bar"><span>CNRU</span><i style="width:78%"></i><em>22%</em></div>
+              <div class="bar"><span>NVTK</span><i style="width:64%"></i><em>18%</em></div>
+              <div class="bar"><span>PLZL</span><i style="width:52%"></i><em>15%</em></div>
+              <div class="bar"><span>ROSN</span><i style="width:40%"></i><em>12%</em></div>
+              <div class="bar"><span>ещё 4</span><i style="width:28%"></i><em>33%</em></div>
+              <p class="side">Пул 15 тикеров · сигнал ни у кого</p>
+            </div>
+          </div>
+          <div class="tape">
+            <h3>Сессия</h3>
+            <div class="ev"><time>10:41</time><b>Решение</b><span>NO_SIGNAL · стратегия молчит</span></div>
+            <div class="ev"><time>10:38</time><b>NVTK</b><span>лимит на продажу 1 180</span></div>
+            <div class="ev"><time>10:12</time><b>CNRU</b><span>покупка 12 @ 186.4</span></div>
+            <div class="ev"><time>09:58</time><b>ROSN</b><span>покупка 8 @ 512</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="replaces">Вместо: отдельный график, таблица позиций, таблица заявок, две колонки «решения / лента», таблица пула.</p>
+    </section>
+  </div>
+  <script>
+    const root = document.documentElement
+    const btn = document.getElementById('theme')
+    btn.addEventListener('click', () => {
+      const light = root.getAttribute('data-theme') === 'light'
+      root.setAttribute('data-theme', light ? 'dark' : 'light')
+      btn.textContent = light ? 'Светлая' : 'Тёмная'
+    })
+    const history = document.getElementById('order-history')
+    document.querySelectorAll('.mode__btn').forEach((button) => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('.mode__btn').forEach((item) => {
+          item.classList.toggle('mode__btn--on', item === button)
+        })
+        history.hidden = button.dataset.mode !== 'all'
+      })
+    })
+    const moreDecisions = document.getElementById('more-decisions')
+    const decisionMore = document.getElementById('decision-more')
+    moreDecisions.addEventListener('click', () => {
+      decisionMore.hidden = !decisionMore.hidden
+      moreDecisions.textContent = decisionMore.hidden ? 'ещё 4' : 'свернуть'
+    })
+  </script>
+</body>
+</html>
