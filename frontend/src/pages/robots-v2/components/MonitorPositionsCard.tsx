@@ -9,67 +9,101 @@ export type MonitorPositionRow = {
     side: string
     quantity: string
     entry: string
-    breakEven: string
     current: string
     currentTone: 'up' | 'down' | 'neutral'
+    /** e.g. «305,5 → 289,2» */
+    entryToNow: string
     sl: string
     tp: string
+    slTp: string
+    /** Under ticker: «лимит TP выставлен» / «до SL 29 · без лимита» */
+    subtitle: string
+    pnlText: string
+    pnlTone: 'up' | 'down' | 'neutral'
+    pnlAbs: number
 }
 
 type MonitorPositionsCardProps = {
     rows: MonitorPositionRow[]
     positionsCount: number
+    /** Sum label e.g. «−214 ₽ · −2,6%» */
+    totalPnlLabel?: string | null
+    totalPnlTone?: 'up' | 'down' | 'neutral'
     positionsUpdatedAt: string | null | undefined
     brokerSoftStopHint: boolean
     isRunning: boolean
-    /** Drop the card chrome when the section header already names the block. */
     bare?: boolean
 }
 
 export function MonitorPositionsCard({
     rows,
     positionsCount,
+    totalPnlLabel,
+    totalPnlTone = 'neutral',
     positionsUpdatedAt,
     brokerSoftStopHint,
     isRunning,
     bare = false,
 }: MonitorPositionsCardProps) {
     const empty = isRunning
-        ? 'Нет открытых позиций — робот ещё не вошёл в сделку'
-        : 'Нет открытых позиций на брокере (в universe / по audit fills)'
+        ? (brokerSoftStopHint
+            ? 'Ждём сверку позиций с брокером'
+            : 'Нет открытых позиций — робот ещё не вошёл в сделку')
+        : 'Нет открытых позиций на брокере'
+
+    const sorted = [...rows].sort((a, b) => Math.abs(b.pnlAbs) - Math.abs(a.pnlAbs)
+        || a.tickerLabel.localeCompare(b.tickerLabel))
+
     const body = (
         <>
             {brokerSoftStopHint ? (
                 <p className="robots-v2-hint robots-v2-universe-caption">
-                    Сессия остановлена · позиции с брокера (soft stop их не закрывает).
-                    После Start робот подхватит и продолжит торговать.
+                    Сессия остановлена · позиции с брокера (пауза их не закрывает).
+                    После запуска робот подхватит и продолжит торговать.
                 </p>
             ) : null}
-            <div className="robots-monitor-position-cards" aria-label="Открытые позиции">
-                {rows.length === 0 ? (
-                    <p className="dashboard-empty">{empty}</p>
-                ) : (
-                    rows.map(r => (
-                        <article key={r.id} className="robots-monitor-position-card">
-                            <div className="robots-monitor-position-card__head">
-                                <strong className="robots-monitor-position-card__title">
-                                    {r.tickerWarning ? <TickerWarningMark text={r.tickerWarning} /> : null}
-                                    {r.tickerLabel}
-                                </strong>
-                                <span>{r.side} · {r.quantity}</span>
-                            </div>
-                            <div className="robots-monitor-position-card__line">
-                                <span>Вход <strong className="mono">{r.entry}</strong></span>
-                                <span>Сейчас <strong className={`mono robots-v2-pnl--${r.currentTone}`}>{r.current}</strong></span>
-                            </div>
-                            <div className="robots-monitor-position-card__line">
-                                <span>Безубыток <strong className="mono">{r.breakEven}</strong></span>
-                                <span>SL / TP <strong className="mono">{r.sl} / {r.tp}</strong></span>
-                            </div>
-                        </article>
-                    ))
-                )}
-            </div>
+            {sorted.length === 0 ? (
+                <p className="dashboard-empty">{empty}</p>
+            ) : (
+                <table className="robots-monitor-blot" aria-label="Открытые позиции">
+                    <thead>
+                        <tr>
+                            <th>Позиция</th>
+                            <th className="robots-monitor-blot__num">Вход → сейчас</th>
+                            <th className="robots-monitor-blot__num">PnL</th>
+                            <th className="robots-monitor-blot__num">SL / TP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sorted.map(r => (
+                            <tr key={r.id}>
+                                <td>
+                                    <span className="robots-monitor-blot__tk">
+                                        {r.tickerWarning ? <TickerWarningMark text={r.tickerWarning} /> : null}
+                                        {r.tickerLabel}
+                                    </span>
+                                    {' '}
+                                    <span className="robots-monitor-blot__qty">×{r.quantity}</span>
+                                    {r.subtitle ? (
+                                        <span className="robots-monitor-blot__sub">{r.subtitle}</span>
+                                    ) : null}
+                                </td>
+                                <td className="robots-monitor-blot__num">
+                                    <span className="mono">{r.entry}</span>
+                                    {' → '}
+                                    <span className={`mono robots-v2-pnl--${r.currentTone}`}>{r.current}</span>
+                                </td>
+                                <td className={`robots-monitor-blot__num mono robots-v2-pnl--${r.pnlTone}`}>
+                                    {r.pnlText}
+                                </td>
+                                <td className="robots-monitor-blot__num mono robots-monitor-blot__muted">
+                                    {r.slTp}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )}
             {positionsUpdatedAt ? (
                 <p className="robots-v2-hint robots-v2-universe-caption">
                     Цены обновлены
@@ -94,9 +128,12 @@ export function MonitorPositionsCard({
     return (
         <Card className="dashboard-assets-card robots-v2-monitor-positions">
             <div className="dashboard-assets-card__head">
-                <h3 className="dashboard-panel-title">Открытые позиции</h3>
-                {positionsCount > 0 ? (
-                    <span className="robots-v2-hint">{positionsCount}</span>
+                <h3 className="dashboard-panel-title">
+                    Позиции
+                    {positionsCount > 0 ? <> · {positionsCount}</> : null}
+                </h3>
+                {totalPnlLabel ? (
+                    <span className={`robots-v2-hint robots-v2-pnl--${totalPnlTone}`}>{totalPnlLabel}</span>
                 ) : null}
             </div>
             {body}

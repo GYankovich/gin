@@ -4,73 +4,61 @@ import { Skeleton } from '@/components/ui/Skeleton'
 type PnlTone = 'up' | 'down' | 'neutral'
 
 type MonitorSummaryCardProps = {
-    dayLabel: string
     statusLoaded: boolean
     dayTrades: number
     dayDelta: { text: string; tone: PnlTone }
-    /** Zone B: true when at least one of equity/cash is a finite number */
+    /** Mark-to-market day line (equity curve); falls back to closed-trade delta. */
+    dayMtm?: { text: string; tone: PnlTone } | null
     showBalance: boolean
-    /** Formatted equity; show «—» when null */
     equityLabel: string | null
-    /** Formatted cash; show «—» when null */
     cashLabel: string | null
-    cashTileLabel: string
-    /** Live expected but balances null → one-line empty (not fake zeros) */
     showBalanceUnavailable: boolean
-    /** Session cycle number */
-    cycle: number | string
     positionsCount: number
-    openOrderCount: number
-    /** When syncing / idle — muted session hint under the numbers */
+    limitCount: number
+    /** Session cycle number from status. */
+    cycle?: number | null
     sessionHint?: string | null
 }
 
 function tradeCountLabel(count: number): string {
-    if (count <= 0) return '0 сделок'
+    if (count <= 0) return '0 закрытий'
     const mod10 = count % 10
     const mod100 = count % 100
     const word = mod10 === 1 && mod100 !== 11
-        ? 'сделка'
+        ? 'закрытие'
         : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
-            ? 'сделки'
-            : 'сделок'
+            ? 'закрытия'
+            : 'закрытий'
     return `${count} ${word}`
 }
 
 /**
- * Left side of the monitor cockpit: equity hero, day result, cash / positions / orders / cycle.
+ * Left side of the monitor cockpit: equity + two quiet metric tiles.
  */
 export function MonitorSummaryCard({
-    dayLabel,
     statusLoaded,
     dayTrades,
     dayDelta,
+    dayMtm,
     showBalance,
     equityLabel,
     cashLabel,
-    cashTileLabel,
     showBalanceUnavailable,
-    cycle,
     positionsCount,
-    openOrderCount,
+    limitCount,
+    cycle,
     sessionHint,
 }: MonitorSummaryCardProps) {
+    const dayLine = dayMtm ?? dayDelta
     const trades = tradeCountLabel(dayTrades)
 
     if (!statusLoaded) {
         return (
             <div className="robots-monitor-hero" aria-busy="true" aria-label="Загрузка сводки">
-                <Skeleton width="46%" height="12px" borderRadius="4px" />
-                <div style={{ marginTop: 10 }}>
-                    <Skeleton width="62%" height="32px" borderRadius="6px" />
-                </div>
-                <div style={{ marginTop: 10 }}>
-                    <Skeleton width="48%" height="14px" borderRadius="4px" />
-                </div>
-                <div className="robots-monitor-hero__mini">
-                    {Array.from({ length: 4 }).map((_, i) => (
-                        <Skeleton key={i} width="70%" height="28px" borderRadius="4px" />
-                    ))}
+                <Skeleton width="62%" height="32px" borderRadius="6px" />
+                <div className="robots-monitor-hero__tiles">
+                    <Skeleton width="100%" height="64px" borderRadius="12px" />
+                    <Skeleton width="100%" height="64px" borderRadius="12px" />
                 </div>
             </div>
         )
@@ -78,35 +66,26 @@ export function MonitorSummaryCard({
 
     return (
         <div className="robots-monitor-hero">
-            <div className="robots-monitor-hero__label">Стоимость · {dayLabel}</div>
             <div className="robots-monitor-hero__value">
                 {showBalance && equityLabel != null ? equityLabel : '—'}
             </div>
-            <p className={`robots-monitor-hero__delta robots-v2-pnl--${dayDelta.tone}`}>
-                {dayDelta.text}
-                <span>
-                    {' '}за день · {trades}
-                </span>
-                {showBalance && cashLabel != null ? (
-                    <span className="robots-monitor-hero__cash"> · кэш {cashLabel}</span>
-                ) : null}
-            </p>
-            <div className="robots-monitor-hero__mini">
-                <div>
-                    <span>{cashTileLabel || 'Cash'}</span>
-                    <strong>{showBalance && cashLabel != null ? cashLabel : '—'}</strong>
+            <div className="robots-monitor-hero__tiles">
+                <div className={`robots-monitor-hero__tile robots-monitor-hero__tile--${dayLine.tone}`}>
+                    <div className={`robots-monitor-hero__tile-value robots-v2-pnl--${dayLine.tone}`}>
+                        {dayLine.text}
+                    </div>
+                    <div className="robots-monitor-hero__tile-meta">
+                        за день{dayMtm ? ' · MTM' : ''} · {trades}
+                    </div>
                 </div>
-                <div>
-                    <span>Позиции</span>
-                    <strong>{positionsCount}</strong>
-                </div>
-                <div>
-                    <span>Заявки</span>
-                    <strong className={openOrderCount > 0 ? 'color-warn' : undefined}>{openOrderCount}</strong>
-                </div>
-                <div>
-                    <span>Цикл</span>
-                    <strong>{cycle}</strong>
+                <div className="robots-monitor-hero__tile">
+                    <div className="robots-monitor-hero__tile-value">
+                        {showBalance && cashLabel != null ? cashLabel : '—'}
+                    </div>
+                    <div className="robots-monitor-hero__tile-meta">
+                        кэш · {positionsCount} поз. · {limitCount} лим.
+                        {cycle != null && Number.isFinite(Number(cycle)) ? ` · цикл ${cycle}` : ''}
+                    </div>
                 </div>
             </div>
             {showBalanceUnavailable ? (

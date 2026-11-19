@@ -7,7 +7,7 @@ import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useToast } from '@/components/ui/Toast'
-import { RobotPageChrome } from '@/pages/robots-v2/components/RobotPageChrome'
+import { useQuietChromeActions } from '@/pages/robots-v2/RobotQuietShell'
 import { fmtErr, fmtNum, fmtPrice } from '@/pages/robots-v2/formatters'
 import { todayMoscowDayKey } from '@/pages/robots-v2/monitorUtils'
 import { tradeReasonLabel } from '@/pages/robots-v2/tradeReasonLabels'
@@ -162,7 +162,7 @@ export default function RobotV2LogsPage() {
         return () => window.clearInterval(t)
     }, [loadAudit])
 
-    const exportJson = () => {
+    const exportJson = useCallback(() => {
         const payload = audit?.[view as keyof RobotV2AuditResponse]
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
@@ -171,7 +171,7 @@ export default function RobotV2LogsPage() {
         a.download = `robot-${robotId}-${view}.json`
         a.click()
         URL.revokeObjectURL(url)
-    }
+    }, [audit, robotId, view])
 
     const fills = audit?.fills?.items || []
     const orders = audit?.orders?.items || []
@@ -274,37 +274,30 @@ export default function RobotV2LogsPage() {
             || (view === 'orders' && orders.length === 0)
             || (view === 'cycles' && cycles.length === 0))
 
-    return (
-        <div className="page" data-page="robots">
-            <RobotPageChrome
-                eyebrow="ИСТОРИЯ"
-                title="История"
-                robotId={robotId}
-                active="logs"
-                subtitle="Сохранённые исполнения, заявки и циклы за выбранный период. Лайв показывает только сегодня."
-                actions={
-                    <>
-                        <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            onClick={exportJson}
-                            disabled={auditCount === 0}
-                        >
-                            Экспорт JSON
-                        </Button>
-                        <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => void loadAudit()}
-                            loading={auditLoading}
-                        >
-                            Обновить
-                        </Button>
-                    </>
-                }
-            />
+    useQuietChromeActions(() => (
+        <>
+            <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={exportJson}
+                disabled={auditCount === 0}
+            >
+                Экспорт JSON
+            </Button>
+            <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => void loadAudit()}
+                loading={auditLoading}
+            >
+                Обновить
+            </Button>
+        </>
+    ), [auditCount, auditLoading, exportJson, loadAudit])
 
+    return (
             <div className="dashboard-layout">
                 <Card className="portfolio-toolbar robots-v2-toolbar robots-v2-logs-toolbar">
                     <SegmentedControl
@@ -428,6 +421,5 @@ export default function RobotV2LogsPage() {
                     </Card>
                 )}
             </div>
-        </div>
     )
 }

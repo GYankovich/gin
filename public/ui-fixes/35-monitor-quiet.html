@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Монитор — тихие позиции</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  html[data-theme='light'] {
+    --bg: #f4f5f7;
+    --page: #ffffff;
+    --panel: #f7f8fa;
+    --elevated: #eef0f3;
+    --text: #1c1f24;
+    --secondary: #3d4450;
+    --muted: #6b7280;
+    --border: rgba(20, 24, 30, 0.1);
+    --line: rgba(20, 24, 30, 0.16);
+    --accent: #1c1f24;
+    --on-accent: #fff;
+    --up: #1f8a4c;
+    --down: #c43b4a;
+    --picker: #fff;
+  }
+  html[data-theme='light'] body { background: var(--bg); }
+  html[data-theme='light'] .nav { background: #fff; }
+  html[data-theme='light'] .nav-link--active { background: #1c1f24; color: #fff; }
+  html[data-theme='light'] .dock { background: rgba(255, 255, 255, 0.94); }
+  html[data-theme='light'] .dock .on { color: var(--text); }
+  html[data-theme='light'] .frame { box-shadow: 0 12px 32px rgba(20, 24, 30, 0.06); }
+
+  .thesis { margin: 0 0 14px; max-width: 70ch; color: var(--secondary); font-size: 14px; line-height: 1.5; }
+  .thesis strong { color: var(--text); }
+  .stack { display: flex; flex-direction: column; gap: 36px; }
+  .replaces { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+  .theme-btn {
+    border: 1px solid var(--border); background: transparent; color: var(--secondary);
+    border-radius: 10px; padding: 8px 12px; font-size: 13px;
+  }
+  .pick-note {
+    margin: 0 0 12px; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid var(--border); background: rgba(255,255,255,0.03);
+    font-size: 13px; color: var(--secondary); line-height: 1.45;
+  }
+  .pick-note strong { color: var(--text); }
+
+  .screen { padding: 0 0 16px; }
+  .top {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+    padding: 14px 18px 6px;
+  }
+  .title-row {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; min-width: 0;
+  }
+  .back {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; flex-shrink: 0;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: transparent; color: var(--secondary); font-size: 16px; line-height: 1;
+    text-decoration: none;
+  }
+  .back:hover { color: var(--text); border-color: var(--line); }
+  .name { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+  .meta { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+  .run {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; color: var(--up);
+  }
+  .run i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: block; }
+  .now-head {
+    margin: 8px 0 0 42px; font-size: 13px; color: var(--secondary);
+  }
+  .now-head b { color: var(--text); font-weight: 650; }
+  .now-head em { font-style: normal; color: var(--muted); margin-left: 8px; }
+  .acts { display: flex; gap: 8px; flex-shrink: 0; }
+  .acts button { padding: 7px 14px; border-radius: 10px; font-size: 13px; font-weight: 550; }
+  .tabs {
+    display: flex; gap: 18px; padding: 4px 18px 10px;
+    border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted);
+  }
+  .tabs .on { color: var(--text); font-weight: 600; box-shadow: inset 0 -1px 0 var(--text); padding-bottom: 8px; }
+
+  .cockpit {
+    display: grid;
+    grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+    gap: 6px 20px; align-items: end;
+    padding: 12px 18px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .now-line {
+    grid-column: 1 / -1; font-size: 13px; color: var(--secondary);
+  }
+  .now-line b { color: var(--text); font-weight: 650; }
+  .now-line em { font-style: normal; color: var(--muted); margin-left: 10px; }
+  .eq {
+    font-size: 28px; font-weight: 560; letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+  .day { margin: 4px 0 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .day span { color: var(--muted); font-size: 12px; }
+  .cash { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+  .cash b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .plot { height: 88px; color: var(--up); }
+  .plot svg { width: 100%; height: 100%; display: block; }
+  .foot { grid-column: 1 / -1; margin: 0; font-size: 12px; color: var(--muted); }
+
+  .sec-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    padding: 12px 18px 0; font-size: 12px; color: var(--muted);
+  }
+  .sec-head b { color: var(--text); font-weight: 600; font-size: 13px; }
+  .sec-head .sum { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 13px; }
+
+  /* —— A noisy cards (reference) —— */
+  .cards {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;
+    padding: 10px 18px 4px;
+  }
+  .card-pos {
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px;
+    background: var(--panel);
+  }
+  .card-pos .h { display: flex; justify-content: space-between; font-size: 13px; }
+  .card-pos .pnl { margin-top: 6px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .card-pos .ln { margin-top: 3px; display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .card-pos .ln strong { color: var(--text); font-weight: 560; font-variant-numeric: tabular-nums; }
+
+  /* —— B quiet list —— */
+  .list { padding: 4px 18px 8px; }
+  .list__row {
+    display: grid;
+    grid-template-columns: 72px 44px minmax(0, 1.1fr) 92px minmax(0, 0.9fr) 88px;
+    gap: 10px; align-items: baseline;
+    padding: 9px 0;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .list__row:first-child { border-top: 0; }
+  .list__head {
+    color: var(--muted); font-size: 11px; font-weight: 500;
+    padding-bottom: 2px; border-top: 0;
+  }
+  .list__row .tk { font-weight: 650; letter-spacing: 0.02em; }
+  .list__row .qty, .list__row .px, .list__row .sl, .list__row .lim {
+    color: var(--muted); font-variant-numeric: tabular-nums;
+  }
+  .list__row .px b { color: var(--text); font-weight: 560; }
+  .list__row .pnl {
+    text-align: right; font-variant-numeric: tabular-nums; font-weight: 600;
+  }
+  .list__row .pct { font-weight: 500; font-size: 12px; opacity: 0.85; margin-left: 4px; }
+
+  /* —— C dense blotter —— */
+  .blot { width: 100%; border-collapse: collapse; margin: 4px 0 8px; }
+  .blot th {
+    text-align: left; font-size: 11px; font-weight: 500; color: var(--muted);
+    padding: 6px 10px; border-bottom: 1px solid var(--border);
+  }
+  .blot th:first-child, .blot td:first-child { padding-left: 18px; }
+  .blot th:last-child, .blot td:last-child { padding-right: 18px; text-align: right; }
+  .blot td {
+    padding: 8px 10px; border-bottom: 1px solid var(--border);
+    font-size: 13px; vertical-align: baseline;
+  }
+  .blot tr:last-child td { border-bottom: 0; }
+  .blot .tk { font-weight: 650; }
+  .blot .sub { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); font-weight: 400; }
+  .blot .num { font-variant-numeric: tabular-nums; text-align: right; }
+  .blot th.num { text-align: right; }
+
+  /* —— D strip (ticker + pnl only) —— */
+  .strip-pos { display: flex; flex-direction: column; padding: 2px 18px 8px; }
+  .strip-pos__row {
+    display: grid; grid-template-columns: 64px 1fr auto;
+    gap: 12px; align-items: baseline;
+    padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px;
+  }
+  .strip-pos__row:first-of-type { border-top: 0; }
+  .strip-pos__row b { font-weight: 650; }
+  .strip-pos__row .mid { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+  .strip-pos__row .pnl { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  .desk {
+    display: grid; grid-template-columns: 1.15fr 0.85fr;
+    border-top: 1px solid var(--border); margin-top: 8px;
+  }
+  .block { padding: 12px 18px 14px; min-width: 0; }
+  .block + .block { border-left: 1px solid var(--border); }
+  .block h3 { margin: 0 0 6px; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .orow, .drow {
+    display: grid; gap: 8px; align-items: baseline;
+    padding: 7px 0; border-top: 1px solid var(--border); font-size: 13px;
+  }
+  .orow { grid-template-columns: 46px 56px 1fr auto; }
+  .orow time, .orow .muted { color: var(--muted); font-size: 12px; }
+  .drow { grid-template-columns: 72px 1fr; }
+  .drow b { font-weight: 650; }
+  .drow span { color: var(--secondary); }
+
+  .pool {
+    padding: 10px 18px 14px; border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--muted);
+  }
+  .pool b { color: var(--text); font-weight: 600; }
+  .pool .tickers { color: var(--secondary); letter-spacing: 0.02em; }
+
+  .compare {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 960px) {
+    .compare { grid-template-columns: 1fr; }
+    .cards { grid-template-columns: 1fr 1fr; }
+    .desk { grid-template-columns: 1fr; }
+    .block + .block { border-left: 0; border-top: 1px solid var(--border); }
+    .list__row {
+      grid-template-columns: 64px 36px 1fr 80px;
+    }
+    .list__row .sl, .list__row .lim, .list__head .sl, .list__head .lim { display: none; }
+  }
+
+  /* mobile */
+  .stage { display: flex; justify-content: center; padding: 4px 0 20px; }
+  .phone {
+    width: 390px; max-width: 100%; height: 780px; position: relative;
+    border-radius: 32px; border: 1px solid var(--border); background: var(--page);
+    overflow: hidden; box-shadow: 0 18px 48px rgba(0,0,0,.28);
+  }
+  .scroll { height: 100%; overflow: auto; padding: 16px 14px 80px; }
+  .scroll::-webkit-scrollbar { width: 0; }
+  .phone .top { padding: 0; gap: 10px; align-items: flex-start; }
+  .phone .acts { flex-shrink: 0; }
+  .phone .acts button { min-width: 88px; }
+  .phone .now-head { margin-left: 42px; }
+  .phone .tabs { margin-top: 10px; padding: 0 0 8px; }
+  .phone .cockpit { grid-template-columns: 1fr; padding: 12px 0; border: 0; gap: 4px; }
+  .phone .plot { height: 100px; margin-top: 6px; }
+  .phone .sec-head, .phone .list, .phone .strip-pos { padding-left: 0; padding-right: 0; }
+  .phone .blot th:first-child, .phone .blot td:first-child { padding-left: 0; }
+  .phone .blot th:last-child, .phone .blot td:last-child { padding-right: 0; }
+  .phone .blot th:nth-child(4),
+  .phone .blot td:nth-child(4) { display: none; }
+  .phone .blot td { padding: 9px 6px; }
+  .phone .block { padding: 12px 0 0; }
+  .phone .desk { border: 0; margin: 0; display: block; }
+  .phone .pool { padding: 12px 0 0; border: 0; }
+  .chosen {
+    outline: 1px solid color-mix(in srgb, var(--up) 45%, var(--border));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--up) 12%, transparent);
+  }
+  .chosen .sec-head span:first-child::after {
+    content: ' · выбрано';
+    color: var(--up);
+    font-weight: 600;
+  }
+  .phone .dock {
+    background: color-mix(in srgb, var(--page) 88%, transparent);
+    backdrop-filter: blur(14px);
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">Все макеты</a>
+    <div>
+      <h1>Монитор · тихие позиции</h1>
+      <p>Выбрано C · таблица-блоттер. Ниже сравнение и финальная сборка desktop + mobile.</p>
+    </div>
+    <span class="badge badge--new">выбрано C</span>
+    <button class="theme-btn" type="button" id="theme">Светлая</button>
+  </div>
+
+  <div class="wrap stack">
+    <p class="thesis">
+      <strong>Выбрано C:</strong> одна строка = позиция; под тикером — статус лимита / дистанция до SL;
+      PnL и цены в колонках. Без карточек и без дубля «открытых сделок» в заявках.
+    </p>
+
+    <div class="pick-note">
+      <strong>Ещё что успокоить на всём экране (не только позиции):</strong>
+      убрать 5-шаговый трек — оставить одну строку «Сейчас»; мини-плитки кэш/позиции/лимиты свернуть в одну строку под equity;
+      пул без pill-облака — одна строка тикеров; ленту не дублировать с «сейчас» (оставить 1–2 события или спрятать).
+    </div>
+
+    <!-- COMPARE -->
+    <section id="compare">
+      <div class="frame-label"><span>Сравнение только блока позиций</span></div>
+      <div class="compare">
+        <div class="frame">
+          <div class="sec-head"><span>A · карточки (как в 34) — шумно</span><span class="sum down">−214 ₽</span></div>
+          <div class="cards" style="grid-template-columns: 1fr 1fr;">
+            <div class="card-pos">
+              <div class="h"><b>SMLT</b><span class="muted">×3</span></div>
+              <div class="pnl down">−48,90 ₽</div>
+              <div class="ln"><span>Вход</span><strong>305,5</strong></div>
+              <div class="ln"><span>Сейчас</span><strong class="down">289,2</strong></div>
+              <div class="ln"><span>До SL</span><strong>29</strong></div>
+            </div>
+            <div class="card-pos">
+              <div class="h"><b>TATN</b><span class="muted">×1</span></div>
+              <div class="pnl down">−31,90 ₽</div>
+              <div class="ln"><span>Вход</span><strong>610,5</strong></div>
+              <div class="ln"><span>Сейчас</span><strong class="down">578,6</strong></div>
+              <div class="ln"><span>До SL</span><strong>59</strong></div>
+            </div>
+            <div class="card-pos">
+              <div class="h"><b>ROSN</b><span class="muted">×3</span></div>
+              <div class="pnl down">−11,10 ₽</div>
+              <div class="ln"><span>Вход</span><strong>351,8</strong></div>
+              <div class="ln"><span>Сейчас</span><strong class="down">348,1</strong></div>
+              <div class="ln"><span>До TP</span><strong>85</strong></div>
+            </div>
+            <div class="card-pos">
+              <div class="h"><b>PLZL</b><span class="muted">×1</span></div>
+              <div class="pnl up">+2,20 ₽</div>
+              <div class="ln"><span>Вход</span><strong>1 057</strong></div>
+              <div class="ln"><span>Сейчас</span><strong class="up">1 059</strong></div>
+              <div class="ln"><span>До TP</span><strong>242</strong></div>
+            </div>
+          </div>
+          <p class="replaces" style="padding:0 14px 12px">Много рамок · повтор подписей · сетка рвёт взгляд.</p>
+        </div>
+
+        <div class="frame">
+          <div class="sec-head"><span>B · тихий список</span><span class="sum down">−214 ₽</span></div>
+          <div class="list">
+            <div class="list__row list__head">
+              <span>Тикер</span><span>Шт</span><span>Вход → сейчас</span><span class="pnl">PnL</span><span class="sl">SL / TP</span><span class="lim">Лимит</span>
+            </div>
+            <div class="list__row">
+              <span class="tk">SMLT</span><span class="qty">3</span>
+              <span class="px">305,5 → <b class="down">289,2</b></span>
+              <span class="pnl down">−48,90 <span class="pct">−5,3%</span></span>
+              <span class="sl">260 / 376</span><span class="lim">—</span>
+            </div>
+            <div class="list__row">
+              <span class="tk">TATN</span><span class="qty">1</span>
+              <span class="px">610,5 → <b class="down">578,6</b></span>
+              <span class="pnl down">−31,90 <span class="pct">−5,2%</span></span>
+              <span class="sl">519 / 752</span><span class="lim">—</span>
+            </div>
+            <div class="list__row">
+              <span class="tk">VTBR</span><span class="qty">12</span>
+              <span class="px">61,24 → <b class="down">60,00</b></span>
+              <span class="pnl down">−14,88 <span class="pct">−2,0%</span></span>
+              <span class="sl">52 / 75</span><span class="lim">—</span>
+            </div>
+            <div class="list__row">
+              <span class="tk">ROSN</span><span class="qty">3</span>
+              <span class="px">351,8 → <b class="down">348,1</b></span>
+              <span class="pnl down">−11,10 <span class="pct">−1,1%</span></span>
+              <span class="sl">299 / 433</span><span class="lim">TP</span>
+            </div>
+            <div class="list__row">
+              <span class="tk">PLZL</span><span class="qty">1</span>
+              <span class="px">1 057 → <b class="up">1 059</b></span>
+              <span class="pnl up">+2,20 <span class="pct">+0,2%</span></span>
+              <span class="sl">899 / 1 301</span><span class="lim">TP</span>
+            </div>
+          </div>
+          <p class="replaces" style="padding:0 14px 12px">Одна колонка внимания · PnL справа · без рамок.</p>
+        </div>
+
+        <div class="frame chosen">
+          <div class="sec-head"><span>C · таблица-блоттер</span><span class="sum down">−214 ₽</span></div>
+          <table class="blot">
+            <thead>
+              <tr>
+                <th>Позиция</th>
+                <th class="num">Вход → сейчас</th>
+                <th class="num">PnL</th>
+                <th class="num">SL / TP</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="tk">SMLT</span> ×3<span class="sub">до SL 29 · без лимита</span></td>
+                <td class="num">305,5 → <span class="down">289,2</span></td>
+                <td class="num down">−48,90</td>
+                <td class="num muted">260 / 376</td>
+              </tr>
+              <tr>
+                <td><span class="tk">TATN</span> ×1<span class="sub">до SL 59</span></td>
+                <td class="num">610,5 → <span class="down">578,6</span></td>
+                <td class="num down">−31,90</td>
+                <td class="num muted">519 / 752</td>
+              </tr>
+              <tr>
+                <td><span class="tk">ROSN</span> ×3<span class="sub">лимит TP выставлен</span></td>
+                <td class="num">351,8 → <span class="down">348,1</span></td>
+                <td class="num down">−11,10</td>
+                <td class="num muted">299 / 433</td>
+              </tr>
+              <tr>
+                <td><span class="tk">PLZL</span> ×1<span class="sub">лимит TP выставлен</span></td>
+                <td class="num">1 057 → <span class="up">1 059</span></td>
+                <td class="num up">+2,20</td>
+                <td class="num muted">899 / 1 301</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="replaces" style="padding:0 14px 12px">Лимит и «почему держим» — под тикером. Отдельный блок заявок не дублирует позиции.</p>
+        </div>
+
+        <div class="frame">
+          <div class="sec-head"><span>D · ультра-коротко</span><span class="sum down">−214 ₽</span></div>
+          <div class="strip-pos">
+            <div class="strip-pos__row"><b>SMLT</b><span class="mid">3 · 305,5 → 289,2</span><span class="pnl down">−48,90</span></div>
+            <div class="strip-pos__row"><b>TATN</b><span class="mid">1 · 610,5 → 578,6</span><span class="pnl down">−31,90</span></div>
+            <div class="strip-pos__row"><b>VTBR</b><span class="mid">12 · 61,24 → 60</span><span class="pnl down">−14,88</span></div>
+            <div class="strip-pos__row"><b>ROSN</b><span class="mid">3 · 351,8 → 348,1 · TP</span><span class="pnl down">−11,10</span></div>
+            <div class="strip-pos__row"><b>PLZL</b><span class="mid">1 · 1 057 → 1 059 · TP</span><span class="pnl up">+2,20</span></div>
+          </div>
+          <p class="replaces" style="padding:0 14px 12px">Максимум тишины; SL/TP только по клику/раскрытию.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FULL QUIET DESKTOP = C -->
+    <section id="desktop">
+      <div class="frame-label"><span>Desktop · финал на C</span></div>
+      <div class="frame">
+        <div class="nav">
+          <div class="brand">GINITY</div>
+          <div class="nav-pill">
+            <button class="nav-link" type="button">Дашборд</button>
+            <button class="nav-link nav-link--active" type="button">Роботы</button>
+            <button class="nav-link" type="button">Портфель</button>
+          </div>
+          <div class="avatar">G</div>
+        </div>
+        <div class="screen">
+          <div class="top">
+            <div>
+              <div class="title-row">
+                <a class="back" href="/robots" aria-label="Назад к флоту">←</a>
+                <h2 class="name">Копия хард</h2>
+                <span class="run"><i></i>Работает</span>
+              </div>
+              <p class="now-head">Сейчас <b>Цены · 42%</b><em>#3 · live · price_tick · ATR 127/141</em></p>
+            </div>
+            <div class="acts">
+              <button class="btn btn--ghost" type="button">Пауза</button>
+            </div>
+          </div>
+          <div class="tabs"><span class="on">Лайв</span><span>История</span></div>
+
+          <div class="cockpit">
+            <div>
+              <div class="eq">7 966 ₽</div>
+              <p class="day down">−214 ₽ <span>за день · MTM · 0 закрытий</span></p>
+              <p class="cash">кэш <b>130 ₽</b> · позиций 8 · лимитов 3</p>
+            </div>
+            <div class="plot">
+              <svg viewBox="0 0 640 88" preserveAspectRatio="none" aria-hidden="true">
+                <polyline fill="none" stroke="currentColor" stroke-width="1.75" vector-effect="non-scaling-stroke"
+                  points="0,24 80,28 160,30 240,38 320,44 400,52 480,60 560,68 640,74" />
+              </svg>
+            </div>
+            <p class="foot">Счёт · обновлено 19.11, 13:16</p>
+          </div>
+
+          <div class="sec-head">
+            <span>Позиции · <b>8</b></span>
+            <span class="sum down">−214 ₽ · −2,6%</span>
+          </div>
+          <table class="blot">
+            <thead>
+              <tr>
+                <th>Позиция</th>
+                <th class="num">Вход → сейчас</th>
+                <th class="num">PnL</th>
+                <th class="num">SL / TP</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="tk">SMLT</span> ×3<span class="sub">до SL 29 · без лимита</span></td>
+                <td class="num">305,5 → <span class="down">289,2</span></td>
+                <td class="num down">−48,90</td>
+                <td class="num muted">260 / 376</td>
+              </tr>
+              <tr>
+                <td><span class="tk">TATN</span> ×1<span class="sub">до SL 59 · без лимита</span></td>
+                <td class="num">610,5 → <span class="down">578,6</span></td>
+                <td class="num down">−31,90</td>
+                <td class="num muted">519 / 752</td>
+              </tr>
+              <tr>
+                <td><span class="tk">VTBR</span> ×12<span class="sub">до SL 7,9 · без лимита</span></td>
+                <td class="num">61,24 → <span class="down">60,00</span></td>
+                <td class="num down">−14,88</td>
+                <td class="num muted">52 / 75</td>
+              </tr>
+              <tr>
+                <td><span class="tk">NVTK</span> ×2<span class="sub">лимит SL выставлен</span></td>
+                <td class="num">1 102 → <span class="down">1 095</span></td>
+                <td class="num down">−13,40</td>
+                <td class="num muted">937 / 1 356</td>
+              </tr>
+              <tr>
+                <td><span class="tk">VKCO</span> ×2<span class="sub">до SL 29 · без лимита</span></td>
+                <td class="num">232,2 → <span class="down">226,4</span></td>
+                <td class="num down">−11,50</td>
+                <td class="num muted">198 / 286</td>
+              </tr>
+              <tr>
+                <td><span class="tk">ROSN</span> ×3<span class="sub">лимит TP выставлен</span></td>
+                <td class="num">351,8 → <span class="down">348,1</span></td>
+                <td class="num down">−11,10</td>
+                <td class="num muted">299 / 433</td>
+              </tr>
+              <tr>
+                <td><span class="tk">CNRU</span> ×1<span class="sub">лимит TP выставлен</span></td>
+                <td class="num">914,2 → <span class="up">914,6</span></td>
+                <td class="num up">+0,40</td>
+                <td class="num muted">778 / 1 125</td>
+              </tr>
+              <tr>
+                <td><span class="tk">PLZL</span> ×1<span class="sub">лимит TP выставлен</span></td>
+                <td class="num">1 057 → <span class="up">1 059</span></td>
+                <td class="num up">+2,20</td>
+                <td class="num muted">899 / 1 301</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="desk">
+            <section class="block">
+              <h3>Сделки дня</h3>
+              <p class="muted" style="margin:8px 0 0;font-size:13px">Закрытых сегодня нет — в сводке только mark-to-market.</p>
+            </section>
+            <section class="block">
+              <h3>Решения</h3>
+              <div class="drow"><b>Тихо</b><span>без сигнала · пул 14</span></div>
+              <div class="drow"><b>Держим</b><span>SMLT · до SL 29 ₽</span></div>
+              <div class="drow"><b>Блок</b><span>OZON · мало тиков</span></div>
+            </section>
+          </div>
+
+          <div class="pool">
+            Пул · <b>14</b> —
+            <span class="tickers">CNRU NVTK PLZL ROSN SMLT TATN VKCO VTBR · ALRS GAZP GMKN MGNT OZON SVCB</span>
+          </div>
+        </div>
+      </div>
+      <p class="replaces">Лимиты живут в подписи строки позиции. Отдельный блок «Лимиты» убран — вместо него «Сделки дня».</p>
+    </section>
+
+    <!-- MOBILE = C -->
+    <section id="mobile">
+      <div class="frame-label"><span>Mobile · тот же блоттер C</span></div>
+      <div class="stage">
+        <div class="phone">
+          <div class="scroll">
+            <div class="top">
+              <div>
+                <div class="title-row">
+                  <a class="back" href="/robots" aria-label="Назад к флоту">←</a>
+                  <h2 class="name">Копия хард</h2>
+                  <span class="run"><i></i>Работает</span>
+                </div>
+                <p class="now-head">Сейчас <b>Цены · 42%</b><em>#3 · live · ATR TRNFP</em></p>
+              </div>
+              <div class="acts">
+                <button class="btn btn--ghost" type="button">Пауза</button>
+              </div>
+            </div>
+            <div class="tabs"><span class="on">Лайв</span><span>История</span></div>
+            <div class="cockpit">
+              <div class="eq">7 966 ₽</div>
+              <p class="day down">−214 ₽ <span>· MTM</span></p>
+              <p class="cash">кэш 130 · 8 поз · 3 лимита</p>
+              <div class="plot">
+                <svg viewBox="0 0 360 100" preserveAspectRatio="none" aria-hidden="true">
+                  <polyline fill="none" stroke="currentColor" stroke-width="1.75" vector-effect="non-scaling-stroke"
+                    points="0,28 60,32 120,36 180,48 240,58 300,70 360,78" />
+                </svg>
+              </div>
+            </div>
+            <div class="sec-head"><span>Позиции · <b>8</b></span><span class="sum down">−214 ₽</span></div>
+            <table class="blot">
+              <thead>
+                <tr>
+                  <th>Позиция</th>
+                  <th class="num">Вход → сейчас</th>
+                  <th class="num">PnL</th>
+                  <th class="num">SL / TP</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="tk">SMLT</span> ×3<span class="sub">до SL 29 · без лимита</span></td>
+                  <td class="num">305 → <span class="down">289</span></td>
+                  <td class="num down">−48,90</td>
+                  <td class="num muted">260 / 376</td>
+                </tr>
+                <tr>
+                  <td><span class="tk">TATN</span> ×1<span class="sub">до SL 59</span></td>
+                  <td class="num">610 → <span class="down">579</span></td>
+                  <td class="num down">−31,90</td>
+                  <td class="num muted">519 / 752</td>
+                </tr>
+                <tr>
+                  <td><span class="tk">NVTK</span> ×2<span class="sub">лимит SL</span></td>
+                  <td class="num">1102 → <span class="down">1095</span></td>
+                  <td class="num down">−13,40</td>
+                  <td class="num muted">937 / 1356</td>
+                </tr>
+                <tr>
+                  <td><span class="tk">ROSN</span> ×3<span class="sub">лимит TP</span></td>
+                  <td class="num">352 → <span class="down">348</span></td>
+                  <td class="num down">−11,10</td>
+                  <td class="num muted">299 / 433</td>
+                </tr>
+                <tr>
+                  <td><span class="tk">PLZL</span> ×1<span class="sub">лимит TP</span></td>
+                  <td class="num">1057 → <span class="up">1059</span></td>
+                  <td class="num up">+2,20</td>
+                  <td class="num muted">899 / 1301</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="desk">
+              <section class="block">
+                <h3>Решения</h3>
+                <div class="drow"><b>Тихо</b><span>без сигнала</span></div>
+                <div class="drow"><b>Держим</b><span>SMLT · до SL 29</span></div>
+              </section>
+            </div>
+            <div class="pool">Пул 14 · без pill-облака</div>
+          </div>
+          <div class="dock" aria-label="Навигация">
+            <span><b>G</b></span>
+            <span>Портфель</span>
+            <span class="on">Роботы</span>
+            <span>Лаб</span>
+            <span>GY</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const root = document.documentElement
+    const btn = document.getElementById('theme')
+    btn.addEventListener('click', () => {
+      const light = root.getAttribute('data-theme') === 'light'
+      root.setAttribute('data-theme', light ? 'dark' : 'light')
+      btn.textContent = light ? 'Светлая' : 'Тёмная'
+    })
+  </script>
+</body>
+</html>

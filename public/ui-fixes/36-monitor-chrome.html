@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Монитор — quiet chrome</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  html[data-theme='light'] {
+    --bg: #f4f5f7;
+    --page: #ffffff;
+    --panel: #f7f8fa;
+    --elevated: #eef0f3;
+    --text: #1c1f24;
+    --secondary: #3d4450;
+    --muted: #6b7280;
+    --border: rgba(20, 24, 30, 0.1);
+    --line: rgba(20, 24, 30, 0.16);
+    --accent: #1c1f24;
+    --on-accent: #fff;
+    --up: #1f8a4c;
+    --down: #c43b4a;
+    --warn: #b8860b;
+    --picker: #fff;
+  }
+  html[data-theme='light'] body { background: var(--bg); }
+  html[data-theme='light'] .nav { background: #fff; }
+  html[data-theme='light'] .nav-link--active { background: #1c1f24; color: #fff; }
+  html[data-theme='light'] .frame { box-shadow: 0 12px 32px rgba(20, 24, 30, 0.06); }
+
+  .thesis { margin: 0 0 14px; max-width: 72ch; color: var(--secondary); font-size: 14px; line-height: 1.5; }
+  .thesis strong { color: var(--text); }
+  .stack { display: flex; flex-direction: column; gap: 28px; }
+  .replaces { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+  .theme-btn {
+    border: 1px solid var(--border); background: transparent; color: var(--secondary);
+    border-radius: 10px; padding: 8px 12px; font-size: 13px;
+  }
+  .note {
+    margin: 0 0 8px; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid var(--border); font-size: 13px; color: var(--secondary); line-height: 1.45;
+  }
+  .note strong { color: var(--text); }
+
+  .screen { padding: 0 0 14px; }
+  .stub {
+    margin: 0 18px; padding: 10px 0 0;
+    border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--muted);
+  }
+  .stub b { color: var(--text); font-weight: 600; }
+
+  /* —— A current —— */
+  .a-top {
+    display: flex; justify-content: space-between; gap: 16px; align-items: flex-start;
+    padding: 16px 18px 10px;
+  }
+  .a-title { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.02em; display: inline; }
+  .a-status { margin-left: 10px; font-size: 13px; font-weight: 500; color: var(--up); }
+  .a-status--sync { color: var(--warn); }
+  .a-meta { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+  .a-acts { display: flex; gap: 8px; }
+  .a-acts button { padding: 7px 12px; border-radius: 10px; font-size: 13px; font-weight: 550; }
+  .a-tabs {
+    display: flex; gap: 18px; padding: 0 18px 10px;
+    border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted);
+  }
+  .a-tabs .on { color: var(--text); font-weight: 600; box-shadow: inset 0 -1px 0 var(--text); padding-bottom: 8px; }
+
+  /* —— B led + quieter meta —— */
+  .b-top { display: flex; justify-content: space-between; gap: 16px; padding: 16px 18px 8px; align-items: flex-start; }
+  .b-name { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+  .b-run {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-left: 10px; font-size: 12px; font-weight: 600; color: var(--up);
+  }
+  .b-run--sync { color: var(--warn); }
+  .b-run i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .b-meta { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+  .b-acts { display: flex; gap: 8px; }
+  .b-acts .btn { padding: 7px 12px; border-radius: 10px; font-size: 13px; font-weight: 550; }
+  .b-tabs {
+    display: flex; gap: 18px; padding: 4px 18px 10px;
+    border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted);
+  }
+  .b-tabs .on { color: var(--text); font-weight: 600; box-shadow: inset 0 -1px 0 var(--text); padding-bottom: 8px; }
+
+  /* —— C one band: title | tabs | actions —— */
+  .c-band {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) auto minmax(0, auto);
+    gap: 16px 20px; align-items: center;
+    padding: 14px 18px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .c-name { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.02em; }
+  .c-run {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--up);
+  }
+  .c-run i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .c-meta { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
+  .c-tabs { display: flex; gap: 16px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .c-tabs .on { color: var(--text); font-weight: 600; }
+  .c-acts { display: flex; gap: 8px; justify-content: flex-end; }
+  .c-acts .btn { padding: 7px 12px; border-radius: 10px; font-size: 13px; font-weight: 550; }
+  @media (max-width: 900px) {
+    .c-band { grid-template-columns: 1fr auto; }
+    .c-tabs { grid-column: 1 / -1; order: 3; padding-top: 2px; border-top: 0; }
+  }
+
+  /* —— D title + now in chrome —— */
+  .d-top { display: flex; justify-content: space-between; gap: 16px; padding: 14px 18px 6px; }
+  .d-name { margin: 0; font-size: 18px; font-weight: 600; }
+  .d-run {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-left: 10px; font-size: 12px; font-weight: 600; color: var(--up);
+  }
+  .d-run i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .d-now {
+    margin: 6px 0 0; font-size: 13px; color: var(--secondary);
+  }
+  .d-now b { color: var(--text); font-weight: 650; }
+  .d-now em { font-style: normal; color: var(--muted); margin-left: 8px; }
+  .d-acts { display: flex; gap: 8px; }
+  .d-acts .btn { padding: 7px 12px; border-radius: 10px; font-size: 13px; font-weight: 550; }
+  .d-tabs {
+    display: flex; gap: 18px; margin: 8px 18px 0; padding: 0 0 10px;
+    border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted);
+  }
+  .d-tabs .on { color: var(--text); font-weight: 600; box-shadow: inset 0 -1px 0 var(--text); padding-bottom: 8px; }
+
+  /* —— E fleet crumb —— */
+  .e-top { padding: 14px 18px 8px; }
+  .e-crumb {
+    display: flex; align-items: center; gap: 8px;
+    margin: 0 0 8px; font-size: 12px; color: var(--muted);
+  }
+  .e-crumb a { color: var(--muted); text-decoration: none; }
+  .e-crumb a:hover { color: var(--text); }
+  .e-row { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+  .e-name { margin: 0; font-size: 18px; font-weight: 600; }
+  .e-run {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-left: 10px; font-size: 12px; font-weight: 600; color: var(--up);
+  }
+  .e-run i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .e-meta { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+  .e-acts { display: flex; gap: 8px; }
+  .e-acts .btn { padding: 7px 12px; border-radius: 10px; font-size: 13px; font-weight: 550; }
+  .e-tabs {
+    display: flex; gap: 18px; padding: 4px 18px 10px;
+    border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted);
+  }
+  .e-tabs .on { color: var(--text); font-weight: 600; box-shadow: inset 0 -1px 0 var(--text); padding-bottom: 8px; }
+  .e-tabs .dim { opacity: 0.45; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 960px) { .grid2 { grid-template-columns: 1fr; } }
+
+  /* mobile frames */
+  .phones { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+  .phone {
+    width: 390px; max-width: 100%;
+    border-radius: 28px; border: 1px solid var(--border); background: var(--page);
+    overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,.25);
+  }
+  .phone__label {
+    padding: 10px 14px 0; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--muted);
+  }
+  .phone .inner { padding: 12px 14px 16px; }
+  .m-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .m-acts .btn { width: 100%; padding: 8px 12px; border-radius: 10px; font-size: 13px; font-weight: 550; }
+  .m-tabs {
+    display: flex; gap: 18px; margin-top: 12px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted);
+  }
+  .m-tabs .on { color: var(--text); font-weight: 600; box-shadow: inset 0 -1px 0 var(--text); padding-bottom: 8px; }
+  .m-name { margin: 0; font-size: 18px; font-weight: 600; }
+  .m-run {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-left: 8px; font-size: 12px; font-weight: 600; color: var(--up);
+  }
+  .m-run i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .m-meta { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+  .m-now { margin: 8px 0 0; font-size: 13px; color: var(--secondary); }
+  .m-now b { color: var(--text); }
+  .m-now em { font-style: normal; color: var(--muted); display: block; margin-top: 2px; font-size: 12px; }
+  .m-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .m-ghost {
+    border: 1px solid var(--border); background: transparent; color: var(--secondary);
+    border-radius: 10px; padding: 6px 10px; font-size: 12px; font-weight: 550; white-space: nowrap;
+  }
+
+  /* —— Final chosen —— */
+  .f-top {
+    display: flex; justify-content: space-between; gap: 16px; align-items: flex-start;
+    padding: 14px 18px 6px;
+  }
+  .f-title-row {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; min-width: 0;
+  }
+  .f-back {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; flex-shrink: 0;
+    border: none; border-radius: 0;
+    background: transparent; color: var(--secondary);
+    font-size: 16px; line-height: 1; text-decoration: none;
+  }
+  .f-back:hover { color: var(--text); }
+  .f-name { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+  .f-run {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; color: var(--up);
+  }
+  .f-run i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .f-now {
+    margin: 8px 0 0 42px; font-size: 13px; color: var(--secondary);
+  }
+  .f-now b { color: var(--text); font-weight: 650; }
+  .f-now em { font-style: normal; color: var(--muted); margin-left: 8px; }
+  .f-acts { flex-shrink: 0; }
+  .f-acts .btn { padding: 7px 14px; border-radius: 10px; font-size: 13px; font-weight: 550; }
+  .f-tabs {
+    display: flex; gap: 18px; margin: 8px 18px 0; padding: 0 0 10px;
+    border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted);
+  }
+  .f-tabs .on {
+    color: var(--text); font-weight: 600;
+    box-shadow: inset 0 -1px 0 var(--text); padding-bottom: 8px;
+  }
+  .chosen-frame {
+    outline: 1px solid color-mix(in srgb, var(--up) 40%, var(--border));
+  }
+  .phone .f-top { padding: 0; }
+  .phone .f-now { margin-left: 42px; }
+  .phone .f-tabs { margin: 12px 0 0; }
+  .phone .f-acts { width: auto; }
+  .phone .f-acts .btn { min-width: 88px; }
+  @media (max-width: 520px) {
+    .phone .f-now { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">Все макеты</a>
+    <div>
+      <h1>Монитор · robots-quiet-chrome</h1>
+      <p>Выбрано: B+D · назад у имени · только Пауза · без вкладки Флот.</p>
+    </div>
+    <span class="badge badge--new">выбрано</span>
+    <button class="theme-btn" type="button" id="theme">Светлая</button>
+  </div>
+
+  <div class="wrap stack">
+    <p class="thesis">
+      <strong>Финал:</strong> кнопка назад к флоту у названия · LED «Работает» · строка «Сейчас» ·
+      вкладки только Лайв / История · справа одна «Пауза» (мягкая остановка). Стоп убран из шапки.
+    </p>
+
+    <!-- FINAL -->
+    <section id="final">
+      <div class="frame-label"><span>Финал · desktop</span></div>
+      <div class="frame chosen-frame">
+        <div class="nav">
+          <div class="brand">GINITY</div>
+          <div class="nav-pill">
+            <button class="nav-link" type="button">Дашборд</button>
+            <button class="nav-link nav-link--active" type="button">Роботы</button>
+            <button class="nav-link" type="button">Портфель</button>
+          </div>
+          <div class="avatar">G</div>
+        </div>
+        <div class="screen">
+          <div class="f-top">
+            <div>
+              <div class="f-title-row">
+                <a class="f-back" href="/robots" aria-label="Назад к флоту" title="К флоту" aria-hidden="false"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.2 288 416 288c17.7 0 32-14.3 32-32s-14.3-32-32-32l-306.7 0L214.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></a>
+                <h2 class="f-name">Копия хард</h2>
+                <span class="f-run"><i></i>Работает</span>
+              </div>
+              <p class="f-now">Сейчас <b>Цены · 42%</b><em>#3 · live · price_tick · ATR 127/141</em></p>
+            </div>
+            <div class="f-acts">
+              <button class="btn btn--ghost" type="button">Пауза</button>
+            </div>
+          </div>
+          <div class="f-tabs"><span class="on">Лайв</span><span>История</span></div>
+          <p class="stub">Дальше — equity + блоттер C. Жёсткий стоп — из флота / меню, не в лайв-шапке.</p>
+        </div>
+      </div>
+      <p class="replaces">← ведёт на /robots. Soft stop = Пауза. Вкладки без «Флот».</p>
+    </section>
+
+    <div class="note">
+      <strong>Архив сравнения ниже</strong> — A–E как были; ориентир — блок «Финал» сверху и mobile F1.
+    </div>
+
+    <div class="grid2">
+      <!-- A -->
+      <section id="a">
+        <div class="frame-label"><span>A · сейчас (как в коде)</span></div>
+        <div class="frame">
+          <div class="nav">
+            <div class="brand">GINITY</div>
+            <div class="nav-pill">
+              <button class="nav-link" type="button">Дашборд</button>
+              <button class="nav-link nav-link--active" type="button">Роботы</button>
+              <button class="nav-link" type="button">Портфель</button>
+            </div>
+            <div class="avatar">G</div>
+          </div>
+          <div class="screen">
+            <div class="a-top">
+              <div>
+                <h2 class="a-title">Копия хард</h2><span class="a-status">Работает</span>
+                <p class="a-meta">#3 · live · стрим офлайн</p>
+              </div>
+              <div class="a-acts">
+                <button class="btn btn--ghost" type="button">Пауза</button>
+</div>
+            </div>
+            <div class="a-tabs"><span class="on">Лайв</span><span>История</span></div>
+            <p class="stub">Позиции · <b>блоттер C</b> …</p>
+          </div>
+        </div>
+        <p class="replaces">Минусы: «Работает» без точки; meta конкурирует с фазой; две вертикальные зоны.</p>
+      </section>
+
+      <!-- B -->
+      <section id="b">
+        <div class="frame-label"><span>B · LED-статус + короткая meta</span></div>
+        <div class="frame">
+          <div class="nav">
+            <div class="brand">GINITY</div>
+            <div class="nav-pill">
+              <button class="nav-link" type="button">Дашборд</button>
+              <button class="nav-link nav-link--active" type="button">Роботы</button>
+              <button class="nav-link" type="button">Портфель</button>
+            </div>
+            <div class="avatar">G</div>
+          </div>
+          <div class="screen">
+            <div class="b-top">
+              <div>
+                <h2 class="b-name">Копия хард <span class="b-run"><i></i>Работает</span></h2>
+                <p class="b-meta">#3 · live</p>
+              </div>
+              <div class="b-acts">
+                <button class="btn btn--ghost" type="button">Пауза</button>
+</div>
+            </div>
+            <div class="b-tabs"><span class="on">Лайв</span><span>История</span></div>
+            <p class="stub">Стрим и цикл — в строке «Сейчас» у сводки, не в шапке.</p>
+          </div>
+        </div>
+        <p class="replaces">Минимальный патч к текущему quiet-chrome. Мало кода.</p>
+      </section>
+
+      <!-- C -->
+      <section id="c">
+        <div class="frame-label"><span>C · одна полоса</span></div>
+        <div class="frame">
+          <div class="nav">
+            <div class="brand">GINITY</div>
+            <div class="nav-pill">
+              <button class="nav-link" type="button">Дашборд</button>
+              <button class="nav-link nav-link--active" type="button">Роботы</button>
+              <button class="nav-link" type="button">Портфель</button>
+            </div>
+            <div class="avatar">G</div>
+          </div>
+          <div class="screen">
+            <div class="c-band">
+              <div>
+                <h2 class="c-name">Копия хард <span class="c-run"><i></i>Работает</span></h2>
+                <p class="c-meta">#3 · live</p>
+              </div>
+              <nav class="c-tabs" aria-label="Разделы"><span class="on">Лайв</span><span>История</span></nav>
+              <div class="c-acts">
+                <button class="btn btn--ghost" type="button">Пауза</button>
+</div>
+            </div>
+            <p class="stub">На широком экране −1 строка высоты. Вкладки рядом с именем.</p>
+          </div>
+        </div>
+        <p class="replaces">Сильнее меняет layout quiet-chrome (grid 3 колонки).</p>
+      </section>
+
+      <!-- D -->
+      <section id="d">
+        <div class="frame-label"><span>D · «Сейчас» в шапке</span></div>
+        <div class="frame">
+          <div class="nav">
+            <div class="brand">GINITY</div>
+            <div class="nav-pill">
+              <button class="nav-link" type="button">Дашборд</button>
+              <button class="nav-link nav-link--active" type="button">Роботы</button>
+              <button class="nav-link" type="button">Портфель</button>
+            </div>
+            <div class="avatar">G</div>
+          </div>
+          <div class="screen">
+            <div class="d-top">
+              <div>
+                <h2 class="d-name">Копия хард <span class="d-run"><i></i>Работает</span></h2>
+                <p class="d-now">Сейчас <b>Цены · 42%</b><em>price_tick · ATR TRNFP</em></p>
+              </div>
+              <div class="d-acts">
+                <button class="btn btn--ghost" type="button">Пауза</button>
+</div>
+            </div>
+            <div class="d-tabs"><span class="on">Лайв</span><span>История</span></div>
+            <p class="stub">Фаза не дублируется в cockpit — шапка отвечает «что делает робот».</p>
+          </div>
+        </div>
+        <p class="replaces">Использует уже существующий слот <code>notice</code> / subtitle. Хорошо стыкуется с C-блоттером.</p>
+      </section>
+    </div>
+
+    <!-- E full width -->
+    <section id="e">
+      <div class="frame-label"><span>E · крошка «Флот» · вкладки без дубля</span></div>
+      <div class="frame">
+        <div class="nav">
+          <div class="brand">GINITY</div>
+          <div class="nav-pill">
+            <button class="nav-link" type="button">Дашборд</button>
+            <button class="nav-link nav-link--active" type="button">Роботы</button>
+            <button class="nav-link" type="button">Портфель</button>
+          </div>
+          <div class="avatar">G</div>
+        </div>
+        <div class="screen">
+          <div class="e-top">
+            <p class="e-crumb"><a href="#">← к флоту</a></p>
+            <div class="e-row">
+              <div>
+                <h2 class="e-name">Копия хард <span class="e-run"><i></i>Работает</span></h2>
+                <p class="e-meta">#3 · live</p>
+              </div>
+              <div class="e-acts">
+                <button class="btn btn--ghost" type="button">Пауза</button>
+</div>
+            </div>
+          </div>
+          <div class="e-tabs"><span class="on">Лайв</span><span>История</span></div>
+          <p class="stub">«Флот» уходит в крошку; в табах остаются только разделы этого робота.</p>
+        </div>
+      </div>
+      <p class="replaces">Архив. В финале — только Лайв / История, без «Правка».</p>
+    </section>
+
+    <section id="mobile">
+      <div class="frame-label"><span>Финал · mobile</span></div>
+      <div class="phones">
+        <div class="phone chosen-frame">
+          <div class="phone__label">F1 · выбранный</div>
+          <div class="inner">
+            <div class="f-top">
+              <div>
+                <div class="f-title-row">
+                  <a class="f-back" href="/robots" aria-label="Назад к флоту"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.2 288 416 288c17.7 0 32-14.3 32-32s-14.3-32-32-32l-306.7 0L214.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></a>
+                  <h2 class="f-name">Копия хард</h2>
+                  <span class="f-run"><i></i>Работает</span>
+                </div>
+                <p class="f-now">Сейчас <b>Цены · 42%</b><em>#3 · live · ATR TRNFP</em></p>
+              </div>
+              <div class="f-acts">
+                <button class="btn btn--ghost" type="button">Пауза</button>
+              </div>
+            </div>
+            <div class="f-tabs"><span class="on">Лайв</span><span>История</span></div>
+            <p class="stub" style="margin:12px 0 0;border:0;padding:0">Та же схема, что desktop. Пауза не на всю ширину.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const root = document.documentElement
+    const btn = document.getElementById('theme')
+    btn.addEventListener('click', () => {
+      const light = root.getAttribute('data-theme') === 'light'
+      root.setAttribute('data-theme', light ? 'dark' : 'light')
+      btn.textContent = light ? 'Светлая' : 'Тёмная'
+    })
+  </script>
+</body>
+</html>

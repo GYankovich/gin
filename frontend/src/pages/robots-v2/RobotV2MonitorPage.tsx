@@ -7,19 +7,17 @@ import { useWebSocket } from '@/hooks/useWebSocket'
 import { useAuthStore } from '@/stores/authStore'
 import { MonitorDecisionsCard } from '@/pages/robots-v2/components/MonitorDecisionsCard'
 import { MonitorEquityChart } from '@/pages/robots-v2/components/MonitorEquityChart'
-import { MonitorEventsCard } from '@/pages/robots-v2/components/MonitorEventsCard'
 import { MonitorOrdersCard } from '@/pages/robots-v2/components/MonitorOrdersCard'
 import { MonitorPositionsCard } from '@/pages/robots-v2/components/MonitorPositionsCard'
 import { MonitorSummaryCard } from '@/pages/robots-v2/components/MonitorSummaryCard'
-import { RobotConfirmModal } from '@/pages/robots-v2/components/RobotConfirmModal'
-import { RobotPageChrome } from '@/pages/robots-v2/components/RobotPageChrome'
-import { fmtErr, fmtNum, readCssColor, sessionStateLabel } from '@/pages/robots-v2/formatters'
+import { useQuietChromeActions, useQuietChromeLive } from '@/pages/robots-v2/RobotQuietShell'
+import { fmtErr, fmtNum, readCssColor } from '@/pages/robots-v2/formatters'
 import {
     appendEquityPoint,
     balanceFootnoteText,
-    balanceTileLabels,
     collectAuditTradeTickers,
     computeDayTradeStats,
+    countRestingLimits,
     filterScanCooldownRows,
     formatBalanceAsOfLabel,
     fmtNetPnl,
@@ -29,20 +27,19 @@ import {
     normalizeEquityPoints,
     isMoscowToday,
     parseBalanceSource,
-    CYCLE_STAGE_ORDER,
     pick,
     pickOpenPositions,
     posPrice,
+    positionBlotterSubtitle,
     positionTicker,
     positionTickerWarning,
+    positionUnrealizedPnl,
     positionsStampMs,
+    readPosNumber,
     scanStampMs,
     sortByTickerName,
-    stageDetailLabel,
-    stageLabel,
     tripOnLiveDay,
     toOrderDisplayRow,
-    SKIP_LABELS,
 } from '@/pages/robots-v2/monitorUtils'
 import { robotV2Service } from '@/services/robotV2Service'
 import type { RobotV2, RobotV2RoundTrip, RobotV2Status, RobotV2TickerScan } from '@/types/robotV2'
@@ -59,7 +56,6 @@ export default function RobotV2MonitorPage() {
     const [robot, setRobot] = useState<RobotV2 | null>(null)
     const [status, setStatus] = useState<RobotV2Status | null>(null)
     const [statusLoaded, setStatusLoaded] = useState(false)
-    const [events, setEvents] = useState<Array<{ ts: string; type: string; payload: unknown }>>([])
     const [equityPoints, setEquityPoints] = useState<Array<{ time: Time; value: number }>>([])
     const [chartHover, setChartHover] = useState<MonitorChartHover | null>(null)
     const equityPointsRef = useRef(equityPoints)
@@ -76,10 +72,8 @@ export default function RobotV2MonitorPage() {
     const [tickerScanAt, setTickerScanAt] = useState<string | null>(null)
     const [roundTrips, setRoundTrips] = useState<RobotV2RoundTrip[]>([])
     const [busy, setBusy] = useState(false)
-    const [hardStopOpen, setHardStopOpen] = useState(false)
     const [decisionsOpen, setDecisionsOpen] = useState(false)
     const [universeBusy, setUniverseBusy] = useState(false)
-    const seenEventKeys = useRef(new Set<string>())
     const positionsFreshAtRef = useRef(0)
     const scanFreshAtRef = useRef(0)
 
@@ -112,24 +106,12 @@ export default function RobotV2MonitorPage() {
         setTickerScanAt(at)
     }, [])
 
-    const pushEvent = useCallback((type: string, payload: unknown, ts?: string) => {
-        const stamp = ts || new Date().toISOString()
-        const key = `${stamp}|${type}|${JSON.stringify(payload).slice(0, 120)}`
-        if (seenEventKeys.current.has(key)) return
-        seenEventKeys.current.add(key)
-        if (seenEventKeys.current.size > 400) {
-            seenEventKeys.current = new Set([...seenEventKeys.current].slice(-200))
-        }
-        setEvents(prev => [{ ts: stamp, type, payload }, ...prev].slice(0, 80))
-    }, [])
-
     const refresh = useCallback(async () => {
         if (!Number.isFinite(robotId)) return
         try {
-            const [r, s, logs, auditRes] = await Promise.all([
+            const [r, s, auditRes] = await Promise.all([
                 robotV2Service.getById(robotId),
                 robotV2Service.getStatus(robotId),
-                robotV2Service.getLogs(robotId, { limit: 40 }).catch(() => ({ items: [] as Array<Record<string, unknown>> })),
                 robotV2Service.fetchAudit({ robotId, limit: 200, types: ['roundTrips'] }).catch(() => ({
                     robotId,
                     roundTrips: { items: [] as RobotV2RoundTrip[], total: 0 },
@@ -160,11 +142,6 @@ export default function RobotV2MonitorPage() {
                 const scanMs = scanStampMs(scanAt)
                 applyTickerScan(scan, scanAt || new Date().toISOString(), scanMs || Date.now())
             }
-            for (const raw of [...(logs.items || [])].reverse()) {
-                const type = String(raw.type || 'event')
-                const ts = String(raw.ts || raw.time || new Date().toISOString())
-                pushEvent(type, raw, ts)
-            }
             const curve = pick<Array<{ time?: string; equity?: number }>>(s, 'equityCurve', 'equity_curve')
             if (Array.isArray(curve) && curve.length > 0) {
                 const points = curve
@@ -194,7 +171,7 @@ export default function RobotV2MonitorPage() {
             setStatusLoaded(true)
             toast.show(fmtErr(e), 'error')
         }
-    }, [robotId, toast, pushEvent, applyTickerScan])
+    }, [robotId, toast, applyTickerScan])
 
     useEffect(() => {
         setStatusLoaded(false)
@@ -219,9 +196,6 @@ export default function RobotV2MonitorPage() {
             const posRows = (type === 'cycle' || type === 'positions')
                 ? pickOpenPositions(msg as Record<string, unknown>)
                 : null
-            if (type !== 'positions') {
-                pushEvent(type, msg, msg.ts ? String(msg.ts) : undefined)
-            }
             if (posRows) {
                 const updatedAt = msg.positionsUpdatedAt != null
                     ? String(msg.positionsUpdatedAt)
@@ -304,7 +278,7 @@ export default function RobotV2MonitorPage() {
         series.setData(equityPoints)
     }, [equityPoints])
 
-    const onStart = async () => {
+    const onStart = useCallback(async () => {
         setBusy(true)
         try {
             const mode = String((robot?.config?.core as Record<string, unknown> | undefined)?.mode || 'paper')
@@ -321,38 +295,20 @@ export default function RobotV2MonitorPage() {
         } finally {
             setBusy(false)
         }
-    }
+    }, [robot, robotId, toast, refresh])
 
-    const onStop = async (mode: 'soft' | 'hard') => {
-        if (mode === 'hard') {
-            setHardStopOpen(true)
-            return
-        }
+    const onPause = useCallback(async () => {
         setBusy(true)
         try {
-            await robotV2Service.stop(robotId, mode)
-            toast.show('Мягкая остановка', 'info')
+            await robotV2Service.stop(robotId, 'soft')
+            toast.show('Пауза', 'info')
             await refresh()
         } catch (e) {
             toast.show(fmtErr(e), 'error')
         } finally {
             setBusy(false)
         }
-    }
-
-    const onHardStopConfirm = async () => {
-        setBusy(true)
-        try {
-            await robotV2Service.stop(robotId, 'hard')
-            toast.show('Жёсткая остановка', 'info')
-            setHardStopOpen(false)
-            await refresh()
-        } catch (e) {
-            toast.show(fmtErr(e), 'error')
-        } finally {
-            setBusy(false)
-        }
-    }
+    }, [robotId, toast, refresh])
 
     const onRefreshUniverse = async () => {
         setUniverseBusy(true)
@@ -390,9 +346,6 @@ export default function RobotV2MonitorPage() {
     }
 
     const sessionStateRaw = pick(status || ({} as RobotV2Status), 'sessionState', 'session_state')
-    const sessionState = statusLoaded
-        ? (sessionStateRaw ? String(sessionStateRaw) : 'IDLE')
-        : '…'
     const sessionUpper = String(sessionStateRaw || '').toUpperCase()
     const equityRaw = pick<number>(status || ({} as RobotV2Status), 'equity', 'equity')
     const cashRaw = pick<number>(status || ({} as RobotV2Status), 'cash', 'cash')
@@ -404,15 +357,12 @@ export default function RobotV2MonitorPage() {
     const balanceAsOf = pick<string>(status || ({} as RobotV2Status), 'balanceAsOf', 'balance_as_of')
     const statusMode = pick<string>(status || ({} as RobotV2Status), 'mode', 'mode')
         || String((robot?.config?.core as Record<string, unknown> | undefined)?.mode || '')
-    const cycle = pick<number>(status || ({} as RobotV2Status), 'cycleNumber', 'cycle_number') ?? 0
-    const statusMessage = pick<string>(status || ({} as RobotV2Status), 'message', 'message')
     const bootstrapReady = Boolean(
         pick<boolean>(status || ({} as RobotV2Status), 'bootstrapReady', 'bootstrap_ready'),
     )
     const isRunning = sessionUpper === 'RUNNING' || sessionUpper === 'BOOTSTRAP'
     const isStopping = sessionUpper === 'STOPPING'
     const isActive = isRunning || isStopping
-    const isError = sessionUpper === 'ERROR'
     const statusStage = pick<string>(status || ({} as RobotV2Status), 'cycleStage', 'cycle_stage')
     const stageLower = String(liveStage?.stage || statusStage || '').toLowerCase()
     const isSyncing =
@@ -424,7 +374,6 @@ export default function RobotV2MonitorPage() {
         )
     const showSessionOps = statusLoaded && isActive && !isSyncing
     const showBalance = statusLoaded && (equity != null || cash != null)
-    const balanceLabels = balanceTileLabels(balanceSource, statusMode)
     const balanceFootnote = showBalance ? balanceFootnoteText(balanceSource, statusMode) : null
     const balanceAsOfLabel = showBalance ? formatBalanceAsOfLabel(balanceAsOf) : null
     const isLiveMode = String(statusMode || '').toLowerCase() === 'live'
@@ -439,6 +388,7 @@ export default function RobotV2MonitorPage() {
         [positionsRaw],
     )
     const liveOrders = pick<Array<Record<string, unknown>>>(status || ({} as RobotV2Status), 'openOrders', 'open_orders') || []
+    const limitCount = useMemo(() => countRestingLimits(liveOrders), [liveOrders])
     const orderRows = useMemo(
         () => mergeLiveRoundTrips(roundTrips, liveOrders),
         [roundTrips, liveOrders],
@@ -447,17 +397,15 @@ export default function RobotV2MonitorPage() {
         () => orderRows.filter(trip => tripOnLiveDay(trip)),
         [orderRows],
     )
-    const openOrderCount = useMemo(
-        () => dayOrderRows.filter(r => ['open', 'resting', 'submitted', 'new'].includes(String(r.status).toLowerCase())).length,
-        [dayOrderRows],
-    )
     const dayStats = useMemo(() => computeDayTradeStats(roundTrips), [roundTrips])
     const dayDelta = fmtNetPnl(dayStats.delta)
-    const dayLabel = useMemo(() => {
-        const [, m, d] = dayStats.dayKey.split('-')
-        if (!m || !d) return 'сегодня'
-        return `${d}.${m}`
-    }, [dayStats.dayKey])
+    const dayMtm = useMemo(() => {
+        if (equityPoints.length < 2) return null
+        const first = Number(equityPoints[0]?.value)
+        const last = Number(equityPoints[equityPoints.length - 1]?.value)
+        if (!Number.isFinite(first) || !Number.isFinite(last)) return null
+        return fmtNetPnl(last - first)
+    }, [equityPoints])
     const sessionHint = useMemo(() => {
         if (!statusLoaded || showSessionOps) return null
         if (isSyncing) return 'Робот синхронизируется'
@@ -467,10 +415,6 @@ export default function RobotV2MonitorPage() {
     const orderDisplayRows = useMemo(
         () => dayOrderRows.map(toOrderDisplayRow),
         [dayOrderRows],
-    )
-    const todayEvents = useMemo(
-        () => events.filter(ev => isMoscowToday(ev.ts)),
-        [events],
     )
     const decisions = pick<Array<Record<string, unknown>>>(status || ({} as RobotV2Status), 'decisions', 'decisions') || []
     const universeRaw = pick<string[]>(status || ({} as RobotV2Status), 'universe', 'universe') || []
@@ -492,183 +436,113 @@ export default function RobotV2MonitorPage() {
     const positionTableRows = useMemo(
         () => positions.map((p, i) => {
             const row = p as Record<string, unknown>
-            const readPx = (...keys: string[]) => {
-                for (const key of keys) {
-                    const n = Number(row[key])
-                    if (Number.isFinite(n) && n > 0) return n
-                }
-                return null
-            }
-            const entryN = readPx('entry_price', 'entryPrice', 'avg_entry_price', 'avgEntryPrice')
-            const currentN = readPx('current_price', 'currentPrice')
+            const entryN = readPosNumber(row, 'entry_price', 'entryPrice', 'avg_entry_price', 'avgEntryPrice')
+            const currentN = readPosNumber(row, 'current_price', 'currentPrice')
             const currentTone: 'up' | 'down' | 'neutral' = entryN != null && currentN != null
                 ? (currentN > entryN ? 'up' : currentN < entryN ? 'down' : 'neutral')
                 : 'neutral'
+            const pnlAbs = positionUnrealizedPnl(row)
+            const pnl = fmtNetPnl(pnlAbs)
+            const qty = readPosNumber(row, 'quantity', 'qty')
+            const entry = posPrice(row, 'entry_price', 'entryPrice', 'avg_entry_price', 'avgEntryPrice')
+            const current = posPrice(row, 'current_price', 'currentPrice')
+            const sl = posPrice(row, 'stop_loss_price', 'stopLossPrice')
+            const tp = posPrice(row, 'take_profit_price', 'takeProfitPrice')
             return {
                 id: String(row.ticker ?? row.secid ?? row.figi ?? i),
                 tickerLabel: String(row.ticker ?? row.figi ?? '—'),
                 tickerWarning: positionTickerWarning(row),
                 side: String(row.side ?? '—'),
-                quantity: String(row.quantity ?? '—'),
-                entry: posPrice(row, 'entry_price', 'entryPrice', 'avg_entry_price', 'avgEntryPrice'),
-                breakEven: posPrice(row, 'break_even_price', 'breakEvenPrice'),
-                current: posPrice(row, 'current_price', 'currentPrice'),
+                quantity: qty != null ? String(qty) : '—',
+                entry,
+                current,
                 currentTone,
-                sl: posPrice(row, 'stop_loss_price', 'stopLossPrice'),
-                tp: posPrice(row, 'take_profit_price', 'takeProfitPrice'),
+                entryToNow: `${entry} → ${current}`,
+                sl,
+                tp,
+                slTp: `${sl} / ${tp}`,
+                subtitle: positionBlotterSubtitle(row, liveOrders),
+                pnlText: pnl.text,
+                pnlTone: pnl.tone,
+                pnlAbs: pnlAbs ?? 0,
             }
         }),
-        [positions],
+        [positions, liveOrders],
     )
+    const positionsPnlTotal = useMemo(() => {
+        let sum = 0
+        let any = false
+        for (const row of positionTableRows) {
+            if (!Number.isFinite(row.pnlAbs)) continue
+            sum += row.pnlAbs
+            any = true
+        }
+        if (!any) return null
+        const fmt = fmtNetPnl(sum)
+        return { ...fmt, abs: sum }
+    }, [positionTableRows])
     const displayUniverse = useMemo(
         () => sortByTickerName(universe, t => t),
         [universe],
     )
     const positionsUpdatedAt = pick<string>(status || ({} as RobotV2Status), 'positionsUpdatedAt', 'positions_updated_at')
         || pick<string>(status || ({} as RobotV2Status), 'lastCycleAt', 'last_cycle_at')
-    const title = robot?.name || `Робот #${robotId}`
-
-    const heroBadge = (() => {
-        if (!statusLoaded) return { label: '…', variant: 'neutral' as const }
-        if (isError) return { label: 'Ошибка', variant: 'down' as const }
-        if (isSyncing) return { label: 'Синхронизация', variant: 'cyan' as const }
-        if (sessionUpper === 'BOOTSTRAP') return { label: 'Синхронизация', variant: 'cyan' as const }
-        if (sessionUpper === 'RUNNING') return { label: 'Работает', variant: 'up' as const }
-        if (isStopping) return { label: 'Остановка', variant: 'neutral' as const }
-        return { label: sessionStateLabel(sessionState), variant: 'neutral' as const }
-    })()
-
-    const statusProgress = pick<number>(status || ({} as RobotV2Status), 'cycleProgress', 'cycle_progress')
-    const statusDetail = pick<string>(status || ({} as RobotV2Status), 'cycleDetail', 'cycle_detail')
-    const statusSkip = pick<string>(status || ({} as RobotV2Status), 'cycleSkipReason', 'cycle_skip_reason')
-    const statusTriggered = pick<string>(status || ({} as RobotV2Status), 'lastTriggeredBy', 'last_triggered_by')
-    const stageKey = liveStage?.stage || statusStage || (isRunning ? 'idle' : '—')
-    const stageText = liveStage?.label || stageLabel(stageKey === '—' ? null : stageKey)
-    const stageProgress = Math.max(
-        0,
-        Math.min(1, Number(liveStage?.progress ?? statusProgress ?? (stageKey === 'done' || stageKey === 'skipped' ? 1 : 0))),
-    )
-    const stageDetailRaw = liveStage?.detail ?? statusDetail ?? null
-    const stageDetailText = stageDetailLabel(stageDetailRaw)
-    const skipReason = liveStage?.skipReason ?? statusSkip ?? null
-    const triggeredBy = liveStage?.triggeredBy ?? statusTriggered ?? null
-    const stagePct = Math.round(stageProgress * 100)
-    const stageDetailLine = [
-        stageDetailText,
-        triggeredBy ? `триггер: ${triggeredBy}` : null,
-        skipReason ? (SKIP_LABELS[skipReason] || skipReason) : null,
-    ].filter(Boolean).join(' · ')
-    const headerMeta = [
-        Number.isFinite(robotId) ? `#${robotId}` : null,
-        statusMode || null,
-        statusLoaded && !streamConnected ? 'стрим офлайн' : null,
-        statusMessage || null,
-    ].filter(Boolean).join(' · ')
+    const cycle = pick<number>(status || ({} as RobotV2Status), 'cycleNumber', 'cycle_number')
     const balanceNote = [balanceFootnote, balanceAsOfLabel].filter(Boolean).join(' · ') || null
-    const showStage = statusLoaded && Boolean(stageText) && stageText !== '—'
-    const stageIndex = CYCLE_STAGE_ORDER.indexOf(stageKey as typeof CYCLE_STAGE_ORDER[number])
     const decisionList = Array.isArray(decisions) ? decisions : []
-    const decisionLimit = decisionsOpen ? decisionList.length : 4
+    const decisionLimit = decisionsOpen ? decisionList.length : 3
     const poolTickers = displayUniverse.length > 0
         ? displayUniverse
         : displayTickerScan.map(row => row.ticker)
-    const scanByTicker = new Map(displayTickerScan.map(row => [row.ticker.toUpperCase(), row]))
-    const heldTickers = new Set(positions.map(positionTicker))
+    const totalPnlLabel = positionsPnlTotal
+        ? `${positionsPnlTotal.text}${equity != null && equity !== 0
+            ? ` · ${((positionsPnlTotal.abs / Math.abs(equity)) * 100).toLocaleString('ru-RU', {
+                maximumFractionDigits: 1,
+                signDisplay: 'exceptZero',
+            })}%`
+            : ''}`
+        : null
+
+    useQuietChromeLive(liveStage, streamConnected)
+    useQuietChromeActions(() => (
+        !statusLoaded ? (
+            <Button type="button" size="sm" loading disabled>
+                Статус…
+            </Button>
+        ) : isActive ? (
+            <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                loading={busy}
+                disabled={isStopping}
+                onClick={() => void onPause()}
+            >
+                Пауза
+            </Button>
+        ) : (
+            <Button type="button" size="sm" loading={busy} onClick={() => void onStart()}>
+                Запуск
+            </Button>
+        )
+    ), [statusLoaded, isActive, busy, isStopping, onPause, onStart])
 
     return (
-        <div className="page" data-page="robots" data-robots-view="monitor">
-            <RobotPageChrome
-                variant="quiet"
-                eyebrow=""
-                title={title}
-                robotId={robotId}
-                active="monitor"
-                status={(
-                    <span className={`robots-quiet-chrome__status robots-quiet-chrome__status--${heroBadge.variant}`}>
-                        {heroBadge.label}
-                    </span>
-                )}
-                subtitle={headerMeta ? <p className="robots-quiet-chrome__meta">{headerMeta}</p> : undefined}
-                actions={
-                    !statusLoaded ? (
-                        <Button type="button" size="sm" loading disabled>
-                            Статус…
-                        </Button>
-                    ) : isActive ? (
-                        <>
-                            <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                loading={busy}
-                                disabled={isStopping}
-                                onClick={() => void onStop('soft')}
-                            >
-                                Пауза
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="danger"
-                                size="sm"
-                                loading={busy}
-                                disabled={isStopping}
-                                onClick={() => void onStop('hard')}
-                            >
-                                Стоп
-                            </Button>
-                        </>
-                    ) : (
-                        <Button type="button" size="sm" loading={busy} onClick={() => void onStart()}>
-                            Запуск
-                        </Button>
-                    )
-                }
-            />
-
             <div className="dashboard-layout">
                 <Card className="dashboard-totals-card robots-monitor-cockpit">
-                    {showStage ? (
-                        <div className="robots-monitor-phase">
-                            <div className="robots-monitor-phase__track">
-                                {CYCLE_STAGE_ORDER.map((key, index) => {
-                                    const state = stageIndex < 0
-                                        ? ''
-                                        : index < stageIndex
-                                            ? 'done'
-                                            : index === stageIndex
-                                                ? 'now'
-                                                : ''
-                                    return (
-                                        <div
-                                            key={key}
-                                            className={`robots-monitor-phase__step${state ? ` robots-monitor-phase__step--${state}` : ''}`}
-                                        >
-                                            <div className="robots-monitor-phase__bar" />
-                                            <span>
-                                                {stageLabel(key)}
-                                                {state === 'now' ? ` · ${stagePct}%` : ''}
-                                            </span>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                            {stageDetailLine ? <p className="robots-monitor-phase__why">{stageDetailLine}</p> : null}
-                        </div>
-                    ) : null}
                     <div className="robots-monitor-cockpit__grid">
                     <MonitorSummaryCard
-                        dayLabel={dayLabel}
                         statusLoaded={statusLoaded}
                         dayTrades={dayStats.trades}
                         dayDelta={dayDelta}
+                        dayMtm={dayMtm}
                         showBalance={showBalance}
                         equityLabel={equity != null ? `${fmtNum(equity, 0)} ₽` : null}
                         cashLabel={cash != null ? `${fmtNum(cash, 0)} ₽` : null}
-                        cashTileLabel={balanceLabels.cash}
                         showBalanceUnavailable={showBalanceUnavailable}
-                        cycle={cycle}
                         positionsCount={positions.length}
-                        openOrderCount={openOrderCount}
+                        limitCount={limitCount}
+                        cycle={cycle}
                         sessionHint={sessionHint}
                     />
                     <MonitorEquityChart
@@ -722,6 +596,8 @@ export default function RobotV2MonitorPage() {
                     <MonitorPositionsCard
                         rows={positionTableRows}
                         positionsCount={positions.length}
+                        totalPnlLabel={totalPnlLabel}
+                        totalPnlTone={positionsPnlTotal?.tone ?? 'neutral'}
                         positionsUpdatedAt={positionsUpdatedAt}
                         brokerSoftStopHint={
                             !isRunning
@@ -731,38 +607,23 @@ export default function RobotV2MonitorPage() {
                         isRunning={isRunning}
                     />
                     <div className="robots-monitor-desk">
-                    <MonitorOrdersCard rows={orderDisplayRows} openOrderCount={openOrderCount} />
-                    <section>
-                            <div className="robots-monitor-desk__head">
+                    <MonitorOrdersCard rows={orderDisplayRows} />
+                    <Card className="dashboard-assets-card robots-v2-monitor-decisions">
+                            <div className="robots-monitor-desk__head dashboard-assets-card__head">
                                 <h3 className="dashboard-panel-title">Решения</h3>
-                                {decisionList.length > 4 ? (
+                                {decisionList.length > 3 ? (
                                     <button
                                         type="button"
                                         className="robots-monitor-more"
                                         onClick={() => setDecisionsOpen(open => !open)}
                                     >
-                                        {decisionsOpen ? 'свернуть' : `ещё ${decisionList.length - 4}`}
+                                        {decisionsOpen ? 'свернуть' : `ещё ${decisionList.length - 3}`}
                                     </button>
                                 ) : null}
                             </div>
                             <MonitorDecisionsCard bare limit={decisionLimit} decisions={decisionList} />
-                    </section>
+                    </Card>
                     </div>
-                    <section className="robots-monitor-feed">
-                        <h3 className="dashboard-panel-title">
-                            Лента
-                            <span>{streamConnected ? 'стрим' : 'стрим офлайн'}</span>
-                        </h3>
-                        <MonitorEventsCard
-                            bare
-                            limit={3}
-                            showStatus={false}
-                            events={todayEvents}
-                            streamConnected={streamConnected}
-                            isRunning={isRunning}
-                            hasToken={Boolean(token)}
-                        />
-                    </section>
                     <section className="robots-monitor-pool">
                         <div className="robots-monitor-desk__head">
                             <h3 className="dashboard-panel-title">
@@ -789,41 +650,12 @@ export default function RobotV2MonitorPage() {
                         {poolTickers.length === 0 ? (
                             <p className="dashboard-empty">Пул пуст</p>
                         ) : (
-                            <div className="robots-monitor-pool__row">
-                                {poolTickers.map(ticker => {
-                                    const key = ticker.toUpperCase()
-                                    const held = heldTickers.has(key)
-                                    const scan = scanByTicker.get(key)
-                                    const reason = !held ? (scan?.message || scan?.code || '') : ''
-                                    return (
-                                        <span
-                                            key={key}
-                                            className={`robots-monitor-pill${held ? ' robots-monitor-pill--on' : ''}`}
-                                        >
-                                            {key}
-                                            {reason ? <em>{reason}</em> : null}
-                                        </span>
-                                    )
-                                })}
-                            </div>
+                            <p className="robots-monitor-pool__line">
+                                {poolTickers.map(t => t.toUpperCase()).join(' ')}
+                            </p>
                         )}
                     </section>
                 </div>
             </div>
-
-            <RobotConfirmModal
-                open={hardStopOpen}
-                onClose={() => setHardStopOpen(false)}
-                onConfirm={() => void onHardStopConfirm()}
-                title="Жёсткая остановка"
-                message={
-                    String((robot?.config?.core as Record<string, unknown> | undefined)?.mode || 'paper') === 'live'
-                        ? 'Жёсткая остановка закроет все позиции. Продолжить?'
-                        : 'Жёсткая остановка сессии. Продолжить?'
-                }
-                confirmLabel="Остановить"
-                loading={busy}
-            />
-        </div>
     )
 }

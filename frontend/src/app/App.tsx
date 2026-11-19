@@ -4,6 +4,7 @@ import { useAuthStore, type AuthFeatures } from '@/stores/authStore'
 import { PageLayout } from '@/components/layout/PageLayout'
 import { ToastProvider } from '@/components/ui/Toast'
 import RobotsV2Layout from '@/pages/robots-v2/RobotsV2Layout'
+import RobotQuietShell from '@/pages/robots-v2/RobotQuietShell'
 
 const LoginPage = lazy(() => import('@/pages/LoginPage'))
 const DemoPage = lazy(() => import('@/pages/DemoPage'))
@@ -133,8 +134,10 @@ export function App() {
                         <Route index element={<RobotsV2FleetPage />} />
                         <Route path="new" element={<RobotV2WizardPage />} />
                         <Route path="edit/:id" element={<RobotV2WizardPage />} />
-                        <Route path=":id/monitor" element={<RobotV2MonitorPage />} />
-                        <Route path=":id/logs" element={<RobotV2LogsPage />} />
+                        <Route path=":id" element={<RobotQuietShell />}>
+                            <Route path="monitor" element={<RobotV2MonitorPage />} />
+                            <Route path="logs" element={<RobotV2LogsPage />} />
+                        </Route>
                         <Route path=":id/backtest" element={<Navigate to="/backtest" replace />} />
                     </Route>
                     <Route path="robots-v2/*" element={<RedirectRobotsV2 />} />

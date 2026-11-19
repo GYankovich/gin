@@ -1,43 +1,32 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { Card } from '@/components/ui/Card'
 import type { OrderDisplayRow } from '@/pages/robots-v2/monitorUtils'
 
 type MonitorOrdersCardProps = {
+    /** Closed / settled rows for the live day only. */
     rows: OrderDisplayRow[]
-    openOrderCount: number
 }
 
-export function MonitorOrdersCard({ rows, openOrderCount }: MonitorOrdersCardProps) {
-    const [mode, setMode] = useState<'open' | 'all'>('open')
-    const shown = useMemo(() => {
-        const list = mode === 'open' ? rows.filter(row => row.isOpen) : rows
-        return [...list].sort((a, b) => b.dateMs - a.dateMs || a.ticker.localeCompare(b.ticker))
-    }, [mode, rows])
+/**
+ * Day's closed trades — not open positions or resting limits
+ * (limits live under the position blotter subtitle).
+ */
+export function MonitorOrdersCard({ rows }: MonitorOrdersCardProps) {
+    const shown = useMemo(
+        () => [...rows]
+            .filter(row => !row.isOpen)
+            .sort((a, b) => b.dateMs - a.dateMs || a.ticker.localeCompare(b.ticker)),
+        [rows],
+    )
 
     return (
         <Card className="dashboard-assets-card robots-v2-monitor-orders">
             <div className="dashboard-assets-card__head robots-monitor-orders__head">
-                <h3 className="dashboard-panel-title">Заявки</h3>
-                <div className="robots-monitor-mode" role="tablist" aria-label="Режим заявок">
-                    <button
-                        type="button"
-                        className={`robots-monitor-mode__btn${mode === 'open' ? ' robots-monitor-mode__btn--on' : ''}`}
-                        onClick={() => setMode('open')}
-                    >
-                        Текущие{openOrderCount > 0 ? ` · ${openOrderCount}` : ''}
-                    </button>
-                    <button
-                        type="button"
-                        className={`robots-monitor-mode__btn${mode === 'all' ? ' robots-monitor-mode__btn--on' : ''}`}
-                        onClick={() => setMode('all')}
-                    >
-                        Все
-                    </button>
-                </div>
+                <h3 className="dashboard-panel-title">Сделки дня</h3>
             </div>
             {shown.length === 0 ? (
                 <p className="dashboard-empty">
-                    {mode === 'open' ? 'Нет открытых заявок' : 'Пока нет сделок'}
+                    Закрытых сегодня нет — в сводке только mark-to-market.
                 </p>
             ) : (
                 <div className="robots-monitor-orders">

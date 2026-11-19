@@ -30,17 +30,11 @@ type RobotPageChromeProps = {
     /** When true, show only Флот (create wizard). */
     fleetOnly?: boolean
     className?: string
-    /** Quiet title + pill nav. Used by the live monitor. */
-    variant?: 'hero' | 'quiet'
-    /** Status beside the title in the quiet variant. */
-    status?: React.ReactNode
-    /** Quiet variant: block between the title row and the section tabs. */
-    notice?: React.ReactNode
 }
 
 /**
- * Shared header for a robot: Флот · Лайв · История.
- * Правка открывается из списка флота. Бэктест живёт в лаборатории.
+ * Hero header for fleet / wizard / backtest.
+ * Live + History use {@link RobotsQuietChrome}.
  */
 export function RobotPageChrome({
     eyebrow,
@@ -51,9 +45,6 @@ export function RobotPageChrome({
     actions,
     fleetOnly = false,
     className = 'dashboard-hero--node',
-    variant = 'hero',
-    status,
-    notice,
 }: RobotPageChromeProps) {
     const navigate = useNavigate()
     const isNarrow = useMediaQuery('(max-width: 767px)')
@@ -82,9 +73,7 @@ export function RobotPageChrome({
             type="button"
             variant="ghost"
             size="sm"
-            className={variant === 'quiet'
-                ? `robots-quiet-chrome__tab${isActive ? ' robots-quiet-chrome__tab--active' : ''}`
-                : `dashboard-hero__cfg${isActive ? ' robots-v2-chrome-nav--active' : ''}`}
+            className={`dashboard-hero__cfg${isActive ? ' robots-v2-chrome-nav--active' : ''}`}
             aria-current={isActive ? 'page' : undefined}
             onClick={() => navigate(path)}
         >
@@ -102,7 +91,7 @@ export function RobotPageChrome({
                         'Лайв',
                         `/robots/${id}/monitor`,
                         active === 'monitor',
-                        variant === 'quiet' ? undefined : <FontAwesomeIcon icon={faTowerBroadcast} />,
+                        <FontAwesomeIcon icon={faTowerBroadcast} />,
                     )}
                     {navBtn('История', `/robots/${id}/logs`, active === 'logs')}
                 </>
@@ -117,32 +106,6 @@ export function RobotPageChrome({
             {actions}
         </>
     ) : undefined
-
-    if (variant === 'quiet') {
-        return (
-            <header className="robots-quiet-chrome">
-                <div className="robots-quiet-chrome__top">
-                    <div className="robots-quiet-chrome__copy">
-                        <div className="robots-quiet-chrome__title-row">
-                            <h1 className="robots-quiet-chrome__title">{title}</h1>
-                            {status}
-                        </div>
-                        {subtitle}
-                    </div>
-                    {actions ? <div className="robots-quiet-chrome__actions">{actions}</div> : null}
-                </div>
-                {notice}
-                {showDesktopNav ? (
-                    <nav className="robots-quiet-chrome__nav" aria-label="Разделы робота">
-                        {desktopNav}
-                    </nav>
-                ) : null}
-                {isNarrow && navItems.length > 0 && (fleetOnly || id) ? (
-                    <RobotMobileSubnav items={navItems} active={active} />
-                ) : null}
-            </header>
-        )
-    }
 
     return (
         <>

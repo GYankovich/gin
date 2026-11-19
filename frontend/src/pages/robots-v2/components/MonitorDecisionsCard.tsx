@@ -1,5 +1,6 @@
 import React from 'react'
 import { Card } from '@/components/ui/Card'
+import { decisionCodeLabel, decisionMessageRu } from '@/pages/robots-v2/monitorUtils'
 
 type MonitorDecisionsCardProps = {
     decisions: Array<Record<string, unknown>>
@@ -16,10 +17,9 @@ export function MonitorDecisionsCard({ decisions, bare = false, limit = 12 }: Mo
         <ul className="robots-v2-event-list robots-v2-event-list--compact">
             {shown.map((d, i) => (
                 <li key={i}>
-                    <strong>{String(d.code ?? '—')}</strong>
+                    <strong>{decisionCodeLabel(d.code)}</strong>
                     <span className="robots-v2-monitor-decisions__msg">
-                        {' '}{String(d.message ?? '')}{' '}
-                        {d.ticker ? `(${String(d.ticker)})` : ''}
+                        {' '}{decisionMessageRu(d.message, d.ticker)}
                     </span>
                 </li>
             ))}

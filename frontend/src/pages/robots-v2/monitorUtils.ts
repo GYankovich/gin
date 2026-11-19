@@ -608,3 +608,113 @@ export function mergeUniverseTickers(universe: string[], positions: Array<Record
     out.sort((a, b) => a.localeCompare(b, 'en'))
     return out
 }
+
+export function readPosNumber(row: Record<string, unknown>, ...keys: string[]): number | null {
+    for (const key of keys) {
+        const n = Number(row[key])
+        if (Number.isFinite(n) && n !== 0) return n
+    }
+    for (const key of keys) {
+        const n = Number(row[key])
+        if (Number.isFinite(n)) return n
+    }
+    return null
+}
+
+/** Unrealized PnL for a long/short row (qty × (mark − entry), sign by side). */
+export function positionUnrealizedPnl(row: Record<string, unknown>): number | null {
+    const entry = readPosNumber(row, 'entry_price', 'entryPrice', 'avg_entry_price', 'avgEntryPrice')
+    const current = readPosNumber(row, 'current_price', 'currentPrice')
+    const qty = readPosNumber(row, 'quantity', 'qty')
+    if (entry == null || current == null || qty == null || qty === 0) return null
+    const side = String(row.side || 'long').toLowerCase()
+    const signedQty = side === 'short' || side === 'sell' ? -Math.abs(qty) : Math.abs(qty)
+    return (current - entry) * signedQty
+}
+
+export type RestingLimitHint = {
+    kind: 'sl' | 'tp' | 'limit'
+    label: string
+}
+
+export function restingLimitForTicker(
+    ticker: string,
+    liveOrders: Array<Record<string, unknown>>,
+): RestingLimitHint | null {
+    const key = ticker.toUpperCase()
+    for (const o of liveOrders) {
+        if (String(o.ticker || '').toUpperCase() !== key) continue
+        const status = String(o.status || '').toLowerCase()
+        if (!['resting', 'submitted', 'new'].includes(status)) continue
+        const side = String(o.side || '').toUpperCase()
+        if (side !== 'SELL' && side !== 'BUY') continue
+        const raw = String(o.kind || o.reason || o.orderType || o.order_type || '').toLowerCase()
+        if (raw.includes('stop') || raw.includes('sl')) {
+            return { kind: 'sl', label: 'лимит SL выставлен' }
+        }
+        if (raw.includes('take') || raw.includes('tp')) {
+            return { kind: 'tp', label: 'лимит TP выставлен' }
+        }
+        return { kind: 'limit', label: 'лимит выставлен' }
+    }
+    return null
+}
+
+export function positionBlotterSubtitle(
+    row: Record<string, unknown>,
+    liveOrders: Array<Record<string, unknown>>,
+): string {
+    const ticker = positionTicker(row)
+    const limit = ticker ? restingLimitForTicker(ticker, liveOrders) : null
+    const current = readPosNumber(row, 'current_price', 'currentPrice')
+    const sl = readPosNumber(row, 'stop_loss_price', 'stopLossPrice')
+    const parts: string[] = []
+    if (current != null && sl != null && current > 0 && sl > 0) {
+        const dist = Math.abs(current - sl)
+        parts.push(`до SL ${fmtPrice(dist)}`)
+    }
+    if (limit) parts.push(limit.label)
+    else parts.push('без лимита')
+    return parts.join(' · ')
+}
+
+const DECISION_CODE_RU: Record<string, string> = {
+    NO_SIGNAL: 'Тихо',
+    HOLD: 'Держим',
+    BLOCK: 'Блок',
+    BLOCKED: 'Блок',
+    SKIP: 'Пропуск',
+    ENTER: 'Вход',
+    EXIT: 'Выход',
+    RISK: 'Риск',
+}
+
+export function decisionCodeLabel(code: unknown): string {
+    const raw = String(code || '').trim()
+    if (!raw) return '—'
+    return DECISION_CODE_RU[raw.toUpperCase()] || raw
+}
+
+/** Soft RU rewrite for common English decision messages. */
+export function decisionMessageRu(message: unknown, ticker?: unknown): string {
+    let msg = String(message || '').trim()
+    if (!msg) return ticker ? String(ticker) : ''
+    msg = msg
+        .replace(/Strategy quiet[^.)]*/gi, 'стратегия без сигнала')
+        .replace(/triggered_by=/gi, 'триггер ')
+        .replace(/minCandles=/gi, 'свечей ≥')
+        .replace(/universe=/gi, 'пул ')
+        .replace(/tick_count/gi, 'тиков')
+        .replace(/no signal/gi, 'нет сигнала')
+        .replace(/liquidity/gi, 'ликвидность')
+    const tk = ticker != null ? String(ticker) : ''
+    if (tk && !msg.includes(tk)) return `${tk} · ${msg}`
+    return msg
+}
+
+export function countRestingLimits(liveOrders: Array<Record<string, unknown>>): number {
+    return liveOrders.filter(o => {
+        const status = String(o.status || '').toLowerCase()
+        return ['resting', 'submitted', 'new'].includes(status)
+    }).length
+}
