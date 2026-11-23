@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { MonitorTableViewport } from '@/pages/robots-v2/components/MonitorTableViewport'
 import type { PoolDecisionRow } from '@/pages/robots-v2/monitorUtils'
 
 type SortKey = 'ticker' | 'decision' | 'reason' | 'updatedMs'
@@ -84,74 +85,78 @@ export function MonitorUniverseCard({
                 ) : null}
             </div>
             {sorted.length === 0 ? (
-                <p className="dashboard-empty">Пул пуст</p>
-            ) : (
-                <div className="robots-monitor-day-trades__scroll">
-                    <table className="robots-monitor-day-trades__table" aria-label="Пул и решения">
-                        <thead>
-                            <tr>
-                                <th aria-sort={sortKey === 'ticker' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
-                                    <button
-                                        type="button"
-                                        className="robots-monitor-day-trades__sort"
-                                        onClick={() => toggleSort('ticker')}
-                                    >
-                                        Тикер{sortMark('ticker')}
-                                    </button>
-                                </th>
-                                <th aria-sort={sortKey === 'decision' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
-                                    <button
-                                        type="button"
-                                        className="robots-monitor-day-trades__sort"
-                                        onClick={() => toggleSort('decision')}
-                                    >
-                                        Решение{sortMark('decision')}
-                                    </button>
-                                </th>
-                                <th aria-sort={sortKey === 'reason' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
-                                    <button
-                                        type="button"
-                                        className="robots-monitor-day-trades__sort"
-                                        onClick={() => toggleSort('reason')}
-                                    >
-                                        Причина{sortMark('reason')}
-                                    </button>
-                                </th>
-                                <th
-                                    className="robots-monitor-day-trades__num"
-                                    aria-sort={sortKey === 'updatedMs' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                                >
-                                    <button
-                                        type="button"
-                                        className="robots-monitor-day-trades__sort"
-                                        onClick={() => toggleSort('updatedMs')}
-                                    >
-                                        Обновлено{sortMark('updatedMs')}
-                                    </button>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {sorted.map(row => (
-                                <tr key={row.id}>
-                                    <td>
-                                        <b className="robots-monitor-day-trades__tk">{row.ticker}</b>
-                                    </td>
-                                    <td title={row.decision}>{row.decision}</td>
-                                    <td
-                                        className="robots-monitor-day-trades__muted"
-                                        title={row.reason}
-                                    >
-                                        {row.reason}
-                                    </td>
-                                    <td className="robots-monitor-day-trades__num mono robots-monitor-day-trades__muted">
-                                        {row.updatedLabel}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                <div className="robots-monitor-empty">
+                    <p className="robots-monitor-empty__sub">
+                        {canRefreshUniverse
+                            ? 'Сейчас пусто — нет кандидатов. Обновите скринер или проверьте режим universe.'
+                            : 'Сейчас пусто — нет кандидатов. Проверьте режим universe в настройках робота.'}
+                    </p>
                 </div>
+            ) : (
+                <MonitorTableViewport
+                    ariaLabel="Пул и решения"
+                    syncKey={`${sortKey}:${sortDir}:${sorted.map(r => r.id).join('|')}`}
+                    renderHead={() => (
+                        <tr>
+                            <th aria-sort={sortKey === 'ticker' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                                <button
+                                    type="button"
+                                    className="robots-monitor-day-trades__sort"
+                                    onClick={() => toggleSort('ticker')}
+                                >
+                                    Тикер{sortMark('ticker')}
+                                </button>
+                            </th>
+                            <th aria-sort={sortKey === 'decision' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                                <button
+                                    type="button"
+                                    className="robots-monitor-day-trades__sort"
+                                    onClick={() => toggleSort('decision')}
+                                >
+                                    Решение{sortMark('decision')}
+                                </button>
+                            </th>
+                            <th aria-sort={sortKey === 'reason' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                                <button
+                                    type="button"
+                                    className="robots-monitor-day-trades__sort"
+                                    onClick={() => toggleSort('reason')}
+                                >
+                                    Причина{sortMark('reason')}
+                                </button>
+                            </th>
+                            <th
+                                className="robots-monitor-day-trades__num"
+                                aria-sort={sortKey === 'updatedMs' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                            >
+                                <button
+                                    type="button"
+                                    className="robots-monitor-day-trades__sort"
+                                    onClick={() => toggleSort('updatedMs')}
+                                >
+                                    Обновлено{sortMark('updatedMs')}
+                                </button>
+                            </th>
+                        </tr>
+                    )}
+                    bodyRows={sorted.map(row => (
+                        <tr key={row.id}>
+                            <td>
+                                <b className="robots-monitor-day-trades__tk">{row.ticker}</b>
+                            </td>
+                            <td title={row.decision}>{row.decision}</td>
+                            <td
+                                className="robots-monitor-day-trades__muted"
+                                title={row.reason}
+                            >
+                                {row.reason}
+                            </td>
+                            <td className="robots-monitor-day-trades__num mono robots-monitor-day-trades__muted">
+                                {row.updatedLabel}
+                            </td>
+                        </tr>
+                    ))}
+                />
             )}
         </Card>
     )

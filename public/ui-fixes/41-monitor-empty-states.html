@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Монитор — пустые состояния блоков</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  html[data-theme='light'] {
+    --bg: #f4f5f7;
+    --page: #ffffff;
+    --panel: #f7f8fa;
+    --elevated: #eef0f3;
+    --text: #1c1f24;
+    --secondary: #3d4450;
+    --muted: #6b7280;
+    --border: rgba(20, 24, 30, 0.1);
+    --line: rgba(20, 24, 30, 0.16);
+    --up: #1f8a4c;
+    --down: #c43b4a;
+    --picker: #fff;
+  }
+  html[data-theme='light'] body { background: var(--bg); }
+  .theme-btn {
+    border: 1px solid var(--border); background: transparent; color: var(--secondary);
+    border-radius: 10px; padding: 8px 12px; font-size: 13px;
+  }
+  .thesis { margin: 0 0 18px; max-width: 72ch; color: var(--secondary); font-size: 14px; line-height: 1.5; }
+  .thesis strong { color: var(--text); }
+  .section { margin-bottom: 32px; }
+  .section h2 { margin: 0 0 6px; font-size: 16px; font-weight: 650; }
+  .section .lead { margin: 0 0 14px; font-size: 13px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 960px) {
+    .grid--2 { grid-template-columns: 1fr 1fr; }
+    .grid--3 { grid-template-columns: 1fr 1fr 1fr; }
+  }
+  .frame {
+    background: var(--page);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 10px 28px rgba(0,0,0,.06);
+  }
+  .frame-label {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--muted);
+  }
+  .frame-label strong { color: var(--text); font-weight: 650; }
+  .pad { padding: 14px 16px 16px; }
+
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+    padding: 12px 14px 12px;
+  }
+  .head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin-bottom: 8px;
+  }
+  .head h3 { margin: 0; font-size: 15px; font-weight: 650; }
+  .hint { font-weight: 400; color: var(--muted); }
+  .btn {
+    border: 1px solid var(--border); background: transparent; color: var(--secondary);
+    border-radius: 8px; padding: 5px 10px; font-size: 12px;
+  }
+  .empty {
+    margin: 4px 0 2px;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+  .empty b { color: var(--secondary); font-weight: 550; }
+  .empty-sub {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--muted);
+    opacity: 0.85;
+    line-height: 1.4;
+  }
+  .ghost-th {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr 1fr 5rem;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .ghost-th--pos { grid-template-columns: 1.2fr 5.5rem 1fr 5.5rem 4.5rem; }
+  .ghost-th--day { grid-template-columns: 5.5rem 5rem 1fr 5.5rem 1fr 7rem 4.5rem 4.5rem; }
+  .ghost-th--pool { grid-template-columns: 5rem 5rem 1fr 4.5rem; }
+  .ghost-body {
+    padding: 18px 0 10px;
+    text-align: left;
+  }
+  .mono { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+  .screen {
+    max-width: 960px;
+    margin: 0 auto;
+    background: var(--page);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: 0 10px 28px rgba(0,0,0,.06);
+  }
+  .note {
+    margin: 16px 0 0; padding: 12px 14px; border-radius: 12px;
+    border: 1px dashed var(--border); font-size: 12px; color: var(--secondary); line-height: 1.5;
+  }
+  .note strong { color: var(--text); }
+  .tag {
+    display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px;
+    background: rgba(42,122,155,0.12); color: #2a7a9b; font-size: 10px; font-weight: 650;
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <div>
+      <h1>Монитор — пустые состояния</h1>
+      <p>Как выглядят блоки без данных. Сейчас / варианты.</p>
+    </div>
+    <button type="button" class="theme-btn" id="themeToggle">Тема</button>
+  </div>
+
+  <div class="wrap">
+    <p class="thesis">
+      Цель: пустой блок не выглядит «сломанным» и сразу отвечает
+      <strong>почему пусто</strong> и <strong>это нормально или нет</strong>.
+      Стили текущие (card + dashboard-empty). Ниже — A сейчас, B/C предложения.
+    </p>
+
+    <!-- ===== Заявки ===== -->
+    <div class="section">
+      <h2>Заявки</h2>
+      <p class="lead">Нет активных ордеров у брокера / в сессии.</p>
+      <div class="grid grid--3">
+        <div class="frame">
+          <div class="frame-label"><strong>A · сейчас</strong><span>одна строка</span></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Заявки</h3></div>
+              <p class="empty">Нет активных заявок</p>
+            </div>
+          </div>
+        </div>
+        <div class="frame">
+          <div class="frame-label"><strong>B · с пояснением</strong><span class="tag">propose</span></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Заявки</h3></div>
+              <p class="empty"><b>Нет активных заявок</b></p>
+              <p class="empty-sub">Лимиты появятся, когда робот выставит вход или TP/SL.</p>
+            </div>
+          </div>
+        </div>
+        <div class="frame">
+          <div class="frame-label"><strong>C · ghost thead</strong><span class="tag">propose</span></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Заявки</h3></div>
+              <div class="ghost-th">
+                <span>Тикер</span><span>Ордер</span><span>Статус</span><span>Время</span>
+              </div>
+              <div class="ghost-body">
+                <p class="empty">Нет активных заявок</p>
+                <p class="empty-sub">Рынок свободен — робот ничего не держит в стакане.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Позиции ===== -->
+    <div class="section">
+      <h2>Позиции</h2>
+      <p class="lead">Разный смысл: робот работает vs остановлен.</p>
+      <div class="grid grid--2">
+        <div class="frame">
+          <div class="frame-label"><strong>A · сейчас (running)</strong><span>как в коде</span></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Позиции</h3></div>
+              <p class="empty">Нет открытых позиций — робот ещё не вошёл в сделку</p>
+            </div>
+          </div>
+        </div>
+        <div class="frame">
+          <div class="frame-label"><strong>A · сейчас (idle)</strong><span>как в коде</span></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Позиции</h3></div>
+              <p class="empty">Нет открытых позиций на брокере</p>
+            </div>
+          </div>
+        </div>
+        <div class="frame">
+          <div class="frame-label"><strong>B · короче + sub</strong><span class="tag">propose</span></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Позиции</h3></div>
+              <p class="empty"><b>Позиций нет</b></p>
+              <p class="empty-sub">Робот работает · ждём сигнал на вход из пула.</p>
+            </div>
+          </div>
+        </div>
+        <div class="frame">
+          <div class="frame-label"><strong>C · ghost + soft-stop</strong><span class="tag">propose</span></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Позиции</h3></div>
+              <div class="ghost-th ghost-th--pos">
+                <span>Позиция</span><span>Закупка</span><span class="mono">Вход → сейчас</span><span class="mono">SL / TP</span><span class="mono">PnL</span>
+              </div>
+              <div class="ghost-body">
+                <p class="empty"><b>Ждём сверку с брокером</b></p>
+                <p class="empty-sub">Сессия остановлена · позиции подтянутся после синка.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Сделки дня ===== -->
+    <div class="section">
+      <h2>Сделки дня</h2>
+      <p class="lead">Закрытых round-trip за московский день нет.</p>
+      <div class="grid grid--3">
+        <div class="frame">
+          <div class="frame-label"><strong>A · сейчас</strong></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Сделки дня</h3></div>
+              <p class="empty">Закрытых сегодня нет — в сводке только mark-to-market.</p>
+            </div>
+          </div>
+        </div>
+        <div class="frame">
+          <div class="frame-label"><strong>B · проще</strong><span class="tag">propose</span></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Сделки дня</h3></div>
+              <p class="empty"><b>Сегодня закрытых сделок нет</b></p>
+              <p class="empty-sub">День в KPI считается по equity, пока позиции открыты или ещё не было выходов.</p>
+            </div>
+          </div>
+        </div>
+        <div class="frame">
+          <div class="frame-label"><strong>C · ghost</strong><span class="tag">propose</span></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Сделки дня</h3></div>
+              <div class="ghost-th ghost-th--day" aria-hidden="true">
+                <span>Вход</span><span>Тикер</span><span>Почему купил</span><span>Выход</span>
+                <span>Почему продал</span><span class="mono">Вход → выход</span>
+                <span class="mono">Комиссия</span><span class="mono">Результат</span>
+              </div>
+              <div class="ghost-body">
+                <p class="empty">Закрытых сегодня нет</p>
+                <p class="empty-sub">Первая закрытая сделка появится здесь с причиной входа и выхода.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Пул ===== -->
+    <div class="section">
+      <h2>Пул</h2>
+      <p class="lead">Universe пуст / скринер ещё не отдал кандидатов.</p>
+      <div class="grid grid--3">
+        <div class="frame">
+          <div class="frame-label"><strong>A · сейчас</strong></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head">
+                <h3>Пул</h3>
+                <button type="button" class="btn">Обновить пул</button>
+              </div>
+              <p class="empty">Пул пуст</p>
+            </div>
+          </div>
+        </div>
+        <div class="frame">
+          <div class="frame-label"><strong>B · действие рядом</strong><span class="tag">propose</span></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Пул</h3></div>
+              <p class="empty"><b>Пул пуст</b></p>
+              <p class="empty-sub">Нет кандидатов для скана. Обновите скринер или проверьте режим universe.</p>
+              <p style="margin:10px 0 0"><button type="button" class="btn">Обновить пул</button></p>
+            </div>
+          </div>
+        </div>
+        <div class="frame">
+          <div class="frame-label"><strong>C · ghost</strong><span class="tag">propose</span></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head">
+                <h3>Пул</h3>
+                <button type="button" class="btn">Обновить пул</button>
+              </div>
+              <div class="ghost-th ghost-th--pool">
+                <span>Тикер</span><span>Решение</span><span>Причина</span><span class="mono">Обновлено</span>
+              </div>
+              <div class="ghost-body">
+                <p class="empty">Пул пуст</p>
+                <p class="empty-sub">После обновления здесь появятся тикеры и последнее решение стратегии.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Полный экран все пустые ===== -->
+    <div class="section">
+      <h2>Вся страница · все блоки пустые</h2>
+      <p class="lead">Вариант B: короткое название + одна строка-пояснение. Без прыжка сетки.</p>
+      <div class="frame">
+        <div class="frame-label"><strong>Сборка B</strong><span>running · нет заявок/позиций/сделок · пул пуст</span></div>
+        <div class="pad">
+          <div class="screen">
+            <div class="card">
+              <div class="head"><h3>Заявки</h3></div>
+              <p class="empty"><b>Нет активных заявок</b></p>
+              <p class="empty-sub">Лимиты появятся, когда робот выставит вход или TP/SL.</p>
+            </div>
+            <div class="card">
+              <div class="head"><h3>Позиции</h3></div>
+              <p class="empty"><b>Позиций нет</b></p>
+              <p class="empty-sub">Робот работает · ждём сигнал на вход из пула.</p>
+            </div>
+            <div class="card">
+              <div class="head"><h3>Сделки дня</h3></div>
+              <p class="empty"><b>Сегодня закрытых сделок нет</b></p>
+              <p class="empty-sub">День в KPI считается по equity, пока не было выходов.</p>
+            </div>
+            <div class="card">
+              <div class="head">
+                <h3>Пул</h3>
+                <button type="button" class="btn">Обновить пул</button>
+              </div>
+              <p class="empty"><b>Пул пуст</b></p>
+              <p class="empty-sub">Нет кандидатов. Обновите скринер или проверьте режим universe.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>Сейчас в проде (A):</strong> одна строка <code>dashboard-empty</code> без второй линии и без ghost-шапки.<br />
+      <strong>Рекомендация:</strong> взять <strong>B</strong> везде (заголовок + sub) — без ломки таблицы.
+      Ghost thead (C) — опционально, если важно держать визуальную сетку колонок.
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('themeToggle')?.addEventListener('click', () => {
+      const root = document.documentElement
+      root.setAttribute('data-theme', root.getAttribute('data-theme') === 'light' ? 'dark' : 'light')
+    })
+  </script>
+</body>
+</html>

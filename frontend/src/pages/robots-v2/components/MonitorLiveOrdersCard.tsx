@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { Card } from '@/components/ui/Card'
+import { MonitorTableViewport } from '@/pages/robots-v2/components/MonitorTableViewport'
 import { fmtOrderClock, fmtPrice } from '@/pages/robots-v2/monitorUtils'
 
 type OrderFilter = 'all' | 'buy' | 'sell' | 'error'
@@ -123,38 +124,40 @@ export function MonitorLiveOrdersCard({ orders }: MonitorLiveOrdersCardProps) {
                 </div>
             ) : null}
             {filtered.length === 0 ? (
-                <p className="dashboard-empty">
-                    {rows.length === 0 ? 'Нет активных заявок' : 'Нет заявок в этом фильтре'}
-                </p>
-            ) : (
-                <div className="robots-monitor-day-trades__scroll">
-                    <table className="robots-monitor-day-trades__table" aria-label="Активные заявки">
-                        <thead>
-                            <tr>
-                                <th>Тикер</th>
-                                <th>Ордер</th>
-                                <th>Статус</th>
-                                <th>Время</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filtered.map(row => (
-                                <tr key={row.id}>
-                                    <td>
-                                        <b className="robots-monitor-day-trades__tk">{row.ticker}</b>
-                                        <div className="robots-monitor-day-trades__muted">{row.sideLabel}</div>
-                                    </td>
-                                    <td>
-                                        <span className="mono">{row.detailLabel}</span>
-                                        <div className="robots-monitor-day-trades__muted">{row.kindLabel}</div>
-                                    </td>
-                                    <td className="robots-monitor-day-trades__muted">{row.statusLabel}</td>
-                                    <td className="mono robots-monitor-day-trades__muted">{row.timeLabel}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                <div className="robots-monitor-empty">
+                    <p className="robots-monitor-empty__sub">
+                        {rows.length === 0
+                            ? 'Сейчас пусто — лимиты появятся, когда робот выставит вход или TP/SL.'
+                            : 'В этом фильтре пусто — сбросьте фильтр или дождитесь заявок этого типа.'}
+                    </p>
                 </div>
+            ) : (
+                <MonitorTableViewport
+                    ariaLabel="Активные заявки"
+                    syncKey={`${filter}:${filtered.map(r => r.id).join('|')}`}
+                    renderHead={() => (
+                        <tr>
+                            <th>Тикер</th>
+                            <th>Ордер</th>
+                            <th>Статус</th>
+                            <th>Время</th>
+                        </tr>
+                    )}
+                    bodyRows={filtered.map(row => (
+                        <tr key={row.id}>
+                            <td>
+                                <b className="robots-monitor-day-trades__tk">{row.ticker}</b>
+                                <div className="robots-monitor-day-trades__muted">{row.sideLabel}</div>
+                            </td>
+                            <td>
+                                <span className="mono">{row.detailLabel}</span>
+                                <div className="robots-monitor-day-trades__muted">{row.kindLabel}</div>
+                            </td>
+                            <td className="robots-monitor-day-trades__muted">{row.statusLabel}</td>
+                            <td className="mono robots-monitor-day-trades__muted">{row.timeLabel}</td>
+                        </tr>
+                    ))}
+                />
             )}
             {rows.length > 0 ? (
                 <p className="robots-v2-hint robots-monitor-live-orders__cap">

@@ -47,19 +47,31 @@ export function MonitorPositionsCard({
     isRunning,
     bare = false,
 }: MonitorPositionsCardProps) {
-    const empty = isRunning
+    const emptySub = isRunning
         ? (brokerSoftStopHint
-            ? 'Ждём сверку позиций с брокером'
-            : 'Нет открытых позиций — робот ещё не вошёл в сделку')
-        : 'Нет открытых позиций на брокере'
+            ? 'Ждём сверку с брокером — позиции подтянутся после синка.'
+            : 'Сейчас пусто — робот работает, ждём сигнал на вход из пула.')
+        : 'Сейчас пусто — на брокере нет открытых позиций.'
 
     const sorted = [...rows].sort((a, b) => Math.abs(b.pnlAbs) - Math.abs(a.pnlAbs)
         || a.tickerLabel.localeCompare(b.tickerLabel))
 
     const body = (
         <>
+            {!bare ? (
+                <div className="dashboard-assets-card__head robots-monitor-orders__head">
+                    <h3 className="dashboard-panel-title">
+                        Позиции
+                        {sorted.length > 0 ? (
+                            <span className="robots-v2-hint"> · {sorted.length}</span>
+                        ) : null}
+                    </h3>
+                </div>
+            ) : null}
             {sorted.length === 0 ? (
-                <p className="dashboard-empty">{empty}</p>
+                <div className="robots-monitor-empty">
+                    <p className="robots-monitor-empty__sub">{emptySub}</p>
+                </div>
             ) : (
                 <table className="robots-monitor-blot" aria-label="Открытые позиции">
                     <thead>

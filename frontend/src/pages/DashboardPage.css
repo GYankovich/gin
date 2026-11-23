@@ -3915,12 +3915,24 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     min-width: 0;
 }
 
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__viewport {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+/* Header sits above the vertical scrollport — scrollbar never covers it */
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__head {
+    overflow: hidden;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__scroll {
     width: 100%;
     max-width: 100%;
     max-height: min(420px, 52vh);
     overflow: auto;
-    overscroll-behavior: contain;
+    overscroll-behavior: auto;
 }
 
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table {
@@ -3931,26 +3943,29 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     table-layout: auto;
 }
 
+
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th:nth-child(6),
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table td:nth-child(6),
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th:nth-child(7),
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table td:nth-child(7) {
-    min-width: 9.5rem;
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table td:nth-child(7),
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th:nth-child(8),
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table td:nth-child(8) {
+    min-width: 7.5rem;
     white-space: nowrap;
 }
 
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th {
-    position: sticky;
-    top: 0;
-    z-index: 1;
     text-align: left;
     font-size: 11px;
     font-weight: 500;
     color: var(--text-muted);
     padding: 6px 10px;
-    border-bottom: 1px solid var(--border-subtle);
     white-space: nowrap;
     background: var(--bg-card, var(--page-bg, #fff));
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__head .robots-monitor-day-trades__table th {
+    border-bottom: 0;
 }
 
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th:first-child,
@@ -3979,6 +3994,11 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     font-variant-numeric: tabular-nums;
 }
 
+/* th { text-align: left } beats bare __num — keep numeric headers with cells */
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th.robots-monitor-day-trades__num {
+    text-align: right;
+}
+
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__tk {
     font-weight: 650;
     letter-spacing: 0.02em;
@@ -3995,6 +4015,17 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-live-orders__cap {
     margin-top: 8px;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-empty {
+    margin: 2px 0 4px;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-empty__sub {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.45;
 }
 
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__stack {
