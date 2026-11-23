@@ -269,14 +269,21 @@ export type RobotV2RoundTrip = {
     sell_fill_price?: number | null
     sellQty?: number | null
     sell_qty?: number | null
+    sellSubmittedAt?: string | null
+    sell_submitted_at?: string | null
     status: string
     reason?: string | null
+    /** Strategy / entry signal that opened the lot */
+    entryReason?: string | null
+    entry_reason?: string | null
     /** After commission, before tax */
     realizedPnl?: number | null
     realized_pnl?: number | null
     /** After commission and NDFL — «в кармане» */
     netPnl?: number | null
     net_pnl?: number | null
+    /** Round-trip commission (entry + exit), ₽ */
+    commission?: number | null
 }
 
 export type AuditDataType = 'sessions' | 'fills' | 'cycles' | 'decisions' | 'signals' | 'orders' | 'roundTrips'

@@ -8,6 +8,8 @@ export type MonitorPositionRow = {
     tickerWarning: string
     side: string
     quantity: string
+    /** When the position was opened (buy fill / ledger opened_at). */
+    boughtAtLabel: string
     entry: string
     current: string
     currentTone: 'up' | 'down' | 'neutral'
@@ -25,22 +27,22 @@ export type MonitorPositionRow = {
 
 type MonitorPositionsCardProps = {
     rows: MonitorPositionRow[]
-    positionsCount: number
-    /** Sum label e.g. «−214 ₽ · −2,6%» */
+    /** Sum label e.g. «−214 ₽ (−2,6%)» */
     totalPnlLabel?: string | null
     totalPnlTone?: 'up' | 'down' | 'neutral'
-    positionsUpdatedAt: string | null | undefined
     brokerSoftStopHint: boolean
     isRunning: boolean
+    /** Skip foot total when parent already renders chrome. */
     bare?: boolean
 }
 
+/**
+ * Positions blotter on card substrate: table + total foot.
+ */
 export function MonitorPositionsCard({
     rows,
-    positionsCount,
     totalPnlLabel,
     totalPnlTone = 'neutral',
-    positionsUpdatedAt,
     brokerSoftStopHint,
     isRunning,
     bare = false,
@@ -56,12 +58,6 @@ export function MonitorPositionsCard({
 
     const body = (
         <>
-            {brokerSoftStopHint ? (
-                <p className="robots-v2-hint robots-v2-universe-caption">
-                    Сессия остановлена · позиции с брокера (пауза их не закрывает).
-                    После запуска робот подхватит и продолжит торговать.
-                </p>
-            ) : null}
             {sorted.length === 0 ? (
                 <p className="dashboard-empty">{empty}</p>
             ) : (
@@ -69,9 +65,10 @@ export function MonitorPositionsCard({
                     <thead>
                         <tr>
                             <th>Позиция</th>
+                            <th>Закупка</th>
                             <th className="robots-monitor-blot__num">Вход → сейчас</th>
-                            <th className="robots-monitor-blot__num">PnL</th>
                             <th className="robots-monitor-blot__num">SL / TP</th>
+                            <th className="robots-monitor-blot__num">PnL</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -88,54 +85,39 @@ export function MonitorPositionsCard({
                                         <span className="robots-monitor-blot__sub">{r.subtitle}</span>
                                     ) : null}
                                 </td>
+                                <td className="mono robots-monitor-blot__muted">{r.boughtAtLabel}</td>
                                 <td className="robots-monitor-blot__num">
                                     <span className="mono">{r.entry}</span>
                                     {' → '}
                                     <span className={`mono robots-v2-pnl--${r.currentTone}`}>{r.current}</span>
                                 </td>
-                                <td className={`robots-monitor-blot__num mono robots-v2-pnl--${r.pnlTone}`}>
-                                    {r.pnlText}
-                                </td>
                                 <td className="robots-monitor-blot__num mono robots-monitor-blot__muted">
                                     {r.slTp}
+                                </td>
+                                <td className={`robots-monitor-blot__num mono robots-v2-pnl--${r.pnlTone}`}>
+                                    {r.pnlText}
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             )}
-            {positionsUpdatedAt ? (
-                <p className="robots-v2-hint robots-v2-universe-caption">
-                    Цены обновлены
-                    <span className="mono">
-                        {' '}
-                        · {new Date(positionsUpdatedAt).toLocaleString('ru-RU', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                        })}
+            {totalPnlLabel && !bare ? (
+                <div className="robots-monitor-positions__foot">
+                    <span className={`robots-monitor-positions__total robots-v2-pnl--${totalPnlTone}`}>
+                        {totalPnlLabel}
                     </span>
-                </p>
+                </div>
             ) : null}
         </>
     )
 
     if (bare) {
-        return <div className="robots-v2-monitor-positions">{body}</div>
+        return <div className="robots-v2-monitor-positions robots-monitor-positions">{body}</div>
     }
 
     return (
-        <Card className="dashboard-assets-card robots-v2-monitor-positions">
-            <div className="dashboard-assets-card__head">
-                <h3 className="dashboard-panel-title">
-                    Позиции
-                    {positionsCount > 0 ? <> · {positionsCount}</> : null}
-                </h3>
-                {totalPnlLabel ? (
-                    <span className={`robots-v2-hint robots-v2-pnl--${totalPnlTone}`}>{totalPnlLabel}</span>
-                ) : null}
-            </div>
+        <Card className="dashboard-assets-card robots-v2-monitor-positions robots-monitor-positions">
             {body}
         </Card>
     )

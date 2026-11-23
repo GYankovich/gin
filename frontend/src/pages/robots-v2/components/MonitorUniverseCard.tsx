@@ -1,133 +1,158 @@
-import React, { useMemo } from 'react'
-import { Badge } from '@/components/ui/Badge'
+import React, { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-import { DataTable, type Column } from '@/components/ui/DataTable'
-import { SCAN_CODE_VARIANT } from '@/pages/robots-v2/monitorUtils'
-import type { RobotV2TickerScan } from '@/types/robotV2'
+import type { PoolDecisionRow } from '@/pages/robots-v2/monitorUtils'
 
-type ScanTableRow = RobotV2TickerScan & { id: string }
+type SortKey = 'ticker' | 'decision' | 'reason' | 'updatedMs'
+type SortDir = 'asc' | 'desc'
 
 type MonitorUniverseCardProps = {
-    displayTickerScan: RobotV2TickerScan[]
-    displayUniverse: string[]
-    tickerScanAt: string | null
+    rows: PoolDecisionRow[]
     canRefreshUniverse: boolean
     universeBusy: boolean
     onRefreshUniverse: () => void
-    bare?: boolean
 }
 
+function comparePoolRows(a: PoolDecisionRow, b: PoolDecisionRow, key: SortKey, dir: SortDir): number {
+    let cmp = 0
+    if (key === 'updatedMs') {
+        const va = a.updatedMs
+        const vb = b.updatedMs
+        if (va == null && vb == null) cmp = 0
+        else if (va == null) cmp = 1
+        else if (vb == null) cmp = -1
+        else cmp = va - vb
+    } else {
+        cmp = String(a[key] || '').localeCompare(String(b[key] || ''), 'ru', { sensitivity: 'base' })
+    }
+    if (cmp === 0 && key !== 'ticker') {
+        cmp = a.ticker.localeCompare(b.ticker, 'ru', { sensitivity: 'base' })
+    }
+    return dir === 'asc' ? cmp : -cmp
+}
+
+/**
+ * Pool blotter: ticker · decision · reason · updated.
+ */
 export function MonitorUniverseCard({
-    displayTickerScan,
-    displayUniverse,
-    tickerScanAt,
+    rows,
     canRefreshUniverse,
     universeBusy,
     onRefreshUniverse,
-    bare = false,
 }: MonitorUniverseCardProps) {
-    const scanTableRows = useMemo(
-        () => displayTickerScan.map(row => ({ ...row, id: row.ticker })),
-        [displayTickerScan],
+    const [sortKey, setSortKey] = useState<SortKey>('ticker')
+    const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+    const sorted = useMemo(
+        () => [...rows].sort((a, b) => comparePoolRows(a, b, sortKey, sortDir)),
+        [rows, sortKey, sortDir],
     )
 
-    const scanColumns = useMemo<Column<ScanTableRow>[]>(() => [
-        {
-            key: 'ticker',
-            header: 'Название',
-            sortable: true,
-            render: row => {
-                const code = String(row.code || '—')
-                return (
-                    <div className="robots-v2-scan-ticker">
-                        <strong>{row.ticker}</strong>
-                        <Badge variant={SCAN_CODE_VARIANT[code] || 'neutral'}>{code}</Badge>
-                    </div>
-                )
-            },
-        },
-        {
-            key: 'message',
-            header: 'Почему нет сигнала',
-            render: row => (
-                <span className="robots-v2-scan-reason">{String(row.message || '—')}</span>
-            ),
-        },
-    ], [])
-
-    const body = (
-        <>
-            {!bare || canRefreshUniverse ? (
-            <div className="dashboard-assets-card__head">
-                {bare ? null : <h3 className="dashboard-panel-title">Пул активов</h3>}
-                <div className="robots-v2-universe-head-actions">
-                    {!bare && displayTickerScan.length > 0 ? (
-                        <span className="robots-v2-hint">{displayTickerScan.length}</span>
-                    ) : !bare && displayUniverse.length > 0 ? (
-                        <span className="robots-v2-hint">{displayUniverse.length}</span>
-                    ) : null}
-                    {canRefreshUniverse ? (
-                        <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            loading={universeBusy}
-                            disabled={universeBusy}
-                            onClick={onRefreshUniverse}
-                        >
-                            Обновить пул
-                        </Button>
-                    ) : null}
-                </div>
-            </div>
-            ) : null}
-            <p className="robots-v2-hint robots-v2-universe-caption">
-                Кандидаты и результат последней оценки стратегии
-                {tickerScanAt ? (
-                    <span className="mono">
-                        {' '}
-                        · {new Date(tickerScanAt).toLocaleTimeString('ru-RU')}
-                    </span>
-                ) : null}
-            </p>
-            {displayTickerScan.length === 0 && displayUniverse.length === 0 ? (
-                <p className="dashboard-empty">—</p>
-            ) : displayTickerScan.length === 0 ? (
-                <div className="robots-v2-chip-row">
-                    {displayUniverse.map(t => (
-                        <span key={t} className="robots-v2-chip robots-v2-chip--on">{t}</span>
-                    ))}
-                    <p className="robots-v2-hint">Диагностика появится после первого цикла</p>
-                </div>
-            ) : (
-                <DataTable
-                    columns={scanColumns}
-                    data={scanTableRows}
-                    keyField="id"
-                    emptyText="—"
-                    maxHeight={320}
-                    mobilePrimary={r => (
-                        <div className="robots-v2-scan-ticker">
-                            <strong>{r.ticker}</strong>
-                            <Badge variant={SCAN_CODE_VARIANT[String(r.code || '')] || 'neutral'}>
-                                {String(r.code || '—')}
-                            </Badge>
-                        </div>
-                    )}
-                    mobileDetails={r => String(r.message || '—')}
-                />
-            )}
-        </>
-    )
-
-    if (bare) {
-        return <div className="robots-v2-monitor-scan">{body}</div>
+    const toggleSort = (key: SortKey) => {
+        if (sortKey === key) {
+            setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
+            return
+        }
+        setSortKey(key)
+        setSortDir(key === 'updatedMs' ? 'desc' : 'asc')
     }
 
+    const sortMark = (key: SortKey) => (
+        sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
+    )
+
     return (
-        <Card className="dashboard-assets-card robots-v2-monitor-scan">
-            {body}
+        <Card className="dashboard-assets-card robots-monitor-day-trades robots-monitor-pool-decisions">
+            <div className="dashboard-assets-card__head robots-monitor-orders__head">
+                <h3 className="dashboard-panel-title">
+                    Пул
+                    {rows.length > 0 ? (
+                        <span className="robots-v2-hint"> · {rows.length}</span>
+                    ) : null}
+                </h3>
+                {canRefreshUniverse ? (
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        loading={universeBusy}
+                        disabled={universeBusy}
+                        onClick={onRefreshUniverse}
+                    >
+                        Обновить пул
+                    </Button>
+                ) : null}
+            </div>
+            {sorted.length === 0 ? (
+                <p className="dashboard-empty">Пул пуст</p>
+            ) : (
+                <div className="robots-monitor-day-trades__scroll">
+                    <table className="robots-monitor-day-trades__table" aria-label="Пул и решения">
+                        <thead>
+                            <tr>
+                                <th aria-sort={sortKey === 'ticker' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                                    <button
+                                        type="button"
+                                        className="robots-monitor-day-trades__sort"
+                                        onClick={() => toggleSort('ticker')}
+                                    >
+                                        Тикер{sortMark('ticker')}
+                                    </button>
+                                </th>
+                                <th aria-sort={sortKey === 'decision' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                                    <button
+                                        type="button"
+                                        className="robots-monitor-day-trades__sort"
+                                        onClick={() => toggleSort('decision')}
+                                    >
+                                        Решение{sortMark('decision')}
+                                    </button>
+                                </th>
+                                <th aria-sort={sortKey === 'reason' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                                    <button
+                                        type="button"
+                                        className="robots-monitor-day-trades__sort"
+                                        onClick={() => toggleSort('reason')}
+                                    >
+                                        Причина{sortMark('reason')}
+                                    </button>
+                                </th>
+                                <th
+                                    className="robots-monitor-day-trades__num"
+                                    aria-sort={sortKey === 'updatedMs' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                                >
+                                    <button
+                                        type="button"
+                                        className="robots-monitor-day-trades__sort"
+                                        onClick={() => toggleSort('updatedMs')}
+                                    >
+                                        Обновлено{sortMark('updatedMs')}
+                                    </button>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sorted.map(row => (
+                                <tr key={row.id}>
+                                    <td>
+                                        <b className="robots-monitor-day-trades__tk">{row.ticker}</b>
+                                    </td>
+                                    <td title={row.decision}>{row.decision}</td>
+                                    <td
+                                        className="robots-monitor-day-trades__muted"
+                                        title={row.reason}
+                                    >
+                                        {row.reason}
+                                    </td>
+                                    <td className="robots-monitor-day-trades__num mono robots-monitor-day-trades__muted">
+                                        {row.updatedLabel}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </Card>
     )
 }

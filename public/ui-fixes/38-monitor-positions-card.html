@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Монитор — карточка позиций</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  html[data-theme='light'] {
+    --bg: #f4f5f7;
+    --page: #ffffff;
+    --panel: #f7f8fa;
+    --elevated: #eef0f3;
+    --input: #eef1f4;
+    --text: #1c1f24;
+    --secondary: #3d4450;
+    --muted: #6b7280;
+    --border: rgba(20, 24, 30, 0.1);
+    --line: rgba(20, 24, 30, 0.16);
+    --accent: #1c1f24;
+    --on-accent: #fff;
+    --up: #1f8a4c;
+    --down: #c43b4a;
+    --picker: #fff;
+  }
+  html[data-theme='light'] body { background: var(--bg); }
+  .theme-btn {
+    border: 1px solid var(--border); background: transparent; color: var(--secondary);
+    border-radius: 10px; padding: 8px 12px; font-size: 13px;
+  }
+  .thesis { margin: 0 0 18px; max-width: 72ch; color: var(--secondary); font-size: 14px; line-height: 1.5; }
+  .section { margin-bottom: 28px; }
+  .section h2 { margin: 0 0 6px; font-size: 16px; font-weight: 650; }
+  .section .lead { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
+  .frame {
+    background: var(--page);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 10px 28px rgba(0,0,0,.06);
+  }
+  .frame-label {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--muted);
+  }
+  .frame-label strong { color: var(--text); font-weight: 650; }
+  .pad { padding: 16px 18px 18px; }
+
+  /* Shared card shell — mimics dashboard-assets-card */
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+    padding: 14px 16px 12px;
+  }
+  .cap { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+  .down { color: var(--down); }
+  .up { color: var(--up); }
+  .muted { color: var(--muted); }
+  .mono { font-variant-numeric: tabular-nums; }
+
+  /* —— A now: grid head + table —— */
+  .a-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 0.75fr) minmax(0, 0.95fr);
+    gap: 10px; align-items: baseline; margin-bottom: 8px;
+  }
+  .a-head h3 { margin: 0; grid-column: 1; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .a-head .sum { grid-column: 2 / -1; justify-self: end; font-size: 13px; font-weight: 650; }
+  table.blot {
+    width: 100%; table-layout: fixed; border-collapse: collapse;
+  }
+  table.blot col.c1 { width: 33%; }
+  table.blot col.c2 { width: 25%; }
+  table.blot col.c3 { width: 18%; }
+  table.blot col.c4 { width: 24%; }
+  table.blot th {
+    text-align: left; font-size: 11px; font-weight: 500; color: var(--muted);
+    padding: 6px 10px; border-bottom: 1px solid var(--border);
+  }
+  table.blot th.num, table.blot td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.blot th:first-child, table.blot td:first-child { padding-left: 0; }
+  table.blot th:last-child, table.blot td:last-child { padding-right: 0; }
+  table.blot td {
+    padding: 9px 10px; border-bottom: 1px solid var(--border);
+    font-size: 13px; vertical-align: baseline;
+  }
+  table.blot tr:last-child td { border-bottom: 0; }
+  table.blot .tk { font-weight: 650; }
+  table.blot .qty { color: var(--muted); }
+  table.blot .sub { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+
+  /* —— B: simple flex title · thead is sole column ruler —— */
+  .b-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 12px; margin-bottom: 4px;
+  }
+  .b-head h3 { margin: 0; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .b-head .sum { font-size: 13px; font-weight: 650; }
+
+  /* —— C: no thead · labels in title row as col headers —— */
+  .c-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 0.75fr) minmax(0, 0.95fr);
+    gap: 10px; align-items: baseline;
+    margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  }
+  .c-cols .title { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .c-cols .lab { font-size: 11px; font-weight: 500; color: var(--muted); text-align: right; }
+  .c-cols .sum { font-size: 13px; font-weight: 650; text-align: right; }
+  .c-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 0.75fr) minmax(0, 0.95fr);
+    gap: 10px; align-items: baseline;
+    padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+  }
+  .c-row:last-child { border-bottom: 0; }
+  .c-row .num { text-align: right; font-variant-numeric: tabular-nums; }
+  .c-row .tk { font-weight: 650; }
+  .c-row .qty { color: var(--muted); }
+  .c-row .sub { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+
+  /* —— D: PnL-first · 3 cols —— */
+  .d-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 8px;
+  }
+  .d-head h3 { margin: 0; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .d-head .sum { font-size: 13px; font-weight: 650; }
+  .d-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+    gap: 12px; align-items: baseline;
+    padding: 10px 0; border-top: 1px solid var(--border);
+  }
+  .d-row:first-of-type { border-top: 0; padding-top: 2px; }
+  .d-row .tk { font-weight: 650; }
+  .d-row .qty { color: var(--muted); }
+  .d-row .sub { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+  .d-row .mid { text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--secondary); }
+  .d-row .pnl { font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; text-align: right; min-width: 5.5rem; }
+
+  /* —— E: sticky thead + scroll body —— */
+  .e-scroll {
+    max-height: 168px; overflow: auto;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--page);
+  }
+  .e-scroll table.blot th {
+    position: sticky; top: 0; background: var(--page); z-index: 1;
+  }
+  .e-scroll table.blot th:first-child,
+  .e-scroll table.blot td:first-child { padding-left: 10px; }
+  .e-scroll table.blot th:last-child,
+  .e-scroll table.blot td:last-child { padding-right: 10px; }
+
+  /* —— F: bare list · no card chrome —— */
+  .f-wrap { padding: 0; }
+  .f-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  .f-head h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--text); }
+  .f-head .sum { font-size: 13px; font-weight: 650; }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">Все макеты</a>
+    <div>
+      <h1>Монитор · robots-v2-monitor-positions</h1>
+      <p>Варианты карточки позиций. Светлая по умолчанию. Выбери букву.</p>
+    </div>
+    <span class="badge badge--new">выбор</span>
+    <button class="theme-btn" type="button" id="theme">Тёмная</button>
+  </div>
+
+  <div class="wrap">
+    <p class="thesis">
+      Класс: <code>dashboard-assets-card robots-v2-monitor-positions</code>.
+      Фокус — шапка vs колонки, плотность, нужна ли отдельная thead.
+      Данные одни и те же (5 позиций).
+    </p>
+
+    <section class="section">
+      <h2>Варианты карточки</h2>
+      <p class="lead">A — как сейчас (с fixed col). B–F — альтернативы под согласование.</p>
+      <div class="grid">
+
+        <!-- A -->
+        <div class="frame">
+          <div class="frame-label">
+            <strong>A · сейчас</strong>
+            <span>grid-шапка + table · table-layout:fixed · th/td num right</span>
+          </div>
+          <div class="pad">
+            <div class="card">
+              <div class="a-head">
+                <h3>Позиции · 5</h3>
+                <span class="sum down">−32,7 ₽ · −0,4%</span>
+              </div>
+              <table class="blot" aria-label="A">
+                <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
+                <thead>
+                  <tr>
+                    <th>Позиция</th>
+                    <th class="num">Вход → сейчас</th>
+                    <th class="num">PnL</th>
+                    <th class="num">SL / TP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="tk">PLZL</span> <span class="qty">×1</span><span class="sub">до SL 131,57 · без лимита</span></td>
+                    <td class="num">1 057 → <span class="down">1 031</span></td>
+                    <td class="num down">−26 ₽</td>
+                    <td class="num muted">899,43 / 1 301,17</td>
+                  </tr>
+                  <tr>
+                    <td><span class="tk">MGNT</span> <span class="qty">×1</span><span class="sub">до SL 287,16 · без лимита</span></td>
+                    <td class="num">1 852,5 → <span class="up">1 863,5</span></td>
+                    <td class="num up">+11 ₽</td>
+                    <td class="num muted">1 576,34 / 2 280,43</td>
+                  </tr>
+                  <tr>
+                    <td><span class="tk">NVTK</span> <span class="qty">×2</span><span class="sub">до SL 154,26 · без лимита</span></td>
+                    <td class="num">1 067,7 → <span class="down">1 062,8</span></td>
+                    <td class="num down">−9,8 ₽</td>
+                    <td class="num muted">908,54 / 1 314,34</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p class="cap">Цены обновлены · 19.11, 17:20</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- B -->
+        <div class="frame">
+          <div class="frame-label">
+            <strong>B · title flex + thead-ruler</strong>
+            <span>шапка не зеркалит колонки · только thead задаёт сетку</span>
+          </div>
+          <div class="pad">
+            <div class="card">
+              <div class="b-head">
+                <h3>Позиции · 5</h3>
+                <span class="sum down">−32,7 ₽ · −0,4%</span>
+              </div>
+              <table class="blot" aria-label="B">
+                <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
+                <thead>
+                  <tr>
+                    <th>Позиция</th>
+                    <th class="num">Вход → сейчас</th>
+                    <th class="num">PnL</th>
+                    <th class="num">SL / TP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="tk">PLZL</span> <span class="qty">×1</span><span class="sub">до SL 131,57 · без лимита</span></td>
+                    <td class="num">1 057 → <span class="down">1 031</span></td>
+                    <td class="num down">−26 ₽</td>
+                    <td class="num muted">899,43 / 1 301,17</td>
+                  </tr>
+                  <tr>
+                    <td><span class="tk">MGNT</span> <span class="qty">×1</span><span class="sub">до SL 287,16 · без лимита</span></td>
+                    <td class="num">1 852,5 → <span class="up">1 863,5</span></td>
+                    <td class="num up">+11 ₽</td>
+                    <td class="num muted">1 576,34 / 2 280,43</td>
+                  </tr>
+                  <tr>
+                    <td><span class="tk">NVTK</span> <span class="qty">×2</span><span class="sub">до SL 154,26 · без лимита</span></td>
+                    <td class="num">1 067,7 → <span class="down">1 062,8</span></td>
+                    <td class="num down">−9,8 ₽</td>
+                    <td class="num muted">908,54 / 1 314,34</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p class="cap">Цены обновлены · 19.11, 17:20</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- C -->
+        <div class="frame">
+          <div class="frame-label">
+            <strong>C · одна CSS-grid</strong>
+            <span>шапка = первая строка сетки · без &lt;table&gt; · колонки гарантированно совпадают</span>
+          </div>
+          <div class="pad">
+            <div class="card">
+              <div class="c-cols">
+                <span class="title">Позиции · 5</span>
+                <span class="lab">Вход → сейчас</span>
+                <span class="lab">PnL</span>
+                <span class="sum down">−32,7 ₽</span>
+              </div>
+              <div class="c-row">
+                <div><span class="tk">PLZL</span> <span class="qty">×1</span><span class="sub">до SL 131,57 · без лимита</span></div>
+                <div class="num">1 057 → <span class="down">1 031</span></div>
+                <div class="num down">−26 ₽</div>
+                <div class="num muted">899 / 1 301</div>
+              </div>
+              <div class="c-row">
+                <div><span class="tk">MGNT</span> <span class="qty">×1</span><span class="sub">до SL 287,16 · без лимита</span></div>
+                <div class="num">1 852,5 → <span class="up">1 863,5</span></div>
+                <div class="num up">+11 ₽</div>
+                <div class="num muted">1 576 / 2 280</div>
+              </div>
+              <div class="c-row">
+                <div><span class="tk">NVTK</span> <span class="qty">×2</span><span class="sub">до SL 154,26 · без лимита</span></div>
+                <div class="num">1 067,7 → <span class="down">1 062,8</span></div>
+                <div class="num down">−9,8 ₽</div>
+                <div class="num muted">909 / 1 314</div>
+              </div>
+              <p class="cap">Цены обновлены · 19.11, 17:20</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- D -->
+        <div class="frame">
+          <div class="frame-label">
+            <strong>D · PnL-first</strong>
+            <span>3 колонки · SL в subtitle · крупный PnL справа</span>
+          </div>
+          <div class="pad">
+            <div class="card">
+              <div class="d-head">
+                <h3>Позиции · 5</h3>
+                <span class="sum down">−32,7 ₽ · −0,4%</span>
+              </div>
+              <div class="d-row">
+                <div>
+                  <span class="tk">PLZL</span> <span class="qty">×1</span>
+                  <span class="sub">до SL 131,57 · без лимита · SL 899 / TP 1 301</span>
+                </div>
+                <div class="mid">1 057 → <span class="down">1 031</span></div>
+                <div class="pnl down">−26 ₽</div>
+              </div>
+              <div class="d-row">
+                <div>
+                  <span class="tk">MGNT</span> <span class="qty">×1</span>
+                  <span class="sub">до SL 287 · без лимита · SL 1 576 / TP 2 280</span>
+                </div>
+                <div class="mid">1 852,5 → <span class="up">1 863,5</span></div>
+                <div class="pnl up">+11 ₽</div>
+              </div>
+              <div class="d-row">
+                <div>
+                  <span class="tk">NVTK</span> <span class="qty">×2</span>
+                  <span class="sub">до SL 154 · без лимита · SL 909 / TP 1 314</span>
+                </div>
+                <div class="mid">1 067,7 → <span class="down">1 062,8</span></div>
+                <div class="pnl down">−9,8 ₽</div>
+              </div>
+              <p class="cap">Цены обновлены · 19.11, 17:20</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- E -->
+        <div class="frame">
+          <div class="frame-label">
+            <strong>E · scroll + sticky thead</strong>
+            <span>для 5+ строк · шапка flex · тело в рамке со скроллом</span>
+          </div>
+          <div class="pad">
+            <div class="card">
+              <div class="b-head">
+                <h3>Позиции · 5</h3>
+                <span class="sum down">−32,7 ₽ · −0,4%</span>
+              </div>
+              <div class="e-scroll">
+                <table class="blot" aria-label="E">
+                  <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
+                  <thead>
+                    <tr>
+                      <th>Позиция</th>
+                      <th class="num">Вход → сейчас</th>
+                      <th class="num">PnL</th>
+                      <th class="num">SL / TP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="tk">PLZL</span> <span class="qty">×1</span><span class="sub">до SL 131,57 · без лимита</span></td>
+                      <td class="num">1 057 → <span class="down">1 031</span></td>
+                      <td class="num down">−26 ₽</td>
+                      <td class="num muted">899,43 / 1 301,17</td>
+                    </tr>
+                    <tr>
+                      <td><span class="tk">MGNT</span> <span class="qty">×1</span><span class="sub">до SL 287,16 · без лимита</span></td>
+                      <td class="num">1 852,5 → <span class="up">1 863,5</span></td>
+                      <td class="num up">+11 ₽</td>
+                      <td class="num muted">1 576,34 / 2 280,43</td>
+                    </tr>
+                    <tr>
+                      <td><span class="tk">NVTK</span> <span class="qty">×2</span><span class="sub">до SL 154,26 · без лимита</span></td>
+                      <td class="num">1 067,7 → <span class="down">1 062,8</span></td>
+                      <td class="num down">−9,8 ₽</td>
+                      <td class="num muted">908,54 / 1 314,34</td>
+                    </tr>
+                    <tr>
+                      <td><span class="tk">CNRU</span> <span class="qty">×1</span><span class="sub">до SL 128,68 · без лимита</span></td>
+                      <td class="num">914,2 → <span class="down">906,6</span></td>
+                      <td class="num down">−7,6 ₽</td>
+                      <td class="num muted">777,92 / 1 125,39</td>
+                    </tr>
+                    <tr>
+                      <td><span class="tk">ROSN</span> <span class="qty">×3</span><span class="sub">до SL 51,36 · без лимита</span></td>
+                      <td class="num">345,25 → <span class="down">345,15</span></td>
+                      <td class="num down">−0,3 ₽</td>
+                      <td class="num muted">293,79 / 425,01</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="cap">Цены обновлены · 19.11, 17:20</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- F -->
+        <div class="frame">
+          <div class="frame-label">
+            <strong>F · без card chrome</strong>
+            <span>только hairline · title сильнее · blotter как у A</span>
+          </div>
+          <div class="pad">
+            <div class="f-wrap">
+              <div class="f-head">
+                <h3>Позиции · 5</h3>
+                <span class="sum down">−32,7 ₽ · −0,4%</span>
+              </div>
+              <table class="blot" aria-label="F">
+                <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
+                <thead>
+                  <tr>
+                    <th>Позиция</th>
+                    <th class="num">Вход → сейчас</th>
+                    <th class="num">PnL</th>
+                    <th class="num">SL / TP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="tk">PLZL</span> <span class="qty">×1</span><span class="sub">до SL 131,57 · без лимита</span></td>
+                    <td class="num">1 057 → <span class="down">1 031</span></td>
+                    <td class="num down">−26 ₽</td>
+                    <td class="num muted">899,43 / 1 301,17</td>
+                  </tr>
+                  <tr>
+                    <td><span class="tk">MGNT</span> <span class="qty">×1</span><span class="sub">до SL 287,16 · без лимита</span></td>
+                    <td class="num">1 852,5 → <span class="up">1 863,5</span></td>
+                    <td class="num up">+11 ₽</td>
+                    <td class="num muted">1 576,34 / 2 280,43</td>
+                  </tr>
+                  <tr>
+                    <td><span class="tk">NVTK</span> <span class="qty">×2</span><span class="sub">до SL 154,26 · без лимита</span></td>
+                    <td class="num">1 067,7 → <span class="down">1 062,8</span></td>
+                    <td class="num down">−9,8 ₽</td>
+                    <td class="num muted">908,54 / 1 314,34</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p class="cap">Цены обновлены · 19.11, 17:20</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const root = document.documentElement
+    const btn = document.getElementById('theme')
+    btn.addEventListener('click', () => {
+      const light = root.getAttribute('data-theme') === 'light'
+      root.setAttribute('data-theme', light ? 'dark' : 'light')
+      btn.textContent = light ? 'Светлая' : 'Тёмная'
+    })
+  </script>
+</body>
+</html>

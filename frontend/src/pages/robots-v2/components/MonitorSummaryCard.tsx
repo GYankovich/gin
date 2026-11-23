@@ -5,7 +5,6 @@ type PnlTone = 'up' | 'down' | 'neutral'
 
 type MonitorSummaryCardProps = {
     statusLoaded: boolean
-    dayTrades: number
     dayDelta: { text: string; tone: PnlTone }
     /** Mark-to-market day line (equity curve); falls back to closed-trade delta. */
     dayMtm?: { text: string; tone: PnlTone } | null
@@ -14,30 +13,20 @@ type MonitorSummaryCardProps = {
     cashLabel: string | null
     showBalanceUnavailable: boolean
     positionsCount: number
-    limitCount: number
     /** Session cycle number from status. */
     cycle?: number | null
+    /** Closed day trades with PnL > 0. */
+    dayWins?: number
+    /** Closed day trades with PnL < 0. */
+    dayLosses?: number
     sessionHint?: string | null
 }
 
-function tradeCountLabel(count: number): string {
-    if (count <= 0) return '0 закрытий'
-    const mod10 = count % 10
-    const mod100 = count % 100
-    const word = mod10 === 1 && mod100 !== 11
-        ? 'закрытие'
-        : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
-            ? 'закрытия'
-            : 'закрытий'
-    return `${count} ${word}`
-}
-
 /**
- * Left side of the monitor cockpit: equity + two quiet metric tiles.
+ * Left side of the monitor cockpit: equity + KPI tiles.
  */
 export function MonitorSummaryCard({
     statusLoaded,
-    dayTrades,
     dayDelta,
     dayMtm,
     showBalance,
@@ -45,20 +34,25 @@ export function MonitorSummaryCard({
     cashLabel,
     showBalanceUnavailable,
     positionsCount,
-    limitCount,
     cycle,
+    dayWins = 0,
+    dayLosses = 0,
     sessionHint,
 }: MonitorSummaryCardProps) {
     const dayLine = dayMtm ?? dayDelta
-    const trades = tradeCountLabel(dayTrades)
+    const cycleLabel = cycle != null && Number.isFinite(Number(cycle)) ? String(cycle) : '—'
 
     if (!statusLoaded) {
         return (
             <div className="robots-monitor-hero" aria-busy="true" aria-label="Загрузка сводки">
                 <Skeleton width="62%" height="32px" borderRadius="6px" />
                 <div className="robots-monitor-hero__tiles">
-                    <Skeleton width="100%" height="64px" borderRadius="12px" />
-                    <Skeleton width="100%" height="64px" borderRadius="12px" />
+                    <Skeleton width="100%" height="36px" borderRadius="6px" />
+                    <Skeleton width="100%" height="36px" borderRadius="6px" />
+                    <Skeleton width="100%" height="36px" borderRadius="6px" />
+                    <Skeleton width="100%" height="36px" borderRadius="6px" />
+                    <Skeleton width="100%" height="36px" borderRadius="6px" />
+                    <Skeleton width="100%" height="36px" borderRadius="6px" />
                 </div>
             </div>
         )
@@ -70,22 +64,33 @@ export function MonitorSummaryCard({
                 {showBalance && equityLabel != null ? equityLabel : '—'}
             </div>
             <div className="robots-monitor-hero__tiles">
-                <div className={`robots-monitor-hero__tile robots-monitor-hero__tile--${dayLine.tone}`}>
-                    <div className={`robots-monitor-hero__tile-value robots-v2-pnl--${dayLine.tone}`}>
+                <div className="robots-monitor-hero__kpi">
+                    <span className="robots-monitor-hero__kpi-label">День</span>
+                    <b className={`robots-monitor-hero__kpi-value robots-v2-pnl--${dayLine.tone}`}>
                         {dayLine.text}
-                    </div>
-                    <div className="robots-monitor-hero__tile-meta">
-                        за день{dayMtm ? ' · MTM' : ''} · {trades}
-                    </div>
+                    </b>
                 </div>
-                <div className="robots-monitor-hero__tile">
-                    <div className="robots-monitor-hero__tile-value">
+                <div className="robots-monitor-hero__kpi">
+                    <span className="robots-monitor-hero__kpi-label">Кэш</span>
+                    <b className="robots-monitor-hero__kpi-value">
                         {showBalance && cashLabel != null ? cashLabel : '—'}
-                    </div>
-                    <div className="robots-monitor-hero__tile-meta">
-                        кэш · {positionsCount} поз. · {limitCount} лим.
-                        {cycle != null && Number.isFinite(Number(cycle)) ? ` · цикл ${cycle}` : ''}
-                    </div>
+                    </b>
+                </div>
+                <div className="robots-monitor-hero__kpi">
+                    <span className="robots-monitor-hero__kpi-label">Позиции</span>
+                    <b className="robots-monitor-hero__kpi-value">{positionsCount}</b>
+                </div>
+                <div className="robots-monitor-hero__kpi">
+                    <span className="robots-monitor-hero__kpi-label">Цикл</span>
+                    <b className="robots-monitor-hero__kpi-value">{cycleLabel}</b>
+                </div>
+                <div className="robots-monitor-hero__kpi">
+                    <span className="robots-monitor-hero__kpi-label">В плюс</span>
+                    <b className="robots-monitor-hero__kpi-value robots-v2-pnl--up">{dayWins}</b>
+                </div>
+                <div className="robots-monitor-hero__kpi">
+                    <span className="robots-monitor-hero__kpi-label">В минус</span>
+                    <b className="robots-monitor-hero__kpi-value robots-v2-pnl--down">{dayLosses}</b>
                 </div>
             </div>
             {showBalanceUnavailable ? (

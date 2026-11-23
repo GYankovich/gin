@@ -19,6 +19,7 @@ type QuietChromeSlot = {
     setActions: (node: React.ReactNode) => void
     setLiveStage: (stage: RobotLiveStage | null) => void
     setStreamConnected: (connected: boolean | undefined) => void
+    setPhaseNote: (note: string | null) => void
 }
 
 const QuietChromeContext = createContext<QuietChromeSlot | null>(null)
@@ -55,6 +56,16 @@ export function useQuietChromeLive(
     }, [ctx, streamConnected])
 }
 
+/** Footnote under the phase track (balance honesty line from monitor). */
+export function useQuietChromePhaseNote(note: string | null) {
+    const ctx = useContext(QuietChromeContext)
+    useLayoutEffect(() => {
+        if (!ctx) return
+        ctx.setPhaseNote(note)
+        return () => ctx.setPhaseNote(null)
+    }, [ctx, note])
+}
+
 function ShellFallback() {
     return (
         <div className="page-loader" aria-busy="true">
@@ -76,6 +87,7 @@ export default function RobotQuietShell() {
     const [actions, setActions] = useState<React.ReactNode>(null)
     const [liveStage, setLiveStage] = useState<RobotLiveStage | null>(null)
     const [streamConnected, setStreamConnected] = useState<boolean | undefined>(undefined)
+    const [phaseNote, setPhaseNote] = useState<string | null>(null)
 
     const setActionsStable = useCallback((node: React.ReactNode) => {
         setActions(node)
@@ -86,12 +98,16 @@ export default function RobotQuietShell() {
     const setStreamConnectedStable = useCallback((connected: boolean | undefined) => {
         setStreamConnected(connected)
     }, [])
+    const setPhaseNoteStable = useCallback((note: string | null) => {
+        setPhaseNote(note)
+    }, [])
 
     const slot = useMemo<QuietChromeSlot>(() => ({
         setActions: setActionsStable,
         setLiveStage: setLiveStageStable,
         setStreamConnected: setStreamConnectedStable,
-    }), [setActionsStable, setLiveStageStable, setStreamConnectedStable])
+        setPhaseNote: setPhaseNoteStable,
+    }), [setActionsStable, setLiveStageStable, setStreamConnectedStable, setPhaseNoteStable])
 
     if (!Number.isFinite(robotId)) {
         return <ShellFallback />
@@ -106,6 +122,7 @@ export default function RobotQuietShell() {
                     actions={actions}
                     liveStage={liveStage}
                     streamConnected={streamConnected}
+                    phaseNote={phaseNote}
                 />
                 <Suspense fallback={<ShellFallback />}>
                     <Outlet />

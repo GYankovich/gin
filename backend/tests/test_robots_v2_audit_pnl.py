@@ -200,6 +200,10 @@ def test_build_round_trips_closed():
     assert float(trips[0]["realizedPnl"]) > 0
     assert float(trips[0]["netPnl"]) > 0
     assert float(trips[0]["netPnl"]) < float(trips[0]["realizedPnl"])
+    assert float(trips[0]["commission"]) > 0
+    assert abs(
+        float(trips[0]["commission"]) - (369.8 + 370.2) * 7 * 0.0005
+    ) < 1e-6
 
 
 def test_build_round_trips_open_position():

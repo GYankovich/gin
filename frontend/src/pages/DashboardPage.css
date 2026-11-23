@@ -3729,15 +3729,64 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     font-weight: 600;
 }
 
-.robots-monitor-phase__why {
+.robots-monitor-phase__note {
     margin: 8px 0 0;
     font-size: 12px;
+    line-height: 1.4;
     color: var(--text-muted);
+}
+
+/* F + substrate: card chrome back; quiet flex head (no hairline bar) */
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-positions {
+    min-width: 0;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-positions__foot {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-positions__total {
+    font-size: 13px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
 }
 
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
+}
+
+/* Position | Закупка | Вход→сейчас | SL/TP | PnL */
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot th:nth-child(1),
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot td:nth-child(1) {
+    width: 28%;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot th:nth-child(2),
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot td:nth-child(2) {
+    width: 14%;
+    white-space: nowrap;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot th:nth-child(3),
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot td:nth-child(3) {
+    width: 24%;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot th:nth-child(4),
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot td:nth-child(4) {
+    width: 18%;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot th:nth-child(5),
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot td:nth-child(5) {
+    width: 16%;
 }
 
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot th {
@@ -3770,7 +3819,8 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     border-bottom: 0;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot__num {
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot th.robots-monitor-blot__num,
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot td.robots-monitor-blot__num {
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
@@ -3806,15 +3856,51 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     word-break: break-word;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-desk {
-    display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.75fr);
-    gap: 18px;
-    align-items: start;
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__sort {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-weight: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+    text-align: inherit;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-desk .robots-v2-monitor-orders {
-    grid-column: auto;
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__sort:hover {
+    color: var(--text-primary);
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-pool-decisions .robots-monitor-day-trades__table {
+    width: 100%;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-pool-decisions .robots-monitor-day-trades__table th:nth-child(1),
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-pool-decisions .robots-monitor-day-trades__table td:nth-child(1) {
+    width: 5.5rem;
+    white-space: nowrap;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-pool-decisions .robots-monitor-day-trades__table th:nth-child(2),
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-pool-decisions .robots-monitor-day-trades__table td:nth-child(2) {
+    width: 7rem;
+    white-space: nowrap;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-pool-decisions .robots-monitor-day-trades__table th:nth-child(4),
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-pool-decisions .robots-monitor-day-trades__table td:nth-child(4) {
+    width: 7.5rem;
+    white-space: nowrap;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-desk {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
 }
 
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-orders__head,
@@ -3823,6 +3909,130 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades {
+    min-width: 0;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__scroll {
+    width: 100%;
+    max-width: 100%;
+    max-height: min(420px, 52vh);
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: auto;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th:nth-child(6),
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table td:nth-child(6),
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th:nth-child(7),
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table td:nth-child(7) {
+    min-width: 9.5rem;
+    white-space: nowrap;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: nowrap;
+    background: var(--bg-card, var(--page-bg, #fff));
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th:first-child,
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table td:first-child {
+    padding-left: 0;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th:last-child,
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table td:last-child {
+    padding-right: 0;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 13px;
+    vertical-align: baseline;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table tr:last-child td {
+    border-bottom: 0;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__tk {
+    font-weight: 650;
+    letter-spacing: 0.02em;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__muted {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-live-orders__chips {
+    margin-bottom: 8px;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-live-orders__cap {
+    margin-top: 8px;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__stack {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__drawer {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    background: var(--bg-elevated, var(--page-bg, #fff));
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__drawer-title {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 650;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__drawer-dl {
+    margin: 0;
+    display: grid;
+    gap: 8px;
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__drawer-dl dt {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__drawer-dl dd {
+    margin: 2px 0 0;
+    font-size: 13px;
+    color: var(--text-secondary);
 }
 
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-mode {
@@ -3853,42 +4063,6 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     padding: 0;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order {
-    display: grid;
-    grid-template-columns: 52px 58px minmax(0, 1.3fr) minmax(0, 0.9fr) auto auto;
-    gap: 8px;
-    align-items: baseline;
-    padding: 8px 0;
-    border-top: 1px solid var(--border-subtle);
-    font-size: 13px;
-}
-
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__top,
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__id,
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__sub {
-    display: contents;
-}
-
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order time { order: 1; }
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order b { order: 2; }
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__detail { order: 3; }
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__signal { order: 4; }
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__state { order: 5; }
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__outcome { order: 6; }
-
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order time,
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__signal,
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__state {
-    color: var(--text-muted);
-    font-size: 12px;
-}
-
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__state,
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order .robots-v2-pnl--up,
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order .robots-v2-pnl--down,
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-order .robots-v2-pnl--neutral {
-    text-align: right;
-}
 
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-feed,
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-pool {
@@ -3938,34 +4112,32 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 
 .robots-monitor-hero__tiles {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 8px;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 14px;
     margin-top: auto;
-    padding-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-subtle);
 }
 
-.robots-monitor-hero__tile {
+.robots-monitor-hero__kpi {
     min-width: 0;
-    padding: 10px 12px;
-    border: 1px solid var(--border-subtle);
-    border-radius: 12px;
-    background: var(--bg-input);
 }
 
-.robots-monitor-hero__tile-value {
+.robots-monitor-hero__kpi-label {
+    display: block;
+    margin: 0 0 3px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.robots-monitor-hero__kpi-value {
+    display: block;
     font-size: 15px;
     font-weight: 650;
     font-variant-numeric: tabular-nums;
-    line-height: 1.25;
+    line-height: 1.2;
     color: var(--text-primary);
-}
-
-.robots-monitor-hero__tile-meta {
-    margin-top: 4px;
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 1.35;
-    color: var(--text-muted);
 }
 
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-chart {
@@ -3978,20 +4150,13 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     min-height: 220px;
 }
 
-.robots-monitor-cockpit__note {
-    grid-column: 1 / -1;
-    margin: 2px 0 0;
-    font-size: 12px;
-    line-height: 1.4;
-    color: var(--text-muted);
-}
 
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-panels {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-5);
     align-items: start;
-    margin-top: var(--space-5);
+    margin-top: 0;
 }
 
 [data-page='robots'][data-robots-view='monitor'] .robots-monitor-pool {
@@ -4040,6 +4205,11 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     height: auto;
     min-width: 0;
     overflow: hidden;
+}
+
+/* Day-trades blotter must scroll horizontally — don't clip signal/reason cols */
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-panels .robots-monitor-day-trades.dashboard-assets-card {
+    overflow: visible;
 }
 
 [data-page='robots'][data-robots-view='monitor'] .robots-v2-fleet-collapse .collapsible-section__body {
@@ -4106,6 +4276,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
         min-width: 88px;
     }
 
+    /* Hide SL/TP on narrow; keep PnL (last col) */
     [data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot th:nth-child(4),
     [data-page='robots'][data-robots-view='monitor'] .robots-monitor-blot td:nth-child(4) {
         display: none;
@@ -4121,9 +4292,12 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='monitor'] .robots-monitor-hero__tiles {
-        grid-template-columns: 1fr;
         margin-top: 12px;
-        padding-top: 0;
+        padding-top: 12px;
+    }
+
+    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__scroll {
+        max-height: min(320px, 45vh);
     }
 
     [data-page='robots'][data-robots-view='monitor'] .robots-monitor-cockpit.dashboard-totals-card {
@@ -4190,36 +4364,6 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
         margin-bottom: 5px;
     }
 
-    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-order {
-        display: flex;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 2px;
-    }
-
-    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__top,
-    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__sub,
-    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__id {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 8px;
-        min-width: 0;
-    }
-
-    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__id {
-        justify-content: flex-start;
-    }
-
-    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__detail {
-        min-width: 0;
-    }
-
-    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__state,
-    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-order__outcome {
-        flex: 0 0 auto;
-        text-align: right;
-    }
 }
 
 

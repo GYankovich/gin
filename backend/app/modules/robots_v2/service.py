@@ -19,7 +19,11 @@ from app.core.config import settings
 from app.core.database import SessionLocal
 from app.modules.robots_v2 import queries
 from app.modules.robots_v2 import audit_queries
-from app.modules.robots_v2.audit_pnl import build_round_trips, enrich_fills_realized_pnl
+from app.modules.robots_v2.audit_pnl import (
+    build_round_trips,
+    enrich_fills_realized_pnl,
+    enrich_round_trips_with_signals,
+)
 from app.modules.robots_v2.config.v4_schema import CONFIG_VERSION_V4
 from app.modules.robots_v2.schemas import (
     RobotV2AuditRequest,
@@ -1395,9 +1399,53 @@ class RobotsV2Service:
                 "status": row.status,
                 "orderType": str(row.order_type or "MARKET"),
                 "rejectReason": row.reject_reason,
+                "submittedAt": row.submitted_at.isoformat() if getattr(row, "submitted_at", None) else None,
             }
             for row in rows
         }
+
+    def _audit_signals_for_trip_enrichment(
+        self,
+        db: Session,
+        *,
+        user_id: int,
+        robot_id: int,
+        session_id: UUID | None,
+        since: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """Recent strategy signals for round-trip entry/exit reason enrichment.
+
+        Default list query is DESC — keep that so we do not truncate to ancient rows
+        when the robot has >10k signals.
+        """
+        query, params = audit_queries.build_list_signals_query(
+            robot_id=robot_id,
+            user_id=user_id,
+            limit=20_000,
+            offset=0,
+            session_id=session_id,
+            schema=self.schema,
+        )
+        if since is not None:
+            # Inject lower bound before ORDER BY (query has no trailing clauses beyond ORDER/LIMIT).
+            query = query.replace(
+                "ORDER BY s.created_at DESC",
+                "AND s.created_at >= :signals_since\n        ORDER BY s.created_at DESC",
+            )
+            params = dict(params)
+            params["signals_since"] = since
+        rows = db.execute(text(query), params).fetchall()
+        return [
+            {
+                "id": str(row.id),
+                "ticker": row.ticker,
+                "side": row.side,
+                "kind": row.kind,
+                "reason": row.reason,
+                "createdAt": row.created_at,
+            }
+            for row in rows
+        ]
 
     def _audit_round_trips(
         self,
@@ -1418,6 +1466,20 @@ class RobotsV2Service:
         exit_reasons = self._audit_exit_reasons_map(
             db, user_id=user_id, robot_id=robot_id, session_id=session_id,
         )
+        since = None
+        for fill in timeline:
+            ts = fill.get("filledAt") or fill.get("filled_at")
+            if ts is None:
+                continue
+            if since is None or ts < since:
+                since = ts
+        signals = self._audit_signals_for_trip_enrichment(
+            db,
+            user_id=user_id,
+            robot_id=robot_id,
+            session_id=session_id,
+            since=since,
+        )
         comm, tax = self._risk_rates_for_robot(db, user_id, robot_id)
         all_trips = build_round_trips(
             timeline,
@@ -1426,6 +1488,7 @@ class RobotsV2Service:
             commission_rate=comm,
             tax_rate=tax,
         )
+        all_trips = enrich_round_trips_with_signals(all_trips, signals)
         total = len(all_trips)
         return all_trips[offset : offset + limit], total
 

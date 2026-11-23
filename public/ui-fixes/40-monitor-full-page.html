@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Монитор — полная страница (целевая)</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  html[data-theme='light'] {
+    --bg: #f4f5f7;
+    --page: #ffffff;
+    --panel: #f7f8fa;
+    --elevated: #eef0f3;
+    --text: #1c1f24;
+    --secondary: #3d4450;
+    --muted: #6b7280;
+    --border: rgba(20, 24, 30, 0.1);
+    --line: rgba(20, 24, 30, 0.16);
+    --accent: #1c1f24;
+    --on-accent: #fff;
+    --up: #1f8a4c;
+    --down: #c43b4a;
+    --warn: #b8860b;
+    --cyan: #2a7a9b;
+    --picker: #fff;
+  }
+  html[data-theme='light'] body { background: var(--bg); }
+  .theme-btn {
+    border: 1px solid var(--border); background: transparent; color: var(--secondary);
+    border-radius: 10px; padding: 8px 12px; font-size: 13px;
+  }
+  .thesis { margin: 0 0 14px; max-width: 78ch; color: var(--secondary); font-size: 14px; line-height: 1.5; }
+  .thesis strong { color: var(--text); }
+  .flow {
+    display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 0 0 18px;
+    font-size: 12px; color: var(--muted);
+  }
+  .flow span {
+    padding: 4px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--page);
+  }
+  .flow b { color: var(--text); font-weight: 600; }
+
+  .screen {
+    max-width: 1180px;
+    margin: 0 auto 40px;
+    background: var(--page);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 12px 32px rgba(20, 24, 30, 0.06);
+  }
+  .q {
+    color: var(--muted); font-size: 11px; font-weight: 500;
+    letter-spacing: 0.02em; text-transform: uppercase;
+  }
+
+  /* —— Quiet chrome (current) —— */
+  .chrome {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+  }
+  .chrome-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .back {
+    width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--border);
+    background: transparent; color: var(--secondary); font-size: 14px;
+  }
+  .chrome-title { min-width: 0; }
+  .chrome-title h1 {
+    margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.02em;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .run {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; color: var(--up);
+  }
+  .run i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .tabs { display: flex; gap: 14px; font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .tabs .on { color: var(--text); font-weight: 600; }
+  .phase {
+    display: flex; align-items: center; gap: 8px; flex: 1; min-width: 140px; max-width: 280px;
+  }
+  .phase-track {
+    flex: 1; height: 4px; border-radius: 999px; background: var(--elevated); overflow: hidden;
+  }
+  .phase-track > i {
+    display: block; width: 62%; height: 100%; background: var(--up); border-radius: 999px;
+  }
+  .phase-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .chrome-right { display: flex; align-items: center; gap: 10px; }
+  .btn {
+    border: 1px solid var(--border); background: transparent; color: var(--secondary);
+    border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 550;
+  }
+  .btn--primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .asof { font-size: 11px; color: var(--muted); text-align: right; line-height: 1.3; }
+
+  .body { padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* —— Cockpit —— */
+  .cockpit {
+    display: grid; grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.4fr);
+    gap: 16px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 14px;
+    background: var(--panel);
+  }
+  @media (max-width: 860px) { .cockpit { grid-template-columns: 1fr; } }
+  .equity {
+    font-size: 32px; font-weight: 650; letter-spacing: -0.6px;
+    line-height: 1.1; font-variant-numeric: tabular-nums;
+  }
+  .tiles {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px;
+    margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+  }
+  .kpi-label { display: block; margin: 0 0 3px; font-size: 11px; font-weight: 500; color: var(--muted); }
+  .kpi-value { display: block; font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .chart {
+    min-height: 180px; position: relative;
+    border-left: 1px solid var(--border); padding-left: 14px;
+  }
+  @media (max-width: 860px) {
+    .chart { border-left: 0; padding-left: 0; border-top: 1px solid var(--border); padding-top: 12px; }
+  }
+  .crosshair {
+    display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: baseline;
+    font-size: 12px; color: var(--muted); margin-bottom: 8px; min-height: 18px;
+  }
+  .crosshair .v { font-size: 14px; font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; }
+  .crosshair .d { color: var(--up); font-variant-numeric: tabular-nums; }
+  .chart-svg { width: 100%; height: 150px; display: block; }
+  .chart-note { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
+
+  /* —— Cards / tables (day-trades chrome) —— */
+  .card {
+    border: 1px solid var(--border); border-radius: 14px; background: var(--panel);
+    padding: 12px 14px 10px;
+  }
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin-bottom: 8px;
+  }
+  .card-head h3 { margin: 0; font-size: 15px; font-weight: 650; }
+  .hint { font-weight: 400; color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+  .chip {
+    border: 1px solid var(--border); background: transparent; color: var(--muted);
+    border-radius: 999px; padding: 3px 10px; font-size: 12px;
+  }
+  .chip--on { color: var(--text); border-color: var(--line); background: var(--elevated); font-weight: 550; }
+  .scroll { max-height: 260px; overflow: auto; }
+  table.day {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+  }
+  table.day th {
+    position: sticky; top: 0; z-index: 1;
+    text-align: left; font-size: 11px; font-weight: 500; color: var(--muted);
+    padding: 6px 10px; border-bottom: 1px solid var(--border);
+    background: var(--panel); white-space: nowrap;
+  }
+  table.day th:first-child, table.day td:first-child { padding-left: 0; }
+  table.day th:last-child, table.day td:last-child { padding-right: 0; }
+  table.day td {
+    padding: 9px 10px; border-bottom: 1px solid var(--border);
+    font-size: 13px; vertical-align: baseline;
+  }
+  table.day tr:last-child td { border-bottom: 0; }
+  table.day tr.is-open { cursor: pointer; }
+  table.day tr.is-open:hover td { background: rgba(20,24,30,0.03); }
+  table.day .num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.day .tk { font-weight: 650; letter-spacing: 0.02em; }
+  table.day .muted { color: var(--muted); font-size: 12px; }
+  table.day .stack { display: flex; flex-direction: column; gap: 2px; }
+  table.day .stack .sub { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .foot {
+    display: flex; justify-content: flex-end; gap: 10px; align-items: baseline;
+    margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);
+    font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums;
+  }
+  .cap {
+    margin: 8px 0 0; font-size: 12px; color: var(--muted); line-height: 1.4;
+  }
+  .empty { margin: 8px 0; font-size: 13px; color: var(--muted); }
+  .up { color: var(--up); }
+  .down { color: var(--down); }
+  .mono { font-variant-numeric: tabular-nums; }
+  .status {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; color: var(--secondary);
+  }
+  .status i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .status--on { color: var(--up); }
+  .status--part { color: var(--warn); }
+  .status--rej { color: var(--down); }
+  .status--done { color: var(--muted); }
+  .why-btn {
+    border: 0; background: transparent; color: var(--muted);
+    font-size: 12px; padding: 0; cursor: pointer;
+  }
+  .why-btn:hover { color: var(--text); }
+
+  /* —— Drawer —— */
+  .drawer-wrap {
+    position: relative; margin-top: 10px;
+  }
+  .drawer {
+    border: 1px solid var(--border); border-radius: 12px; background: var(--page);
+    padding: 12px 14px; font-size: 13px; line-height: 1.45;
+  }
+  .drawer h4 { margin: 0 0 8px; font-size: 13px; font-weight: 650; }
+  .drawer dl { margin: 0; display: grid; gap: 8px; }
+  .drawer dt { font-size: 11px; color: var(--muted); font-weight: 500; }
+  .drawer dd { margin: 2px 0 0; color: var(--secondary); }
+  .drawer .link { font-size: 12px; color: var(--cyan); margin-top: 10px; }
+
+  .block-q {
+    display: flex; justify-content: space-between; gap: 10px; align-items: baseline;
+    margin: 0 0 8px;
+  }
+  .block-q .q { margin: 0; }
+  .block-q p { margin: 0; font-size: 12px; color: var(--muted); max-width: 42ch; text-align: right; }
+
+  .legend {
+    margin: 18px 0 0; padding: 12px 14px; border-radius: 12px;
+    border: 1px dashed var(--border); font-size: 12px; color: var(--secondary); line-height: 1.5;
+  }
+  .legend strong { color: var(--text); }
+  .delta { outline: 2px solid rgba(42,122,155,0.35); outline-offset: 2px; border-radius: 14px; }
+  .tag-new {
+    display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px;
+    background: rgba(42,122,155,0.12); color: var(--cyan); font-size: 10px; font-weight: 650;
+    vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <div>
+      <h1>Монитор — целевая страница</h1>
+      <p>На текущем UI: quiet chrome + cockpit + blotters. Новое выделено.</p>
+    </div>
+    <button type="button" class="theme-btn" id="themeToggle">Тема</button>
+  </div>
+
+  <div class="wrap">
+    <p class="thesis">
+      Линейный флоу вопросов:
+      <strong>жив?</strong> → <strong>как дела?</strong> → <strong>что у брокера?</strong> →
+      <strong>что держим?</strong> → <strong>что закрыли и почему?</strong> → <strong>кого смотрим?</strong>
+      Блоки не дублируют друг друга.
+    </p>
+    <div class="flow">
+      <span><b>1</b> Шапка</span>
+      <span><b>2</b> Cockpit</span>
+      <span><b>3</b> Заявки <em class="tag-new">NEW</em></span>
+      <span><b>4</b> Позиции</span>
+      <span><b>5</b> Сделки дня</span>
+      <span><b>6</b> Пул</span>
+    </div>
+
+    <div class="screen" aria-label="Макет монитора">
+      <!-- 1. Chrome -->
+      <header class="chrome">
+        <div class="chrome-left">
+          <button type="button" class="back" aria-label="Назад">←</button>
+          <div class="chrome-title">
+            <h1>
+              Scalper · MOEX
+              <span class="run"><i></i> Работает</span>
+            </h1>
+            <div class="tabs">
+              <span class="on">Монитор</span>
+              <span>Логи</span>
+            </div>
+          </div>
+        </div>
+        <div class="phase" title="Фаза цикла">
+          <div class="phase-track"><i></i></div>
+          <span class="phase-label">торговля</span>
+        </div>
+        <div class="chrome-right">
+          <div class="asof">сессия · брокер<br>as-of 19:42:11</div>
+          <button type="button" class="btn">Пауза</button>
+        </div>
+      </header>
+
+      <div class="body">
+        <!-- 2. Cockpit -->
+        <section>
+          <div class="block-q">
+            <p class="q">2 · Как дела в целом?</p>
+          </div>
+          <div class="cockpit">
+            <div>
+              <div class="equity mono">1 248 320 ₽</div>
+              <div class="tiles robots-monitor-hero__tiles">
+                <div>
+                  <span class="kpi-label">День</span>
+                  <b class="kpi-value up">+1 250 ₽</b>
+                </div>
+                <div>
+                  <span class="kpi-label">Кэш</span>
+                  <b class="kpi-value">842 100 ₽</b>
+                </div>
+                <div>
+                  <span class="kpi-label">Позиции</span>
+                  <b class="kpi-value">2</b>
+                </div>
+                <div>
+                  <span class="kpi-label">Цикл</span>
+                  <b class="kpi-value">148</b>
+                </div>
+                <div>
+                  <span class="kpi-label">В плюс <span class="tag-new">NEW</span></span>
+                  <b class="kpi-value up">4</b>
+                </div>
+                <div>
+                  <span class="kpi-label">В минус <span class="tag-new">NEW</span></span>
+                  <b class="kpi-value down">1</b>
+                </div>
+              </div>
+            </div>
+            <div class="chart">
+              <div class="crosshair">
+                <span class="v mono">1 247 890 ₽</span>
+                <span class="d mono">+120 ₽ (+0,01%)</span>
+                <span>19:38</span>
+              </div>
+              <svg class="chart-svg" viewBox="0 0 560 150" preserveAspectRatio="none" aria-hidden="true">
+                <polyline
+                  fill="none" stroke="#1f8a4c" stroke-width="2.5"
+                  points="0,110 40,108 80,100 120,104 160,92 200,88 240,95 280,70 320,74 360,60 400,55 440,62 480,48 520,42 560,38"
+                />
+                <line x1="400" y1="0" x2="400" y2="150" stroke="rgba(20,24,30,0.12)" stroke-dasharray="3 3" />
+                <circle cx="400" cy="55" r="3.5" fill="#1f8a4c" />
+              </svg>
+              <p class="chart-note">Опционально позже: линия бенчмарка. Hover только здесь, equity слева не дергается.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- 3. Orders NEW -->
+        <section class="delta">
+          <div class="block-q">
+            <p class="q">3 · Что сейчас у брокера? <span class="tag-new">NEW</span></p>
+            <p>Активные заявки. Исполненные уходят в «Сделки дня».</p>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h3>Заявки <span class="hint">· 2</span></h3>
+            </div>
+            <div class="chips">
+              <button type="button" class="chip chip--on">Все</button>
+              <button type="button" class="chip">Покупки</button>
+              <button type="button" class="chip">Продажи</button>
+              <button type="button" class="chip">Ошибки</button>
+            </div>
+            <div class="scroll">
+              <table class="day" aria-label="Заявки">
+                <thead>
+                  <tr>
+                    <th>Тикер</th>
+                    <th>Ордер</th>
+                    <th>Статус</th>
+                    <th>Время</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <b class="tk">MGNT</b>
+                      <div class="muted">Продать</div>
+                    </td>
+                    <td>
+                      <span class="mono">10 шт по 5 412 ₽</span>
+                      <div class="muted">LIMIT · TP</div>
+                    </td>
+                    <td><span class="status status--on"><i></i> Активна</span></td>
+                    <td class="muted mono">висит с 14:05:12</td>
+                    <td class="num"><button type="button" class="btn">Отменить</button></td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <b class="tk">SBER</b>
+                      <div class="muted">Купить</div>
+                    </td>
+                    <td>
+                      <span class="mono">50 шт по 289,4 ₽</span>
+                      <div class="muted">LIMIT · вход</div>
+                    </td>
+                    <td><span class="status status--part"><i></i> Частично · 20/50</span></td>
+                    <td class="muted mono">с 15:22:01 · до 18:00</td>
+                    <td class="num"><button type="button" class="btn">Отменить</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="cap">
+              Лимитные заявки могут висеть до исполнения или истечения таймаута.
+              Если цена ушла далеко, робот может отменить заявку и выставить новую.
+            </p>
+          </div>
+        </section>
+
+        <!-- 4. Positions -->
+        <section>
+          <div class="block-q">
+            <p class="q">4 · Что держим?</p>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h3>Позиции <span class="hint">· 2</span></h3>
+            </div>
+            <div class="scroll">
+              <table class="day" aria-label="Позиции">
+                <thead>
+                  <tr>
+                    <th>Позиция</th>
+                    <th>Закупка</th>
+                    <th class="num">Вход → сейчас</th>
+                    <th class="num">SL / TP</th>
+                    <th class="num">PnL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <b class="tk">MGNT</b> <span class="muted">×10</span>
+                      <div class="muted">лимит TP выставлен</div>
+                    </td>
+                    <td class="mono muted">20.11, 14:02</td>
+                    <td class="num mono">5 380 → <span class="up">5 405</span></td>
+                    <td class="num mono muted">5 320 / 5 412</td>
+                    <td class="num mono up">+250 ₽</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <b class="tk">TATN</b> <span class="muted">×20</span>
+                      <div class="muted">до SL 1,2 ₽ · без лимита</div>
+                    </td>
+                    <td class="mono muted">20.11, 11:18</td>
+                    <td class="num mono">712,5 → <span class="down">708,1</span></td>
+                    <td class="num mono muted">706,8 / —</td>
+                    <td class="num mono down">−88 ₽</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="foot"><span class="up">+162 ₽ (+0,01%)</span></div>
+          </div>
+        </section>
+
+        <!-- 5. Day trades -->
+        <section class="delta">
+          <div class="block-q">
+            <p class="q">5 · Что уже сделали и почему?</p>
+            <p>Компактная таблица + drawer по клику. <span class="tag-new">CHANGED</span></p>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h3>Сделки дня <span class="hint">· 5</span></h3>
+            </div>
+            <div class="scroll">
+              <table class="day" aria-label="Сделки дня">
+                <thead>
+                  <tr>
+                    <th>Вход</th>
+                    <th>Тикер</th>
+                    <th>Выход</th>
+                    <th class="num">Результат</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="is-open" data-open="1">
+                    <td>
+                      <div class="stack">
+                        <span class="mono">20.11, 10:14</span>
+                        <span class="sub">288,6 ₽ ×40</span>
+                      </div>
+                    </td>
+                    <td><b class="tk">SBER</b></td>
+                    <td>
+                      <div class="stack">
+                        <span class="mono">20.11, 11:02:18</span>
+                        <span class="sub">291,1 ₽ · TP</span>
+                      </div>
+                    </td>
+                    <td class="num mono up">+92 ₽</td>
+                    <td class="num"><button type="button" class="why-btn" data-toggle="1">Почему ▾</button></td>
+                  </tr>
+                  <tr class="is-open" data-open="2">
+                    <td>
+                      <div class="stack">
+                        <span class="mono">20.11, 12:40</span>
+                        <span class="sub">5 210 ₽ ×5</span>
+                      </div>
+                    </td>
+                    <td><b class="tk">MGNT</b></td>
+                    <td>
+                      <div class="stack">
+                        <span class="mono">20.11, 13:05:41</span>
+                        <span class="sub">5 168 ₽ · SL</span>
+                      </div>
+                    </td>
+                    <td class="num mono down">−218 ₽</td>
+                    <td class="num"><button type="button" class="why-btn" data-toggle="2">Почему ▾</button></td>
+                  </tr>
+                  <tr class="is-open">
+                    <td>
+                      <div class="stack">
+                        <span class="mono">20.11, 14:55</span>
+                        <span class="sub">4 102 ₽ ×8</span>
+                      </div>
+                    </td>
+                    <td><b class="tk">YDEX</b></td>
+                    <td>
+                      <div class="stack">
+                        <span class="mono">20.11, 15:12:03</span>
+                        <span class="sub">4 155 ₽ · дельта</span>
+                      </div>
+                    </td>
+                    <td class="num mono up">+412 ₽</td>
+                    <td class="num"><button type="button" class="why-btn">Почему ▾</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="drawer-wrap" id="drawer" hidden>
+              <div class="drawer">
+                <h4>SBER · закрыта 11:02:18</h4>
+                <dl>
+                  <div>
+                    <dt>Почему купил</dt>
+                    <dd>Скальп: дельта · кросс вверх на объёме</dd>
+                  </div>
+                  <div>
+                    <dt>Почему продал</dt>
+                    <dd>Тейк-профит · лимит 291,1 исполнен (выставлен 11:01:03)</dd>
+                  </div>
+                  <div>
+                    <dt>Результат</dt>
+                    <dd class="up">+92 ₽ · удержание 48 мин</dd>
+                  </div>
+                </dl>
+                <p class="link">Открыть в Логах → fill / signal · cycle 142</p>
+              </div>
+            </div>
+
+            <div class="foot"><span class="up">+1 250 ₽</span></div>
+            <p class="cap">
+              Убраны: отдельный Статус, одна «Цена», две колонки причин в таблице.
+              Причины и лаг LIMIT — в drawer. Выход показывает время fill; «выставлен» — в деталях.
+            </p>
+          </div>
+        </section>
+
+        <!-- 6. Pool -->
+        <section>
+          <div class="block-q">
+            <p class="q">6 · Что рассматриваем?</p>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h3>Пул <span class="hint">· 6</span></h3>
+              <button type="button" class="btn">Обновить пул</button>
+            </div>
+            <div class="scroll">
+              <table class="day" aria-label="Пул">
+                <thead>
+                  <tr>
+                    <th>Тикер</th>
+                    <th>Решение</th>
+                    <th>Причина</th>
+                    <th class="num">Обновлено</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><b class="tk">MGNT</b></td>
+                    <td>Вход</td>
+                    <td class="muted">уже в позиции</td>
+                    <td class="num mono muted">19:41</td>
+                  </tr>
+                  <tr>
+                    <td><b class="tk">SBER</b></td>
+                    <td>Тихо</td>
+                    <td class="muted">стратегия без сигнала</td>
+                    <td class="num mono muted">19:41</td>
+                  </tr>
+                  <tr>
+                    <td><b class="tk">GAZP</b></td>
+                    <td>Риск</td>
+                    <td class="muted">лимит одновременных позиций</td>
+                    <td class="num mono muted">19:40</td>
+                  </tr>
+                  <tr>
+                    <td><b class="tk">LKOH</b></td>
+                    <td>Пропуск</td>
+                    <td class="muted">свечей ≥ 20</td>
+                    <td class="num mono muted">19:40</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div class="legend">
+      <strong>За кадром (не в макете UI, но в проде):</strong>
+      тексты ошибок брокера в «Заявках»; единый источник правды для частичных fill
+      в Позициях / Сделках; ссылки из drawer и заявок в конкретные записи логов.
+      <br /><br />
+      <strong>От текущего продакшена:</strong>
+      нет блока «Заявки»; «Сделки дня» плоские с 10 колонками;
+      в hero tiles нет счётчиков «В плюс / В минус»; пул и позиции уже близки к целевым.
+    </div>
+  </div>
+
+  <script>
+    const root = document.documentElement
+    document.getElementById('themeToggle')?.addEventListener('click', () => {
+      root.setAttribute('data-theme', root.getAttribute('data-theme') === 'light' ? 'dark' : 'light')
+    })
+    const drawer = document.getElementById('drawer')
+    document.querySelectorAll('[data-toggle]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation()
+        if (!drawer) return
+        const open = drawer.hasAttribute('hidden')
+        if (open) drawer.removeAttribute('hidden')
+        else drawer.setAttribute('hidden', '')
+        btn.textContent = open ? 'Почему ▴' : 'Почему ▾'
+      })
+    })
+  </script>
+</body>
+</html>

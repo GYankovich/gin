@@ -529,7 +529,8 @@ def build_list_orders_all_query(
             o.price,
             o.status,
             o.reject_reason,
-            COALESCE(o.order_type, 'MARKET') AS order_type
+            COALESCE(o.order_type, 'MARKET') AS order_type,
+            o.submitted_at
         FROM {schema}.robots_v2_orders o
         JOIN {schema}.robots_v2_cycles c ON c.id = o.cycle_id
         JOIN {schema}.robots_v2 r ON r.id = o.robot_id

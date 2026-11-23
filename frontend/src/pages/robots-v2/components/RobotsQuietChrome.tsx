@@ -8,9 +8,7 @@ import { sessionStateLabel } from '@/pages/robots-v2/formatters'
 import {
     CYCLE_STAGE_ORDER,
     pick,
-    stageDetailLabel,
     stageLabel,
-    SKIP_LABELS,
 } from '@/pages/robots-v2/monitorUtils'
 import {
     RobotMobileSubnav,
@@ -42,6 +40,8 @@ type RobotsQuietChromeProps = {
     statusLoaded?: boolean
     liveStage?: RobotLiveStage | null
     streamConnected?: boolean
+    /** Footnote under the phase track (e.g. balance honesty line). */
+    phaseNote?: string | null
 }
 
 function statusBadge(
@@ -76,26 +76,20 @@ function PhaseTrack({
     status,
     statusLoaded,
     liveStage,
-    streamConnected,
+    phaseNote,
 }: {
     status: RobotV2Status | null
     statusLoaded: boolean
     liveStage?: RobotLiveStage | null
-    streamConnected?: boolean
+    phaseNote?: string | null
 }) {
     const sessionState = String(pick(status || ({} as RobotV2Status), 'sessionState', 'session_state') || '')
     const sessionUpper = sessionState.toUpperCase()
     const isRunning = sessionUpper === 'RUNNING' || sessionUpper === 'BOOTSTRAP'
     const isStopping = sessionUpper === 'STOPPING'
     const isActive = isRunning || isStopping
-    const statusMode = pick<string>(status || ({} as RobotV2Status), 'mode', 'mode')
-    const statusMessage = pick<string>(status || ({} as RobotV2Status), 'message', 'message')
     const statusStage = pick<string>(status || ({} as RobotV2Status), 'cycleStage', 'cycle_stage')
-    const cycle = pick<number>(status || ({} as RobotV2Status), 'cycleNumber', 'cycle_number')
     const statusProgress = pick<number>(status || ({} as RobotV2Status), 'cycleProgress', 'cycle_progress')
-    const statusDetail = pick<string>(status || ({} as RobotV2Status), 'cycleDetail', 'cycle_detail')
-    const statusSkip = pick<string>(status || ({} as RobotV2Status), 'cycleSkipReason', 'cycle_skip_reason')
-    const statusTriggered = pick<string>(status || ({} as RobotV2Status), 'lastTriggeredBy', 'last_triggered_by')
 
     const stageKey = liveStage?.stage || statusStage || (isActive ? 'idle' : null)
     const stageText = liveStage?.label
@@ -110,19 +104,6 @@ function PhaseTrack({
         )),
     )
     const stagePct = Math.round(stageProgress * 100)
-    const stageDetailText = stageDetailLabel(liveStage?.detail ?? statusDetail ?? null)
-    const skipReason = liveStage?.skipReason ?? statusSkip ?? null
-    const triggeredBy = liveStage?.triggeredBy ?? statusTriggered ?? null
-    const cycleLabel = cycle != null && Number.isFinite(Number(cycle)) ? `цикл ${cycle}` : null
-    const detailLine = [
-        cycleLabel,
-        statusMode || null,
-        statusLoaded && streamConnected === false ? 'стрим офлайн' : null,
-        stageDetailText,
-        triggeredBy ? `триггер: ${triggeredBy}` : null,
-        skipReason ? (SKIP_LABELS[skipReason] || skipReason) : null,
-        statusMessage || null,
-    ].filter(Boolean).join(' · ')
     const show = statusLoaded && Boolean(stageText)
     const stageIndex = CYCLE_STAGE_ORDER.indexOf(stageKey as typeof CYCLE_STAGE_ORDER[number])
 
@@ -153,7 +134,7 @@ function PhaseTrack({
                     )
                 })}
             </div>
-            {detailLine ? <p className="robots-monitor-phase__why">{detailLine}</p> : null}
+            {phaseNote ? <p className="robots-monitor-phase__note">{phaseNote}</p> : null}
         </div>
     )
 }
@@ -170,7 +151,7 @@ export function RobotsQuietChrome({
     status: statusProp,
     statusLoaded: statusLoadedProp,
     liveStage,
-    streamConnected,
+    phaseNote,
 }: RobotsQuietChromeProps) {
     const navigate = useNavigate()
     const isNarrow = useMediaQuery('(max-width: 767px)')
@@ -258,7 +239,7 @@ export function RobotsQuietChrome({
                 status={status}
                 statusLoaded={Boolean(statusLoaded)}
                 liveStage={liveStage}
-                streamConnected={streamConnected}
+                phaseNote={phaseNote}
             />
             {!isNarrow ? (
                 <nav className="robots-quiet-chrome__nav" aria-label="Разделы робота">

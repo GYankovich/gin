@@ -5,23 +5,30 @@ import { Card } from '@/components/ui/Card'
 import { useToast } from '@/components/ui/Toast'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { useAuthStore } from '@/stores/authStore'
-import { MonitorDecisionsCard } from '@/pages/robots-v2/components/MonitorDecisionsCard'
 import { MonitorEquityChart } from '@/pages/robots-v2/components/MonitorEquityChart'
+import { MonitorLiveOrdersCard } from '@/pages/robots-v2/components/MonitorLiveOrdersCard'
 import { MonitorOrdersCard } from '@/pages/robots-v2/components/MonitorOrdersCard'
 import { MonitorPositionsCard } from '@/pages/robots-v2/components/MonitorPositionsCard'
 import { MonitorSummaryCard } from '@/pages/robots-v2/components/MonitorSummaryCard'
-import { useQuietChromeActions, useQuietChromeLive } from '@/pages/robots-v2/RobotQuietShell'
-import { fmtErr, fmtNum, readCssColor } from '@/pages/robots-v2/formatters'
+import { MonitorUniverseCard } from '@/pages/robots-v2/components/MonitorUniverseCard'
+import {
+    useQuietChromeActions,
+    useQuietChromeLive,
+    useQuietChromePhaseNote,
+} from '@/pages/robots-v2/RobotQuietShell'
+import { fmtErr, fmtRubSmart, readCssColor } from '@/pages/robots-v2/formatters'
 import {
     appendEquityPoint,
     balanceFootnoteText,
     collectAuditTradeTickers,
     computeDayTradeStats,
-    countRestingLimits,
     filterScanCooldownRows,
     formatBalanceAsOfLabel,
     fmtNetPnl,
+    fmtOrderClock,
     isFiniteBalance,
+    buildPoolDecisionRows,
+    mergeDecisionFeed,
     mergeLiveRoundTrips,
     mergeUniverseTickers,
     normalizeEquityPoints,
@@ -29,6 +36,7 @@ import {
     parseBalanceSource,
     pick,
     pickOpenPositions,
+    pickRoundTripField,
     posPrice,
     positionBlotterSubtitle,
     positionTicker,
@@ -38,6 +46,7 @@ import {
     readPosNumber,
     scanStampMs,
     sortByTickerName,
+    toDecisionFeedRow,
     tripOnLiveDay,
     toOrderDisplayRow,
 } from '@/pages/robots-v2/monitorUtils'
@@ -71,8 +80,8 @@ export default function RobotV2MonitorPage() {
     const [tickerScan, setTickerScan] = useState<RobotV2TickerScan[]>([])
     const [tickerScanAt, setTickerScanAt] = useState<string | null>(null)
     const [roundTrips, setRoundTrips] = useState<RobotV2RoundTrip[]>([])
+    const [decisionFeed, setDecisionFeed] = useState<Array<Record<string, unknown>>>([])
     const [busy, setBusy] = useState(false)
-    const [decisionsOpen, setDecisionsOpen] = useState(false)
     const [universeBusy, setUniverseBusy] = useState(false)
     const positionsFreshAtRef = useRef(0)
     const scanFreshAtRef = useRef(0)
@@ -112,9 +121,14 @@ export default function RobotV2MonitorPage() {
             const [r, s, auditRes] = await Promise.all([
                 robotV2Service.getById(robotId),
                 robotV2Service.getStatus(robotId),
-                robotV2Service.fetchAudit({ robotId, limit: 200, types: ['roundTrips'] }).catch(() => ({
+                robotV2Service.fetchAudit({
+                    robotId,
+                    limit: 200,
+                    types: ['roundTrips', 'decisions'],
+                }).catch(() => ({
                     robotId,
                     roundTrips: { items: [] as RobotV2RoundTrip[], total: 0 },
+                    decisions: { items: [], total: 0 },
                 })),
             ])
             setRobot(r)
@@ -136,6 +150,9 @@ export default function RobotV2MonitorPage() {
             })
             setStatusLoaded(true)
             setRoundTrips(auditRes.roundTrips?.items || [])
+            const liveDecisions = pick<Array<Record<string, unknown>>>(s, 'decisions', 'decisions')
+            const auditDecisions = (auditRes.decisions?.items || []) as Array<Record<string, unknown>>
+            setDecisionFeed(mergeDecisionFeed(liveDecisions, auditDecisions))
             const scan = pick<RobotV2TickerScan[]>(s, 'tickerScan', 'ticker_scan')
             const scanAt = pick<string>(s, 'tickerScanAt', 'ticker_scan_at')
             if (Array.isArray(scan) && scan.length > 0) {
@@ -176,6 +193,7 @@ export default function RobotV2MonitorPage() {
     useEffect(() => {
         setStatusLoaded(false)
         setStatus(null)
+        setDecisionFeed([])
         positionsFreshAtRef.current = 0
         scanFreshAtRef.current = 0
         void refresh()
@@ -229,6 +247,21 @@ export default function RobotV2MonitorPage() {
                     at,
                     scanStampMs(at, msg.ts) || Date.now(),
                 )
+            }
+            if (type === 'cycle' && Array.isArray(msg.decisions) && msg.decisions.length > 0) {
+                setDecisionFeed(mergeDecisionFeed(
+                    msg.decisions as Array<Record<string, unknown>>,
+                    null,
+                ))
+            }
+            if (type === 'decision') {
+                const row = toDecisionFeedRow(msg as Record<string, unknown>)
+                if (row) {
+                    if (row.createdAt == null) {
+                        row.createdAt = msg.ts != null ? String(msg.ts) : new Date().toISOString()
+                    }
+                    setDecisionFeed(prev => mergeDecisionFeed([row, ...prev], null))
+                }
             }
             if (type === 'universe') {
                 const uni = Array.isArray(msg.universe) ? (msg.universe as string[]) : null
@@ -351,6 +384,13 @@ export default function RobotV2MonitorPage() {
     const cashRaw = pick<number>(status || ({} as RobotV2Status), 'cash', 'cash')
     const equity = isFiniteBalance(equityRaw) ? Number(equityRaw) : null
     const cash = isFiniteBalance(cashRaw) ? Number(cashRaw) : null
+    const chartLastEquity = (() => {
+        if (!equityPoints.length) return null
+        const last = Number(equityPoints[equityPoints.length - 1]?.value)
+        return Number.isFinite(last) ? last : null
+    })()
+    /** Live equity for hero — not chart crosshair (hover stays on the chart overlay only). */
+    const displayEquity = chartLastEquity ?? equity
     const balanceSource = parseBalanceSource(
         pick(status || ({} as RobotV2Status), 'balanceSource', 'balance_source'),
     )
@@ -373,7 +413,7 @@ export default function RobotV2MonitorPage() {
             || (isActive && (stageLower === 'bootstrap' || stageLower === 'bootstrap_sync'))
         )
     const showSessionOps = statusLoaded && isActive && !isSyncing
-    const showBalance = statusLoaded && (equity != null || cash != null)
+    const showBalance = statusLoaded && (displayEquity != null || equity != null || cash != null)
     const balanceFootnote = showBalance ? balanceFootnoteText(balanceSource, statusMode) : null
     const balanceAsOfLabel = showBalance ? formatBalanceAsOfLabel(balanceAsOf) : null
     const isLiveMode = String(statusMode || '').toLowerCase() === 'live'
@@ -388,7 +428,6 @@ export default function RobotV2MonitorPage() {
         [positionsRaw],
     )
     const liveOrders = pick<Array<Record<string, unknown>>>(status || ({} as RobotV2Status), 'openOrders', 'open_orders') || []
-    const limitCount = useMemo(() => countRestingLimits(liveOrders), [liveOrders])
     const orderRows = useMemo(
         () => mergeLiveRoundTrips(roundTrips, liveOrders),
         [roundTrips, liveOrders],
@@ -416,7 +455,6 @@ export default function RobotV2MonitorPage() {
         () => dayOrderRows.map(toOrderDisplayRow),
         [dayOrderRows],
     )
-    const decisions = pick<Array<Record<string, unknown>>>(status || ({} as RobotV2Status), 'decisions', 'decisions') || []
     const universeRaw = pick<string[]>(status || ({} as RobotV2Status), 'universe', 'universe') || []
     const universe = useMemo(
         () => mergeUniverseTickers(universeRaw, positionsRaw),
@@ -436,6 +474,7 @@ export default function RobotV2MonitorPage() {
     const positionTableRows = useMemo(
         () => positions.map((p, i) => {
             const row = p as Record<string, unknown>
+            const ticker = positionTicker(row)
             const entryN = readPosNumber(row, 'entry_price', 'entryPrice', 'avg_entry_price', 'avgEntryPrice')
             const currentN = readPosNumber(row, 'current_price', 'currentPrice')
             const currentTone: 'up' | 'down' | 'neutral' = entryN != null && currentN != null
@@ -448,12 +487,28 @@ export default function RobotV2MonitorPage() {
             const current = posPrice(row, 'current_price', 'currentPrice')
             const sl = posPrice(row, 'stop_loss_price', 'stopLossPrice')
             const tp = posPrice(row, 'take_profit_price', 'takeProfitPrice')
+            const openedRaw = row.opened_at ?? row.openedAt
+            const openTrip = roundTrips.find(t => {
+                const st = String(t.status || '').toLowerCase()
+                return String(t.ticker || '').toUpperCase() === ticker
+                    && (st === 'open' || st === 'resting' || st === 'submitted' || st === 'new')
+            })
+            const tripBuyAt = openTrip
+                ? pickRoundTripField<string | null>(openTrip, 'buyAt', 'buy_at')
+                : null
+            const boughtAtLabel = fmtOrderClock(
+                (typeof openedRaw === 'string' || typeof openedRaw === 'number'
+                    ? String(openedRaw)
+                    : null)
+                || tripBuyAt,
+            )
             return {
                 id: String(row.ticker ?? row.secid ?? row.figi ?? i),
                 tickerLabel: String(row.ticker ?? row.figi ?? '—'),
                 tickerWarning: positionTickerWarning(row),
                 side: String(row.side ?? '—'),
                 quantity: qty != null ? String(qty) : '—',
+                boughtAtLabel,
                 entry,
                 current,
                 currentTone,
@@ -467,7 +522,7 @@ export default function RobotV2MonitorPage() {
                 pnlAbs: pnlAbs ?? 0,
             }
         }),
-        [positions, liveOrders],
+        [positions, liveOrders, roundTrips],
     )
     const positionsPnlTotal = useMemo(() => {
         let sum = 0
@@ -485,25 +540,26 @@ export default function RobotV2MonitorPage() {
         () => sortByTickerName(universe, t => t),
         [universe],
     )
-    const positionsUpdatedAt = pick<string>(status || ({} as RobotV2Status), 'positionsUpdatedAt', 'positions_updated_at')
-        || pick<string>(status || ({} as RobotV2Status), 'lastCycleAt', 'last_cycle_at')
     const cycle = pick<number>(status || ({} as RobotV2Status), 'cycleNumber', 'cycle_number')
     const balanceNote = [balanceFootnote, balanceAsOfLabel].filter(Boolean).join(' · ') || null
-    const decisionList = Array.isArray(decisions) ? decisions : []
-    const decisionLimit = decisionsOpen ? decisionList.length : 3
     const poolTickers = displayUniverse.length > 0
         ? displayUniverse
         : displayTickerScan.map(row => row.ticker)
+    const poolDecisionRows = useMemo(
+        () => buildPoolDecisionRows(poolTickers, displayTickerScan, decisionFeed, tickerScanAt),
+        [poolTickers, displayTickerScan, decisionFeed, tickerScanAt],
+    )
     const totalPnlLabel = positionsPnlTotal
         ? `${positionsPnlTotal.text}${equity != null && equity !== 0
-            ? ` · ${((positionsPnlTotal.abs / Math.abs(equity)) * 100).toLocaleString('ru-RU', {
+            ? ` (${((positionsPnlTotal.abs / Math.abs(equity)) * 100).toLocaleString('ru-RU', {
                 maximumFractionDigits: 1,
                 signDisplay: 'exceptZero',
-            })}%`
+            })}%)`
             : ''}`
         : null
 
     useQuietChromeLive(liveStage, streamConnected)
+    useQuietChromePhaseNote(balanceNote)
     useQuietChromeActions(() => (
         !statusLoaded ? (
             <Button type="button" size="sm" loading disabled>
@@ -533,16 +589,16 @@ export default function RobotV2MonitorPage() {
                     <div className="robots-monitor-cockpit__grid">
                     <MonitorSummaryCard
                         statusLoaded={statusLoaded}
-                        dayTrades={dayStats.trades}
                         dayDelta={dayDelta}
                         dayMtm={dayMtm}
                         showBalance={showBalance}
-                        equityLabel={equity != null ? `${fmtNum(equity, 0)} ₽` : null}
-                        cashLabel={cash != null ? `${fmtNum(cash, 0)} ₽` : null}
+                        equityLabel={displayEquity != null ? fmtRubSmart(displayEquity) : null}
+                        cashLabel={cash != null ? fmtRubSmart(cash) : null}
                         showBalanceUnavailable={showBalanceUnavailable}
                         positionsCount={positions.length}
-                        limitCount={limitCount}
                         cycle={cycle}
+                        dayWins={dayStats.wins}
+                        dayLosses={dayStats.losses}
                         sessionHint={sessionHint}
                     />
                     <MonitorEquityChart
@@ -586,19 +642,15 @@ export default function RobotV2MonitorPage() {
                             })
                         }}
                     />
-                    {balanceNote ? (
-                        <p className="robots-monitor-cockpit__note">{balanceNote}</p>
-                    ) : null}
                     </div>
                 </Card>
 
                 <div className="robots-monitor-panels">
+                    <MonitorLiveOrdersCard orders={liveOrders} />
                     <MonitorPositionsCard
                         rows={positionTableRows}
-                        positionsCount={positions.length}
                         totalPnlLabel={totalPnlLabel}
                         totalPnlTone={positionsPnlTotal?.tone ?? 'neutral'}
-                        positionsUpdatedAt={positionsUpdatedAt}
                         brokerSoftStopHint={
                             !isRunning
                             && pick<string>(status || ({} as RobotV2Status), 'positionsSource', 'positions_source') === 'broker'
@@ -606,55 +658,17 @@ export default function RobotV2MonitorPage() {
                         }
                         isRunning={isRunning}
                     />
-                    <div className="robots-monitor-desk">
-                    <MonitorOrdersCard rows={orderDisplayRows} />
-                    <Card className="dashboard-assets-card robots-v2-monitor-decisions">
-                            <div className="robots-monitor-desk__head dashboard-assets-card__head">
-                                <h3 className="dashboard-panel-title">Решения</h3>
-                                {decisionList.length > 3 ? (
-                                    <button
-                                        type="button"
-                                        className="robots-monitor-more"
-                                        onClick={() => setDecisionsOpen(open => !open)}
-                                    >
-                                        {decisionsOpen ? 'свернуть' : `ещё ${decisionList.length - 3}`}
-                                    </button>
-                                ) : null}
-                            </div>
-                            <MonitorDecisionsCard bare limit={decisionLimit} decisions={decisionList} />
-                    </Card>
-                    </div>
-                    <section className="robots-monitor-pool">
-                        <div className="robots-monitor-desk__head">
-                            <h3 className="dashboard-panel-title">
-                                Пул · {poolTickers.length}
-                                {tickerScanAt ? (
-                                    <span className="mono">
-                                        {' '}· скан {new Date(tickerScanAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                ) : null}
-                            </h3>
-                            {canRefreshUniverse ? (
-                                <Button
-                                    type="button"
-                                    variant="secondary"
-                                    size="sm"
-                                    loading={universeBusy}
-                                    disabled={universeBusy}
-                                    onClick={() => void onRefreshUniverse()}
-                                >
-                                    Обновить пул
-                                </Button>
-                            ) : null}
-                        </div>
-                        {poolTickers.length === 0 ? (
-                            <p className="dashboard-empty">Пул пуст</p>
-                        ) : (
-                            <p className="robots-monitor-pool__line">
-                                {poolTickers.map(t => t.toUpperCase()).join(' ')}
-                            </p>
-                        )}
-                    </section>
+                    <MonitorOrdersCard
+                        rows={orderDisplayRows}
+                        dayTotalLabel={dayStats.trades > 0 ? dayDelta.text : null}
+                        dayTotalTone={dayDelta.tone}
+                    />
+                    <MonitorUniverseCard
+                        rows={poolDecisionRows}
+                        canRefreshUniverse={canRefreshUniverse}
+                        universeBusy={universeBusy}
+                        onRefreshUniverse={() => void onRefreshUniverse()}
+                    />
                 </div>
             </div>
     )

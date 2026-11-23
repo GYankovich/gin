@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -196,14 +197,17 @@ def _leg_pnl(
     *,
     commission_rate: float,
     tax_rate: float,
-) -> tuple[float, float]:
-    """Gross-after-commission and net-after-tax PnL for one round-trip leg."""
+) -> tuple[float, float, float]:
+    """Gross-after-commission, net-after-tax, and round-trip commission for one leg.
+
+    Returns ``(realizedPnl, netPnl, commission)``.
+    """
     gross = (sell_px - entry_px) * qty
-    comm = (entry_px + sell_px) * qty * commission_rate
+    comm = round((entry_px + sell_px) * qty * commission_rate, 4)
     realized = round(gross - comm, 4)
     tax = max(0.0, realized) * tax_rate
     net = round(realized - tax, 4)
-    return realized, net
+    return realized, net, comm
 
 
 def build_round_trips(
@@ -230,12 +234,14 @@ def build_round_trips(
 
         if side == "BUY":
             buy_px = _normalize_stored_fill_price(px, qty)
+            buy_kind = str(f.get("kind") or f.get("reason") or "entry").strip() or "entry"
             lots[ticker].append({
                 "buyFillId": fid,
                 "buyAt": f.get("filledAt") or f.get("filled_at"),
                 "buyPx": buy_px,
                 "qty": qty,
                 "origQty": qty,
+                "entryReason": buy_kind,
             })
             continue
 
@@ -246,6 +252,9 @@ def build_round_trips(
         rem = qty
         sell_at = f.get("filledAt") or f.get("filled_at")
         fill_kind = str(f.get("kind") or "")
+        submitted_at = None
+        if order:
+            submitted_at = order.get("submittedAt") or order.get("submitted_at")
 
         while rem > 1e-9 and lots[ticker]:
             lot = lots[ticker][0]
@@ -255,7 +264,7 @@ def build_round_trips(
                 float(lot.get("origQty") or lot["qty"]),
             )
             sell_px = _unit_price_if_notional(px, qty, ref_px=entry_px)
-            realized_pnl, net_pnl = _leg_pnl(
+            realized_pnl, net_pnl, commission = _leg_pnl(
                 entry_px, sell_px, take,
                 commission_rate=commission_rate, tax_rate=tax_rate,
             )
@@ -272,10 +281,13 @@ def build_round_trips(
                 "sellListedPrice": listed_px,
                 "sellFillPrice": round(sell_px, 6),
                 "sellQty": take,
+                "sellSubmittedAt": submitted_at,
                 "status": "closed",
                 "reason": reason,
+                "entryReason": lot.get("entryReason") or "entry",
                 "realizedPnl": realized_pnl,
                 "netPnl": net_pnl,
+                "commission": commission,
             })
             rem -= take
             lot["qty"] = float(lot["qty"]) - take
@@ -296,10 +308,13 @@ def build_round_trips(
                 "sellListedPrice": None,
                 "sellFillPrice": None,
                 "sellQty": None,
+                "sellSubmittedAt": None,
                 "status": "open",
                 "reason": "entry",
+                "entryReason": lot.get("entryReason") or "entry",
                 "realizedPnl": None,
                 "netPnl": None,
+                "commission": None,
             })
 
     trips.sort(
@@ -341,3 +356,95 @@ def _resolve_exit_reason(
     if fill_kind and fill_kind not in ("entry", ""):
         return fill_kind
     return "exit"
+
+
+_GENERIC_ENTRY = frozenset({"", "entry"})
+_GENERIC_EXIT = frozenset({"", "exit", "exit_strategy", "exit_sl_tp", "flatten", "eod_flatten"})
+
+
+def _as_utc_ms(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        dt = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return dt.timestamp() * 1000.0
+    raw = str(value).strip()
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.timestamp() * 1000.0
+
+
+def _nearest_signal_reason(
+    signals: list[dict[str, Any]],
+    *,
+    side: str,
+    at: Any,
+    window_ms: float = 5 * 60 * 1000,
+) -> str | None:
+    """Closest strategy signal for ticker/side near ``at`` (default ±5 min)."""
+    target = _as_utc_ms(at)
+    if target is None or not signals:
+        return None
+    side_u = side.upper()
+    best: tuple[float, str] | None = None
+    for sig in signals:
+        if str(sig.get("side") or "").upper() != side_u:
+            continue
+        reason = str(sig.get("reason") or sig.get("kind") or "").strip()
+        if not reason or reason.lower() in _GENERIC_ENTRY | _GENERIC_EXIT:
+            continue
+        ts = _as_utc_ms(sig.get("createdAt") or sig.get("created_at"))
+        if ts is None:
+            continue
+        dist = abs(ts - target)
+        if dist > window_ms:
+            continue
+        if best is None or dist < best[0]:
+            best = (dist, reason)
+    return best[1] if best else None
+
+
+def enrich_round_trips_with_signals(
+    trips: list[dict[str, Any]],
+    signals: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Fill ``entryReason`` / refine exit ``reason`` from ``robots_v2_signals``.
+
+    Fills historically store ``kind=entry`` / ``exit_strategy``; the real strategy
+    code lives on signals (e.g. ``scalper_delta_cross``).
+    """
+    if not trips or not signals:
+        return trips
+
+    by_ticker: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for sig in signals:
+        ticker = str(sig.get("ticker") or "").upper()
+        if ticker:
+            by_ticker[ticker].append(sig)
+
+    out: list[dict[str, Any]] = []
+    for trip in trips:
+        row = dict(trip)
+        ticker = str(row.get("ticker") or "").upper()
+        pool = by_ticker.get(ticker) or []
+        entry = str(row.get("entryReason") or "").strip()
+        if entry.lower() in _GENERIC_ENTRY:
+            found = _nearest_signal_reason(pool, side="BUY", at=row.get("buyAt"))
+            if found:
+                row["entryReason"] = found
+        reason = str(row.get("reason") or "").strip()
+        if reason.lower() in _GENERIC_EXIT:
+            found = (
+                _nearest_signal_reason(pool, side="CLOSE", at=row.get("sellAt"))
+                or _nearest_signal_reason(pool, side="SELL", at=row.get("sellAt"))
+            )
+            if found:
+                row["reason"] = found
+        out.append(row)
+    return out

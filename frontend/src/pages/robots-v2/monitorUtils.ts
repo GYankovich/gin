@@ -280,6 +280,10 @@ export function todayMoscowDayKey(): string {
 export type DayTradeStats = {
     dayKey: string
     trades: number
+    /** Closed day trades with net PnL > 0. */
+    wins: number
+    /** Closed day trades with net PnL < 0. */
+    losses: number
     sumPlus: number
     sumMinus: number
     delta: number
@@ -335,6 +339,8 @@ export function tripOnLiveDay(trip: RobotV2RoundTrip, dayKey = todayMoscowDayKey
 /** Closed round-trips for the Moscow calendar day (by sell time). */
 export function computeDayTradeStats(trips: RobotV2RoundTrip[], dayKey = todayMoscowDayKey()): DayTradeStats {
     let trades = 0
+    let wins = 0
+    let losses = 0
     let sumPlus = 0
     let sumMinus = 0
     for (const trip of trips) {
@@ -347,10 +353,15 @@ export function computeDayTradeStats(trips: RobotV2RoundTrip[], dayKey = todayMo
         const pnl = tripPocketValue(trip)
         if (pnl == null) continue
         trades += 1
-        if (pnl > 0) sumPlus += pnl
-        else if (pnl < 0) sumMinus += pnl
+        if (pnl > 0) {
+            wins += 1
+            sumPlus += pnl
+        } else if (pnl < 0) {
+            losses += 1
+            sumMinus += pnl
+        }
     }
-    return { dayKey, trades, sumPlus, sumMinus, delta: sumPlus + sumMinus }
+    return { dayKey, trades, wins, losses, sumPlus, sumMinus, delta: sumPlus + sumMinus }
 }
 
 export function mergeLiveRoundTrips(
@@ -401,6 +412,18 @@ export type OrderDisplayRow = {
     ticker: string
     dateMs: number
     timeLabel: string
+    /** When the EXIT order was submitted (LIMIT/MARKET) — not the buy fill. */
+    placedAtLabel: string
+    /** When the position was opened (buy fill). */
+    boughtAtLabel: string
+    /** Broker fill clock for the exit leg. */
+    filledAtLabel: string
+    qtyLabel: string
+    priceLabel: string
+    /** Entry unit price only (no qty). */
+    buyPxLabel: string
+    /** Exit fill unit price only (no qty). */
+    sellPxLabel: string
     detailLabel: string
     isOpen: boolean
     buyAtLabel: string
@@ -418,19 +441,44 @@ export type OrderDisplayRow = {
     outcomeText: string
     outcomeTone: 'up' | 'down' | 'neutral'
     outcomeTitle?: string
+    /** Round-trip commission label (entry+exit). */
+    commissionText: string
+    /** Exit / sell reason (SL, TP, flatten…). Shown as «Причина продажи». */
     reasonLabel: string
+    /** Entry / buy reason that opened the position. Shown as «Причина покупки». */
+    signalLabel: string
 }
 
 const OPEN_ORDER_STATUSES = new Set(['open', 'resting', 'submitted', 'new'])
 
-function fmtOrderClock(ts: string | null | undefined): string {
+/**
+ * Blotter clock: always `дд.мм, чч:мм`.
+ * Resting limits can span days — omitting “today” makes fill look like the same morning as placement.
+ */
+export function fmtOrderClock(ts: string | null | undefined): string {
     if (!ts) return '—'
     const d = new Date(ts)
     if (!Number.isFinite(d.getTime())) return '—'
-    if (isMoscowToday(ts)) {
-        return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-    }
-    return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+    return d.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    })
+}
+
+/** Exit placement / fill clock with seconds — so LIMIT lag is visible. */
+export function fmtOrderClockSeconds(ts: string | null | undefined): string {
+    if (!ts) return '—'
+    const d = new Date(ts)
+    if (!Number.isFinite(d.getTime())) return '—'
+    return d.toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    })
 }
 
 const ORDERS_STATUS_RANK: Record<string, number> = {
@@ -451,9 +499,18 @@ export function toOrderDisplayRow(row: RobotV2RoundTrip): OrderDisplayRow {
     const sellListed = pickRoundTripField<number | null>(row, 'sellListedPrice', 'sell_listed_price')
     const sellFill = pickRoundTripField<number | null>(row, 'sellFillPrice', 'sell_fill_price')
     const sellQty = pickRoundTripField<number | null>(row, 'sellQty', 'sell_qty')
+    const sellSubmittedAt = pickRoundTripField<string | null>(row, 'sellSubmittedAt', 'sell_submitted_at')
     const reason = pickRoundTripField<string | null>(row, 'reason', 'reason')
+    const entryReason = pickRoundTripField<string | null>(row, 'entryReason', 'entry_reason')
     const netPnl = pickRoundTripField<number | null>(row, 'netPnl', 'net_pnl')
     const realizedPnl = pickRoundTripField<number | null>(row, 'realizedPnl', 'realized_pnl')
+    const commissionRaw = pickRoundTripField<number | null>(row, 'commission', 'commission')
+    const commissionN = Number(commissionRaw)
+    const commissionText = Number.isFinite(commissionN) && commissionN > 0
+        ? `−${commissionN.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽`
+        : Number.isFinite(commissionN) && commissionN === 0
+            ? '0 ₽'
+            : '—'
     const pocket = fmtNetPnl(netPnl)
     const statusKey = String(row.status || '').toLowerCase()
     const isOpen = OPEN_ORDER_STATUSES.has(statusKey)
@@ -479,6 +536,14 @@ export function toOrderDisplayRow(row: RobotV2RoundTrip): OrderDisplayRow {
                     ? `покупка · ${buyText}`
                     : orderStatusLabel(row.status)
     const qtyN = Number(sellQty || buyQty)
+    const qtyLabel = Number.isFinite(qtyN) && qtyN > 0
+        ? qtyN.toLocaleString('ru-RU', { maximumFractionDigits: 4 })
+        : '—'
+    const priceLabel = fillOk
+        ? fmtPrice(sellFill)
+        : listedOk
+            ? fmtPrice(sellListed)
+            : (buyPrice != null && Number(buyPrice) > 0 ? fmtPrice(buyPrice) : '—')
     const buyN = Number(buyPrice)
     const listedN = Number(sellListed)
     const planned = isOpen && buyN > 0 && listedN > 0 && qtyN > 0
@@ -496,11 +561,20 @@ export function toOrderDisplayRow(row: RobotV2RoundTrip): OrderDisplayRow {
         : planned != null
             ? 'Если лимит исполнится, до комиссии и налога'
             : undefined
+    // «Выставление» = when the EXIT order was submitted to the broker — never buyAt.
+    const placedAt = sellSubmittedAt
     return {
         id: String(row.id),
         ticker: String(row.ticker || ''),
         dateMs: tripDateMs(row) ?? 0,
         timeLabel: fmtOrderClock((isOpen ? buyAt : sellAt) || buyAt || sellAt),
+        placedAtLabel: fmtOrderClockSeconds(placedAt),
+        filledAtLabel: fmtOrderClockSeconds(sellAt),
+        boughtAtLabel: fmtOrderClock(buyAt),
+        qtyLabel,
+        priceLabel,
+        buyPxLabel: buyPrice != null && Number(buyPrice) > 0 ? fmtPrice(buyPrice) : '—',
+        sellPxLabel: fillOk ? fmtPrice(sellFill) : (listedOk ? fmtPrice(sellListed) : '—'),
         detailLabel,
         isOpen,
         buyAtLabel: fmtTime(buyAt),
@@ -521,7 +595,9 @@ export function toOrderDisplayRow(row: RobotV2RoundTrip): OrderDisplayRow {
         outcomeText: outcome.text,
         outcomeTone: outcome.tone,
         outcomeTitle,
+        commissionText,
         reasonLabel: tradeReasonLabel(reason),
+        signalLabel: tradeReasonLabel(entryReason),
     }
 }
 
@@ -693,6 +769,200 @@ export function decisionCodeLabel(code: unknown): string {
     const raw = String(code || '').trim()
     if (!raw) return '—'
     return DECISION_CODE_RU[raw.toUpperCase()] || raw
+}
+
+/** Normalize status / audit / WS decision rows for the monitor feed. */
+export function toDecisionFeedRow(raw: Record<string, unknown>): Record<string, unknown> | null {
+    const code = String(raw.code ?? raw.decision_code ?? '').trim()
+    const message = raw.message ?? raw.decision_message ?? null
+    const ticker = raw.ticker ?? null
+    if (!code && (message == null || String(message).trim() === '')) return null
+    const row: Record<string, unknown> = {
+        code: code || '—',
+        message,
+        ticker,
+    }
+    if (raw.id != null) row.id = raw.id
+    if (raw.allow != null) row.allow = raw.allow
+    if (raw.createdAt != null || raw.created_at != null) {
+        row.createdAt = raw.createdAt ?? raw.created_at
+    }
+    return row
+}
+
+/** Prefer live session decisions; fall back to audit; drop consecutive duplicates. */
+export function mergeDecisionFeed(
+    live: Array<Record<string, unknown>> | null | undefined,
+    audit: Array<Record<string, unknown>> | null | undefined,
+    max = 40,
+): Array<Record<string, unknown>> {
+    const source = (Array.isArray(live) && live.length > 0) ? live : (audit || [])
+    const out: Array<Record<string, unknown>> = []
+    for (const raw of source) {
+        const row = toDecisionFeedRow(raw)
+        if (!row) continue
+        const prev = out[out.length - 1]
+        if (
+            prev
+            && String(prev.code) === String(row.code)
+            && String(prev.message ?? '') === String(row.message ?? '')
+            && String(prev.ticker ?? '') === String(row.ticker ?? '')
+        ) {
+            continue
+        }
+        out.push(row)
+        if (out.length >= max) break
+    }
+    return out
+}
+
+/** Per-ticker strategy scan → decision-feed rows (pool monitoring). */
+export function tickerScanToDecisionRows(
+    scan: Array<{ ticker?: string; code?: string; message?: string } | RobotV2TickerScan>,
+): Array<Record<string, unknown>> {
+    const out: Array<Record<string, unknown>> = []
+    for (const s of scan || []) {
+        const ticker = String(s.ticker || '').toUpperCase()
+        const code = String(s.code || '').trim()
+        const message = s.message != null ? String(s.message) : ''
+        if (!ticker && !code && !message) continue
+        out.push({
+            code: code || 'SCAN',
+            message,
+            ticker: ticker || null,
+        })
+    }
+    return out
+}
+
+/**
+ * Monitor «Решения»: risk/audit rows + per-ticker scan.
+ * Pool monitoring lives in tickerScan — without it the panel looks empty while the universe is scanned.
+ */
+export function buildMonitorDecisionFeed(
+    riskOrAudit: Array<Record<string, unknown>> | null | undefined,
+    scan: Array<{ ticker?: string; code?: string; message?: string } | RobotV2TickerScan>,
+    max = 40,
+): Array<Record<string, unknown>> {
+    const risk = mergeDecisionFeed(riskOrAudit, null, max)
+    const interesting = risk.filter(d => String(d.code || '').toUpperCase() !== 'NO_SIGNAL')
+    const scanRows = tickerScanToDecisionRows(scan)
+    if (interesting.length > 0) {
+        return mergeDecisionFeed([...interesting, ...scanRows], null, max)
+    }
+    if (scanRows.length > 0) {
+        return mergeDecisionFeed(scanRows, null, max)
+    }
+    return risk
+}
+
+export type PoolDecisionRow = {
+    id: string
+    ticker: string
+    code: string
+    /** Human decision code (Вход / Тихо / Риск…). */
+    decision: string
+    /** Detail / message for the decision. */
+    reason: string
+    /** Epoch ms for sorting; null/NaN → bottom. */
+    updatedMs: number | null
+    updatedLabel: string
+}
+
+function poolUpdatedMs(raw: unknown): number | null {
+    if (raw == null || raw === '') return null
+    if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+    const d = new Date(String(raw))
+    const ms = d.getTime()
+    return Number.isFinite(ms) ? ms : null
+}
+
+function poolUpdatedLabel(ms: number | null): string {
+    if (ms == null) return '—'
+    return new Date(ms).toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    })
+}
+
+/**
+ * One row per pool ticker: ticker · decision · updated (risk feed, else scan).
+ */
+export function buildPoolDecisionRows(
+    tickers: string[],
+    scan: Array<{ ticker?: string; code?: string; message?: string } | RobotV2TickerScan>,
+    decisions: Array<Record<string, unknown>> | null | undefined,
+    scanAt?: string | null,
+): PoolDecisionRow[] {
+    const scanMs = poolUpdatedMs(scanAt)
+    const scanByTicker = new Map<string, { code: string; message: string; updatedMs: number | null }>()
+    for (const s of scan || []) {
+        const ticker = String(s.ticker || '').toUpperCase()
+        if (!ticker || scanByTicker.has(ticker)) continue
+        scanByTicker.set(ticker, {
+            code: String(s.code || '').trim(),
+            message: s.message != null ? String(s.message) : '',
+            updatedMs: scanMs,
+        })
+    }
+
+    const decisionByTicker = new Map<string, { code: string; message: string; updatedMs: number | null }>()
+    for (const raw of decisions || []) {
+        const row = toDecisionFeedRow(raw)
+        if (!row) continue
+        const ticker = String(row.ticker || '').toUpperCase()
+        if (!ticker || decisionByTicker.has(ticker)) continue
+        decisionByTicker.set(ticker, {
+            code: String(row.code || '').trim(),
+            message: row.message != null ? String(row.message) : '',
+            updatedMs: poolUpdatedMs(row.createdAt),
+        })
+    }
+
+    const ordered: string[] = []
+    const seen = new Set<string>()
+    for (const t of tickers) {
+        const ticker = String(t || '').toUpperCase()
+        if (!ticker || seen.has(ticker)) continue
+        seen.add(ticker)
+        ordered.push(ticker)
+    }
+    for (const ticker of scanByTicker.keys()) {
+        if (seen.has(ticker)) continue
+        seen.add(ticker)
+        ordered.push(ticker)
+    }
+
+    return ordered.map(ticker => {
+        const hit = decisionByTicker.get(ticker) || scanByTicker.get(ticker)
+        if (!hit) {
+            return {
+                id: ticker,
+                ticker,
+                code: '',
+                decision: '—',
+                reason: '—',
+                updatedMs: null,
+                updatedLabel: '—',
+            }
+        }
+        const decision = decisionCodeLabel(hit.code) || '—'
+        const msg = decisionMessageRu(hit.message, ticker)
+        // decisionMessageRu may prefix ticker — strip for the reason column
+        const reason = (msg.startsWith(`${ticker} · `) ? msg.slice(ticker.length + 3) : msg) || '—'
+        const updatedMs = hit.updatedMs ?? scanMs
+        return {
+            id: ticker,
+            ticker,
+            code: hit.code,
+            decision,
+            reason,
+            updatedMs,
+            updatedLabel: poolUpdatedLabel(updatedMs),
+        }
+    })
 }
 
 /** Soft RU rewrite for common English decision messages. */

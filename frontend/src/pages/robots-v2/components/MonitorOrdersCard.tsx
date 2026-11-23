@@ -5,14 +5,20 @@ import type { OrderDisplayRow } from '@/pages/robots-v2/monitorUtils'
 type MonitorOrdersCardProps = {
     /** Closed / settled rows for the live day only. */
     rows: OrderDisplayRow[]
+    /** Sum label for closed day PnL, e.g. «+1 250 ₽». */
+    dayTotalLabel?: string | null
+    dayTotalTone?: 'up' | 'down' | 'neutral'
 }
 
 /**
- * Day's closed trades — not open positions or resting limits
- * (limits live under the position blotter subtitle).
+ * Day's closed trades — blotter with entry/exit and buy/sell reasons.
  */
-export function MonitorOrdersCard({ rows }: MonitorOrdersCardProps) {
-    const shown = useMemo(
+export function MonitorOrdersCard({
+    rows,
+    dayTotalLabel = null,
+    dayTotalTone = 'neutral',
+}: MonitorOrdersCardProps) {
+    const sorted = useMemo(
         () => [...rows]
             .filter(row => !row.isOpen)
             .sort((a, b) => b.dateMs - a.dateMs || a.ticker.localeCompare(b.ticker)),
@@ -20,38 +26,84 @@ export function MonitorOrdersCard({ rows }: MonitorOrdersCardProps) {
     )
 
     return (
-        <Card className="dashboard-assets-card robots-v2-monitor-orders">
+        <Card className="dashboard-assets-card robots-v2-monitor-orders robots-monitor-day-trades">
             <div className="dashboard-assets-card__head robots-monitor-orders__head">
-                <h3 className="dashboard-panel-title">Сделки дня</h3>
+                <h3 className="dashboard-panel-title">
+                    Сделки дня
+                    {sorted.length > 0 ? (
+                        <span className="robots-v2-hint"> · {sorted.length}</span>
+                    ) : null}
+                </h3>
             </div>
-            {shown.length === 0 ? (
+            {sorted.length === 0 ? (
                 <p className="dashboard-empty">
                     Закрытых сегодня нет — в сводке только mark-to-market.
                 </p>
             ) : (
-                <div className="robots-monitor-orders">
-                    {shown.map(row => (
-                        <div className="robots-monitor-order" key={row.id}>
-                            <div className="robots-monitor-order__top">
-                                <span className="robots-monitor-order__id">
-                                    <time className="mono">{row.timeLabel}</time>
-                                    <b>{row.ticker}</b>
-                                </span>
-                                <span
-                                    className={`mono robots-monitor-order__outcome robots-v2-pnl--${row.outcomeTone}`}
-                                    title={row.outcomeTitle}
-                                >
-                                    {row.outcomeText}
-                                </span>
-                            </div>
-                            <div className="robots-monitor-order__sub">
-                                <span className="robots-monitor-order__detail">{row.detailLabel}</span>
-                                <span className="robots-monitor-order__state">{row.statusLabel}</span>
-                            </div>
-                            <span className="robots-monitor-order__signal">{row.reasonLabel}</span>
+                <>
+                    <div className="robots-monitor-day-trades__scroll">
+                        <table className="robots-monitor-day-trades__table" aria-label="Сделки дня">
+                            <thead>
+                                <tr>
+                                    <th>Вход</th>
+                                    <th>Тикер</th>
+                                    <th>Почему купил</th>
+                                    <th>Выход</th>
+                                    <th>Почему продал</th>
+                                    <th className="robots-monitor-day-trades__num">Вход → выход</th>
+                                    <th className="robots-monitor-day-trades__num">Комиссия</th>
+                                    <th className="robots-monitor-day-trades__num">Результат</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sorted.map(row => (
+                                    <tr key={row.id}>
+                                        <td className="mono">{row.boughtAtLabel}</td>
+                                        <td>
+                                            <b className="robots-monitor-day-trades__tk">{row.ticker}</b>
+                                            <span className="robots-monitor-day-trades__muted">
+                                                {' '}×{row.qtyLabel}
+                                            </span>
+                                        </td>
+                                        <td title={row.signalLabel}>{row.signalLabel}</td>
+                                        <td className="mono">{row.filledAtLabel}</td>
+                                        <td title={row.reasonLabel}>
+                                            {row.reasonLabel}
+                                            {row.placedAtLabel !== '—' ? (
+                                                <div className="robots-monitor-day-trades__muted">
+                                                    выст. {row.placedAtLabel}
+                                                </div>
+                                            ) : null}
+                                        </td>
+                                        <td className="robots-monitor-day-trades__num">
+                                            <span className="mono">{row.buyPxLabel}</span>
+                                            {' → '}
+                                            <span className={`mono robots-v2-pnl--${row.outcomeTone}`}>
+                                                {row.sellPxLabel}
+                                            </span>
+                                        </td>
+                                        <td className="robots-monitor-day-trades__num mono robots-monitor-day-trades__muted">
+                                            {row.commissionText}
+                                        </td>
+                                        <td
+                                            className={`robots-monitor-day-trades__num mono robots-v2-pnl--${row.outcomeTone}`}
+                                            title={row.outcomeTitle}
+                                        >
+                                            {row.outcomeText}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    {dayTotalLabel ? (
+                        <div className="robots-monitor-positions__foot">
+                            <span className={`robots-monitor-positions__total robots-v2-pnl--${dayTotalTone}`}>
+                                {dayTotalLabel}
+                            </span>
                         </div>
-                    ))}
-                </div>
+                    ) : null}
+                </>
             )}
         </Card>
     )

@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Монитор — плитки и блок позиций</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  html[data-theme='light'] {
+    --bg: #f4f5f7;
+    --page: #ffffff;
+    --panel: #f7f8fa;
+    --elevated: #eef0f3;
+    --input: #eef1f4;
+    --text: #1c1f24;
+    --secondary: #3d4450;
+    --muted: #6b7280;
+    --border: rgba(20, 24, 30, 0.1);
+    --line: rgba(20, 24, 30, 0.16);
+    --accent: #1c1f24;
+    --on-accent: #fff;
+    --up: #1f8a4c;
+    --down: #c43b4a;
+    --picker: #fff;
+  }
+  html[data-theme='light'] body { background: var(--bg); }
+  .theme-btn {
+    border: 1px solid var(--border); background: transparent; color: var(--secondary);
+    border-radius: 10px; padding: 8px 12px; font-size: 13px;
+  }
+  .thesis { margin: 0 0 18px; max-width: 72ch; color: var(--secondary); font-size: 14px; line-height: 1.5; }
+  .section { margin-bottom: 36px; }
+  .section h2 { margin: 0 0 6px; font-size: 16px; font-weight: 650; }
+  .section .lead { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  @media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+  .grid-wide { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .frame {
+    background: var(--page);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 10px 28px rgba(0,0,0,.06);
+  }
+  .frame-label {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--muted);
+  }
+  .frame-label strong { color: var(--text); font-weight: 650; }
+  .pad { padding: 16px 16px 18px; }
+  .eq { font-size: 30px; font-weight: 650; letter-spacing: -0.04em; line-height: 1.1; }
+  .chart-stub {
+    height: 120px; border-radius: 12px; border: 1px dashed var(--border);
+    background: linear-gradient(180deg, transparent, rgba(61,190,122,.08));
+    display: flex; align-items: flex-end; padding: 10px; color: var(--muted); font-size: 11px;
+  }
+  .cockpit {
+    display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+    gap: 14px 20px; align-items: stretch;
+  }
+  @media (max-width: 720px) { .cockpit { grid-template-columns: 1fr; } }
+
+  /* —— Tile A now —— */
+  .tiles-a { display: grid; gap: 8px; margin-top: 14px; }
+  .tile-a {
+    padding: 11px 12px 12px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--input);
+  }
+  .tile-a--down { border-color: color-mix(in srgb, var(--down) 28%, var(--border)); }
+  .tile-a--up { border-color: color-mix(in srgb, var(--up) 28%, var(--border)); }
+  .tile-a .lab { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; font-weight: 500; }
+  .tile-a .val { font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .tile-a .val.down { color: var(--down); }
+  .tile-a .val.up { color: var(--up); }
+  .tile-a .meta { margin-top: 4px; font-size: 12px; color: var(--muted); }
+
+  /* —— Tile B horizontal —— */
+  .tiles-b { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .tile-b {
+    padding: 10px 11px; border-radius: 12px; border: 1px solid var(--border); background: var(--input);
+  }
+  .tile-b--down { border-color: color-mix(in srgb, var(--down) 28%, var(--border)); }
+  .tile-b .lab { font-size: 10px; color: var(--muted); }
+  .tile-b .val { margin-top: 2px; font-size: 15px; font-weight: 650; }
+  .tile-b .val.down { color: var(--down); }
+  .tile-b .meta { margin-top: 3px; font-size: 11px; color: var(--muted); line-height: 1.3; }
+
+  /* —— Tile C no frame —— */
+  .tiles-c { margin-top: 12px; display: grid; gap: 10px; }
+  .tile-c .val { font-size: 15px; font-weight: 650; }
+  .tile-c .val.down { color: var(--down); }
+  .tile-c .meta { margin-top: 2px; font-size: 12px; color: var(--muted); }
+  .tile-c + .tile-c { padding-top: 10px; border-top: 1px solid var(--border); }
+
+  /* —— Tile D KPI row —— */
+  .tiles-d {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px;
+    margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
+  }
+  .tile-d span { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+  .tile-d b { font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .tile-d b.down { color: var(--down); }
+
+  /* —— Tile E one wide —— */
+  .tile-e {
+    margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+    padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--input);
+  }
+  .tile-e .lab { font-size: 11px; color: var(--muted); }
+  .tile-e .val { margin-top: 2px; font-size: 16px; font-weight: 650; }
+  .tile-e .val.down { color: var(--down); }
+  .tile-e .meta { margin-top: 3px; font-size: 12px; color: var(--muted); }
+  .tile-e .right { border-left: 1px solid var(--border); padding-left: 12px; }
+
+  /* —— Positions —— */
+  .pos-head {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    margin-bottom: 8px;
+  }
+  .pos-head h3 { margin: 0; font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0; text-transform: none; }
+  .pos-head .sum { font-size: 13px; font-weight: 650; color: var(--down); font-variant-numeric: tabular-nums; }
+  .pos-head-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 0.75fr) minmax(0, 0.95fr);
+    gap: 10px; align-items: baseline; margin-bottom: 8px;
+  }
+  .pos-head-grid h3 { margin: 0; grid-column: 1; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .pos-head-grid .sum { grid-column: 2 / -1; justify-self: end; text-align: right; font-size: 13px; font-weight: 650; color: var(--down); }
+
+  table.blot { width: 100%; border-collapse: collapse; }
+  table.blot th {
+    text-align: left; font-size: 11px; font-weight: 500; color: var(--muted);
+    padding: 6px 10px; border-bottom: 1px solid var(--border);
+  }
+  table.blot th:first-child, table.blot td:first-child { padding-left: 0; }
+  table.blot th:last-child, table.blot td:last-child { padding-right: 0; }
+  table.blot td {
+    padding: 9px 10px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: baseline;
+  }
+  table.blot tr:last-child td { border-bottom: 0; }
+  table.blot .num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.blot .tk { font-weight: 650; }
+  table.blot .qty { color: var(--muted); }
+  table.blot .sub { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+  table.blot .down { color: var(--down); }
+  table.blot .up { color: var(--up); }
+  table.blot .muted { color: var(--muted); }
+  .cap { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+
+  /* B denser */
+  .dense table.blot th { padding: 4px 8px; }
+  .dense table.blot td { padding: 6px 8px; font-size: 12px; }
+  .dense .pos-head-grid { margin-bottom: 4px; }
+
+  /* C split */
+  .split-list { display: grid; gap: 0; }
+  .split-row {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px;
+    align-items: baseline; padding: 10px 0; border-top: 1px solid var(--border);
+  }
+  .split-row:first-child { border-top: 0; padding-top: 2px; }
+  .split-row .tk { font-weight: 650; }
+  .split-row .sub { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+  .split-row .pnl { font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; text-align: right; }
+  .split-row .pnl.down { color: var(--down); }
+  .split-row .pnl.up { color: var(--up); }
+
+  /* D cards */
+  .cards {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
+  }
+  @media (max-width: 800px) { .cards { grid-template-columns: 1fr 1fr; } }
+  .card-pos {
+    border: 1px solid var(--border); border-radius: 12px; padding: 12px; background: var(--panel);
+  }
+  .card-pos .h { display: flex; justify-content: space-between; gap: 8px; }
+  .card-pos .h b { font-weight: 650; }
+  .card-pos .h .muted { color: var(--muted); font-size: 12px; }
+  .card-pos .pnl { margin-top: 8px; font-size: 16px; font-weight: 650; }
+  .card-pos .pnl.down { color: var(--down); }
+  .card-pos .pnl.up { color: var(--up); }
+  .card-pos .ln {
+    display: flex; justify-content: space-between; gap: 8px; margin-top: 6px;
+    font-size: 12px; color: var(--muted);
+  }
+  .card-pos .ln strong { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">Все макеты</a>
+    <div>
+      <h1>Монитор · плитки hero + блок позиций</h1>
+      <p>Варианты для согласования: §2 tiles · §3 positions. Светлая по умолчанию.</p>
+    </div>
+    <span class="badge badge--new">выбор</span>
+    <button class="theme-btn" type="button" id="theme">Тёмная</button>
+  </div>
+
+  <div class="wrap">
+    <p class="thesis">
+      Слева — как сейчас выглядит equity + метрики. Справа/ниже — альтернативы.
+      Выбери букву по каждому блоку.
+    </p>
+
+    <!-- ===================== 2 TILES ===================== -->
+    <section class="section" id="tiles">
+      <h2>2 · robots-monitor-hero__tile</h2>
+      <p class="lead">Все варианты под одним equity; график — заглушка для контекста ширины.</p>
+      <div class="grid">
+
+        <div class="frame">
+          <div class="frame-label"><strong>A · сейчас</strong><span>лейбл / сумма / meta · tint бордера</span></div>
+          <div class="pad">
+            <div class="cockpit">
+              <div>
+                <div class="eq">7 802,45 ₽</div>
+                <div class="tiles-a">
+                  <div class="tile-a tile-a--down">
+                    <span class="lab">За день</span>
+                    <div class="val down">−23,40 ₽</div>
+                    <div class="meta">MTM · 15 закрытий</div>
+                  </div>
+                  <div class="tile-a">
+                    <span class="lab">Кэш</span>
+                    <div class="val">3 751 ₽</div>
+                    <div class="meta">3 поз. · 0 лим. · цикл 8919</div>
+                  </div>
+                </div>
+              </div>
+              <div class="chart-stub">equity</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="frame">
+          <div class="frame-label"><strong>B · горизонталь</strong><span>две плитки в ряд</span></div>
+          <div class="pad">
+            <div class="cockpit">
+              <div>
+                <div class="eq">7 802,45 ₽</div>
+                <div class="tiles-b">
+                  <div class="tile-b tile-b--down">
+                    <div class="lab">За день</div>
+                    <div class="val down">−23,40 ₽</div>
+                    <div class="meta">MTM · 15 закр.</div>
+                  </div>
+                  <div class="tile-b">
+                    <div class="lab">Кэш</div>
+                    <div class="val">3 751 ₽</div>
+                    <div class="meta">3 поз · 0 лим</div>
+                  </div>
+                </div>
+              </div>
+              <div class="chart-stub">equity</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="frame">
+          <div class="frame-label"><strong>C · без рамок</strong><span>типографика + hairline</span></div>
+          <div class="pad">
+            <div class="cockpit">
+              <div>
+                <div class="eq">7 802,45 ₽</div>
+                <div class="tiles-c">
+                  <div class="tile-c">
+                    <div class="val down">−23,40 ₽</div>
+                    <div class="meta">за день · MTM · 15 закрытий</div>
+                  </div>
+                  <div class="tile-c">
+                    <div class="val">кэш 3 751 ₽</div>
+                    <div class="meta">3 поз. · 0 лим. · цикл 8919</div>
+                  </div>
+                </div>
+              </div>
+              <div class="chart-stub">equity</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="frame">
+          <div class="frame-label"><strong>D · KPI-ряд</strong><span>4 ячейки как старые mini</span></div>
+          <div class="pad">
+            <div class="cockpit">
+              <div>
+                <div class="eq">7 802,45 ₽</div>
+                <div class="tiles-d">
+                  <div class="tile-d"><span>День</span><b class="down">−23,40</b></div>
+                  <div class="tile-d"><span>Кэш</span><b>3 751</b></div>
+                  <div class="tile-d"><span>Позиции</span><b>3</b></div>
+                  <div class="tile-d"><span>Цикл</span><b>8919</b></div>
+                </div>
+              </div>
+              <div class="chart-stub">equity</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="frame" style="grid-column: 1 / -1;">
+          <div class="frame-label"><strong>E · одна широкая</strong><span>день слева · кэш справа</span></div>
+          <div class="pad">
+            <div class="cockpit">
+              <div>
+                <div class="eq">7 802,45 ₽</div>
+                <div class="tile-e">
+                  <div>
+                    <div class="lab">За день</div>
+                    <div class="val down">−23,40 ₽</div>
+                    <div class="meta">MTM · 15 закрытий</div>
+                  </div>
+                  <div class="right">
+                    <div class="lab">Кэш</div>
+                    <div class="val">3 751 ₽</div>
+                    <div class="meta">3 поз. · 0 лим. · цикл 8919</div>
+                  </div>
+                </div>
+              </div>
+              <div class="chart-stub">equity</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ===================== 3 POSITIONS ===================== -->
+    <section class="section" id="positions">
+      <h2>3 · блок позиций</h2>
+      <p class="lead">Колонку «Позиция» не ломаем. Шапка — как выровнять относительно таблицы / какой контейнер.</p>
+      <div class="grid-wide">
+
+        <div class="frame">
+          <div class="frame-label"><strong>A · blotter C + шапка-сетка (сейчас в коде)</strong><span>title над тикером · PnL над числами</span></div>
+          <div class="pad">
+            <div class="pos-head-grid">
+              <h3>Позиции · 3</h3>
+              <span class="sum">−55,80 ₽ · −0,7%</span>
+            </div>
+            <table class="blot">
+              <thead>
+                <tr>
+                  <th>Позиция</th>
+                  <th class="num">Вход → сейчас</th>
+                  <th class="num">PnL</th>
+                  <th class="num">SL / TP</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="tk">PLZL</span> <span class="qty">×1</span><span class="sub">до SL 131,17 · без лимита</span></td>
+                  <td class="num">1 057 → <span class="down">1 030,2</span></td>
+                  <td class="num down">−26,80 ₽</td>
+                  <td class="num muted">899,43 / 1 301,17</td>
+                </tr>
+                <tr>
+                  <td><span class="tk">NVTK</span> <span class="qty">×2</span><span class="sub">до SL 158 · без лимита</span></td>
+                  <td class="num">1 067,7 → <span class="down">1 059,3</span></td>
+                  <td class="num down">−16,80 ₽</td>
+                  <td class="num muted">908,54 / 1 314,34</td>
+                </tr>
+                <tr>
+                  <td><span class="tk">CNRU</span> <span class="qty">×1</span><span class="sub">до SL 136 · без лимита</span></td>
+                  <td class="num">914,2 → <span class="down">902</span></td>
+                  <td class="num down">−12,20 ₽</td>
+                  <td class="num muted">777,92 / 1 125,39</td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="cap">Цены обновлены · 19.11, 17:00</p>
+          </div>
+        </div>
+
+        <div class="frame dense">
+          <div class="frame-label"><strong>B · denser blotter</strong><span>та же сетка шапки · меньше воздуха · sticky thead при длинном списке</span></div>
+          <div class="pad">
+            <div class="pos-head-grid">
+              <h3>Позиции · 3</h3>
+              <span class="sum">−55,80 ₽ · −0,7%</span>
+            </div>
+            <table class="blot">
+              <thead>
+                <tr>
+                  <th>Позиция</th>
+                  <th class="num">Вход → сейчас</th>
+                  <th class="num">PnL</th>
+                  <th class="num">SL / TP</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="tk">PLZL</span> <span class="qty">×1</span><span class="sub">до SL 131 · без лимита</span></td>
+                  <td class="num">1 057 → <span class="down">1 030,2</span></td>
+                  <td class="num down">−26,80 ₽</td>
+                  <td class="num muted">899 / 1 301</td>
+                </tr>
+                <tr>
+                  <td><span class="tk">NVTK</span> <span class="qty">×2</span><span class="sub">до SL 158 · без лимита</span></td>
+                  <td class="num">1 067,7 → <span class="down">1 059,3</span></td>
+                  <td class="num down">−16,80 ₽</td>
+                  <td class="num muted">908 / 1 314</td>
+                </tr>
+                <tr>
+                  <td><span class="tk">CNRU</span> <span class="qty">×1</span><span class="sub">до SL 136 · без лимита</span></td>
+                  <td class="num">914,2 → <span class="down">902</span></td>
+                  <td class="num down">−12,20 ₽</td>
+                  <td class="num muted">778 / 1 125</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="frame">
+          <div class="frame-label"><strong>C · split</strong><span>тикер+лимит слева · крупный PnL справа · без SL/TP в ряду</span></div>
+          <div class="pad">
+            <div class="pos-head">
+              <h3>Позиции · 3</h3>
+              <span class="sum">−55,80 ₽ · −0,7%</span>
+            </div>
+            <div class="split-list">
+              <div class="split-row">
+                <div>
+                  <span class="tk">PLZL</span> <span class="qty">×1</span>
+                  <span class="sub">1 057 → 1 030,2 · до SL 131 · без лимита</span>
+                </div>
+                <div class="pnl down">−26,80 ₽</div>
+              </div>
+              <div class="split-row">
+                <div>
+                  <span class="tk">NVTK</span> <span class="qty">×2</span>
+                  <span class="sub">1 067,7 → 1 059,3 · до SL 158 · без лимита</span>
+                </div>
+                <div class="pnl down">−16,80 ₽</div>
+              </div>
+              <div class="split-row">
+                <div>
+                  <span class="tk">CNRU</span> <span class="qty">×1</span>
+                  <span class="sub">914,2 → 902 · до SL 136 · без лимита</span>
+                </div>
+                <div class="pnl down">−12,20 ₽</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="frame">
+          <div class="frame-label"><strong>D · cards</strong><span>шумнее · уже отвергали в quiet · для сравнения</span></div>
+          <div class="pad">
+            <div class="pos-head">
+              <h3>Позиции · 3</h3>
+              <span class="sum">−55,80 ₽ · −0,7%</span>
+            </div>
+            <div class="cards">
+              <div class="card-pos">
+                <div class="h"><b>PLZL</b><span class="muted">×1</span></div>
+                <div class="pnl down">−26,80 ₽</div>
+                <div class="ln"><span>Вход</span><strong>1 057</strong></div>
+                <div class="ln"><span>Сейчас</span><strong class="down">1 030,2</strong></div>
+                <div class="ln"><span>До SL</span><strong>131</strong></div>
+              </div>
+              <div class="card-pos">
+                <div class="h"><b>NVTK</b><span class="muted">×2</span></div>
+                <div class="pnl down">−16,80 ₽</div>
+                <div class="ln"><span>Вход</span><strong>1 067,7</strong></div>
+                <div class="ln"><span>Сейчас</span><strong class="down">1 059,3</strong></div>
+                <div class="ln"><span>До SL</span><strong>158</strong></div>
+              </div>
+              <div class="card-pos">
+                <div class="h"><b>CNRU</b><span class="muted">×1</span></div>
+                <div class="pnl down">−12,20 ₽</div>
+                <div class="ln"><span>Вход</span><strong>914,2</strong></div>
+                <div class="ln"><span>Сейчас</span><strong class="down">902</strong></div>
+                <div class="ln"><span>До SL</span><strong>136</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const root = document.documentElement
+    const btn = document.getElementById('theme')
+    btn.addEventListener('click', () => {
+      const light = root.getAttribute('data-theme') === 'light'
+      root.setAttribute('data-theme', light ? 'dark' : 'light')
+      btn.textContent = light ? 'Светлая' : 'Тёмная'
+    })
+  </script>
+</body>
+</html>

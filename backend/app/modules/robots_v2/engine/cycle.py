@@ -475,13 +475,14 @@ async def run_trading_cycle(
         intent = risk.build_entry_intent(signal, qty, price)
         _alog(f"ENTRY {intent.side} {ticker} qty={qty} price={price:.6g}")
         result = await exec_svc.execute_intent(intent, last_price=price)
-        audit_executions.append(execution_row_from_result(result, kind="entry"))
+        entry_kind = str(signal.reason or "").strip() or "entry"
+        audit_executions.append(execution_row_from_result(result, kind=entry_kind))
         if result.status in ("filled", "submitted"):
             fills.append({
                 "ticker": ticker,
-                "kind": "entry",
+                "kind": entry_kind,
                 "side": result.side,
-                "reason": signal.reason or "entry",
+                "reason": entry_kind,
                 "qty": qty,
                 "price": result.price,
                 "pnl": result.pnl,
@@ -546,6 +547,7 @@ async def run_trading_cycle(
         "triggeredBy": triggered_by,
         "stage": "done",
         "tickerScan": ticker_scan,
+        "decisions": decisions[-10:],
     })
 
     finished_at = clock

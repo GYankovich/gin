@@ -25,6 +25,17 @@ export function fmtNum(v: unknown, digits = 2): string {
     return n.toLocaleString('ru-RU', { maximumFractionDigits: digits })
 }
 
+/** Equity / cash: whole rubles, or 2 decimals when kopecks are present. */
+export function fmtRubSmart(v: unknown): string {
+    const n = Number(v)
+    if (!Number.isFinite(n)) return '—'
+    const hasKops = Math.round(Math.abs(n) * 100) % 100 !== 0
+    return `${n.toLocaleString('ru-RU', {
+        minimumFractionDigits: hasKops ? 2 : 0,
+        maximumFractionDigits: hasKops ? 2 : 0,
+    })} ₽`
+}
+
 export function fmtPct(v: number | null | undefined): string {
     if (v == null || !Number.isFinite(v)) return '—'
     return `${v.toLocaleString('ru-RU', { maximumFractionDigits: 2, signDisplay: 'exceptZero' })}%`

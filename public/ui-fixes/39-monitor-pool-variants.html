@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Монитор — варианты пула</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  html[data-theme='light'] {
+    --bg: #f4f5f7;
+    --page: #ffffff;
+    --panel: #f7f8fa;
+    --elevated: #eef0f3;
+    --text: #1c1f24;
+    --secondary: #3d4450;
+    --muted: #6b7280;
+    --border: rgba(20, 24, 30, 0.1);
+    --up: #1f8a4c;
+    --down: #c43b4a;
+    --picker: #fff;
+  }
+  html[data-theme='light'] body { background: var(--bg); }
+  .theme-btn {
+    border: 1px solid var(--border); background: transparent; color: var(--secondary);
+    border-radius: 10px; padding: 8px 12px; font-size: 13px;
+  }
+  .thesis { margin: 0 0 18px; max-width: 72ch; color: var(--secondary); font-size: 14px; line-height: 1.5; }
+  .section { margin-bottom: 28px; }
+  .section h2 { margin: 0 0 6px; font-size: 16px; font-weight: 650; }
+  .section .lead { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
+  @media (min-width: 1100px) {
+    .grid--2 { grid-template-columns: 1fr 1fr; }
+  }
+  .frame {
+    background: var(--page);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 10px 28px rgba(0,0,0,.06);
+  }
+  .frame-label {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--muted);
+  }
+  .frame-label strong { color: var(--text); font-weight: 650; }
+  .pad { padding: 14px 16px 16px; }
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+    padding: 14px 16px 12px;
+  }
+  .head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin-bottom: 10px;
+  }
+  .head h3 { margin: 0; font-size: 15px; font-weight: 650; }
+  .hint { font-weight: 400; color: var(--muted); }
+  .btn {
+    border: 1px solid var(--border); background: transparent; color: var(--secondary);
+    border-radius: 8px; padding: 5px 10px; font-size: 12px;
+  }
+  .mono { font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+  .tk { font-weight: 650; letter-spacing: 0.02em; }
+
+  /* A — current day-trades table */
+  .scroll { max-height: 280px; overflow: auto; }
+  table.day {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+  }
+  table.day th {
+    position: sticky; top: 0; z-index: 1;
+    text-align: left; font-size: 11px; font-weight: 500; color: var(--muted);
+    padding: 6px 10px; border-bottom: 1px solid var(--border);
+    background: var(--panel); white-space: nowrap;
+  }
+  table.day th:first-child, table.day td:first-child { padding-left: 0; }
+  table.day th:last-child, table.day td:last-child { padding-right: 0; }
+  table.day td {
+    padding: 9px 10px; border-bottom: 1px solid var(--border);
+    font-size: 13px; vertical-align: baseline;
+  }
+  table.day tr:last-child td { border-bottom: 0; }
+  table.day .num { text-align: right; }
+  table.day th button {
+    display: inline; margin: 0; padding: 0; border: 0; background: none;
+    color: inherit; font: inherit; cursor: pointer;
+  }
+
+  /* B — code chip + message */
+  .b-list { list-style: none; margin: 0; padding: 0; }
+  .b-row {
+    display: grid;
+    grid-template-columns: 5.5rem 5.2rem minmax(0, 1fr) 4.8rem;
+    gap: 10px; align-items: baseline;
+    padding: 9px 0; border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .b-row:last-child { border-bottom: 0; }
+  .b-head {
+    font-size: 11px; font-weight: 500; color: var(--muted);
+    padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  }
+  .chip {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--secondary);
+    white-space: nowrap;
+  }
+  .chip--quiet { color: var(--muted); }
+  .chip--enter { border-color: rgba(31,138,76,.35); color: var(--up); }
+  .chip--risk { border-color: rgba(196,59,74,.35); color: var(--down); }
+  .b-msg { color: var(--secondary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .b-time { text-align: right; font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+  /* C — two-line denser rows */
+  .c-list { list-style: none; margin: 0; padding: 0; }
+  .c-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 14px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .c-row:last-child { border-bottom: 0; }
+  .c-top { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .c-decision {
+    grid-column: 1 / -1;
+    font-size: 13px; color: var(--secondary); line-height: 1.35;
+  }
+  .c-time { font-size: 12px; color: var(--muted); white-space: nowrap; }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <div>
+      <h1>Монитор — варианты пула</h1>
+      <p>Сейчас / ещё два макета. Только визуал для согласования.</p>
+    </div>
+    <button type="button" class="theme-btn" id="themeToggle">Тема</button>
+  </div>
+
+  <div class="wrap">
+    <p class="thesis">
+      Общая идея: одна строка на тикер из пула.
+      <strong>A</strong> — в продукте: Тикер / Решение / Причина / Обновлено.
+      <strong>B</strong> — код чипом. <strong>C</strong> — две строки без обрезки.
+    </p>
+
+    <div class="section">
+      <h2>A · в продукте</h2>
+      <p class="lead">Таблица как «Сделки дня»: Тикер / Решение / Причина / Обновлено, сортировка по клику.</p>
+      <div class="frame">
+        <div class="frame-label"><strong>A</strong><span>baseline</span></div>
+        <div class="pad">
+          <div class="card">
+            <div class="head">
+              <h3>Пул <span class="hint">· 6</span></h3>
+              <button type="button" class="btn">Обновить пул</button>
+            </div>
+            <div class="scroll">
+              <table class="day" aria-label="Пул A">
+                <thead>
+                  <tr>
+                    <th><button type="button">Тикер ↑</button></th>
+                    <th><button type="button">Решение</button></th>
+                    <th><button type="button">Причина</button></th>
+                    <th class="num"><button type="button">Обновлено</button></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><b class="tk">MGNT</b></td>
+                    <td>Вход</td>
+                    <td class="muted">вход по кроссу дельты</td>
+                    <td class="num mono muted">20.11, 11:42</td>
+                  </tr>
+                  <tr>
+                    <td><b class="tk">SBER</b></td>
+                    <td>Тихо</td>
+                    <td class="muted">стратегия без сигнала</td>
+                    <td class="num mono muted">20.11, 11:41</td>
+                  </tr>
+                  <tr>
+                    <td><b class="tk">TATN</b></td>
+                    <td>Пропуск</td>
+                    <td class="muted">свечей ≥ 20</td>
+                    <td class="num mono muted">20.11, 11:40</td>
+                  </tr>
+                  <tr>
+                    <td><b class="tk">GAZP</b></td>
+                    <td>Риск</td>
+                    <td class="muted">лимит одновременных позиций</td>
+                    <td class="num mono muted">20.11, 11:38</td>
+                  </tr>
+                  <tr>
+                    <td><b class="tk">LKOH</b></td>
+                    <td>—</td>
+                    <td class="muted">—</td>
+                    <td class="num mono muted">—</td>
+                  </tr>
+                  <tr>
+                    <td><b class="tk">YDEX</b></td>
+                    <td>Выход</td>
+                    <td class="muted">разворот дельты</td>
+                    <td class="num mono muted">20.11, 11:36</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>B · код чипом</h2>
+      <p class="lead">Тикер · код · текст · время. Код сразу читается (NO_SIGNAL / ENTER / RISK), длинный текст не спорит с меткой.</p>
+      <div class="frame">
+        <div class="frame-label"><strong>B</strong><span>chip + message</span></div>
+        <div class="pad">
+          <div class="card">
+            <div class="head">
+              <h3>Пул <span class="hint">· 6</span></h3>
+              <button type="button" class="btn">Обновить пул</button>
+            </div>
+            <div class="b-row b-head">
+              <span>Тикер</span><span>Код</span><span>Решение</span><span class="b-time">Обновлено</span>
+            </div>
+            <ul class="b-list">
+              <li class="b-row">
+                <b class="tk">MGNT</b>
+                <span class="chip chip--enter">ENTER</span>
+                <span class="b-msg">вход по кроссу дельты</span>
+                <span class="b-time mono">11:42</span>
+              </li>
+              <li class="b-row">
+                <b class="tk">SBER</b>
+                <span class="chip chip--quiet">NO_SIGNAL</span>
+                <span class="b-msg">стратегия без сигнала</span>
+                <span class="b-time mono">11:41</span>
+              </li>
+              <li class="b-row">
+                <b class="tk">TATN</b>
+                <span class="chip">SKIP</span>
+                <span class="b-msg">свечей ≥ 20</span>
+                <span class="b-time mono">11:40</span>
+              </li>
+              <li class="b-row">
+                <b class="tk">GAZP</b>
+                <span class="chip chip--risk">RISK</span>
+                <span class="b-msg">лимит одновременных позиций</span>
+                <span class="b-time mono">11:38</span>
+              </li>
+              <li class="b-row">
+                <b class="tk">LKOH</b>
+                <span class="chip chip--quiet">—</span>
+                <span class="b-msg muted">ещё нет оценки</span>
+                <span class="b-time mono">—</span>
+              </li>
+              <li class="b-row">
+                <b class="tk">YDEX</b>
+                <span class="chip chip--enter">EXIT</span>
+                <span class="b-msg">разворот дельты</span>
+                <span class="b-time mono">11:36</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>C · две строки</h2>
+      <p class="lead">Сверху тикер и время, снизу решение целиком (без ellipsis). Удобнее, когда сообщения длинные.</p>
+      <div class="frame">
+        <div class="frame-label"><strong>C</strong><span>two-line</span></div>
+        <div class="pad">
+          <div class="card">
+            <div class="head">
+              <h3>Пул <span class="hint">· 6</span></h3>
+              <button type="button" class="btn">Обновить пул</button>
+            </div>
+            <ul class="c-list">
+              <li class="c-row">
+                <div class="c-top"><b class="tk">MGNT</b></div>
+                <span class="c-time mono">20.11, 11:42</span>
+                <div class="c-decision">Скальп: дельта · вход по кроссу дельты на объёме</div>
+              </li>
+              <li class="c-row">
+                <div class="c-top"><b class="tk">SBER</b></div>
+                <span class="c-time mono">20.11, 11:41</span>
+                <div class="c-decision">Нет сигнала · стратегия без сигнала на текущем баре</div>
+              </li>
+              <li class="c-row">
+                <div class="c-top"><b class="tk">TATN</b></div>
+                <span class="c-time mono">20.11, 11:40</span>
+                <div class="c-decision">Пропуск · недостаточно истории, свечей ≥ 20</div>
+              </li>
+              <li class="c-row">
+                <div class="c-top"><b class="tk">GAZP</b></div>
+                <span class="c-time mono">20.11, 11:38</span>
+                <div class="c-decision">Риск · лимит одновременных позиций</div>
+              </li>
+              <li class="c-row">
+                <div class="c-top"><b class="tk">LKOH</b></div>
+                <span class="c-time mono">—</span>
+                <div class="c-decision muted">ещё нет оценки</div>
+              </li>
+              <li class="c-row">
+                <div class="c-top"><b class="tk">YDEX</b></div>
+                <span class="c-time mono">20.11, 11:36</span>
+                <div class="c-decision">Скальп: разворот дельты</div>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Рядом</h2>
+      <p class="lead">B и C на одной ширине для сравнения плотности.</p>
+      <div class="grid grid--2">
+        <div class="frame">
+          <div class="frame-label"><strong>B</strong><span>компактно</span></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Пул <span class="hint">· 3</span></h3></div>
+              <div class="b-row b-head">
+                <span>Тикер</span><span>Код</span><span>Решение</span><span class="b-time">Время</span>
+              </div>
+              <ul class="b-list">
+                <li class="b-row">
+                  <b class="tk">MGNT</b>
+                  <span class="chip chip--enter">ENTER</span>
+                  <span class="b-msg">кросс дельты</span>
+                  <span class="b-time mono">11:42</span>
+                </li>
+                <li class="b-row">
+                  <b class="tk">SBER</b>
+                  <span class="chip chip--quiet">NO_SIGNAL</span>
+                  <span class="b-msg">без сигнала</span>
+                  <span class="b-time mono">11:41</span>
+                </li>
+                <li class="b-row">
+                  <b class="tk">GAZP</b>
+                  <span class="chip chip--risk">RISK</span>
+                  <span class="b-msg">лимит позиций</span>
+                  <span class="b-time mono">11:38</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="frame">
+          <div class="frame-label"><strong>C</strong><span>читаемо</span></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Пул <span class="hint">· 3</span></h3></div>
+              <ul class="c-list">
+                <li class="c-row">
+                  <div class="c-top"><b class="tk">MGNT</b></div>
+                  <span class="c-time mono">11:42</span>
+                  <div class="c-decision">Скальп: дельта · вход по кроссу</div>
+                </li>
+                <li class="c-row">
+                  <div class="c-top"><b class="tk">SBER</b></div>
+                  <span class="c-time mono">11:41</span>
+                  <div class="c-decision">Нет сигнала · стратегия без сигнала</div>
+                </li>
+                <li class="c-row">
+                  <div class="c-top"><b class="tk">GAZP</b></div>
+                  <span class="c-time mono">11:38</span>
+                  <div class="c-decision">Риск · лимит одновременных позиций</div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const root = document.documentElement
+    const btn = document.getElementById('themeToggle')
+    btn?.addEventListener('click', () => {
+      const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light'
+      root.setAttribute('data-theme', next)
+    })
+  </script>
+</body>
+</html>

@@ -392,10 +392,13 @@ class RobotV2RoundTripItem(BaseModel):
     sell_listed_price: float | None = Field(default=None, alias="sellListedPrice")
     sell_fill_price: float | None = Field(default=None, alias="sellFillPrice")
     sell_qty: float | None = Field(default=None, alias="sellQty")
+    sell_submitted_at: datetime | None = Field(default=None, alias="sellSubmittedAt")
     status: str
     reason: str | None = None
+    entry_reason: str | None = Field(default=None, alias="entryReason")
     net_pnl: float | None = Field(default=None, alias="netPnl")
     realized_pnl: float | None = Field(default=None, alias="realizedPnl")
+    commission: float | None = None
 
 
 class RobotV2RoundTripListResponse(BaseModel):

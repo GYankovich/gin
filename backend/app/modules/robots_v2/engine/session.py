@@ -1777,6 +1777,7 @@ class TradingSessionV2:
             "triggeredBy": "bootstrap_sync",
             "stage": "done",
             "skipReason": "BOOTSTRAP_SYNC",
+            "decisions": self.last_decisions[-10:],
             **self._cycle_positions_payload(),
         })
         await self._set_stage("done", detail="bootstrap_sync")
@@ -2351,6 +2352,7 @@ class TradingSessionV2:
                     "stage": "skipped",
                     "skipReason": "EOD_HOLD",
                     "tickerScan": skip_scan,
+                    "decisions": self.last_decisions[-10:],
                     **self._cycle_positions_payload(),
                 })
                 await self._set_stage("skipped", skip_reason="EOD_HOLD")
@@ -2399,6 +2401,7 @@ class TradingSessionV2:
                     "stage": "skipped",
                     "skipReason": "OUTSIDE_SESSION",
                     "tickerScan": skip_scan,
+                    "decisions": self.last_decisions[-10:],
                     **self._cycle_positions_payload(),
                 })
                 await self._set_stage("skipped", skip_reason="OUTSIDE_SESSION")

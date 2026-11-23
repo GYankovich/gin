@@ -27,7 +27,11 @@ export function MonitorEquityChart({ onReady, hover }: MonitorEquityChartProps) 
                 {hover ? (
                     <>
                         <span className="portfolio-crosshair-main__value">
-                            {formatPortfolioMoney(hover.value, 'RUB', 0)}
+                            {formatPortfolioMoney(
+                                hover.value,
+                                'RUB',
+                                Math.round(Math.abs(hover.value) * 100) % 100 !== 0 ? 2 : 0,
+                            )}
                         </span>
                         {hover.delta != null ? (
                             <span
