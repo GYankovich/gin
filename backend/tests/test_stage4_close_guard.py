@@ -12,10 +12,10 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
-from app.modules.robots.trading.contracts import OrderIntent
-from app.modules.robots.trading.execution.service import LiveExecutionService, LiveExecutionContext
-from app.modules.robots.trading.stages.stage4_positions import Stage4Positions
-from app.modules.robots.trading.symbol_guard import SymbolGuard
+from app.modules.robot_lib.trading.contracts import OrderIntent
+from app.modules.robot_lib.trading.execution.service import LiveExecutionService, LiveExecutionContext
+from app.modules.robot_lib.trading.stages.stage4_positions import Stage4Positions
+from app.modules.robot_lib.trading.symbol_guard import SymbolGuard
 
 
 class _Broker:

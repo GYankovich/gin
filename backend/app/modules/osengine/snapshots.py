@@ -33,7 +33,7 @@ def _next_pk(db: Session, table_name: str) -> int:
 
 
 def _list_board_tickers(db: Session, board: str, *, limit: int = 400) -> List[str]:
-    from app.modules.robots.moex_securities_updater import queries as moex_q
+    from app.modules.robot_lib.moex_securities_updater import queries as moex_q
 
     sql, params = moex_q.build_equity_universe_query(board=board, active_only=True)
     rows = db.execute(text(sql), params).fetchall()
@@ -253,7 +253,7 @@ async def ensure_daily_snapshot_from_osengine(
         return None
     if existing_id and existing_rows >= min_rows_for_reuse:
         if run_id is not None:
-            from app.modules.robots.backtest_progress import touch_backtest_progress_runtime
+            from app.modules.robot_lib.backtest_progress import touch_backtest_progress_runtime
 
             touch_backtest_progress_runtime(run_id)
         logger.info(
@@ -333,7 +333,7 @@ async def ensure_daily_snapshot_from_osengine(
 
     rows = _rows_from_day_candles(db, day=day, board=board_u, tickers=tickers)
     if run_id is not None:
-        from app.modules.robots.backtest_progress import touch_backtest_progress_runtime
+        from app.modules.robot_lib.backtest_progress import touch_backtest_progress_runtime
 
         touch_backtest_progress_runtime(run_id)
     if not rows:

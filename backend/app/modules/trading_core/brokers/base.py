@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 #///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingBrokersBase [1]
-#/// Исходный модуль `backend/app/modules/robots/trading/brokers/base.py` — автоматическая разметка для Obsidian Source Scanner.
+#/// Исходный модуль `backend/app/modules/robot_lib/trading/brokers/base.py` — автоматическая разметка для Obsidian Source Scanner.
 
 from abc import ABC, abstractmethod
 from datetime import datetime

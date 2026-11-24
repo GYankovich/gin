@@ -11,7 +11,7 @@ export interface TokenInfo {
 
 /**
  * Поддерживаемые стратегии (BRD-ARCH-03 §6). Должно совпадать со списком из
- * `backend/app/modules/robots/schemas.py:GrainSeedConfig.SUPPORTED_STRATEGIES`.
+ * `backend/app/modules/robot_lib/schemas.py:GrainSeedConfig.SUPPORTED_STRATEGIES`.
  */
 export type RobotStrategyName = 'grain_seed' | 'momentum_breakout' | 'reversion_to_ma'
 
@@ -262,7 +262,7 @@ export interface UserRobotsTradingOverview {
 }
 
 export interface RobotTradeItem {
-    id: number
+    id: string
     figi: string
     side: string
     quantity: number

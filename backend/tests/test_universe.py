@@ -1,7 +1,7 @@
 """Unit tests for universe mode helpers (live + history-backtest)."""
 from __future__ import annotations
 
-from app.modules.robots.universe import (
+from app.modules.robot_lib.universe import (
     UNIVERSE_MODE_DMS,
     UNIVERSE_MODE_FIXED,
     UNIVERSE_MODE_TQBR,

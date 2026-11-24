@@ -7,8 +7,8 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
-from app.modules.robots_v2.validator import validate_trading_config
+from app.modules.robots.config.v4_schema import TradingRobotConfigV4
+from app.modules.robots.validator import validate_trading_config
 
 
 def _sample_trading_config() -> dict:

@@ -12,8 +12,8 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
-import app.modules.robots.trading.data.providers.bybit_market as bybit_market
-from app.modules.robots.trading.intervals import resolve_strategy_interval, strategy_interval_to_bybit_kline
+import app.modules.robot_lib.trading.data.providers.bybit_market as bybit_market
+from app.modules.robot_lib.trading.intervals import resolve_strategy_interval, strategy_interval_to_bybit_kline
 
 
 class _FakeBybitClient:

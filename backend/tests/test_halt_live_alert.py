@@ -13,7 +13,7 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
-from app.modules.robots.trading.session import TradingSession
+from app.modules.robot_lib.trading.session import TradingSession
 
 
 def test_halt_trading_publishes_error_alert_and_stops():
@@ -26,7 +26,7 @@ def test_halt_trading_publishes_error_alert_and_stops():
     session._write_log = MagicMock()
     session._publish_live_event = AsyncMock()
 
-    with patch("app.modules.robots.trading.session.notify_live_alert") as alert:
+    with patch("app.modules.robot_lib.trading.session.notify_live_alert") as alert:
         asyncio.run(session._halt_trading("margin_health: mm_rate>=0.80"))
 
     assert session._trading_halted is True

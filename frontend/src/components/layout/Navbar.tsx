@@ -1,4 +1,4 @@
-///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsLayoutNavbar [1]
+﻿///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsLayoutNavbar [1]
 ///@ Исходный модуль `frontend/src/components/layout/Navbar.tsx` — автоматическая разметка для Obsidian Source Scanner.
 
 import React from 'react'
@@ -57,8 +57,8 @@ export function Navbar({ hasExpiredToken }: { hasExpiredToken: boolean }) {
                         <NavLink
                             to="/robots"
                             className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}
-                            onMouseEnter={() => { void import('@/pages/robots-v2/RobotsV2FleetPage') }}
-                            onFocus={() => { void import('@/pages/robots-v2/RobotsV2FleetPage') }}
+                            onMouseEnter={() => { void import('@/pages/robots/RobotsFleetPage') }}
+                            onFocus={() => { void import('@/pages/robots/RobotsFleetPage') }}
                         >
                             Роботы
                         </NavLink>
@@ -67,8 +67,8 @@ export function Navbar({ hasExpiredToken }: { hasExpiredToken: boolean }) {
                         <NavLink
                             to="/backtest"
                             className={({ isActive }) => `nav-link ${isActive ? 'nav-link--active' : ''}`}
-                            onMouseEnter={() => { void import('@/pages/robots-v2/BacktestLabPage') }}
-                            onFocus={() => { void import('@/pages/robots-v2/BacktestLabPage') }}
+                            onMouseEnter={() => { void import('@/pages/robots/BacktestLabPage') }}
+                            onFocus={() => { void import('@/pages/robots/BacktestLabPage') }}
                         >
                             Лаборатория
                         </NavLink>

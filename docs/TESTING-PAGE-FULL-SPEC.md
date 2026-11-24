@@ -181,7 +181,7 @@ Legacy `useTestingBacktest` дублирует часть проверок inlin
 
 ### 3.5. Backend Pydantic (`RobotHistoryBacktestRequest`)
 
-Файл: `backend/app/modules/robots/schemas.py`
+Файл: `backend/app/modules/robot_lib/schemas.py`
 
 | Поле | Ограничение |
 |------|-------------|
@@ -321,7 +321,7 @@ Legacy `useTestingBacktest` дублирует часть проверок inlin
 ## 5. Параметры стратегий
 
 Источник метаданных: `frontend/src/pages/testing/strategyPresets.ts`  
-Должны совпадать с Pydantic в `backend/app/modules/robots/schemas.py` и реестром стратегий.
+Должны совпадать с Pydantic в `backend/app/modules/robot_lib/schemas.py` и реестром стратегий.
 
 Общее для всех стратегий:
 

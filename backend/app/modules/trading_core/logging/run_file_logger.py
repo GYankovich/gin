@@ -105,7 +105,7 @@ def _append_log_end_block(
 
 
 def _repo_root() -> Path:
-    # .../backend/app/modules/robots/trading/backtest/run_file_logger.py -> repo root
+    # .../backend/app/modules/robot_lib/trading/backtest/run_file_logger.py -> repo root
     return Path(__file__).resolve().parents[6]
 
 

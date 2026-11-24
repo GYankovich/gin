@@ -2,7 +2,7 @@
 from datetime import date
 
 from app.modules.tinvest.facade import TInvestFacade
-from app.modules.robots.trading.grain_seed_orchestrator import (
+from app.modules.robot_lib.trading.grain_seed_orchestrator import (
     GrainSeedOrchestrationResult,
     compute_effective_free_funds,
     count_consecutive_loss_days_from_rows,

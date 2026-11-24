@@ -36,7 +36,7 @@ description: >-
 
 ## Integration in this repo
 
-- Prefer composing with existing backtest modules under `backend/app/modules/robots/trading/backtest/`; extend rather than fork `engine.py` unless the event model diverges strongly.
+- Prefer composing with existing backtest modules under `backend/app/modules/robot_lib/trading/backtest/`; extend rather than fork `engine.py` unless the event model diverges strongly.
 - For storage of runs and artifacts, follow Alembic models already used for backtests in this project.
 
 ## Checklist

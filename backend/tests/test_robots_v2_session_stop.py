@@ -12,9 +12,9 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
-from app.modules.robots_v2.engine.session import TradingSessionV2
-from app.modules.robots_v2.engine.types import SessionState
+from app.modules.robots.config.v4_schema import TradingRobotConfigV4
+from app.modules.robots.engine.session import TradingSessionV2
+from app.modules.robots.engine.types import SessionState
 
 
 def _cfg() -> dict:
@@ -99,7 +99,7 @@ def test_stop_timeout_retains_slot_blocks_second_start():
     """ERROR + still-alive task must keep is_running True (blocks dual start)."""
     from unittest.mock import MagicMock
 
-    from app.modules.robots_v2.engine.session_manager import SessionManager
+    from app.modules.robots.engine.session_manager import SessionManager
 
     cfg = _cfg()
     mgr = SessionManager()

@@ -9,7 +9,7 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots_v2.engine.market_data import merge_ws_and_rest_prices, strategy_tape_prices
+from app.modules.robots.engine.market_data import merge_ws_and_rest_prices, strategy_tape_prices
 
 
 def test_rest_does_not_clobber_live_ws_on_scalper_tick():

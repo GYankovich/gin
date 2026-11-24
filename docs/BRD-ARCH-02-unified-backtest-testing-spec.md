@@ -2,7 +2,7 @@
 
 **Версия:** 0.9.1  
 **Статус:** v0.9 + **синхронизация политики риска без робота** (BRD §4.1B ↔ `TESTING-UX-REFACTOR-SPEC` §7.4 ↔ `GrainSeedRisk`)  
-**Связь с кодом сегодня:** `POST /api/robots/history-backtest` принимает опциональный `robot_id`, полное тело конфигурации и флаг **`async_execution`** (ответ **202** + фон через `BackgroundTasks`, продолжение с `deferred_run_id`); стратегия `grain_seed` в `backend/app/modules/robots/trading/strategies/grain_seed.py`. Календарь дивидендов: `equity_dividend_events`, `DividendCalendarService`, ETL в `backend/app/modules/corporate_actions/`. Лимит 4 параллельных MOEX HTTP: `backend/app/modules/moex/http_gate.py` (используется в `market_data_v1/moex_fetch.py`, `dms/service.py`, `robots/service.py`, `market_data/service.py`). **v0.8:** зафиксированы fallback на `candles_cache` в history-backtest и зазор по дивидендам в live — см. §2.3.1, §3.0.1, §3.6.1. **v0.9:** **§4.0–4.2** (форма), **§4.3** — матрица. **v0.9.1:** политика **§4.1B** без робота — пресет `config.risk` = defaults класса **`GrainSeedRisk`** в `backend/app/modules/robots/schemas.py` (валидатор требует непустой `config.risk` при `robot_id is None`); UI — §7.4 UI-спеки.
+**Связь с кодом сегодня:** `POST /api/robots/history-backtest` принимает опциональный `robot_id`, полное тело конфигурации и флаг **`async_execution`** (ответ **202** + фон через `BackgroundTasks`, продолжение с `deferred_run_id`); стратегия `grain_seed` в `backend/app/modules/robot_lib/trading/strategies/grain_seed.py`. Календарь дивидендов: `equity_dividend_events`, `DividendCalendarService`, ETL в `backend/app/modules/corporate_actions/`. Лимит 4 параллельных MOEX HTTP: `backend/app/modules/moex/http_gate.py` (используется в `market_data_v1/moex_fetch.py`, `dms/service.py`, `robots/service.py`, `market_data/service.py`). **v0.8:** зафиксированы fallback на `candles_cache` в history-backtest и зазор по дивидендам в live — см. §2.3.1, §3.0.1, §3.6.1. **v0.9:** **§4.0–4.2** (форма), **§4.3** — матрица. **v0.9.1:** политика **§4.1B** без робота — пресет `config.risk` = defaults класса **`GrainSeedRisk`** в `backend/app/modules/robot_lib/schemas.py` (валидатор требует непустой `config.risk` при `robot_id is None`); UI — §7.4 UI-спеки.
 
 Документ составлен в трёх голосах: **@business-analyst-trader** (бизнес и фильтры), **@systems-analyst** (архитектура, API, данные), **продукт/реализация** (сводка изменений UI/backend по пунктам заказчика).
 
@@ -152,7 +152,7 @@
 
 ### 3.0.1 Зазор: дивидендный календарь в live `[ref: BRD-ARCH-02]`
 
-**Факт:** `DividendCalendarService` и политика `exclude_sessions_before_ex` вызываются в **`run_robot_history_backtest`** при дневном отборе тикеров. В каталоге **`backend/app/modules/robots/trading/`** (live-сессия, стадии робота) вызовов сервиса **нет**: робот торгует по **заранее заданным FIGI** без автоматического отсечения ex-date на стороне сервера.
+**Факт:** `DividendCalendarService` и политика `exclude_sessions_before_ex` вызываются в **`run_robot_history_backtest`** при дневном отборе тикеров. В каталоге **`backend/app/modules/robot_lib/trading/`** (live-сессия, стадии робота) вызовов сервиса **нет**: робот торгует по **заранее заданным FIGI** без автоматического отсечения ex-date на стороне сервера.
 
 **Следствие:** сопоставимость «как в бэктесте» для live **не гарантируется**, пока не добавлен вызов того же сервиса на путь live или ручное ограничение universe.
 
@@ -367,7 +367,7 @@ sequenceDiagram
 
 | Поле / группа | Обязательность | Поведение |
 |-----------------|----------------|-----------|
-| Весь блок | **Обязателен в теле запроса** при `robot_id is None` | **С роботом:** подставить `config.risk` с сервера при загрузке шаблона робота; при смене робота — обновить риск из нового шаблона (несохранённые правки пользователя: см. UI-спека §7.4). **Без робота:** сразу заполнить форму **пресетом**, численно совпадающим с дефолтами Pydantic-модели **`GrainSeedRisk`** в `backend/app/modules/robots/schemas.py` (это же должно уйти в `config.risk` в `POST` — иначе сервер вернёт ошибку валидации). Поля показывать как **готовые значения**, не как пустые плейсхолдеры. **Кнопка «Запустить»:** разрешена без дополнительного «подтверждения пресета», если выполнены §4.1A и клиентская валидация диапазонов риска; ненавязчивое уведомление «используются пресетные параметры риска» — по §7.4 UI-спеки. |
+| Весь блок | **Обязателен в теле запроса** при `robot_id is None` | **С роботом:** подставить `config.risk` с сервера при загрузке шаблона робота; при смене робота — обновить риск из нового шаблона (несохранённые правки пользователя: см. UI-спека §7.4). **Без робота:** сразу заполнить форму **пресетом**, численно совпадающим с дефолтами Pydantic-модели **`GrainSeedRisk`** в `backend/app/modules/robot_lib/schemas.py` (это же должно уйти в `config.risk` в `POST` — иначе сервер вернёт ошибку валидации). Поля показывать как **готовые значения**, не как пустые плейсхолдеры. **Кнопка «Запустить»:** разрешена без дополнительного «подтверждения пресета», если выполнены §4.1A и клиентская валидация диапазонов риска; ненавязчивое уведомление «используются пресетные параметры риска» — по §7.4 UI-спеки. |
 
 #### Блок C — «Управление пайплайном» (universe + фильтры стратегии)
 
@@ -460,9 +460,9 @@ sequenceDiagram
 |---------|-------------------|
 | Роутер роботов (префикс приложения `/api` + `/robots`) | `backend/app/modules/robots/router.py` — сейчас `POST /api/robots/history-backtest`, `POST .../history-backtest/list`, `POST .../history-backtest/run`, compare-* |
 | Оркестрация history-backtest | `backend/app/modules/robots/service.py` (`run_robot_history_backtest`), `usecases.py` |
-| Схемы запросов/ответов | `backend/app/modules/robots/schemas.py` |
-| Движок симуляции | `backend/app/modules/robots/trading/backtest/engine.py`, `persistence.py`, … |
-| Модели БД прогонов | `backend/app/modules/robots/models.py` (`backtest_runs`, `backtest_signals`, …) |
+| Схемы запросов/ответов | `backend/app/modules/robot_lib/schemas.py` |
+| Движок симуляции | `backend/app/modules/robot_lib/trading/backtest/engine.py`, `persistence.py`, … |
+| Модели БД прогонов | `backend/app/modules/robot_lib/models.py` (`backtest_runs`, `backtest_signals`, …) |
 | Свечи shared | `backend/app/modules/market_data_v1/` (см. `docs/ARCH-01-unified-moex-candles-backtest.md`) |
 
 ### 8.2 Порядок работ (рекомендуемый)
@@ -508,7 +508,7 @@ sequenceDiagram
 
 ## 9. Зафиксированные API-контракты (передача UI / синхронизация с OpenAPI)
 
-Базовый префикс приложения: **`/api`**. Ниже — фактические пути и схемы из `backend/app/modules/robots/schemas.py` и `market_data_v1/schemas.py`. Для автогенерации типов на фронте достаточно **`GET /api/openapi.json`** после поднятия backend.
+Базовый префикс приложения: **`/api`**. Ниже — фактические пути и схемы из `backend/app/modules/robot_lib/schemas.py` и `market_data_v1/schemas.py`. Для автогенерации типов на фронте достаточно **`GET /api/openapi.json`** после поднятия backend.
 
 ### 9.1 Таблица эндпоинтов backtest (`router.py`)
 
@@ -587,7 +587,7 @@ sequenceDiagram
 **Задачи UI (высокий уровень):**
 
 - Страница `/testing`: блоки параметров, риска, пайплайна, кэш-сводка, статус прогона с отменой и прогрессом по датам — строго по контрактам из **§9** (в т.ч. ветка **202** + polling **`GET .../runs/{run_id}`**).
-- При **`robot_id` отсутствует:** в теле всегда отправлять **`config.risk`**, инициализированный пресетом **строго как дефолты `GrainSeedRisk`** в `backend/app/modules/robots/schemas.py`, пока пользователь не изменил поля (см. §4.1B, UI §7.4).
+- При **`robot_id` отсутствует:** в теле всегда отправлять **`config.risk`**, инициализированный пресетом **строго как дефолты `GrainSeedRisk`** в `backend/app/modules/robot_lib/schemas.py`, пока пользователь не изменил поля (см. §4.1B, UI §7.4).
 - Типы запросов/ответов — сгенерировать или синхронизировать с OpenAPI **после** поднятия backend с актуальной схемой.
 
 **Ограничение:** не расширять контракт с клиента без согласования с backend (см. протокол агента: UI не авторинг API).

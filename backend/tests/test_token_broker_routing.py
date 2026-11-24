@@ -1,4 +1,4 @@
-from app.modules.robots.trading.brokers.routing import broker_from_token_type
+from app.modules.robot_lib.trading.brokers.routing import broker_from_token_type
 
 
 def test_broker_from_token_type_tinvest():

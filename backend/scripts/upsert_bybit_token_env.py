@@ -47,7 +47,7 @@ def main() -> int:
                 SET token = :token,
                     token_secret = :token_secret,
                     extra_data = COALESCE(extra_data, '{}'::jsonb) || CAST(:extra AS jsonb) - 'token_secret' - 'api_secret',
-                    updated_at = NOW()
+                    modification_date = NOW()
                 WHERE id = :tid
                 """
             ),

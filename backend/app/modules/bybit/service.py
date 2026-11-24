@@ -58,7 +58,7 @@ class BybitMarketService:
         user_id: int,
         body: BybitUniverseScreeningPreviewRequest,
     ) -> BybitUniverseScreeningPreviewResponse:
-        from app.modules.robots.crypto_universe import (
+        from app.modules.robot_lib.crypto_universe import (
             _find_active_bybit_token,
             _resolve_filters,
             fetch_bybit_tickers,

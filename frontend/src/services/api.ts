@@ -1,4 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
+import { useBackendStatusStore } from '@/stores/backendStatusStore'
 
 ///@EPIC Frontend.ITEM APIClient.TOPIC Axios Base And Auth Interceptors [1]
 ///@ Базовый HTTP-клиент фронтенда: подставляет bearer token в запросы и
@@ -8,9 +9,17 @@ export const api = axios.create({ baseURL: '/api' })
 const MAX_TRANSPORT_RETRIES = 3
 const RETRYABLE_STATUSES = new Set([502, 503, 504])
 
-type RetryConfig = InternalAxiosRequestConfig & { __transportRetry?: number }
+type RetryConfig = InternalAxiosRequestConfig & {
+    __transportRetry?: number
+    __startedAt?: number
+}
+
+function isCanceled(err: AxiosError): boolean {
+    return err.code === 'ERR_CANCELED' || err.name === 'CanceledError'
+}
 
 function isTransportFailure(err: AxiosError): boolean {
+    if (isCanceled(err)) return false
     if (!err.response) return true
     return RETRYABLE_STATUSES.has(err.response.status)
 }
@@ -20,13 +29,18 @@ function retryDelayMs(attempt: number): number {
 }
 
 api.interceptors.request.use((config) => {
+    const retryConfig = config as RetryConfig
+    if (retryConfig.__startedAt == null) retryConfig.__startedAt = Date.now()
     const token = localStorage.getItem('gin-token')
     if (token) config.headers.Authorization = `Bearer ${token}`
     return config
 })
 
 api.interceptors.response.use(
-    (res) => res,
+    (res) => {
+        useBackendStatusStore.getState().markReachable()
+        return res
+    },
     async (err: AxiosError) => {
         const config = err.config as RetryConfig | undefined
         if (config && isTransportFailure(err)) {
@@ -36,6 +50,7 @@ api.interceptors.response.use(
                 await new Promise((r) => setTimeout(r, retryDelayMs(attempt)))
                 return api.request(config)
             }
+            useBackendStatusStore.getState().markDown(config.__startedAt ?? Date.now())
         }
         if (err.response?.status === 401) {
             const url = config?.url ?? ''

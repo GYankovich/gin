@@ -26,8 +26,8 @@ if str(ROOT) not in sys.path:
 
 from app.core.database import SessionLocal
 from app.core.security import create_access_token
-from app.modules.robots_v2.schemas import RobotV2CreateRequest
-from app.modules.robots_v2.service import robots_v2_service
+from app.modules.robots.schemas import RobotV2CreateRequest
+from app.modules.robots.service import robots_v2_service
 
 DEFAULT_CONFIG = Path(__file__).resolve().parent / "configs" / "bybit_reversion_paper_6usdt.json"
 

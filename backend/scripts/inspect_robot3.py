@@ -6,7 +6,7 @@ from app.core.config import settings
 schema = settings.DB_SCHEMA or "public"
 db = SessionLocal()
 r = db.execute(
-    text(f"SELECT id, name, status, token_id, config, metadata FROM {schema}.robots_v2 WHERE id=3"),
+    text(f"SELECT id, name, status, token_id, config, metadata FROM {schema}.robots WHERE id=3"),
 ).fetchone()
 print("robot:", r.id, r.name, "status", r.status, "token", r.token_id)
 cfg = r.config or {}
@@ -25,7 +25,7 @@ dec = db.execute(
     text(
         f"""
         SELECT created_at, stage, code, message
-        FROM {schema}.robots_v2_decisions
+        FROM {schema}.robot_decisions
         WHERE robot_id=3 ORDER BY created_at DESC LIMIT 15
         """
     ),
@@ -37,7 +37,7 @@ sess = db.execute(
     text(
         f"""
         SELECT id, started_at, ended_at, stop_reason, account_id
-        FROM {schema}.robots_v2_sessions WHERE robot_id=3 ORDER BY started_at DESC LIMIT 5
+        FROM {schema}.robot_sessions WHERE robot_id=3 ORDER BY started_at DESC LIMIT 5
         """
     ),
 ).fetchall()

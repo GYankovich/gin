@@ -9,8 +9,8 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
-from app.modules.robots_v2.engine.candle_seed import (
+from app.modules.robots.config.v4_schema import TradingRobotConfigV4
+from app.modules.robots.engine.candle_seed import (
     _row_to_candle,
     lookback_days_for_warmup,
     warmup_bars_needed,
@@ -77,7 +77,7 @@ def test_row_to_candle_parses_tinvest_units_nano():
 
 
 def test_looks_like_figi():
-    from app.modules.robots_v2.engine.broker_factory import _looks_like_figi
+    from app.modules.robots.engine.broker_factory import _looks_like_figi
 
     assert _looks_like_figi("BBG004730N88")
     assert not _looks_like_figi("GAZP")

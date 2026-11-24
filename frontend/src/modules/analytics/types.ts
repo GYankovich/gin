@@ -62,7 +62,7 @@ export interface AccountDetail {
 // --- Robot trading analytics ---
 
 export interface RobotTradeItem {
-    id: number;
+    id: string;
     figi: string;
     side: string;
     quantity: number;

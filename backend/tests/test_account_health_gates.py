@@ -13,15 +13,15 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
-from app.modules.robots.crypto_universe import resolve_crypto_universe_filters
-from app.modules.robots.trading.account_health import (
+from app.modules.robot_lib.crypto_universe import resolve_crypto_universe_filters
+from app.modules.robot_lib.trading.account_health import (
     evaluate_equity_drawdown_halt,
     evaluate_margin_halt,
     evaluate_refresh_fail_halt,
     extract_wallet_margin_health,
     min_liq_distance_pct,
 )
-from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
+from app.modules.robot_lib.trading.stages.stage6_orders import Stage6Orders
 
 
 def test_extract_wallet_margin_health_rates():

@@ -11,15 +11,15 @@ os.environ.setdefault("SECRET_KEY", "test")
 
 from datetime import datetime, timedelta, timezone
 
-from app.modules.robots.trading.contracts import Candle
-from app.modules.robots.trading.indicators.library import (
+from app.modules.robot_lib.trading.contracts import Candle
+from app.modules.robot_lib.trading.indicators.library import (
     build_frame,
     calc_atr,
     calc_ma,
     calc_rsi,
     previous_high,
 )
-from app.modules.robots_v2.strategy.indicators import (
+from app.modules.robots.strategy.indicators import (
     atr_value,
     breakout_high,
     rsi_value,

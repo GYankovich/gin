@@ -9,12 +9,10 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from fastapi import HTTPException, status
 
-from app.core.secret_box import open_broker_material, open_secret, seal
+from app.core.secret_box import open_broker_material, open_secret
 from app.modules.tinvest.methods import create_tbank_client
 from . import queries, utils
-from .schemas import TokenCreate, TokenUpdate, TokenResponse
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +54,7 @@ class TokenService:
             "token_name": utils.safe_str(row[4], None) if len(row) > 4 else None,
             "status": utils.safe_int(row[5]) if len(row) > 5 and row[5] is not None else 1,
             "created_at": row[6] if len(row) > 6 else None,
-            "updated_at": row[7] if len(row) > 7 else None,
+            "modification_date": row[7] if len(row) > 7 else None,
             "last_used_at": row[8] if len(row) > 8 else None,
             "expires_at": row[9] if len(row) > 9 else None,
             "extra_data": opened_extra or None,
@@ -135,143 +133,6 @@ class TokenService:
             return None
 
         return self._row_to_token_dict(result)
-
-    async def create_token(
-            self,
-            db: Session,
-            user_id: int,
-            token_data: TokenCreate
-    ) -> dict:
-        """
-        Создание нового токена
-        """
-        self.db = db
-
-        # Проверяем валидность токена
-        is_valid, message, accounts = await self.test_token(token_data.token)
-
-        if not is_valid:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Невалидный токен: {message}"
-            )
-
-        # Проверяем, не существует ли уже такой токен
-        check_query = queries.build_check_token_exists_query()
-        existing_rows = self._execute(check_query, {"user_id": user_id})
-        existing = any(open_secret(row[0]) == token_data.token for row in existing_rows)
-
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Токен уже существует"
-            )
-
-        # Создаем токен
-        insert_query = queries.build_create_token_query()
-        now = datetime.now(timezone.utc)
-
-        result = self._execute(
-            insert_query,
-            {
-                "user_id": user_id,
-                "token_type": token_data.token_type,
-                "token": seal(token_data.token),
-                "token_name": token_data.token_name,
-                "created_at": now
-            },
-            fetch_one=True
-        )
-
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Не удалось создать токен"
-            )
-
-        db.commit()
-        logger.info(f"✅ Created new token for user {user_id}, id: {result[0]}")
-
-        token_dict = self._row_to_token_dict(result)
-
-        # Возвращаем ответ с маскированным токеном
-        return {
-            **token_dict,
-            "token_preview": utils.mask_token(token_dict["token"])
-        }
-
-    async def update_token(
-            self,
-            db: Session,
-            token_id: int,
-            user_id: int,
-            token_data: TokenUpdate
-    ) -> Optional[dict]:
-        """
-        Обновление токена
-        """
-        self.db = db
-
-        # Проверяем существование токена
-        token = await self.get_token_by_id(db, token_id, user_id)
-        if not token:
-            return None
-
-        # Определяем, какие поля обновляем
-        fields_to_update = []
-        params = {
-            "token_id": token_id,
-            "user_id": user_id,
-            "now": datetime.now(timezone.utc)
-        }
-
-        if token_data.token_name is not None:
-            fields_to_update.append("token_name")
-            params["token_name"] = token_data.token_name
-
-        if token_data.status is not None:
-            fields_to_update.append("status")
-            params["status"] = int(token_data.status)
-
-        if not fields_to_update:
-            # Ничего не обновляем, возвращаем текущий токен
-            token_dict = token
-            token_dict["token_preview"] = utils.mask_token(token_dict["token"])
-            return token_dict
-
-        # Строим и выполняем запрос обновления
-        update_query, _ = queries.build_update_token_query(fields_to_update)
-        result = self._execute(update_query, params, fetch_one=True)
-
-        if not result:
-            return None
-
-        db.commit()
-        logger.info(f"✅ Updated token {token_id} for user {user_id}")
-
-        token_dict = self._row_to_token_dict(result)
-        token_dict["token_preview"] = utils.mask_token(token_dict["token"])
-
-        return token_dict
-
-    async def delete_token(self, db: Session, token_id: int, user_id: int) -> bool:
-        """
-        Удаление токена
-        """
-        self.db = db
-        query = queries.build_delete_token_query()
-        result = self._execute(
-            query,
-            {"token_id": token_id, "user_id": user_id},
-            fetch_one=True
-        )
-
-        if result:
-            db.commit()
-            logger.info(f"✅ Deleted token {token_id} for user {user_id}")
-            return True
-
-        return False
 
     @staticmethod
     async def test_token(token: str) -> Tuple[bool, str, Optional[List]]:

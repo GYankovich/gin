@@ -13,7 +13,7 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
-from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
+from app.modules.robot_lib.trading.stages.stage6_orders import Stage6Orders
 
 
 class _Broker:
@@ -78,8 +78,8 @@ def test_stage6_place_does_not_mutate_book():
 
 
 def test_apply_fill_incremental():
-    from app.modules.robots.trading.session import TradingSession
-    from app.modules.robots.trading.contracts import ExecutionMode
+    from app.modules.robot_lib.trading.session import TradingSession
+    from app.modules.robot_lib.trading.contracts import ExecutionMode
 
     # Minimal instance without full __init__ side effects — use a stub object.
     class _S:
@@ -105,7 +105,7 @@ def test_apply_fill_incremental():
 
 
 def test_reject_does_not_require_revert():
-    from app.modules.robots.trading.session import TradingSession
+    from app.modules.robot_lib.trading.session import TradingSession
 
     class _S:
         account_positions = {"BTCUSDT": 5.0}

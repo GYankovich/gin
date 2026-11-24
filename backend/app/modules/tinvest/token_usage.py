@@ -47,7 +47,7 @@ def record_api_token_call(
                     SET last_used_at = :now,
                         last_error = NULL,
                         last_error_at = NULL,
-                        updated_at = :now
+                        modification_date = :now
                     WHERE id = :token_id
                     """
                 ),
@@ -62,7 +62,7 @@ def record_api_token_call(
                     SET last_used_at = :now,
                         last_error = :error,
                         last_error_at = :now,
-                        updated_at = :now
+                        modification_date = :now
                     WHERE id = :token_id
                     """
                 ),

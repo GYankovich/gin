@@ -56,7 +56,7 @@ def main() -> None:
     db = SessionLocal()
     try:
         row = db.execute(
-            text(f"SELECT id, name, status, config FROM {schema}.robots_v2 WHERE id = :id"),
+            text(f"SELECT id, name, status, config FROM {schema}.robots WHERE id = :id"),
             {"id": ROBOT_ID},
         ).fetchone()
         if row is None:
@@ -94,12 +94,12 @@ def main() -> None:
         universe.update(UNIVERSE_PATCH)
         cfg["universe"] = universe
 
-        from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
+        from app.modules.robots.config.v4_schema import TradingRobotConfigV4
 
         TradingRobotConfigV4.model_validate(cfg)
 
         db.execute(
-            text(f"UPDATE {schema}.robots_v2 SET config = CAST(:cfg AS jsonb), date_modification = NOW() WHERE id = :id"),
+            text(f"UPDATE {schema}.robots SET config = CAST(:cfg AS jsonb), date_modification = NOW() WHERE id = :id"),
             {"id": ROBOT_ID, "cfg": json.dumps(cfg)},
         )
         db.commit()

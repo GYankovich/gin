@@ -2,12 +2,12 @@ import asyncio
 from sqlalchemy import text
 from app.core.database import SessionLocal
 from app.core.config import settings
-from app.modules.robots_v2.universe.service import UniverseService
+from app.modules.robots.universe.service import UniverseService
 
 schema = settings.DB_SCHEMA or "public"
 db = SessionLocal()
 row = db.execute(
-    text(f"SELECT config, user_id, token_id FROM {schema}.robots_v2 WHERE id=3"),
+    text(f"SELECT config, user_id, token_id FROM {schema}.robots WHERE id=3"),
 ).fetchone()
 cfg = row.config if isinstance(row.config, dict) else {}
 core = cfg.get("core") or {}

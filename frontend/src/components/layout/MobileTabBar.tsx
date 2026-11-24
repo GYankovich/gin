@@ -1,4 +1,4 @@
-///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsLayoutMobiletabbar [1]
+﻿///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsLayoutMobiletabbar [1]
 ///@ Исходный модуль `frontend/src/components/layout/MobileTabBar.tsx` — floating auth-capsule dock (mobile shell).
 
 import React from 'react'
@@ -57,7 +57,7 @@ const tabs = [
         label: 'Роботы',
         Icon: IconRobots,
         prefetch: () => {
-            void import('@/pages/robots-v2/RobotsV2FleetPage')
+            void import('@/pages/robots/RobotsFleetPage')
         },
     },
     {
@@ -65,7 +65,7 @@ const tabs = [
         feature: 'backtest' as const,
         label: 'Лаб',
         Icon: IconTesting,
-        prefetch: () => { void import('@/pages/robots-v2/BacktestLabPage') },
+        prefetch: () => { void import('@/pages/robots/BacktestLabPage') },
     },
 ]
 

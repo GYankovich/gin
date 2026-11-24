@@ -15,13 +15,13 @@ os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
 from app.modules.corporate_actions.dividend_calendar_service import DividendExclusionPolicy
-from app.modules.robots.trading.contracts import Candle
-from app.modules.robots_v2.backtest.host import BacktestHost
-from app.modules.robots_v2.backtest.universe_schedule import (
+from app.modules.robot_lib.trading.contracts import Candle
+from app.modules.robots.backtest.host import BacktestHost
+from app.modules.robots.backtest.universe_schedule import (
     apply_dividend_exclusions,
     list_trade_dates,
 )
-from app.modules.robots_v2.config.v4_schema import ScheduleConfig, TradingRobotConfigV4
+from app.modules.robots.config.v4_schema import ScheduleConfig, TradingRobotConfigV4
 
 
 def _schedule_weekdays() -> ScheduleConfig:
@@ -139,7 +139,7 @@ def _screener_config() -> TradingRobotConfigV4:
     cfg = _sample_config(["SBER"])
     cfg.universe.mode = "screener"
     cfg.universe.fixed_list = None
-    from app.modules.robots_v2.config.v4_schema import ScreenerConfig
+    from app.modules.robots.config.v4_schema import ScreenerConfig
 
     cfg.universe.screener = ScreenerConfig.model_validate({
         "preset": "high_liquidity",
@@ -162,14 +162,14 @@ def test_screener_schedule_resolves_without_token():
 
     async def _run():
         with patch(
-            "app.modules.robots_v2.backtest.universe_schedule.universe_service.resolve",
+            "app.modules.robots.backtest.universe_schedule.universe_service.resolve",
             resolve,
         ), patch(
-            "app.modules.robots_v2.backtest.universe_schedule.DividendCalendarService",
+            "app.modules.robots.backtest.universe_schedule.DividendCalendarService",
         ) as div:
             div.return_value.preload_exclusion_index.return_value = {}
             div.return_value.exclusion_reason_for_day_cached.return_value = None
-            from app.modules.robots_v2.backtest.universe_schedule import build_universe_by_day
+            from app.modules.robots.backtest.universe_schedule import build_universe_by_day
 
             return await build_universe_by_day(
                 MagicMock(),

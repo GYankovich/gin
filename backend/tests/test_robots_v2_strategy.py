@@ -11,11 +11,11 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots.trading.contracts import Candle, Position
-from app.modules.robots_v2.config.v4_schema import StrategyConfig
-from app.modules.robots_v2.strategy.registry import create_plugin, list_archetypes
-from app.modules.robots_v2.strategy.runtime import StrategyRuntime
-from app.modules.robots_v2.strategy.schemas import OrderFlowSnapshot, StrategyContext
+from app.modules.robot_lib.trading.contracts import Candle, Position
+from app.modules.robots.config.v4_schema import StrategyConfig
+from app.modules.robots.strategy.registry import create_plugin, list_archetypes
+from app.modules.robots.strategy.runtime import StrategyRuntime
+from app.modules.robots.strategy.schemas import OrderFlowSnapshot, StrategyContext
 
 
 def _candle(close: float, volume: int = 1000, high: float | None = None, low: float | None = None) -> Candle:
@@ -412,7 +412,7 @@ def test_scalper_small_dip_below_be_does_not_invalidate():
 
 
 def test_allow_strategy_exit_below_break_even_only_invalidation():
-    from app.modules.robots_v2.strategy.helpers import allow_strategy_exit_below_break_even
+    from app.modules.robots.strategy.helpers import allow_strategy_exit_below_break_even
 
     assert allow_strategy_exit_below_break_even("scalper_delta_invalidation") is True
     assert allow_strategy_exit_below_break_even("scalper_delta_reversal") is False

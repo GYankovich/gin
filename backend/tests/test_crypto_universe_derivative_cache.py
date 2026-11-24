@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.modules.robots.crypto_universe import (
+from app.modules.robot_lib.crypto_universe import (
     CryptoUniverseFilters,
     ScreeningRow,
     _bulk_load_funding_avg_from_cache,

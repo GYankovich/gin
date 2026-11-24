@@ -12,9 +12,9 @@ os.environ.setdefault("SECRET_KEY", "test")
 
 import asyncio
 
-from app.modules.robots_v2.config.v4_schema import RiskConfig, ScheduleConfig, TradingRobotConfigV4
-from app.modules.robots_v2.engine.event_bus import EventBus
-from app.modules.robots_v2.risk.eod import should_eod_flatten
+from app.modules.robots.config.v4_schema import RiskConfig, ScheduleConfig, TradingRobotConfigV4
+from app.modules.robots.engine.event_bus import EventBus
+from app.modules.robots.risk.eod import should_eod_flatten
 
 
 def _schedule() -> ScheduleConfig:

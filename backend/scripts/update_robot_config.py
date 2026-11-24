@@ -31,7 +31,7 @@ def main() -> None:
     db = SessionLocal()
     try:
         row = db.execute(
-            text(f"SELECT id, name, config FROM {schema}.robots_v2 WHERE id = :id"),
+            text(f"SELECT id, name, config FROM {schema}.robots WHERE id = :id"),
             {"id": ROBOT_ID},
         ).fetchone()
         if row is None:
@@ -44,7 +44,7 @@ def main() -> None:
         cfg["strategy"] = strategy
 
         db.execute(
-            text(f"UPDATE {schema}.robots_v2 SET config = CAST(:cfg AS jsonb) WHERE id = :id"),
+            text(f"UPDATE {schema}.robots SET config = CAST(:cfg AS jsonb) WHERE id = :id"),
             {"id": ROBOT_ID, "cfg": json.dumps(cfg)},
         )
         db.commit()

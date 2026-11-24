@@ -23,17 +23,6 @@ export interface PortfolioPosition {
     ticker?: string
 }
 
-export interface TokenResponse {
-    id: number
-    token_type: string
-    token_name: string
-    is_active: boolean
-    created_at: string
-    last_used_at: string | null
-    expires_at: string | null
-    token_preview: string
-}
-
 export interface ApiKeyResponse {
     id: number
     name: string

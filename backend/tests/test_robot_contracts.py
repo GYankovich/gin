@@ -8,7 +8,7 @@ os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
 from app.modules.robots import schemas
-from app.modules.robots.trading import queries as trading_queries
+from app.modules.robot_lib.trading import queries as trading_queries
 
 
 def test_grain_seed_config_allows_supported_non_tinvest_brokers():

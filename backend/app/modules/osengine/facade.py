@@ -35,7 +35,7 @@ from app.modules.osengine.stats import (
     LiveIngestStatus,
 )
 from app.modules.osengine.types import CandleEnsureRequest, InstrumentKey, TimeRange
-from app.modules.robots.trading.data.providers.db_cache import (
+from app.modules.robot_lib.trading.data.providers.db_cache import (
     query_candles_cache_rows,
     query_candles_cache_rows_bulk,
 )

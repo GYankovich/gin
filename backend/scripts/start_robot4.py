@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
 
 from app.core.database import SessionLocal
 from app.core.security import create_access_token
-from app.modules.robots_v2.engine.session_manager import session_manager
+from app.modules.robots.engine.session_manager import session_manager
 
 
 def _token(db) -> str:

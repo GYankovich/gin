@@ -1,6 +1,6 @@
 """Offline / public-Bybit reversion vs grid comparison (taker fee = 0.06%).
 
-Uses robots_v2 BacktestHost. Synthetic regimes by default; optional real klines.
+Uses robots BacktestHost. Synthetic regimes by default; optional real klines.
 
   cd backend
   python scripts/compare_bybit_reversion_grid.py
@@ -25,9 +25,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.modules.robots.trading.contracts import Candle
-from app.modules.robots_v2.backtest.host import BacktestHost
-from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
+from app.modules.robot_lib.trading.contracts import Candle
+from app.modules.robots.backtest.host import BacktestHost
+from app.modules.robots.config.v4_schema import TradingRobotConfigV4
 
 CONFIG_DIR = Path(__file__).resolve().parent / "configs"
 # Whole-coin paper sizing: need equity * maxPositionShare >= BTC price.

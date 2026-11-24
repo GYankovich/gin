@@ -1,0 +1,543 @@
+"""HTTP API for robots v2 greenfield contour."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from datetime import date, datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.core.database import SessionLocal, get_db
+from app.core.logging_config import get_logger
+from app.core.security import authenticate_ws_user_id, get_current_user
+from app.modules.auth.models import User
+from app.modules.auth.package_service import require_backtest_tab, require_robots_tab
+from app.modules.robots import schemas, service
+from app.modules.robots.backtest import backtest_service
+from app.modules.robots.backtest.schemas import (
+    RobotV2BacktestAsyncAccepted,
+    RobotV2BacktestCompareRequest,
+    RobotV2BacktestCompareResponse,
+    RobotV2BacktestCycleBundleResponse,
+    RobotV2BacktestDetailsResponse,
+    RobotV2BacktestExecutionEventsResponse,
+    RobotV2BacktestListResponse,
+    RobotV2BacktestNarrativeResponse,
+    RobotV2BacktestPriceWindowResponse,
+    RobotV2BacktestRequest,
+    RobotV2BacktestSaveAsRobotRequest,
+    RobotV2BacktestSaveAsRobotResponse,
+    RobotV2BacktestSignalsPageResponse,
+    RobotV2BacktestStatusResponse,
+    RobotV2BacktestUniverseResponse,
+)
+from app.modules.robots.engine.event_bus import event_bus
+from app.modules.robots.universe.schemas import UniversePreview
+from app.modules.robots.universe.service import universe_service
+
+router = APIRouter(prefix="/robots", tags=["Trading Robots"])
+logger = get_logger("robots.router")
+
+
+def _require_v2_enabled() -> None:
+    """Process kill-switch for robots contour only (not backtest package)."""
+    if not settings.ROBOTS_V2_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Robots v2 contour is disabled (ROBOTS_V2_ENABLED=false)",
+        )
+
+
+def _require_robots_access(
+    _: None = Depends(_require_v2_enabled),
+    __: User = Depends(require_robots_tab),
+) -> None:
+    """robots package + ROBOTS_V2_ENABLED. Independent from backtest."""
+    return None
+
+
+def _require_backtest_access(
+    _: User = Depends(require_backtest_tab),
+) -> None:
+    """backtest package only — not tied to robots feature or ROBOTS_V2_ENABLED."""
+    return None
+
+
+@router.post("/data", response_model=schemas.RobotV2ListResponse)
+async def list_robots(
+    request: schemas.RobotV2ListRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_robots_access),
+):
+    """Single fleet read: robots + account labels + compact live + hasBrokerAccounts."""
+    return service.robots_v2_service.list_robots(db, current_user.id, request)
+
+
+@router.post("/create", response_model=schemas.RobotV2Response)
+async def create_or_update_robot(
+    request: schemas.RobotV2CreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_robots_access),
+):
+    return service.robots_v2_service.create_or_update(db, current_user.id, request)
+
+
+@router.get("/{robot_id}", response_model=schemas.RobotV2Response)
+async def get_robot(
+    robot_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_robots_access),
+):
+    return service.robots_v2_service.get_robot(db, current_user.id, robot_id)
+
+
+@router.post("/delete")
+async def delete_robot(
+    request: schemas.RobotV2DeleteRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_robots_access),
+):
+    return await service.robots_v2_service.delete_robot(db, current_user.id, request.robot_id)
+
+
+@router.post("/{robot_id}/clone", response_model=schemas.RobotV2Response)
+async def clone_robot(
+    robot_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_robots_access),
+):
+    return service.robots_v2_service.clone_robot(db, current_user.id, robot_id)
+
+
+@router.get("/{robot_id}/logs")
+async def get_robot_logs(
+    robot_id: int,
+    limit: int = 100,
+    event_type: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_robots_access),
+):
+    _ = service.robots_v2_service.get_robot(db, current_user.id, robot_id)
+    items = event_bus.recent(robot_id, limit=min(max(limit, 1), 500), event_type=event_type)
+    return {"robotId": robot_id, "items": items, "total": len(items)}
+
+
+@router.post("/validate", response_model=schemas.RobotV2ValidateResponse)
+async def validate_robot_config(
+    request: schemas.RobotV2ValidateRequest,
+    _: User = Depends(get_current_user),
+    __: None = Depends(_require_robots_access),
+):
+    return service.robots_v2_service.validate(request)
+
+
+@router.post("/preview-universe", response_model=UniversePreview)
+async def preview_universe(
+    request: schemas.RobotV2PreviewUniverseRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_robots_access),
+):
+    return await universe_service.preview(
+        db,
+        current_user.id,
+        token_id=request.token_id,
+        instrument_type=request.instrument_type,
+        universe_raw=request.universe,
+        page=request.page,
+        page_size=request.page_size,
+    )
+
+
+@router.post(
+    "/backtest",
+    response_model=None,
+    responses={
+        200: {"model": RobotV2BacktestDetailsResponse},
+        202: {"model": RobotV2BacktestAsyncAccepted},
+    },
+)
+async def run_v2_backtest(
+    request: RobotV2BacktestRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_backtest_access),
+):
+    rec, enqueued = await backtest_service.start(db, current_user.id, request)
+    if enqueued:
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content=RobotV2BacktestAsyncAccepted(
+                run_id=rec.run_id,
+                message=f"Poll GET /api/compute/v1/runs/{rec.run_id}/status",
+            ).model_dump(),
+        )
+    details = await backtest_service.get_details(rec.run_id, user_id=current_user.id, db=db)
+    return details
+
+
+@router.get("/backtest/runs", response_model=RobotV2BacktestListResponse)
+async def list_v2_backtest_runs(
+    robot_id: int | None = None,
+    limit: int = 30,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_backtest_access),
+):
+    return await backtest_service.list_runs(
+        db, user_id=current_user.id, robot_id=robot_id, limit=limit,
+    )
+
+
+@router.post("/backtest/compare", response_model=RobotV2BacktestCompareResponse)
+async def compare_v2_backtest_runs(
+    request: RobotV2BacktestCompareRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_backtest_access),
+):
+    return await backtest_service.compare(
+        db,
+        user_id=current_user.id,
+        base_run_id=request.base_run_id,
+        compare_run_id=request.compare_run_id,
+    )
+
+
+@router.get("/backtest/runs/{run_id}/status", response_model=RobotV2BacktestStatusResponse)
+async def get_v2_backtest_status(
+    run_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_backtest_access),
+):
+    return await backtest_service.get_status(run_id, user_id=current_user.id, db=db)
+
+
+@router.get("/backtest/runs/{run_id}", response_model=RobotV2BacktestDetailsResponse)
+async def get_v2_backtest_details(
+    run_id: int,
+    signals_limit: int | None = Query(default=None, ge=1, le=1000),
+    signals_offset: int = Query(default=0, ge=0),
+    signals_status: str | None = Query(default=None),
+    reject_reason: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_backtest_access),
+):
+    return await backtest_service.get_details(
+        run_id,
+        user_id=current_user.id,
+        db=db,
+        signals_limit=signals_limit,
+        signals_offset=signals_offset,
+        signals_status=signals_status,
+        reject_reason=reject_reason,
+    )
+
+
+@router.get(
+    "/backtest/runs/{run_id}/signals",
+    response_model=RobotV2BacktestSignalsPageResponse,
+)
+async def get_v2_backtest_signals(
+    run_id: int,
+    limit: int = Query(default=200, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    status_filter: str | None = Query(default=None, alias="status"),
+    reject_reason: str | None = Query(default=None),
+    ticker: str | None = Query(default=None),
+    cycle_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_backtest_access),
+):
+    return await backtest_service.get_signals_page(
+        run_id,
+        user_id=current_user.id,
+        db=db,
+        limit=limit,
+        offset=offset,
+        status_filter=status_filter,
+        reject_reason=reject_reason,
+        ticker=ticker,
+        cycle_id=cycle_id,
+    )
+
+
+@router.get(
+    "/backtest/runs/{run_id}/cycles/{cycle_id}",
+    response_model=RobotV2BacktestCycleBundleResponse,
+)
+async def get_v2_backtest_cycle(
+    run_id: int,
+    cycle_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_backtest_access),
+):
+    """Decision inspector bundle for one cycle (SPEC-03 §6.2)."""
+    return await backtest_service.get_cycle_bundle(
+        run_id,
+        cycle_id,
+        user_id=current_user.id,
+        db=db,
+    )
+
+
+@router.get(
+    "/backtest/runs/{run_id}/universe",
+    response_model=RobotV2BacktestUniverseResponse,
+)
+async def get_v2_backtest_universe(
+    run_id: int,
+    from_date: date | None = Query(default=None, alias="from"),
+    to_date: date | None = Query(default=None, alias="to"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_backtest_access),
+):
+    """Daily universe membership for a completed run (SPEC-03 P1 / [R-9])."""
+    return await backtest_service.get_universe_membership(
+        run_id,
+        user_id=current_user.id,
+        db=db,
+        from_date=from_date,
+        to_date=to_date,
+    )
+
+
+@router.get(
+    "/backtest/runs/{run_id}/execution-events",
+    response_model=RobotV2BacktestExecutionEventsResponse,
+)
+async def get_v2_backtest_execution_events(
+    run_id: int,
+    cycle_id: str | None = Query(default=None),
+    limit: int = Query(default=5000, ge=1, le=25_000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_backtest_access),
+):
+    """Intent→fill lifecycle events (SPEC-03 P2 / [R-13])."""
+    return await backtest_service.get_execution_events(
+        run_id,
+        user_id=current_user.id,
+        db=db,
+        cycle_id=cycle_id,
+        limit=limit,
+    )
+
+
+@router.get(
+    "/backtest/runs/{run_id}/narrative",
+    response_model=RobotV2BacktestNarrativeResponse,
+)
+async def get_v2_backtest_narrative(
+    run_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_backtest_access),
+):
+    """Structured RU narrative steps (SPEC-03 P2 / [R-14])."""
+    return await backtest_service.get_narrative(
+        run_id,
+        user_id=current_user.id,
+        db=db,
+    )
+
+
+@router.get(
+    "/backtest/runs/{run_id}/price-window",
+    response_model=RobotV2BacktestPriceWindowResponse,
+)
+async def get_v2_backtest_price_window(
+    run_id: int,
+    ticker: str = Query(...),
+    around: datetime = Query(..., description="Decision timestamp (ISO-8601)"),
+    bars: int = Query(default=50, ge=1, le=200, description="Half-window bars each side"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_backtest_access),
+):
+    """Candles around a decision for chart overlay (SPEC-03 P2 / [R-12])."""
+    return await backtest_service.get_price_window(
+        run_id,
+        user_id=current_user.id,
+        db=db,
+        ticker=ticker,
+        around=around,
+        bars=bars,
+    )
+
+
+@router.post("/backtest/runs/{run_id}/cancel")
+async def cancel_v2_backtest(
+    run_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_backtest_access),
+):
+    rec = await backtest_service.cancel(run_id, user_id=current_user.id, db=db)
+    return {"run_id": rec.run_id, "cancel_requested": True, "status": rec.status}
+
+
+@router.post(
+    "/backtest/runs/{run_id}/save-as-robot",
+    response_model=RobotV2BacktestSaveAsRobotResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def save_v2_backtest_as_robot(
+    run_id: int,
+    request: RobotV2BacktestSaveAsRobotRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_robots_access),
+):
+    """Create a trading robot from a successful backtest run (SPEC-05 §6.5)."""
+    return backtest_service.save_as_robot(
+        db,
+        user_id=current_user.id,
+        run_id=run_id,
+        request=request,
+    )
+
+
+@router.post("/change_status", response_model=schemas.RobotV2Response)
+async def change_robot_status(
+    request: schemas.RobotV2ChangeStatusRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_robots_access),
+):
+    return await service.robots_v2_service.change_status(db, current_user.id, request)
+
+
+@router.post("/{robot_id}/start", response_model=schemas.RobotV2Response)
+async def start_robot(
+    robot_id: int,
+    request: schemas.RobotV2StartRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_robots_access),
+):
+    return await service.robots_v2_service.start_robot(db, current_user.id, robot_id, request)
+
+
+@router.post("/{robot_id}/stop", response_model=schemas.RobotV2Response)
+async def stop_robot(
+    robot_id: int,
+    stop_mode: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_robots_access),
+):
+    return await service.robots_v2_service.stop_robot(db, current_user.id, robot_id, stop_mode)
+
+
+@router.post("/{robot_id}/refresh-universe", response_model=schemas.RobotV2UniverseRefreshResponse)
+async def refresh_robot_universe(
+    robot_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_robots_access),
+):
+    """Force-rebuild screener/index candidates for a running session."""
+    payload = await service.robots_v2_service.refresh_universe(db, current_user.id, robot_id)
+    return schemas.RobotV2UniverseRefreshResponse.model_validate(payload)
+
+
+@router.post("/audit", response_model=schemas.RobotV2AuditResponse)
+async def query_robot_audit(
+    request: schemas.RobotV2AuditRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_robots_access),
+):
+    payload = service.robots_v2_service.query_audit(db, current_user.id, request)
+    return schemas.RobotV2AuditResponse.model_validate(payload)
+
+
+@router.get("/{robot_id}/status", response_model=schemas.RobotV2StatusResponse)
+async def get_robot_status(
+    robot_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _: None = Depends(_require_robots_access),
+):
+    payload = await service.robots_v2_service.get_status(db, current_user.id, robot_id)
+    return schemas.RobotV2StatusResponse.model_validate(payload)
+
+
+@router.websocket("/{robot_id}/stream")
+async def robot_stream(
+    websocket: WebSocket,
+    robot_id: int,
+    token: str = Query(""),
+):
+    if not settings.ROBOTS_V2_ENABLED:
+        await websocket.close(code=4404)
+        return
+    await websocket.accept()
+
+    user_id = authenticate_ws_user_id(token)
+    if not user_id:
+        await websocket.send_text(json.dumps({"type": "error", "message": "Unauthorized"}))
+        await websocket.close(code=4001)
+        return
+
+    db = SessionLocal()
+    try:
+        try:
+            service.robots_v2_service.get_robot(db, user_id, robot_id)
+        except HTTPException:
+            await websocket.send_text(json.dumps({"type": "error", "message": "Robot not found"}))
+            await websocket.close(code=4004)
+            return
+    finally:
+        db.close()
+
+    queue = event_bus.subscribe(robot_id)
+    await websocket.send_text(json.dumps({"type": "connected", "robotId": robot_id}))
+    # Seed equity curve from session + recent cycle events (oldest → newest)
+    try:
+        from app.modules.robots.engine.session_manager import session_manager
+
+        snap = session_manager.status(robot_id)
+        if snap and snap.equity_curve:
+            await websocket.send_text(json.dumps({
+                "type": "equity_snapshot",
+                "robotId": robot_id,
+                "points": snap.equity_curve,
+            }, default=str))
+        recent = list(reversed(event_bus.recent(robot_id, limit=100, event_type="cycle")))
+        for ev in recent:
+            await websocket.send_text(json.dumps(ev, default=str))
+    except Exception as exc:
+        logger.warning(
+            "Failed to seed robots stream robot_id=%s user_id=%s: %s",
+            robot_id,
+            user_id,
+            exc,
+        )
+    try:
+        while True:
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=30.0)
+                await websocket.send_text(json.dumps(event, default=str))
+            except asyncio.TimeoutError:
+                await websocket.send_text(json.dumps({"type": "ping", "robotId": robot_id}))
+    except WebSocketDisconnect:
+        pass
+    finally:
+        event_bus.unsubscribe(robot_id, queue)

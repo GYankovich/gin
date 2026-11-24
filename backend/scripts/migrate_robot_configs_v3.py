@@ -37,7 +37,7 @@ get_settings.cache_clear()
 settings = get_settings()
 
 from app.core.database import SessionLocal  # noqa: E402
-from app.modules.robots.config.migration import config_equals, migrate_v2_to_v3  # noqa: E402
+from app.modules.robot_lib.config.migration import config_equals, migrate_v2_to_v3  # noqa: E402
 
 
 def main() -> int:

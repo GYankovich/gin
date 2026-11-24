@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.modules.robots.universe import (
+from app.modules.robot_lib.universe import (
     UNIVERSE_MODE_FIXED,
     UNIVERSE_MODE_TQBR,
     filter_tqbr_candidate_rows,
@@ -1414,7 +1414,7 @@ class DmsService:
             {"robot_id": robot_id},
         ).first()
         schedule = {"start_time": schedule_row[0], "end_time": schedule_row[1], "weekdays": schedule_row[2]} if schedule_row else None
-        from app.modules.robots.config.migration import effective_pipeline_from_config, ensure_config_v2
+        from app.modules.robot_lib.config.migration import effective_pipeline_from_config, ensure_config_v2
 
         config = ensure_config_v2(config)
         universe_mode = normalize_universe_mode(config)

@@ -10,9 +10,9 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.modules.robots_v2.backtest.quotas import assert_can_start_optimization_batch
-from app.modules.robots_v2.backtest.schemas import RobotV2BacktestRequest
-from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
+from app.modules.robots.backtest.quotas import assert_can_start_optimization_batch
+from app.modules.robots.backtest.schemas import RobotV2BacktestRequest
+from app.modules.robots.config.v4_schema import TradingRobotConfigV4
 
 from . import optimization_batch_queries as batch_q
 from .optimization_engine import (
@@ -36,7 +36,7 @@ def _coerce_utc(dt: datetime) -> datetime:
 
 
 def _load_v2_trading_robot(db: Session, robot_id: int, user_id: int):
-    from app.modules.robots_v2.service import robots_v2_service
+    from app.modules.robots.service import robots_v2_service
 
     try:
         robot = robots_v2_service.get_robot(db, user_id, robot_id)
@@ -60,7 +60,7 @@ async def _enqueue_variant_backtest(
     initial_capital: float,
     token_id: Optional[int],
 ) -> int:
-    from app.modules.robots_v2.backtest.service import backtest_service
+    from app.modules.robots.backtest.service import backtest_service
 
     try:
         TradingRobotConfigV4.model_validate(variant_config)
@@ -418,7 +418,7 @@ async def cancel_optimization_batch(
     batch_id: int,
     user_id: int,
 ) -> Optional[Dict[str, Any]]:
-    from app.modules.robots_v2.backtest.service import backtest_service
+    from app.modules.robots.backtest.service import backtest_service
 
     header = batch_q.fetch_batch_header(db, schema, batch_id, user_id)
     if not header:

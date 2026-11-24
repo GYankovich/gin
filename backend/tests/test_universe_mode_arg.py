@@ -1,6 +1,6 @@
 """Tests for universe mode normalization in DMS setup."""
 
-from app.modules.robots.universe import (
+from app.modules.robot_lib.universe import (
     UNIVERSE_MODE_TQBR,
     normalize_universe_mode_arg,
 )

@@ -10,10 +10,10 @@ os.environ.setdefault("SECRET_KEY", "test")
 import asyncio
 from datetime import datetime, timedelta, timezone
 
-from app.modules.robots.trading.contracts import Candle
-from app.modules.robots_v2.backtest.host import BacktestHost, build_bar_timeline, max_drawdown_percent
-from app.modules.robots_v2.backtest.service import v4_timeframe_to_interval_raw
-from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
+from app.modules.robot_lib.trading.contracts import Candle
+from app.modules.robots.backtest.host import BacktestHost, build_bar_timeline, max_drawdown_percent
+from app.modules.robots.backtest.service import v4_timeframe_to_interval_raw
+from app.modules.robots.config.v4_schema import TradingRobotConfigV4
 
 
 def _sample_config() -> TradingRobotConfigV4:
@@ -205,7 +205,7 @@ def test_backtest_skips_bars_outside_schedule():
 
 
 def test_backtest_run_store_request_cancel():
-    from app.modules.robots_v2.backtest.store import BacktestRunStore
+    from app.modules.robots.backtest.store import BacktestRunStore
 
     store = BacktestRunStore()
 
@@ -229,7 +229,7 @@ def test_backtest_run_store_request_cancel():
 
 
 def test_nested_config_diff_leaf_paths():
-    from app.modules.robots_v2.backtest.persist import nested_config_diff
+    from app.modules.robots.backtest.persist import nested_config_diff
 
     diff = nested_config_diff(
         {"strategy": {"params": {"maPeriod": 50}}, "risk": {"stopLossPct": 2}},
@@ -242,7 +242,7 @@ def test_nested_config_diff_leaf_paths():
 
 
 def test_record_fills_copies_reason():
-    from app.modules.robots_v2.backtest.host import _record_fills
+    from app.modules.robots.backtest.host import _record_fills
 
     trades: list[dict] = []
     orders: list[dict] = []
@@ -274,7 +274,7 @@ def test_record_fills_copies_reason():
 
 
 def test_build_observability_reject_and_status_counts():
-    from app.modules.robots_v2.backtest.persist import REJECT_REASON_TOP_N, build_observability
+    from app.modules.robots.backtest.persist import REJECT_REASON_TOP_N, build_observability
 
     signals = [
         {"status": "rejected", "reject_reason": "RISK_BLOCK", "was_executed": 0},
@@ -314,7 +314,7 @@ def test_build_observability_reject_and_status_counts():
 
 
 def test_filter_and_paginate_signals():
-    from app.modules.robots_v2.backtest.persist import (
+    from app.modules.robots.backtest.persist import (
         DETAILS_SIGNALS_INLINE_CAP,
         apply_signals_page_to_details,
         enrich_run_observability,
@@ -416,11 +416,11 @@ def test_filter_and_paginate_signals():
 def test_deferred_reject_not_requeued():
     """Priced deferred intents that reject must not stay in the leftover queue."""
     from app.modules.trading_core.contracts import OrderIntent
-    from app.modules.robots_v2.backtest.host import _apply_deferred_intents
-    from app.modules.robots_v2.engine.execution import ExecutionService
-    from app.modules.robots_v2.engine.paper_ledger import PaperLedger
-    from app.modules.robots_v2.risk.engine import RiskEngine
-    from app.modules.robots_v2.strategy.runtime import StrategyRuntime
+    from app.modules.robots.backtest.host import _apply_deferred_intents
+    from app.modules.robots.engine.execution import ExecutionService
+    from app.modules.robots.engine.paper_ledger import PaperLedger
+    from app.modules.robots.risk.engine import RiskEngine
+    from app.modules.robots.strategy.runtime import StrategyRuntime
 
     config = _sample_config()
     ledger = PaperLedger(cash=100_000, commission_rate=0.0005, allow_short=False)
@@ -481,7 +481,7 @@ def test_entry_fills_stamp_cycle_id_across_next_open():
 
 def test_status_counts_filled_after_next_open_and_enrich():
     """Reject-lens «Исполнено» must count next-open fills, not stuck deferred signals."""
-    from app.modules.robots_v2.backtest.persist import (
+    from app.modules.robots.backtest.persist import (
         build_observability,
         enrich_run_observability,
         promote_deferred_signals_to_filled,
@@ -565,7 +565,7 @@ def test_status_counts_filled_after_next_open_and_enrich():
 
 
 def test_create_db_run_execution_model_is_next_bar_open():
-    from app.modules.robots_v2.backtest.persist import NEXT_BAR_OPEN_EXECUTION_MODEL
+    from app.modules.robots.backtest.persist import NEXT_BAR_OPEN_EXECUTION_MODEL
 
     assert NEXT_BAR_OPEN_EXECUTION_MODEL["model"] == "NEXT_BAR_OPEN"
     assert NEXT_BAR_OPEN_EXECUTION_MODEL["look_ahead"] is False
@@ -575,7 +575,7 @@ def test_create_db_run_execution_model_is_next_bar_open():
 def test_fetch_db_run_metadata_only_skips_heavy_artifacts():
     from unittest.mock import MagicMock, patch
 
-    from app.modules.robots_v2.backtest.persist import fetch_db_run
+    from app.modules.robots.backtest.persist import fetch_db_run
 
     started = datetime(2025, 1, 2, 9, 0, tzinfo=timezone.utc)
     row = {
@@ -603,9 +603,9 @@ def test_fetch_db_run_metadata_only_skips_heavy_artifacts():
     db.execute.return_value = result
 
     with patch(
-        "app.modules.robots_v2.backtest.persist.load_child_artifacts",
+        "app.modules.robots.backtest.persist.load_child_artifacts",
     ) as load_children, patch(
-        "app.modules.robots_v2.backtest.persist.load_execution_events",
+        "app.modules.robots.backtest.persist.load_execution_events",
     ) as load_events:
         fetched = fetch_db_run(
             db,
@@ -622,7 +622,7 @@ def test_fetch_db_run_metadata_only_skips_heavy_artifacts():
 
 
 def test_fee_summary_and_holdings_on_host_result():
-    from app.modules.robots_v2.backtest.host import build_fee_summary
+    from app.modules.robots.backtest.host import build_fee_summary
 
     fee = build_fee_summary(
         [{"commission": 1.5}, {"commission": 2.5}, {"commission": None}],
@@ -657,11 +657,11 @@ def test_fee_summary_and_holdings_on_host_result():
 
 
 def test_cycle_inspector_bundle_and_snapshot_normalize():
-    from app.modules.robots_v2.backtest.persist import (
+    from app.modules.robots.backtest.persist import (
         build_cycle_inspector_bundle,
         _normalize_snapshot_positions,
     )
-    from app.modules.robots_v2.backtest.schemas import (
+    from app.modules.robots.backtest.schemas import (
         RobotV2BacktestCycleBundleResponse,
         RobotV2BacktestStatusResponse,
     )
@@ -715,7 +715,7 @@ def test_persist_universe_membership_sql_params():
     from datetime import date
     from unittest.mock import MagicMock
 
-    from app.modules.robots_v2.backtest.persist import persist_universe_membership
+    from app.modules.robots.backtest.persist import persist_universe_membership
 
     db = MagicMock()
     db.execute.return_value = MagicMock()
@@ -742,13 +742,13 @@ def test_persist_universe_membership_sql_params():
 def test_p2_lifecycle_narrative_and_price_window():
     from unittest.mock import MagicMock, patch
 
-    from app.modules.robots_v2.backtest.host import build_run_narrative
-    from app.modules.robots_v2.backtest.persist import (
+    from app.modules.robots.backtest.host import build_run_narrative
+    from app.modules.robots.backtest.persist import (
         build_cycle_inspector_bundle,
         persist_execution_events,
     )
-    from app.modules.robots_v2.backtest.price_window import fetch_price_window
-    from app.modules.robots_v2.backtest.schemas import (
+    from app.modules.robots.backtest.price_window import fetch_price_window
+    from app.modules.robots.backtest.schemas import (
         RobotV2BacktestExecutionEventsResponse,
         RobotV2BacktestNarrativeResponse,
         RobotV2BacktestPriceWindowResponse,
@@ -844,7 +844,7 @@ def test_p2_lifecycle_narrative_and_price_window():
         for i in range(20)
     ]
     with patch(
-        "app.modules.robots_v2.backtest.price_window.load_candles_by_symbol_from_cache",
+        "app.modules.robots.backtest.price_window.load_candles_by_symbol_from_cache",
         return_value={"AAA": fake_series},
     ):
         win = fetch_price_window(
@@ -860,7 +860,7 @@ def test_p2_lifecycle_narrative_and_price_window():
     RobotV2BacktestPriceWindowResponse.model_validate({"run_id": 1, **win})
 
     with patch(
-        "app.modules.robots_v2.backtest.price_window.load_candles_by_symbol_from_cache",
+        "app.modules.robots.backtest.price_window.load_candles_by_symbol_from_cache",
         return_value={},
     ):
         empty = fetch_price_window(
@@ -925,7 +925,7 @@ def test_fetch_moex_index_tickers_sends_as_of_date():
     from datetime import date
     from unittest.mock import AsyncMock, MagicMock, patch
 
-    from app.modules.robots_v2.universe.index_provider import fetch_moex_index_tickers
+    from app.modules.robots.universe.index_provider import fetch_moex_index_tickers
 
     captured: dict = {}
 
@@ -953,8 +953,8 @@ def test_fetch_moex_index_tickers_sends_as_of_date():
         async def __aexit__(self, *args):
             return False
 
-    with patch("app.modules.robots_v2.universe.index_provider.httpx.AsyncClient", return_value=_Client()), patch(
-        "app.modules.robots_v2.universe.index_provider.moex_http_acquire", return_value=_Gate(),
+    with patch("app.modules.robots.universe.index_provider.httpx.AsyncClient", return_value=_Client()), patch(
+        "app.modules.robots.universe.index_provider.moex_http_acquire", return_value=_Gate(),
     ):
         out = asyncio.run(fetch_moex_index_tickers("IMOEX", as_of=date(2024, 3, 1)))
     assert captured["params"]["date"] == "2024-03-01"
@@ -965,11 +965,11 @@ def test_point_in_time_screen_drops_names_without_history():
     from datetime import date
     from unittest.mock import MagicMock, patch
 
-    from app.modules.robots_v2.universe.service import _apply_point_in_time_screen
+    from app.modules.robots.universe.service import _apply_point_in_time_screen
 
     rows = [{"ticker": "OLD", "last_price": 999}, {"ticker": "NEW", "last_price": 999}]
     with patch(
-        "app.modules.robots.trading.pipeline.historical_liquidity.point_in_time_metrics",
+        "app.modules.robot_lib.trading.pipeline.historical_liquidity.point_in_time_metrics",
         return_value={"OLD": {"last_close": 12.5, "avg_value": 8_000_000}},
     ):
         kept, rejected = _apply_point_in_time_screen(
@@ -1014,7 +1014,7 @@ def test_dropped_deferred_lifecycle_at_run_end():
     assert all(e.get("intent_id") for e in dropped_events)
 
     # Reject lens must count DROPPED_DEFERRED.
-    from app.modules.robots_v2.backtest.persist import build_observability
+    from app.modules.robots.backtest.persist import build_observability
 
     obs = build_observability(result.signals, history_stats=result.history_stats)
     codes = {row["code"]: row["count"] for row in obs["reject_reason_counts"]}
@@ -1022,7 +1022,7 @@ def test_dropped_deferred_lifecycle_at_run_end():
 
 
 def test_filter_signals_by_ticker_and_cycle_id():
-    from app.modules.robots_v2.backtest.persist import filter_signals
+    from app.modules.robots.backtest.persist import filter_signals
 
     signals = [
         {"figi": "SBER", "status": "rejected", "reject_reason": "RISK_BLOCK", "cycle_id": "a"},
@@ -1043,8 +1043,8 @@ def test_load_universe_membership_date_filters():
     from datetime import date
     from unittest.mock import MagicMock
 
-    from app.modules.robots_v2.backtest.persist import load_universe_membership
-    from app.modules.robots_v2.backtest.schemas import RobotV2BacktestUniverseResponse
+    from app.modules.robots.backtest.persist import load_universe_membership
+    from app.modules.robots.backtest.schemas import RobotV2BacktestUniverseResponse
 
     db = MagicMock()
     mapping_rows = [
@@ -1096,8 +1096,8 @@ def test_load_universe_membership_date_filters():
 def test_load_execution_events_cycle_filter_and_shape():
     from unittest.mock import MagicMock
 
-    from app.modules.robots_v2.backtest.persist import load_execution_events
-    from app.modules.robots_v2.backtest.schemas import RobotV2BacktestExecutionEventsResponse
+    from app.modules.robots.backtest.persist import load_execution_events
+    from app.modules.robots.backtest.schemas import RobotV2BacktestExecutionEventsResponse
 
     db = MagicMock()
     ts = datetime(2025, 1, 2, 12, 0, tzinfo=timezone.utc)
@@ -1142,8 +1142,8 @@ def test_load_execution_events_cycle_filter_and_shape():
 
 def test_details_response_glass_box_observability_narrative_holdings():
     """GET details contract: observability, fee_summary, narrative, rich holdings."""
-    from app.modules.robots_v2.backtest.persist import apply_signals_page_to_details
-    from app.modules.robots_v2.backtest.schemas import RobotV2BacktestDetailsResponse
+    from app.modules.robots.backtest.persist import apply_signals_page_to_details
+    from app.modules.robots.backtest.schemas import RobotV2BacktestDetailsResponse
 
     started = datetime(2025, 1, 2, 9, 0, tzinfo=timezone.utc)
     finished = datetime(2025, 1, 2, 10, 0, tzinfo=timezone.utc)
@@ -1271,8 +1271,8 @@ def test_service_glass_box_read_apis_with_mocks():
     from datetime import date
     from unittest.mock import AsyncMock, MagicMock, patch
 
-    from app.modules.robots_v2.backtest.service import BacktestService
-    from app.modules.robots_v2.backtest.schemas import (
+    from app.modules.robots.backtest.service import BacktestService
+    from app.modules.robots.backtest.schemas import (
         RobotV2BacktestCycleBundleResponse,
         RobotV2BacktestDetailsResponse,
         RobotV2BacktestExecutionEventsResponse,
@@ -1341,10 +1341,10 @@ def test_service_glass_box_read_apis_with_mocks():
 
     async def _run():
         with patch(
-            "app.modules.robots_v2.backtest.service.fetch_db_run",
+            "app.modules.robots.backtest.service.fetch_db_run",
             side_effect=_fresh_run,
         ), patch(
-            "app.modules.robots_v2.backtest.service.backtest_run_store.get",
+            "app.modules.robots.backtest.service.backtest_run_store.get",
             new=AsyncMock(return_value=None),
         ):
             details = await svc.get_details(
@@ -1385,10 +1385,10 @@ def test_service_glass_box_read_apis_with_mocks():
             assert bundle.trades
 
         with patch(
-            "app.modules.robots_v2.backtest.service.fetch_db_run",
+            "app.modules.robots.backtest.service.fetch_db_run",
             side_effect=_fresh_run,
         ), patch(
-            "app.modules.robots_v2.backtest.service.load_universe_membership",
+            "app.modules.robots.backtest.service.load_universe_membership",
             return_value=[
                 {
                     "trade_date": "2025-01-02",
@@ -1407,10 +1407,10 @@ def test_service_glass_box_read_apis_with_mocks():
             assert uni.days == [date(2025, 1, 2)]
 
         with patch(
-            "app.modules.robots_v2.backtest.service.fetch_db_run",
+            "app.modules.robots.backtest.service.fetch_db_run",
             side_effect=_fresh_run,
         ), patch(
-            "app.modules.robots_v2.backtest.service.load_execution_events",
+            "app.modules.robots.backtest.service.load_execution_events",
             return_value=[],
         ):
             # Falls back to row.execution_events and filters by cycle_id.
@@ -1420,7 +1420,7 @@ def test_service_glass_box_read_apis_with_mocks():
             assert any(e.get("reject_reason") == "DROPPED_DEFERRED" for e in events.items)
 
         with patch(
-            "app.modules.robots_v2.backtest.service.fetch_db_run",
+            "app.modules.robots.backtest.service.fetch_db_run",
             side_effect=_fresh_run,
         ):
             narr = await svc.get_narrative(77, user_id=1, db=db)
@@ -1429,10 +1429,10 @@ def test_service_glass_box_read_apis_with_mocks():
             assert narr.items[0].section == "старт"
 
         with patch(
-            "app.modules.robots_v2.backtest.service.fetch_db_run",
+            "app.modules.robots.backtest.service.fetch_db_run",
             side_effect=_fresh_run,
         ), patch(
-            "app.modules.robots_v2.backtest.service.fetch_price_window",
+            "app.modules.robots.backtest.service.fetch_price_window",
             return_value={
                 "ticker": "SBER",
                 "around": started.isoformat(),

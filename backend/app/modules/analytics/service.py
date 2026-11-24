@@ -617,8 +617,8 @@ class AnalyticsService:
 
         status_rows = self._execute(queries.build_robot_status_counts_query(robot_id))
         status_counts = {self._safe_str(r[0], "").lower(): self._safe_int(r[1], 0) for r in status_rows}
-        filled_count = status_counts.get("closed", 0)
-        partial_count = status_counts.get("partial", 0)
+        filled_count = status_counts.get("filled", 0) + status_counts.get("closed", 0)
+        partial_count = status_counts.get("partial", 0) + status_counts.get("resting", 0)
         rejected_count = status_counts.get("rejected", 0)
         cancelled_count = status_counts.get("cancelled", 0)
         terminal_count = filled_count + partial_count + rejected_count + cancelled_count
@@ -629,7 +629,7 @@ class AnalyticsService:
         trade_rows = self._execute(trades_query)
         recent_trades = [
             {
-                "id": self._safe_int(r[0]),
+                "id": self._safe_str(r[0]),
                 "figi": self._safe_str(r[1]),
                 "side": self._safe_str(r[2]),
                 "quantity": self._safe_float(r[3], 0.0),

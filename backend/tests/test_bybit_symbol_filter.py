@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.modules.robots.trading.pipeline.bybit_symbol_filter import (
+from app.modules.robot_lib.trading.pipeline.bybit_symbol_filter import (
     filter_backtest_universe_symbols,
     is_dated_bybit_contract,
 )

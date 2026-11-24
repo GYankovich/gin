@@ -1,6 +1,6 @@
 from sqlalchemy import text
 from app.core.database import SessionLocal
-from app.modules.robots.universe import universe_min_tradable_row
+from app.modules.robot_lib.universe import universe_min_tradable_row
 
 db = SessionLocal()
 snap = db.execute(

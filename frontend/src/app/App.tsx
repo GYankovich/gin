@@ -1,21 +1,22 @@
-import React, { Suspense, lazy } from 'react'
+﻿import React, { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore, type AuthFeatures } from '@/stores/authStore'
 import { PageLayout } from '@/components/layout/PageLayout'
 import { ToastProvider } from '@/components/ui/Toast'
-import RobotsV2Layout from '@/pages/robots-v2/RobotsV2Layout'
-import RobotQuietShell from '@/pages/robots-v2/RobotQuietShell'
+import { BackendDownBanner } from '@/components/system/BackendDownBanner'
+import RobotsLayout from '@/pages/robots/RobotsLayout'
+import RobotQuietShell from '@/pages/robots/RobotQuietShell'
 
 const LoginPage = lazy(() => import('@/pages/LoginPage'))
 const DemoPage = lazy(() => import('@/pages/DemoPage'))
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
 const PortfolioPage = lazy(() => import('@/pages/PortfolioPage'))
-const RobotsV2FleetPage = lazy(() => import('@/pages/robots-v2/RobotsV2FleetPage'))
-const RobotV2WizardPage = lazy(() => import('@/pages/robots-v2/RobotV2WizardPage'))
-const RobotV2MonitorPage = lazy(() => import('@/pages/robots-v2/RobotV2MonitorPage'))
-const RobotV2LogsPage = lazy(() => import('@/pages/robots-v2/RobotV2LogsPage'))
-const BacktestLabPage = lazy(() => import('@/pages/robots-v2/BacktestLabPage'))
-const BacktestRunPage = lazy(() => import('@/pages/robots-v2/BacktestRunPage'))
+const RobotsFleetPage = lazy(() => import('@/pages/robots/RobotsFleetPage'))
+const RobotWizardPage = lazy(() => import('@/pages/robots/RobotWizardPage'))
+const RobotMonitorPage = lazy(() => import('@/pages/robots/RobotMonitorPage'))
+const RobotLogsPage = lazy(() => import('@/pages/robots/RobotLogsPage'))
+const BacktestLabPage = lazy(() => import('@/pages/robots/BacktestLabPage'))
+const BacktestRunPage = lazy(() => import('@/pages/robots/BacktestRunPage'))
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
 
 function firstAllowedPath(features: AuthFeatures): string {
@@ -63,7 +64,7 @@ function PageFallback() {
     )
 }
 
-function RedirectRobotsV2() {
+function RedirectLegacyRobotsPath() {
     const { pathname, search } = useLocation()
     const next = pathname.replace(/^\/robots-v2/, '/robots')
     return <Navigate to={`${next}${search}`} replace />
@@ -82,6 +83,7 @@ function RedirectToBacktestLab() {
 export function App() {
     return (
         <ToastProvider>
+            <BackendDownBanner />
             <Routes>
                 <Route
                     path="/login"
@@ -129,18 +131,18 @@ export function App() {
                     <Route path="robots/backtest" element={<RedirectToBacktestLab />} />
                     <Route
                         path="robots"
-                        element={<FeatureRoute tab="robots"><RobotsV2Layout /></FeatureRoute>}
+                        element={<FeatureRoute tab="robots"><RobotsLayout /></FeatureRoute>}
                     >
-                        <Route index element={<RobotsV2FleetPage />} />
-                        <Route path="new" element={<RobotV2WizardPage />} />
-                        <Route path="edit/:id" element={<RobotV2WizardPage />} />
+                        <Route index element={<RobotsFleetPage />} />
+                        <Route path="new" element={<RobotWizardPage />} />
+                        <Route path="edit/:id" element={<RobotWizardPage />} />
                         <Route path=":id" element={<RobotQuietShell />}>
-                            <Route path="monitor" element={<RobotV2MonitorPage />} />
-                            <Route path="logs" element={<RobotV2LogsPage />} />
+                            <Route path="monitor" element={<RobotMonitorPage />} />
+                            <Route path="logs" element={<RobotLogsPage />} />
                         </Route>
                         <Route path=":id/backtest" element={<Navigate to="/backtest" replace />} />
                     </Route>
-                    <Route path="robots-v2/*" element={<RedirectRobotsV2 />} />
+                    <Route path="robots-v2/*" element={<RedirectLegacyRobotsPath />} />
                     <Route path="analytics" element={<Navigate to="/dashboard" replace />} />
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="testing" element={<Navigate to="/robots" replace />} />

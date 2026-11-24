@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { AccountSummary, DashboardDataResponse } from '@/types/api'
-import type { RobotV2 } from '@/types/robotV2'
+import type { TradingRobot } from '@/types/robots'
 
 export type PortfolioAccountsCache = {
     accounts: AccountSummary[]
@@ -8,7 +8,7 @@ export type PortfolioAccountsCache = {
 }
 
 export type RobotsFleetCache = {
-    robots: RobotV2[]
+    robots: TradingRobot[]
     hasBrokerAccounts: boolean
 }
 

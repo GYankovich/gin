@@ -31,6 +31,6 @@ def test_rows_from_day_candles_maps_ohlcv():
 
 
 def test_phase_label_snapshots_osengine():
-    from app.modules.robots.backtest_progress import phase_label_ru
+    from app.modules.robot_lib.backtest_progress import phase_label_ru
 
     assert phase_label_ru("prefetching_market_snapshots") == "OsEngine: снимки вселенной"

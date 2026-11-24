@@ -11,7 +11,7 @@ from app.modules.tinvest.methods import create_tbank_client
 from app.modules.tinvest.methods.instruments import InstrumentsClient
 from app.modules.tinvest.websocket.price_manager import PriceStreamManager
 from app.modules.tinvest.utils import parse_api_timestamp
-from app.modules.robots.common.mixins import PriceParsingMixin
+from app.modules.robot_lib.common.mixins import PriceParsingMixin
 from app.core.logging_config import get_logger
 
 logger = get_logger(__name__)

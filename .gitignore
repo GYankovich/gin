@@ -33,3 +33,6 @@ get-pip.py
 # System
 .DS_Store
 Thumbs.db
+
+# DB archives (Wave 2 legacy dumps)
+archives/

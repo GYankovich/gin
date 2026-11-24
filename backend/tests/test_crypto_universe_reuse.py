@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from app.modules.robots.crypto_universe import (
+from app.modules.robot_lib.crypto_universe import (
     rebuild_crypto_universe,
     try_reuse_fresh_crypto_universe,
 )
@@ -99,11 +99,11 @@ def test_rebuild_reuses_without_http(monkeypatch):
         raise AssertionError("fetch_bybit_tickers must not be called on reuse")
 
     monkeypatch.setattr(
-        "app.modules.robots.crypto_universe._find_active_bybit_token",
+        "app.modules.robot_lib.crypto_universe._find_active_bybit_token",
         lambda *a, **k: {"token": "k", "token_secret": "s"},
     )
     monkeypatch.setattr(
-        "app.modules.robots.crypto_universe.fetch_bybit_tickers",
+        "app.modules.robot_lib.crypto_universe.fetch_bybit_tickers",
         _should_not_fetch,
     )
 
@@ -169,15 +169,15 @@ def test_rebuild_force_bypasses_reuse(monkeypatch):
             return None
 
     monkeypatch.setattr(
-        "app.modules.robots.crypto_universe._find_active_bybit_token",
+        "app.modules.robot_lib.crypto_universe._find_active_bybit_token",
         lambda *a, **k: {"token": "k", "token_secret": "s"},
     )
     monkeypatch.setattr(
-        "app.modules.robots.crypto_universe.fetch_bybit_tickers",
+        "app.modules.robot_lib.crypto_universe.fetch_bybit_tickers",
         _fake_fetch,
     )
     monkeypatch.setattr(
-        "app.modules.robots.crypto_universe.BybitHttpClient",
+        "app.modules.robot_lib.crypto_universe.BybitHttpClient",
         lambda **kwargs: _Client(),
     )
 

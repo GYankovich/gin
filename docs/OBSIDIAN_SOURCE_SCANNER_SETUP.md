@@ -55,7 +55,7 @@ Source Scanner v2 сканирует **один корень + одно расш
   - жизненный цикл `/api/robots/history-backtest`
   - приоритет источников данных
   - логика fallback по свечам/истории
-- `backend/app/modules/robots/trading/backtest/engine.py`:
+- `backend/app/modules/robot_lib/trading/backtest/engine.py`:
   - цикл симуляции
   - правила исполнения и risk checks
 - `frontend/src/pages/TestingPage.tsx`:

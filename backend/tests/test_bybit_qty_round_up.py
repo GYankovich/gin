@@ -13,7 +13,7 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
-from app.modules.robots.trading.brokers.bybit import ByBitBrokerFacade
+from app.modules.robot_lib.trading.brokers.bybit import ByBitBrokerFacade
 
 
 def _facade_with_lot(*, qty_step: float = 0.1, min_qty: float = 0.1, min_amt: float = 5.0) -> ByBitBrokerFacade:

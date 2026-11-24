@@ -23,8 +23,8 @@ def main() -> None:
                 f"""
                 SELECT f.filled_at, f.ticker, f.side, f.quantity, f.price, f.pnl, f.kind,
                        o.order_type, o.status, o.broker_order_id, o.submitted_at AS order_at
-                FROM {schema}.robots_v2_fills f
-                LEFT JOIN {schema}.robots_v2_orders o ON o.id = f.order_id
+                FROM {schema}.robot_fills f
+                LEFT JOIN {schema}.robot_orders o ON o.id = f.order_id
                 WHERE f.robot_id = :rid AND f.ticker = ANY(:tickers)
                 ORDER BY f.filled_at DESC
                 LIMIT 40
@@ -44,7 +44,7 @@ def main() -> None:
             text(
                 f"""
                 SELECT s.created_at, s.ticker, s.side, s.kind, s.reason, s.price
-                FROM {schema}.robots_v2_signals s
+                FROM {schema}.robot_signals s
                 WHERE s.robot_id = :rid AND s.ticker = ANY(:tickers)
                 ORDER BY s.created_at DESC LIMIT 30
                 """
@@ -62,7 +62,7 @@ def main() -> None:
                 f"""
                 SELECT o.submitted_at, o.ticker, o.side, o.quantity, o.price,
                        o.status, o.kind, o.order_type, o.broker_order_id, o.reject_reason
-                FROM {schema}.robots_v2_orders o
+                FROM {schema}.robot_orders o
                 WHERE o.robot_id = :rid AND o.ticker = ANY(:tickers)
                 ORDER BY o.submitted_at DESC LIMIT 30
                 """
@@ -81,7 +81,7 @@ def main() -> None:
             text(
                 f"""
                 SELECT d.created_at, d.ticker, d.code, d.outcome, d.message, d.context, d.stage
-                FROM {schema}.robots_v2_decisions d
+                FROM {schema}.robot_decisions d
                 WHERE d.robot_id = :rid AND d.ticker = ANY(:tickers)
                 ORDER BY d.created_at DESC LIMIT 40
                 """
@@ -98,7 +98,7 @@ def main() -> None:
             text(
                 f"""
                 SELECT id, started_at, ended_at, stop_reason
-                FROM {schema}.robots_v2_sessions
+                FROM {schema}.robot_sessions
                 WHERE robot_id = :rid ORDER BY started_at DESC LIMIT 5
                 """
             ),

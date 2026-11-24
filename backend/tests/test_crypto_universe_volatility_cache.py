@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.modules.robots.crypto_universe import (
+from app.modules.robot_lib.crypto_universe import (
     CryptoUniverseFilters,
     ScreeningRow,
     _bulk_load_volatility_from_candles_cache,
@@ -44,7 +44,7 @@ def test_bulk_load_volatility_from_candles_cache(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "app.modules.robots.trading.data.providers.db_cache.query_candles_cache_rows_bulk",
+        "app.modules.robot_lib.trading.data.providers.db_cache.query_candles_cache_rows_bulk",
         lambda *a, **k: {"BTCUSDT": bars},
     )
     out = _bulk_load_volatility_from_candles_cache(
@@ -62,7 +62,7 @@ def test_bulk_load_volatility_from_candles_cache(monkeypatch):
 
 def test_enrich_volatility_uses_cache_skips_api(monkeypatch):
     monkeypatch.setattr(
-        "app.modules.robots.crypto_universe._bulk_load_volatility_from_candles_cache",
+        "app.modules.robot_lib.crypto_universe._bulk_load_volatility_from_candles_cache",
         lambda *a, **k: {"ETHUSDT": (2.2, 3.5)},
     )
     client = MagicMock()
@@ -85,7 +85,7 @@ def test_enrich_volatility_uses_cache_skips_api(monkeypatch):
 def test_enrich_volatility_api_when_cache_incomplete(monkeypatch):
     # rvol missing but filter requires it → API
     monkeypatch.setattr(
-        "app.modules.robots.crypto_universe._bulk_load_volatility_from_candles_cache",
+        "app.modules.robot_lib.crypto_universe._bulk_load_volatility_from_candles_cache",
         lambda *a, **k: {"SOLUSDT": (None, 4.0)},
     )
     upsert_calls: list[dict] = []
@@ -97,7 +97,7 @@ def test_enrich_volatility_api_when_cache_incomplete(monkeypatch):
         return len(rows)
 
     monkeypatch.setattr(
-        "app.modules.robots.trading.data.providers.bybit_market._upsert_bybit_candles",
+        "app.modules.robot_lib.trading.data.providers.bybit_market._upsert_bybit_candles",
         _fake_upsert,
     )
     client = MagicMock()

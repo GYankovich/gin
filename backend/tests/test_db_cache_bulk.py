@@ -75,7 +75,7 @@ def test_query_candles_cache_rows_delegates_to_bulk():
 def test_load_candles_by_symbol_from_cache_uses_bulk():
     from datetime import date, time, timedelta
 
-    from app.modules.robots.trading.runtime.orchestrator import TradingOrchestrator
+    from app.modules.robot_lib.trading.runtime.orchestrator import TradingOrchestrator
 
     db = MagicMock()
     from_dt = datetime.combine(date(2024, 6, 1), time.min, tzinfo=timezone.utc)

@@ -7,14 +7,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.modules.robots.trading.brokers.bybit import ByBitBrokerFacade
-from app.modules.robots.trading.brokers.factory import create_broker_facade
-from app.modules.robots.trading.brokers.routing import (
+from app.modules.robot_lib.trading.brokers.bybit import ByBitBrokerFacade
+from app.modules.robot_lib.trading.brokers.factory import create_broker_facade
+from app.modules.robot_lib.trading.brokers.routing import (
     resolve_bybit_api_secret,
     resolve_bybit_instrument_category,
 )
-from app.modules.robots.trading.contracts import ExecutionMode
-from app.modules.robots.trading.session import TradingSession
+from app.modules.robot_lib.trading.contracts import ExecutionMode
+from app.modules.robot_lib.trading.session import TradingSession
 
 
 def test_resolve_bybit_api_secret_from_extra_data():

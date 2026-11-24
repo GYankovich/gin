@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.modules.robots.trading.brokers.margin import liquidation_price_long
-from app.modules.robots.trading.brokers.sim_backtest import SimBacktestBrokerFacade
+from app.modules.robot_lib.trading.brokers.margin import liquidation_price_long
+from app.modules.robot_lib.trading.brokers.sim_backtest import SimBacktestBrokerFacade
 
 
 def test_liquidation_price_long_10x():

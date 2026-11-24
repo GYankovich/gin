@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.modules.bybit.http_client import BybitHttpClient
-from app.modules.robots.backtest_progress import touch_backtest_progress_runtime
+from app.modules.robot_lib.backtest_progress import touch_backtest_progress_runtime
 from app.modules.trading_core.data.stats import CandlePrefetchStats, FundingPrefetchStats
 from app.modules.trading_core.intervals import ResolvedInterval, strategy_interval_to_bybit_kline
 
@@ -935,8 +935,8 @@ def screening_d1_prefetch_range(
     config: dict[str, Any],
 ) -> tuple[date, date]:
     """Date range for D1 candles needed by crypto universe screening (no look-ahead)."""
-    from app.modules.robots.crypto_universe import resolve_crypto_universe_filters
-    from app.modules.robots.trading.pipeline.historical_liquidity import volume_lookback_days
+    from app.modules.robot_lib.crypto_universe import resolve_crypto_universe_filters
+    from app.modules.robot_lib.trading.pipeline.historical_liquidity import volume_lookback_days
 
     dates = list(trade_dates)
     if not dates:
@@ -975,9 +975,9 @@ async def resolve_crypto_screening_symbols(
     if the API call fails.
     """
     from app.modules.bybit.instruments import list_instruments
-    from app.modules.robots.trading.pipeline.bybit_symbol_filter import filter_backtest_universe_symbols
-    from app.modules.robots.trading.pipeline.historical_liquidity import list_bybit_symbols_from_cache
-    from app.modules.robots.universe import resolve_crypto_symbols
+    from app.modules.robot_lib.trading.pipeline.bybit_symbol_filter import filter_backtest_universe_symbols
+    from app.modules.robot_lib.trading.pipeline.historical_liquidity import list_bybit_symbols_from_cache
+    from app.modules.robot_lib.universe import resolve_crypto_symbols
 
     explicit = resolve_crypto_symbols(config)
     if explicit:

@@ -35,6 +35,7 @@ async def create_api_key(
                 "testnet": key_data.testnet,
                 "account_type": key_data.account_type,
             },
+            actor=service.ACTOR_APIKEY_CREATE,
         )
         return key
     except ValueError as e:
@@ -141,24 +142,25 @@ async def reveal_api_key(
     return schemas.ApiKeyRevealResponse(**revealed)
 
 
-@router.post("/update/{key_id}", response_model=schemas.ApiKeyResponse)
-async def update_api_key(
-        key_id: int,
-        key_data: schemas.ApiKeyUpdate,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user),
-):
-    """Обновление названия или статуса ключа."""
-    updated = service.api_key_service.update_key(
-        db=db,
-        key_id=key_id,
-        user_id=current_user.id,
-        name=key_data.name,
-        status=key_data.status,
-    )
-    if updated is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
-    return updated
+# Update API key (name/status) — отключено; create/delete + test-stored покрывают сценарии UI.
+# @router.post("/update/{key_id}", response_model=schemas.ApiKeyResponse)
+# async def update_api_key(
+#         key_id: int,
+#         key_data: schemas.ApiKeyUpdate,
+#         db: Session = Depends(get_db),
+#         current_user: User = Depends(get_current_user),
+# ):
+#     """Обновление названия или статуса ключа."""
+#     updated = service.api_key_service.update_key(
+#         db=db,
+#         key_id=key_id,
+#         user_id=current_user.id,
+#         name=key_data.name,
+#         status=key_data.status,
+#     )
+#     if updated is None:
+#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")
+#     return updated
 
 
 @router.post("/delete/{key_id}", status_code=status.HTTP_200_OK)
@@ -168,7 +170,9 @@ async def delete_api_key(
         current_user: User = Depends(get_current_user)
 ):
     """Деактивация API ключа."""
-    success = service.api_key_service.deactivate_key(db, key_id, current_user.id)
+    success = service.api_key_service.deactivate_key(
+        db, key_id, current_user.id, actor=service.ACTOR_APIKEY_DELETE,
+    )
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

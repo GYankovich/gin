@@ -11,8 +11,8 @@ os.environ.setdefault("SECRET_KEY", "test")
 
 from datetime import datetime, timezone
 
-from app.modules.robots_v2.audit_pnl import filter_round_trips_by_range
-from app.modules.robots_v2.audit_queries import (
+from app.modules.robots.audit_pnl import filter_round_trips_by_range
+from app.modules.robots.audit_queries import (
     build_count_cycles_query,
     build_count_decisions_query,
     build_count_fills_query,
@@ -22,7 +22,7 @@ from app.modules.robots_v2.audit_queries import (
     build_list_fills_query,
     build_list_orders_query,
 )
-from app.modules.robots_v2.schemas import RobotV2AuditRequest
+from app.modules.robots.schemas import RobotV2AuditRequest
 
 START = datetime(2026, 10, 1, 21, 0, tzinfo=timezone.utc)
 END = datetime(2026, 10, 22, 21, 0, tzinfo=timezone.utc)

@@ -3,7 +3,7 @@
 **Status:** Approved for design/implementation (defaults locked 2026-10-05)  
 **Surface:** `/robots/:id/monitor` — `MonitorSummaryCard` («Сводка за день») inside `RobotV2MonitorPage`  
 **API:** `GET /api/v2/robots/{id}/status` (`RobotV2Service.get_status`)  
-**Extends:** robots_v2 monitor as-built; no billing/auth changes
+**Extends:** robots monitor as-built; no billing/auth changes
 
 ---
 
@@ -94,7 +94,7 @@ Robot #13 (paper/live-capable with token binding) makes this concrete: operators
 | State | What to show | Source |
 |-------|--------------|--------|
 | Paper, never started, no `lastVirtualCapital` | No Equity/Cash tiles (or single «Нет данных») | — |
-| Paper, idle, `lastVirtualCapital` set | Equity ≈ Cash ≈ last capital; label paper | `robots_v2.metadata.lastVirtualCapital` |
+| Paper, idle, `lastVirtualCapital` set | Equity ≈ Cash ≈ last capital; label paper | `robots.metadata.lastVirtualCapital` |
 | Paper, active session | Live ledger equity/cash from session snap | session manager |
 | Paper, just stopped | Prefer last session equity/cash if still in process memory; else fall back to `lastVirtualCapital` | **Resolved:** on soft/hard stop, write final ledger equity into `metadata.lastVirtualCapital` when available (cheap); idle then shows end-of-session capital |
 
@@ -127,7 +127,7 @@ Robot #13 (paper/live-capable with token binding) makes this concrete: operators
 
 | Store | Use |
 |-------|-----|
-| `robots_v2.metadata.lastVirtualCapital` | Paper idle capital (already written on launch) |
+| `robots.metadata.lastVirtualCapital` | Paper idle capital (already written on launch) |
 | In-memory session snap `equity` / `cash` | Active session |
 | In-process `_IDLE_BROKER_CACHE` | Idle live broker cash/equity/positions |
 
@@ -221,7 +221,7 @@ sequenceDiagram
   participant UI as Monitor UI [ref: R-1]
   participant API as GET status [ref: R-2]
   participant SM as SessionManager
-  participant DB as robots_v2 metadata
+  participant DB as robots metadata
   participant BR as Broker adapter
 
   UI->>API: GET /robots/{id}/status

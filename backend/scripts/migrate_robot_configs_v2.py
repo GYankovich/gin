@@ -32,7 +32,7 @@ from app.core.config import settings
 
 from app.core.database import SessionLocal
 
-from app.modules.robots.config.migration import migrate_robot_config_row
+from app.modules.robot_lib.config.migration import migrate_robot_config_row
 
 
 

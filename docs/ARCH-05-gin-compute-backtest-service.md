@@ -3,7 +3,7 @@
 **Версия:** 0.7  
 **Дата:** 2026-10-02  
 **Статус:** A + A.2 + B soft + C + **legacy cut complete** (history-backtest HTTP/job/engines gone); prod engine = V2 `BacktestHost` only  
-**Связь:** `[ref: BRD-ARCH-02]`, `[ref: ARCH-01]`, текущий код V2 (`robots_v2/backtest/*`), recommendations (`optimize/*`)
+**Связь:** `[ref: BRD-ARCH-02]`, `[ref: ARCH-01]`, текущий код V2 (`robots/backtest/*`), recommendations (`optimize/*`)
 
 ---
 
@@ -340,12 +340,12 @@ sequenceDiagram
 
 | Модуль | Действие |
 |--------|----------|
-| `robots_v2/backtest/service.py` | `start`: только `create_db_run` + `enqueue_background_job`; убрать `asyncio.create_task` и sync execute |
-| `robots_v2/backtest/persist.py` | без изменений контракта; worker пишет сюда |
-| `robots_v2/backtest/host.py` | вызывается **только** из worker handler |
-| `robots_v2/backtest/store.py` | optional local cache; status API читает **DB first** |
+| `robots/backtest/service.py` | `start`: только `create_db_run` + `enqueue_background_job`; убрать `asyncio.create_task` и sync execute |
+| `robots/backtest/persist.py` | без изменений контракта; worker пишет сюда |
+| `robots/backtest/host.py` | вызывается **только** из worker handler |
+| `robots/backtest/store.py` | optional local cache; status API читает **DB first** |
 | `core/background_jobs/handlers.py` | зарегистрировать `backtest_run` → handler |
-| NEW `robots_v2/backtest/worker_handler.py` | claim payload → prefetch → host → persist → progress updates |
+| NEW `robots/backtest/worker_handler.py` | claim payload → prefetch → host → persist → progress updates |
 | `core/config.py` | knobs §5.1 (минимум: timeout, max user running check) |
 | `main.py` lifespan | `WORKER_EMBEDDED_ENABLED=false` в API-деплое; worker — отдельный process |
 | NEW `backend/app/workers/compute.py` | `python -m app.workers.compute` (= `run.py worker --lane heavy`) |
@@ -354,7 +354,7 @@ sequenceDiagram
 
 | Модуль | Почему |
 |--------|--------|
-| `robots_v2/router.py` backtest routes | facade для UI |
+| `robots/router.py` backtest routes | facade для UI |
 | `recommendations/*` plan/rank/UX | лёгкие |
 | `recommendations/optimization_runner.py` | **следующий PR** (фаза A.2): перевести на `backtest_run` |
 | `osengine/*` | worker процесс импортирует; API-процесс перестаёт auto-start OsEngine (флаг) |
@@ -419,13 +419,13 @@ gin-compute: python -m app.workers.compute LANE_HEAVY_CONCURRENCY=1..N
 | Контракт / идея | Сейчас |
 |-----------------|--------|
 | Start V2 | `BacktestService.start` → enqueue `backtest_run` (`priority` interactive/batch); also `POST /api/compute/v1/runs` |
-| Persist / list / compare | `robots_v2/backtest/persist.py` |
-| Schemas UI | `robots_v2/backtest/schemas.py` |
+| Persist / list / compare | `robots/backtest/persist.py` |
+| Schemas UI | `robots/backtest/schemas.py` |
 | Control API (C) | `modules/compute/` → `/api/compute/v1` |
 | Heavy lane | `core/background_jobs/worker.py` `LANE_HEAVY` + `app.workers.compute` |
 | Optimization enqueue | `recommendations/optimization_runner.py` → `BacktestService.start(priority=batch)` |
-| Prefetch / candle IO | `robots_v2/backtest/candle_prefetch.py` + `candle_io.py` (legacy shim в `robots/.../candle_prefetch.py`) |
-| Cancel | `robots_v2/backtest/cancel.py` (+ aliases на `service`) |
+| Prefetch / candle IO | `robots/backtest/candle_prefetch.py` + `candle_io.py` (legacy shim в `robots/.../candle_prefetch.py`) |
+| Cancel | `robots/backtest/cancel.py` (+ aliases на `service`) |
 
 ---
 
@@ -436,7 +436,7 @@ gin-compute: python -m app.workers.compute LANE_HEAVY_CONCURRENCY=1..N
 | 0.1 | 2026-09-24 | Первый черновик: контракт, квоты, состав PR фазы A |
 | 0.2 | 2026-09-24 | Фаза A в коде: `backtest_run` job, enqueue-only start, `python -m app.workers.compute` |
 | 0.3 | 2026-09-28 | Фаза A.2: optimization → `BacktestService.start(priority=batch)` + v4 param grid |
-| 0.4 | 2026-09-28 | Legacy history-backtest cut: candle IO → `robots_v2/backtest/`; removed `run_robot_history_backtest` + engine/persist stack |
+| 0.4 | 2026-09-28 | Legacy history-backtest cut: candle IO → `robots/backtest/`; removed `run_robot_history_backtest` + engine/persist stack |
 | 0.5 | 2026-09-29 | Phase B soft: `OSENGINE_AUTO_START` default false; compute worker starts OsEngine via `OSENGINE_AUTO_START_ON_COMPUTE` |
 | 0.6 | 2026-09-29 | Phase C: public `/api/compute/v1` (runs, batches, queue metrics); smoke script `scripts/smoke_arch05_compute.py` |
 | 0.7 | 2026-10-02 | Cut complete: removed `history_backtest` job/aliases, `trading/engines/*`, `trading/data_provider/*`, `/testing` UI; V2-only as-built |

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from app.modules.robots.trading.contracts import ExecutionMode
-from app.modules.robots.trading.session import TradingSession
+from app.modules.robot_lib.trading.contracts import ExecutionMode
+from app.modules.robot_lib.trading.session import TradingSession
 
 
 class _DummyDb:

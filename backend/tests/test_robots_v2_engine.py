@@ -11,10 +11,10 @@ os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
 from app.modules.trading_core.contracts import Signal
-from app.modules.robots_v2.config.v4_schema import RiskConfig
-from app.modules.robots_v2.engine.paper_ledger import PaperLedger
-from app.modules.robots_v2.risk.adapter import enrich_positions_with_exit_prices, risk_params_from_v4
-from app.modules.robots_v2.risk.engine import RiskEngine
+from app.modules.robots.config.v4_schema import RiskConfig
+from app.modules.robots.engine.paper_ledger import PaperLedger
+from app.modules.robots.risk.adapter import enrich_positions_with_exit_prices, risk_params_from_v4
+from app.modules.robots.risk.engine import RiskEngine
 
 
 def _risk_config() -> RiskConfig:

@@ -73,12 +73,12 @@ async def _start_api_background() -> None:
     else:
         system_log.info("Embedded lane workers отключены (WORKER_EMBEDDED_ENABLED=false)")
 
+    # DMS scheduler intentionally off (Wave 1): filter lib stays for robots universe preview.
     schedulers = [
-        ("portfolio", "app.modules.robots_v2.portfolio.scheduler", "start_portfolio_v2_scheduler"),
-        ("dms", "app.modules.dms.scheduler", "start_dms_scheduler"),
+        ("portfolio", "app.modules.robots.portfolio.scheduler", "start_portfolio_v2_scheduler"),
         ("candle_load", "app.modules.market_data_v1.scheduler", "start_candle_load_scheduler"),
         ("corporate_actions", "app.modules.corporate_actions.scheduler", "start_corporate_actions_scheduler"),
-        ("moex_securities", "app.modules.robots.moex_securities_updater.scheduler", "start_moex_securities_scheduler"),
+        ("moex_securities", "app.modules.robot_lib.moex_securities_updater.scheduler", "start_moex_securities_scheduler"),
         ("osengine_cache_gc", "app.modules.osengine.scheduler", "start_osengine_cache_gc_scheduler"),
     ]
     for name, module_path, fn_name in schedulers:
@@ -92,19 +92,18 @@ async def _start_api_background() -> None:
 
     if settings.ROBOTS_V2_ENABLED and settings.ROBOTS_V2_AUTO_RESUME:
         try:
-            from app.modules.robots_v2.engine.session_resume import resume_robots_v2_sessions
-            asyncio.create_task(resume_robots_v2_sessions(), name="robots_v2_auto_resume")
-            system_log.info("robots_v2 auto-resume scheduled")
+            from app.modules.robots.engine.session_resume import resume_robot_sessions
+            asyncio.create_task(resume_robot_sessions(), name="robots_v2_auto_resume")
+            system_log.info("robots auto-resume scheduled")
         except Exception as e:
-            system_log.error("robots_v2 auto-resume schedule failed: %s", e)
+            system_log.error("robots auto-resume schedule failed: %s", e)
 
 
 async def _stop_api_background() -> None:
-    from app.modules.robots_v2.portfolio.scheduler import stop_portfolio_v2_scheduler
-    from app.modules.dms.scheduler import stop_dms_scheduler
+    from app.modules.robots.portfolio.scheduler import stop_portfolio_v2_scheduler
     from app.modules.market_data_v1.scheduler import stop_candle_load_scheduler
     from app.modules.corporate_actions.scheduler import stop_corporate_actions_scheduler
-    from app.modules.robots.moex_securities_updater.scheduler import stop_moex_securities_scheduler
+    from app.modules.robot_lib.moex_securities_updater.scheduler import stop_moex_securities_scheduler
     from app.modules.osengine.scheduler import stop_osengine_cache_gc_scheduler
     from app.core.background_jobs.worker import stop_embedded_lane_workers
     from app.core.mail_sender import stop_mail_sender
@@ -112,7 +111,6 @@ async def _stop_api_background() -> None:
     stop_mail_sender()
 
     await _stop_background_task("portfolio", stop_portfolio_v2_scheduler())
-    await _stop_background_task("dms", stop_dms_scheduler())
     await _stop_background_task("candle_load", stop_candle_load_scheduler())
     await _stop_background_task("corporate_actions", stop_corporate_actions_scheduler())
     await _stop_background_task("moex_securities", stop_moex_securities_scheduler())
@@ -174,16 +172,15 @@ def _register_api_routers(app: FastAPI) -> None:
     from app.modules.auth.router import router as auth_router
     from app.modules.auth.router import users_router
     from app.modules.tinvest.router import router as tinvest_router
-    from app.modules.robots_v2.router import router as robots_v2_router
-    from app.modules.robots_v2.universe.router import router as universe_v2_router
-    from app.modules.robots_v2.strategy.router import router as strategy_v2_router
+    from app.modules.robots.router import router as robots_router
+    from app.modules.robots.universe.router import router as universe_router
+    from app.modules.robots.strategy.router import router as strategy_router
     from app.modules.analytics.router import router as analytics_router
     from app.modules.recommendations.router import router as recommendations_router
     from app.modules.market_data.router import router as market_router
     from app.modules.settings.router import router as apikey_router
     from app.modules.dictionary.router import router as dictionary_router
     from app.modules.dashboard.router import router as dashboard_router
-    from app.modules.dms.router import router as dms_router
     from app.modules.market_data_v1.router import router as market_data_v1_router
     from app.modules.bybit.router import router as bybit_router
     from app.modules.osengine.router import router as osengine_router
@@ -193,16 +190,16 @@ def _register_api_routers(app: FastAPI) -> None:
     app.include_router(change_pass_router, prefix="/api", tags=["auth"])
     app.include_router(users_router, prefix="/api", tags=["users"])
     app.include_router(tinvest_router, prefix="/api/tinvest", tags=["tinvest"])
-    app.include_router(robots_v2_router, prefix="/api", tags=["robots-v2"])
-    app.include_router(universe_v2_router, prefix="/api", tags=["universe-v2"])
-    app.include_router(strategy_v2_router, prefix="/api", tags=["strategy-v2"])
+    app.include_router(robots_router, prefix="/api", tags=["robots"])
+    app.include_router(universe_router, prefix="/api", tags=["universe"])
+    app.include_router(strategy_router, prefix="/api", tags=["strategy"])
     app.include_router(analytics_router, prefix="/api", tags=["analytics"])
     app.include_router(recommendations_router, prefix="/api", tags=["recommendations"])
     app.include_router(market_router, prefix="/api", tags=["market"])
     app.include_router(apikey_router, prefix="/api", tags=["apikey"])
     app.include_router(dictionary_router, prefix="/api", tags=["dictionary"])
     app.include_router(dashboard_router, prefix="/api", tags=["dashboard"])
-    app.include_router(dms_router, prefix="/api", tags=["dms"])
+    # /api/dms unmounted (Wave 1); dms_service.preview_pipeline_setup remains for universe.
     app.include_router(market_data_v1_router, prefix="/api")
     app.include_router(bybit_router, prefix="/api")
     app.include_router(osengine_router, prefix="/api")
@@ -226,7 +223,7 @@ def create_api_app() -> FastAPI:
 
     @app.get("/api/scheduler/portfolio/run")
     async def force_portfolio_update():
-        from app.modules.robots_v2.portfolio.scheduler import portfolio_v2_scheduler
+        from app.modules.robots.portfolio.scheduler import portfolio_v2_scheduler
 
         return await portfolio_v2_scheduler.run_once()
 

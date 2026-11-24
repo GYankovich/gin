@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
 
-from app.modules.robots.trading.pipeline.historical_liquidity import (
+from app.modules.robot_lib.trading.pipeline.historical_liquidity import (
     avg_daily_value_rub_from_candles,
     crypto_metrics_as_of_date,
 )
@@ -19,7 +19,7 @@ def test_avg_daily_value_rub_from_candles(monkeypatch):
         ]
 
     monkeypatch.setattr(
-        "app.modules.robots.trading.pipeline.historical_liquidity.query_candles_cache_rows",
+        "app.modules.robot_lib.trading.pipeline.historical_liquidity.query_candles_cache_rows",
         _fake_query,
     )
     avg = avg_daily_value_rub_from_candles(
@@ -44,19 +44,19 @@ def test_crypto_metrics_as_of_date(monkeypatch):
         ]
 
     monkeypatch.setattr(
-        "app.modules.robots.trading.pipeline.historical_liquidity.query_candles_cache_rows",
+        "app.modules.robot_lib.trading.pipeline.historical_liquidity.query_candles_cache_rows",
         _fake_query,
     )
     monkeypatch.setattr(
-        "app.modules.robots.crypto_universe.load_historical_funding_avg",
+        "app.modules.robot_lib.crypto_universe.load_historical_funding_avg",
         lambda *a, **k: None,
     )
     monkeypatch.setattr(
-        "app.modules.robots.crypto_universe.load_historical_oi_usd",
+        "app.modules.robot_lib.crypto_universe.load_historical_oi_usd",
         lambda *a, **k: None,
     )
     monkeypatch.setattr(
-        "app.modules.robots.crypto_universe.load_historical_lsr",
+        "app.modules.robot_lib.crypto_universe.load_historical_lsr",
         lambda *a, **k: None,
     )
     m = crypto_metrics_as_of_date(

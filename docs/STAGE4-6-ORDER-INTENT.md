@@ -20,13 +20,13 @@ Risk exits (Stage4 adapter)
 
 ## Контракты
 
-- `OrderIntent` — [`contracts.py`](../backend/app/modules/robots/trading/contracts.py): `entry` | `exit_sl_tp` | `exit_strategy` | `flatten`
-- `SymbolGuard` — [`symbol_guard.py`](../backend/app/modules/robots/trading/symbol_guard.py)
-- `RiskManager.plan_sl_tp_exit_intents` / `size_live_strategy_signal` — [`risk/manager.py`](../backend/app/modules/robots/trading/risk/manager.py)
+- `OrderIntent` — [`contracts.py`](../backend/app/modules/robot_lib/trading/contracts.py): `entry` | `exit_sl_tp` | `exit_strategy` | `flatten`
+- `SymbolGuard` — [`symbol_guard.py`](../backend/app/modules/robot_lib/trading/symbol_guard.py)
+- `RiskManager.plan_sl_tp_exit_intents` / `size_live_strategy_signal` — [`risk/manager.py`](../backend/app/modules/robot_lib/trading/risk/manager.py)
 
 ## Оркестрация
 
-[`trading_core.run_single_trading_cycle`](../backend/app/modules/robots/trading/core/trading_core.py):
+[`trading_core.run_single_trading_cycle`](../backend/app/modules/robot_lib/trading/core/trading_core.py):
 
 1. `_plan_exit_intents` (Stage4 decision)
 2. `_generate_signals` (Stage5)

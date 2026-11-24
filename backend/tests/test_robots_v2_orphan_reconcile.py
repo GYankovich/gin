@@ -12,10 +12,10 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots.trading.contracts import OrderIntent
-from app.modules.robots_v2.engine.execution import ExecutionService, RestingOrder
-from app.modules.robots_v2.engine.paper_ledger import PaperLedger
-from app.modules.robots_v2.engine.resting_orphans import select_orphan_resting_tickers
+from app.modules.robot_lib.trading.contracts import OrderIntent
+from app.modules.robots.engine.execution import ExecutionService, RestingOrder
+from app.modules.robots.engine.paper_ledger import PaperLedger
+from app.modules.robots.engine.resting_orphans import select_orphan_resting_tickers
 
 
 def test_select_orphan_exit_without_position():
@@ -231,8 +231,8 @@ def test_market_exit_strategy_clears_resting():
 
 
 def test_reconcile_fail_streak_halts_risk():
-    from app.modules.robots_v2.engine.session import TradingSessionV2
-    from app.modules.robots_v2.risk.engine import SessionRiskState
+    from app.modules.robots.engine.session import TradingSessionV2
+    from app.modules.robots.risk.engine import SessionRiskState
 
     session = TradingSessionV2(
         robot_id=99,
@@ -269,7 +269,7 @@ def test_reconcile_fail_streak_halts_risk():
 
 def test_session_reads_reconcile_halt_after_from_settings():
     from unittest.mock import patch
-    from app.modules.robots_v2.engine.session import TradingSessionV2
+    from app.modules.robots.engine.session import TradingSessionV2
 
     with patch("app.core.config.settings") as mock_settings:
         mock_settings.ROBOTS_V2_RECONCILE_FAIL_HALT_AFTER = 5

@@ -14,8 +14,8 @@
 - `TradingScheduler` переведен на вызов orchestrator вместо прямого `create_trading_session()`.
 
 #### Артефакты
-- `backend/app/modules/robots/trading/runtime/orchestrator.py`
-- `backend/app/modules/robots/trading/scheduler.py`
+- `backend/app/modules/robot_lib/trading/runtime/orchestrator.py`
+- `backend/app/modules/robot_lib/trading/scheduler.py`
 
 #### DoD (из release map)
 - [x] Live path документирован (entrypoint: `TradingScheduler` → `TradingOrchestrator.run_live_session` → `TradingSession.run`)
@@ -32,7 +32,7 @@
 - Для вызовов DB, сигналов, ордеров, live-event'ов используются методы `host` (интерфейс), а не прямые импорты моделей/ORM/WS внутри `TradingCore`.
 
 #### Артефакты
-- `backend/app/modules/robots/trading/core/trading_core.py`
+- `backend/app/modules/robot_lib/trading/core/trading_core.py`
 - `backend/tests/test_trading_core.py`
 
 #### DoD (из release map)
@@ -45,11 +45,11 @@
 
 #### Что сделано
 - Подтверждено, что runtime использует единый путь через `execution_service_for_session()` / `LiveExecutionService` (Stage6).
-- Убран ре-экспорт legacy `LiveExecution` из `backend/app/modules/robots/trading/execution/__init__.py`, чтобы исключить случайное использование в prod.
+- Убран ре-экспорт legacy `LiveExecution` из `backend/app/modules/robot_lib/trading/execution/__init__.py`, чтобы исключить случайное использование в prod.
 
 #### Артефакты
-- `backend/app/modules/robots/trading/execution/service.py`
-- `backend/app/modules/robots/trading/execution/__init__.py`
+- `backend/app/modules/robot_lib/trading/execution/service.py`
+- `backend/app/modules/robot_lib/trading/execution/__init__.py`
 - `backend/tests/test_execution_service.py`
 
 #### DoD (из release map)
@@ -63,12 +63,12 @@
 
 #### Что сделано
 - Проверено, что в `backend/app` нет прод-импортов и вызовов `unified_runner`/`run_unified_history_backtest`.
-- Пакет `backend/app/modules/robots/trading/engines/*` (включая `BacktestEngine`, `unified_runner`) **удалён** (2026-10-02, ARCH-05 cut complete).
+- Пакет `backend/app/modules/robot_lib/trading/engines/*` (включая `BacktestEngine`, `unified_runner`) **удалён** (2026-10-02, ARCH-05 cut complete).
 - Prod backtest — только V2 `BacktestHost`; live/smoke replay — `TradingOrchestrator` + `session_backtest`.
 
 #### Артефакты
-- `backend/app/modules/robots_v2/backtest/host.py`
-- `backend/app/modules/robots/trading/runtime/orchestrator.py`
+- `backend/app/modules/robots/backtest/host.py`
+- `backend/app/modules/robot_lib/trading/runtime/orchestrator.py`
 
 #### DoD (из release map)
 - [x] `unified_runner` не используется из prod-кода.
@@ -119,11 +119,11 @@
 - **Status**: ✅ done
 
 #### Что сделано
-- В прод-ходах MOEX используется единый market-data слой через `app.modules.robots.trading.data.get_market_data_facade()` (`MarketDataFacade`).
-- Legacy-пакет `backend/app/modules/robots/trading/data_provider/*` **удалён** (2026-10-02); backtest prefetch — `trading_core/data/providers` + `robots_v2/backtest/candle_*`.
+- В прод-ходах MOEX используется единый market-data слой через `app.modules.robot_lib.trading.data.get_market_data_facade()` (`MarketDataFacade`).
+- Legacy-пакет `backend/app/modules/robot_lib/trading/data_provider/*` **удалён** (2026-10-02); backtest prefetch — `trading_core/data/providers` + `robots/backtest/candle_*`.
 
 #### Артефакты
-- `backend/app/modules/robots/trading/data/` (активный прод stack: `MarketDataFacade`)
+- `backend/app/modules/robot_lib/trading/data/` (активный прод stack: `MarketDataFacade`)
 - `backend/app/modules/trading_core/data/providers/moex_snapshots.py`, `bybit_market.py`
 
 #### DoD (из release map)
@@ -138,19 +138,19 @@
 - **Status**: ✅ done (registry foundation)
 
 #### Что сделано
-- Добавлен backend profile registry в `backend/app/modules/robots/config/profiles/`:
+- Добавлен backend profile registry в `backend/app/modules/robot_lib/config/profiles/`:
   - `PROFILE_REGISTRY`
   - `resolve_schema_profile(...)`
   - `validate_robot_config(...)`
   - `dump_robot_config(...)`
 - Добавлен профиль `type2_tinvest` (bridge на основе текущей v2-схемы `TradingRobotConfigV2`) для поэтапного перехода к v3 typed profiles.
 - Текущая сервисная валидация (`RobotService._validate_robot_config`) переведена на registry API вместо прямого `ensure_config_v2 + GrainSeedConfig.model_validate`.
-- Публичный re-export новых API добавлен в `backend/app/modules/robots/config/__init__.py`.
+- Публичный re-export новых API добавлен в `backend/app/modules/robot_lib/config/__init__.py`.
 
 #### Артефакты
-- `backend/app/modules/robots/config/profiles/__init__.py`
-- `backend/app/modules/robots/config/profiles/type2_tinvest.py`
-- `backend/app/modules/robots/config/__init__.py`
+- `backend/app/modules/robot_lib/config/profiles/__init__.py`
+- `backend/app/modules/robot_lib/config/profiles/type2_tinvest.py`
+- `backend/app/modules/robot_lib/config/__init__.py`
 - `backend/app/modules/robots/service.py`
 - `backend/tests/test_config_profiles.py`
 
@@ -167,18 +167,18 @@
 
 #### Что сделано
 - Добавлены typed-модели MOEX-конфига:
-  - `backend/app/modules/robots/config/risk_moex.py` → `MoexRiskConfig`
-  - `backend/app/modules/robots/config/costs_moex.py` → `MoexCostsConfig`
+  - `backend/app/modules/robot_lib/config/risk_moex.py` → `MoexRiskConfig`
+  - `backend/app/modules/robot_lib/config/costs_moex.py` → `MoexCostsConfig`
 - Профиль `type2_tinvest` переведен на typed-поля:
   - `risk: MoexRiskConfig`
   - `costs: MoexCostsConfig`
-- Обновлены экспорты `backend/app/modules/robots/config/__init__.py` для новых typed-моделей.
+- Обновлены экспорты `backend/app/modules/robot_lib/config/__init__.py` для новых typed-моделей.
 
 #### Артефакты
-- `backend/app/modules/robots/config/risk_moex.py`
-- `backend/app/modules/robots/config/costs_moex.py`
-- `backend/app/modules/robots/config/profiles/type2_tinvest.py`
-- `backend/app/modules/robots/config/__init__.py`
+- `backend/app/modules/robot_lib/config/risk_moex.py`
+- `backend/app/modules/robot_lib/config/costs_moex.py`
+- `backend/app/modules/robot_lib/config/profiles/type2_tinvest.py`
+- `backend/app/modules/robot_lib/config/__init__.py`
 - `backend/tests/test_config_profiles.py`
 
 #### DoD (из release map)
@@ -207,7 +207,7 @@
 #### Артефакты
 - `backend/app/modules/robots/router.py`
 - `backend/app/modules/robots/service.py`
-- `backend/app/modules/robots/schemas.py`
+- `backend/app/modules/robot_lib/schemas.py`
 - `backend/tests/test_robot_service_validate_config.py`
 
 #### DoD (из release map)
@@ -238,9 +238,9 @@
   - обновляет `robots.config` при изменениях
 
 #### Артефакты
-- `backend/app/modules/robots/config/migration.py`
-- `backend/app/modules/robots/config/__init__.py`
-- `backend/app/modules/robots/schemas.py`
+- `backend/app/modules/robot_lib/config/migration.py`
+- `backend/app/modules/robot_lib/config/__init__.py`
+- `backend/app/modules/robot_lib/schemas.py`
 - `backend/app/modules/robots/service.py`
 - `backend/app/modules/robots/router.py`
 - `backend/tests/test_config_migration.py`
@@ -267,9 +267,9 @@
 - Тесты: `test_export_config_schema_type2_tinvest`, `test_export_config_schema_unknown_profile_raises`
 
 #### Артефакты
-- `backend/app/modules/robots/config/profiles/__init__.py`
-- `backend/app/modules/robots/config/__init__.py`
-- `backend/app/modules/robots/schemas.py`
+- `backend/app/modules/robot_lib/config/profiles/__init__.py`
+- `backend/app/modules/robot_lib/config/__init__.py`
+- `backend/app/modules/robot_lib/schemas.py`
 - `backend/app/modules/robots/router.py`
 - `backend/tests/test_config_profiles.py`
 
@@ -522,7 +522,7 @@
 - **Status**: ✅ done
 
 #### Что сделано
-- Добавлен `backend/app/modules/robots/trading/brokers/bybit.py`:
+- Добавлен `backend/app/modules/robot_lib/trading/brokers/bybit.py`:
   - реализация `BrokerFacade` для `broker_type=bybit`
   - REST методы foundation уровня:
     - `get_accounts`, `get_portfolio`, `get_free_funds`, `get_candles`
@@ -567,7 +567,7 @@
 - **Status**: ✅ done
 
 #### Что сделано
-- Добавлен `backend/app/modules/robots/trading/data/providers/bybit_market.py`:
+- Добавлен `backend/app/modules/robot_lib/trading/data/providers/bybit_market.py`:
   - `ensure_candles_bybit_market(...)` для загрузки historical kline из ByBit
   - нормализация kline rows
   - upsert в `candles_cache` с ключом:
@@ -592,7 +592,7 @@
 - **Status**: ✅ done
 
 #### Что сделано
-- В `backend/app/modules/robots/trading/intervals.py` добавлен mapping к ByBit kline:
+- В `backend/app/modules/robot_lib/trading/intervals.py` добавлен mapping к ByBit kline:
   - `strategy_interval_to_bybit_kline(raw|ResolvedInterval) -> str`
   - поддержаны `1/3/5/15/30/60/120/240/D/W/M`
   - fallback на `"5"` для неподдержанных значений.
@@ -666,7 +666,7 @@
 - **Status**: ✅ done
 
 #### Что сделано
-- Добавлен модуль `backend/app/modules/robots/crypto_universe.py`:
+- Добавлен модуль `backend/app/modules/robot_lib/crypto_universe.py`:
   - `score_bybit_tickers(...)` — фильтрация по ликвидности и спреду;
   - `rebuild_crypto_universe(...)` — пересчёт `allowed_symbols` и запись в `robots.config`;
   - поддержаны настраиваемые фильтры из `config.crypto_universe` (`min_turnover_24h_usd`, `max_spread_pct`, `limit`, `category`, `quote_coin`).
@@ -684,7 +684,7 @@
 - **Status**: ✅ done
 
 #### Что сделано
-- В `backend/app/modules/robots/universe_jobs.py` добавлен `rebuild_crypto_screening(...)`.
+- В `backend/app/modules/robot_lib/universe_jobs.py` добавлен `rebuild_crypto_screening(...)`.
 - В `backend/app/modules/robots/service.py` добавлен `run_crypto_screening_job(...)`.
 - Job сохраняет результат в `robots.config` (JSONB), включая `allowed_symbols`.
 
@@ -700,7 +700,7 @@
 #### Что сделано
 - В `backend/app/modules/robots/router.py` добавлен endpoint:
   - `POST /api/robots/jobs/crypto-screening`
-- В `backend/app/modules/robots/schemas.py` добавлена схема ответа:
+- В `backend/app/modules/robot_lib/schemas.py` добавлена схема ответа:
   - `RobotCryptoScreeningResponse` (`symbols`, `accepted`, `scanned`, `message`, `skipped`).
 
 #### DoD (из release map)
@@ -718,7 +718,7 @@
   - уникальность `(robot_id, trade_date, symbol)`;
   - индексы по `(robot_id, trade_date)` и `filter_result`.
 - Добавлена ORM-модель `CryptoUniverseDaily` в `backend/app/modules/dms/models.py` (аналог `DailyUniverse` для crypto branch).
-- В `backend/app/modules/robots/crypto_universe.py` добавлена запись результатов screening в `crypto_universe_daily`:
+- В `backend/app/modules/robot_lib/crypto_universe.py` добавлена запись результатов screening в `crypto_universe_daily`:
   - daily refresh (delete-by-date + upsert accepted symbols),
   - сохранение основных метрик (`turnover_24h`, `last_price`, `spread_percent`, `meta_payload`).
 
@@ -732,18 +732,18 @@
 - **Status**: ✅ done
 
 #### Что сделано
-- Добавлен профиль `backend/app/modules/robots/config/profiles/type2_bybit.py`:
+- Добавлен профиль `backend/app/modules/robot_lib/config/profiles/type2_bybit.py`:
   - `Type2BybitConfig`,
   - `BybitBrokerConfig`,
   - `CryptoUniverseConfig`,
   - `CryptoSignalGenerationConfig`.
 - Добавлены typed-блоки:
-  - `backend/app/modules/robots/config/risk_crypto.py` → `CryptoRiskConfig`,
-  - `backend/app/modules/robots/config/costs_crypto.py` → `CryptoCostsConfig`.
-- Обновлён profile registry `backend/app/modules/robots/config/profiles/__init__.py`:
+  - `backend/app/modules/robot_lib/config/risk_crypto.py` → `CryptoRiskConfig`,
+  - `backend/app/modules/robot_lib/config/costs_crypto.py` → `CryptoCostsConfig`.
+- Обновлён profile registry `backend/app/modules/robot_lib/config/profiles/__init__.py`:
   - добавлен `type2_bybit` в `PROFILE_REGISTRY`,
   - `resolve_schema_profile(...)` теперь поддерживает `(robot_type=2, broker_type=bybit)`.
-- Обновлены exports в `backend/app/modules/robots/config/__init__.py`.
+- Обновлены exports в `backend/app/modules/robot_lib/config/__init__.py`.
 
 #### Проверка
 - Обновлены тесты `backend/tests/test_config_profiles.py`:
@@ -761,13 +761,13 @@
 - **Status**: ✅ done
 
 #### Что сделано
-- `backend/app/modules/robots/portfolio_updater/robot.py`:
+- `backend/app/modules/robot_lib/portfolio_updater/robot.py`:
   - добавлена ветка выполнения для `broker_type=bybit`,
   - получение unified account/portfolio через `ByBitBrokerFacade`,
   - нормализация wallet balance в формат snapshot и сохранение в `portfolio_snapshots`.
-- `backend/app/modules/robots/portfolio_updater/queries.py`:
+- `backend/app/modules/robot_lib/portfolio_updater/queries.py`:
   - scheduler query теперь возвращает `broker_type` и `token_extra_data`.
-- `backend/app/modules/robots/portfolio_updater/scheduler.py`:
+- `backend/app/modules/robot_lib/portfolio_updater/scheduler.py`:
   - передаёт в robot `broker_type` и `token_extra_data` (для `token_secret`, `testnet`).
 - Добавлен тест `backend/tests/test_portfolio_bybit_robot.py` (нормализация ByBit портфеля в snapshot shape).
 
@@ -782,8 +782,8 @@
 
 #### Что сделано
 - Добавлены profile-схемы:
-  - `backend/app/modules/robots/config/profiles/type1_bybit.py`,
-  - `backend/app/modules/robots/config/profiles/type1_tinvest.py`.
+  - `backend/app/modules/robot_lib/config/profiles/type1_bybit.py`,
+  - `backend/app/modules/robot_lib/config/profiles/type1_tinvest.py`.
 - `PROFILE_REGISTRY` и `resolve_schema_profile(...)` расширены профилями:
   - `type1_tinvest`,
   - `type1_bybit`.
@@ -813,11 +813,11 @@
 - **Status**: ✅ done
 
 #### Что сделано
-- Обновлён `backend/app/modules/robots/trading/session.py`:
+- Обновлён `backend/app/modules/robot_lib/trading/session.py`:
   - `TradingSession` теперь читает bybit-ветку конфига из `signal_generation` и `allowed_symbols/instruments`,
   - live-цикл остается в том же `TradingSession` (без отдельного `ByBitTradingSession`),
   - добавлен scheduled `crypto_universe` refresh (через `run_crypto_screening_job`) для `broker_type=bybit`.
-- Обновлён `backend/app/modules/robots/trading/brokers/bybit.py`:
+- Обновлён `backend/app/modules/robot_lib/trading/brokers/bybit.py`:
   - `get_portfolio(...)` теперь отдает нормализованный payload (`total_amount_portfolio`, `positions`, `free_funds`) совместимый с общими stage-пайпами.
 - Добавлены тесты:
   - `backend/tests/test_trading_session_bybit_config.py`,
@@ -833,7 +833,7 @@
 - **Status**: ✅ done
 
 #### Что сделано
-- Доработан `backend/app/modules/robots/trading/brokers/bybit.py`:
+- Доработан `backend/app/modules/robot_lib/trading/brokers/bybit.py`:
   - добавлена нормализация crypto-interval (`1m/5m/15m/1h/...`) в формат ByBit WS (`1/5/15/60/...`),
   - WS worker сохраняет актуальный интервал подписки и использует его при `force_resubscribe_websocket`,
   - устранён риск silent fallback на `5` для `15m/1h` из crypto-конфига.
@@ -854,7 +854,7 @@
   - `create_order(...)`,
   - `cancel_order(...)`,
   - `get_open_orders(...)`.
-- В `backend/app/modules/robots/trading/brokers/bybit.py` реализованы:
+- В `backend/app/modules/robot_lib/trading/brokers/bybit.py` реализованы:
   - `post_order(...)` (Limit),
   - `post_market_order(...)` (Market),
   - `get_order_state(...)`,
@@ -874,13 +874,13 @@
 - **Status**: ✅ done
 
 #### Что сделано
-- Расширен `backend/app/modules/robots/trading/risk/params.py`:
+- Расширен `backend/app/modules/robot_lib/trading/risk/params.py`:
   - `allow_short: bool`,
   - `max_leverage: float`.
-- Обновлён `backend/app/modules/robots/trading/risk/manager.py`:
+- Обновлён `backend/app/modules/robot_lib/trading/risk/manager.py`:
   - `pre_trade_check` теперь блокирует short при `allow_short=false`,
   - `compute_quantity` ограничивает размер позиции по `max_leverage`.
-- Обновлён live risk-gate в `backend/app/modules/robots/trading/stages/stage6_orders.py`:
+- Обновлён live risk-gate в `backend/app/modules/robot_lib/trading/stages/stage6_orders.py`:
   - SELL без актива разрешается только при `allow_short=true`,
   - добавлен guard `MAX_LEVERAGE_EXCEEDED` (если задан `free_funds` в risk params).
 - Добавлены тесты `backend/tests/test_crypto_risk_extensions.py`:
@@ -897,18 +897,18 @@
 - **Status**: ✅ done
 
 #### Что сделано
-- Обновлён `backend/app/modules/robots/trading/costs.py`:
+- Обновлён `backend/app/modules/robot_lib/trading/costs.py`:
   - `resolve_robot_cost_rates(...)` для `broker_type=bybit` использует `taker_fee_rate` как базовую ставку legacy-path,
   - добавлен `resolve_crypto_fee_rates(...)` для явного maker/taker pair.
 - Обновлён live execution path:
-  - `backend/app/modules/robots/trading/stages/stage6_orders.py` выбирает комиссию:
+  - `backend/app/modules/robot_lib/trading/stages/stage6_orders.py` выбирает комиссию:
     - limit path -> `maker_fee_rate`,
     - market path -> `taker_fee_rate` (через `is_market` API).
 - Обновлён session cost context:
-  - `backend/app/modules/robots/trading/session.py` теперь прокидывает `maker_fee_rate` и `taker_fee_rate` в `cost_params`.
+  - `backend/app/modules/robot_lib/trading/session.py` теперь прокидывает `maker_fee_rate` и `taker_fee_rate` в `cost_params`.
 - Обновлён sim/backtest path:
-  - `backend/app/modules/robots/trading/brokers/sim_backtest.py` поддерживает отдельные `maker_fee_rate`/`taker_fee_rate`,
-  - `backend/app/modules/robots/trading/runtime/orchestrator.py` передает эти ставки в `SimBacktestBrokerFacade`.
+  - `backend/app/modules/robot_lib/trading/brokers/sim_backtest.py` поддерживает отдельные `maker_fee_rate`/`taker_fee_rate`,
+  - `backend/app/modules/robot_lib/trading/runtime/orchestrator.py` передает эти ставки в `SimBacktestBrokerFacade`.
 - Добавлены тесты `backend/tests/test_crypto_costs.py`.
 
 #### DoD (из release map)
@@ -921,7 +921,7 @@
 - **Status**: ✅ done
 
 #### Что сделано
-- Обновлён `backend/app/modules/robots/scheduling/schedule_policy.py`:
+- Обновлён `backend/app/modules/robot_lib/scheduling/schedule_policy.py`:
   - `schedule_type=1` теперь обрабатывается как always-on до проверки weekday/time-window,
   - добавлен fallback: если у робота `broker_type=bybit` и нет явной записи `robot_schedules`, применяется `{"schedule_type": 1}`.
 - Добавлены тесты в `backend/tests/test_schedule_policy.py`:
@@ -938,7 +938,7 @@
 - **Status**: ✅ done
 
 #### Что сделано
-- Обновлён `backend/app/modules/robots/trading/session.py`:
+- Обновлён `backend/app/modules/robot_lib/trading/session.py`:
   - добавлен единый guard `_ensure_allowed_instruments_or_raise()` для проверки инструментов после `refresh_config` и перед запуском live-пайплайна,
   - добавлена broker-aware ошибка `_missing_instruments_error()`:
     - для bybit: `WS_4005_ANALOG: ... allowed_symbols empty ...`,
@@ -990,7 +990,7 @@
 - **Status**: ✅ done
 
 #### Что сделано
-- Обновлён `backend/app/modules/robots/trading/runtime/orchestrator.py`:
+- Обновлён `backend/app/modules/robot_lib/trading/runtime/orchestrator.py`:
   - `_cache_row_to_candle_dict()` — cache row → T-Invest candle dict,
   - `load_candles_by_symbol_from_cache()` — чтение `candles_cache` (`market=bybit`),
   - `prefetch_crypto_candles_for_replay()` — `ensure_candles_bybit_market` + cache read → `candles_by_symbol`,
@@ -1014,7 +1014,7 @@
 - Миграция `alembic/versions/0035_bybit_funding_history.py` — таблица `bybit_funding_history`.
 - Модель `backend/app/modules/bybit/models.py` — `BybitFundingHistory`.
 - `BybitHttpClient.get_funding_history()` — REST `/v5/market/funding/history`.
-- `backend/app/modules/robots/trading/data/providers/bybit_market.py`:
+- `backend/app/modules/robot_lib/trading/data/providers/bybit_market.py`:
   - `fetch_funding_history()`, `ensure_funding_bybit_market()` — upsert + cache-hit skip,
   - `FundingPrefetchStats` в `data/stats.py`.
 - `TradingOrchestrator.prefetch_crypto_funding_for_replay()` + вызов из crypto backtest в `service.py`
@@ -1157,7 +1157,7 @@
 
 #### Что сделано
 - `POST /api/robots/duplicate` — копия робота со `status=inactive`.
-- `backend/app/modules/robots/config/duplicate.py` — merge config, reset universe, broker migration.
+- `backend/app/modules/robot_lib/config/duplicate.py` — merge config, reset universe, broker migration.
 - Копируются: `signal_generation`, `risk`, `costs`, `schedule`; сброс: universe, `allowed_figis`/`allowed_symbols`, `candidate_pool`.
 - UI: кнопка «Дублировать робота» + wizard смены брокера (MOEX ↔ crypto).
 - Тесты: `backend/tests/test_robot_duplicate.py`.

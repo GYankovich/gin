@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.modules.robots_v2.backtest.persist import update_db_run, update_db_run_required
+from app.modules.robots.backtest.persist import update_db_run, update_db_run_required
 
 
 def test_update_db_run_returns_false_on_failure():
@@ -35,8 +35,8 @@ def test_update_db_run_required_ok_on_progress_only_failure():
 
 
 def test_host_empty_timeline_reports_zero_bars():
-    from app.modules.robots_v2.backtest.host import BacktestHost
-    from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
+    from app.modules.robots.backtest.host import BacktestHost
+    from app.modules.robots.config.v4_schema import TradingRobotConfigV4
 
     cfg = TradingRobotConfigV4.model_validate({
         "configVersion": 4,

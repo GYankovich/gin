@@ -9,8 +9,8 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.core.secret_box import open_broker_material
 from app.core.database import SessionLocal
-from app.modules.robots.trading.brokers.factory import create_broker_facade
-from app.modules.robots_v2.engine.broker_factory import persist_token_account_id, resolve_account_id
+from app.modules.robot_lib.trading.brokers.factory import create_broker_facade
+from app.modules.robots.engine.broker_factory import persist_token_account_id, resolve_account_id
 
 TOKEN_ID = 26
 USER_ID = 1
@@ -54,7 +54,7 @@ async def main() -> None:
         db.execute(
             text(f"""
                 UPDATE {schema}.api_tokens
-                SET last_error = :err, last_error_at = NOW(), updated_at = NOW()
+                SET last_error = :err, last_error_at = NOW(), modification_date = NOW()
                 WHERE id = :id
             """),
             {"err": str(exc)[:500], "id": TOKEN_ID},

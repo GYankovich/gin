@@ -11,7 +11,7 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots_v2.engine.session_resume import SESSION_DESIRED_KEY, robots_to_resume
+from app.modules.robots.engine.session_resume import SESSION_DESIRED_KEY, robots_to_resume
 
 
 class _FakeResult:
@@ -50,6 +50,6 @@ def test_robots_to_resume_prefers_session_desired_running():
 def test_robots_to_resume_sql_includes_legacy_open_audit():
     db = _FakeDb([])
     robots_to_resume(db, schema="public")
-    assert "robots_v2_sessions" in db.last_sql
+    assert "robot_sessions" in db.last_sql
     assert SESSION_DESIRED_KEY in db.last_sql
     assert "'stopped'" in db.last_sql or "stopped" in db.last_sql

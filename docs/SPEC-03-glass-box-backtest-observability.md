@@ -1,4 +1,4 @@
-# SPEC-03: Glass-box backtest observability (robots_v2)
+# SPEC-03: Glass-box backtest observability (robots)
 
 **Status:** Approved for design (defaults locked 2026-10-04)  
 
@@ -33,7 +33,7 @@
 
 ### In scope
 
-- Full glass-box **vision** for robots_v2 backtest **results** (and light run-progress honesty), phased **P0 / P1 / P2** inside this one SPEC.
+- Full glass-box **vision** for robots backtest **results** (and light run-progress honesty), phased **P0 / P1 / P2** inside this one SPEC.
 - Screen inventory for redesigned results on existing route `/robots/:id/backtest`.
 - API: audit of current `GET …/backtest/runs/{id}` vs additive fields/endpoints.
 - Persist: prefer `public.backtest_*` + `metrics_summary` / signal payloads; new tables only where phases cannot work.
@@ -365,7 +365,7 @@ Additive fields on existing v2 routes; no URI bump. Deprecate misleading `execut
 ```mermaid
 flowchart LR
   UI[RobotV2BacktestPage]
-  API[GIN App robots_v2 API]
+  API[GIN App robots API]
   PG[(PostgreSQL public.backtest_*)]
   W[Compute worker BacktestHost]
   UI -->|GET details / signals / cycle| API

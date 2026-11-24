@@ -73,7 +73,7 @@ Before coding a **new page or major layout**:
 Когда в задаче фигурирует вкладка **«Тестирование»** / **`/testing`** / history-backtest:
 
 1. Прочитать **`docs/BRD-ARCH-02-unified-backtest-testing-spec.md`** (шапка — версия): **§4.0–4.3** (форма), затем **§10** (порядок работ и ограничения).
-2. Прочитать **`docs/ui/TESTING-UX-REFACTOR-SPEC.md`**, включая **§7.4** (пресет риска без робота = defaults `GrainSeedRisk` в `backend/app/modules/robots/schemas.py`).
+2. Прочитать **`docs/ui/TESTING-UX-REFACTOR-SPEC.md`**, включая **§7.4** (пресет риска без робота = defaults `GrainSeedRisk` в `backend/app/modules/robot_lib/schemas.py`).
 3. Контракт HTTP и схемы — **§9.1–9.5** того же BRD и **`GET /api/openapi.json`** после поднятого backend.
 4. Кодовая точка входа: `frontend/src/pages/testing/`, `frontend/src/pages/TestingPage.tsx`, хуки и сервисы, указанные в UI-спеке §2.1.
 

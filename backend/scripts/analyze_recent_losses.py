@@ -26,8 +26,8 @@ def main() -> None:
                 f"""
                 SELECT f.filled_at, f.ticker, f.side, f.quantity, f.price, f.pnl, f.kind,
                        f.order_id, o.broker_order_id
-                FROM {schema}.robots_v2_fills f
-                LEFT JOIN {schema}.robots_v2_orders o ON o.id = f.order_id
+                FROM {schema}.robot_fills f
+                LEFT JOIN {schema}.robot_orders o ON o.id = f.order_id
                 WHERE f.robot_id = :rid AND f.filled_at >= :since
                 ORDER BY f.filled_at DESC
                 LIMIT :lim
@@ -48,7 +48,7 @@ def main() -> None:
             text(
                 f"""
                 SELECT f.filled_at, f.ticker, f.side, f.quantity, f.price, f.pnl, f.kind
-                FROM {schema}.robots_v2_fills f
+                FROM {schema}.robot_fills f
                 WHERE f.robot_id = :rid AND f.filled_at >= :since
                 ORDER BY f.filled_at ASC
                 """
@@ -107,7 +107,7 @@ def main() -> None:
                 text(
                     f"""
                     SELECT d.created_at, d.ticker, d.stage, d.code, d.message, d.context
-                    FROM {schema}.robots_v2_decisions d
+                    FROM {schema}.robot_decisions d
                     WHERE d.robot_id = :rid
                       AND d.ticker = ANY(:tickers)
                       AND d.created_at >= :since
@@ -153,7 +153,7 @@ def main() -> None:
                     sig = db.execute(
                         text(
                             f"""
-                            SELECT created_at, side, reason, price FROM {schema}.robots_v2_signals
+                            SELECT created_at, side, reason, price FROM {schema}.robot_signals
                             WHERE robot_id = :rid AND ticker = :t
                               AND created_at BETWEEN :t0 AND :t1
                             ORDER BY created_at DESC LIMIT 1

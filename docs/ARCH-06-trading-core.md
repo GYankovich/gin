@@ -22,9 +22,9 @@
 | Риск, брокеры, market data, sim/logging | Стратегии grain_seed / session orchestration |
 | | Отбор universe (отдельный шаг) |
 
-**Правило:** `trading_core` не импортирует `robots` / `robots_v2`.
+**Правило:** `trading_core` не импортирует `robots` / `robots`.
 
-**Prod path:** UI `/robots` → `/api/v2/robots` → `robots_v2` (+ `trading_core`). Legacy v1 HTTP unmounted.
+**Prod path:** UI `/robots` → `/api/v2/robots` → `robots` (+ `trading_core`). Legacy v1 HTTP unmounted.
 
 ## 3. Волны
 
@@ -38,11 +38,11 @@
 
 ## 4. Совместимость
 
-Старые пути `app.modules.robots.trading.{contracts,intervals,costs,brokers,risk,data,...}` —
-тонкие shim’ы на `trading_core`. Новый код (`robots_v2`) импортирует `trading_core` напрямую.
+Старые пути `app.modules.robot_lib.trading.{contracts,intervals,costs,brokers,risk,data,...}` —
+тонкие shim’ы на `trading_core`. Новый код (`robots`) импортирует `trading_core` напрямую.
 
 History-backtest monolith (`engine.py`, `unified_runner`, `history_backtest_robot`) **удалён**.
-Prod backtest: `robots_v2.backtest` + job `backtest_run`.
+Prod backtest: `robots.backtest` + job `backtest_run`.
 
 ## Changelog
 

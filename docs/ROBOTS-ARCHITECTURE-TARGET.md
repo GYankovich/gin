@@ -127,20 +127,20 @@ flowchart TB
 |--------|------|------------|
 | REST API роботов | `backend/app/modules/robots/router.py` | CRUD, config, backtest, jobs |
 | Сервис роботов | `backend/app/modules/robots/service.py` | бизнес-операции, оркестрация job |
-| Схемы config v2 | `backend/app/modules/robots/config/v2_schema.py` | П1/П2/П3 + legacy mirror |
-| Trading orchestrator | `backend/app/modules/robots/trading/runtime/orchestrator.py` | live + backtest entry |
-| Trading session | `backend/app/modules/robots/trading/session.py` | live loop (WS + trade worker) |
-| Backtest session | `backend/app/modules/robots/trading/session_backtest.py` | bar replay |
-| Trading core | `backend/app/modules/robots/trading/core/trading_core.py` | один торговый цикл |
-| Strategies | `backend/app/modules/robots/trading/strategies/*` | grain_seed, momentum_breakout, reversion_to_ma |
-| Risk | `backend/app/modules/robots/trading/risk/*` | RiskManager, RiskParams |
-| Execution | `backend/app/modules/robots/trading/execution/*` | LiveExecutionService, SimExecution |
-| Indicators | `backend/app/modules/robots/trading/indicators/*` | bootstrap, on_closed_candle |
-| Broker factory | `backend/app/modules/robots/trading/brokers/factory.py` | `create_broker_facade(type)` |
-| Broker routing | `backend/app/modules/robots/trading/brokers/routing.py` | normalize, filter instruments |
+| Схемы config v2 | `backend/app/modules/robot_lib/config/v2_schema.py` | П1/П2/П3 + legacy mirror |
+| Trading orchestrator | `backend/app/modules/robot_lib/trading/runtime/orchestrator.py` | live + backtest entry |
+| Trading session | `backend/app/modules/robot_lib/trading/session.py` | live loop (WS + trade worker) |
+| Backtest session | `backend/app/modules/robot_lib/trading/session_backtest.py` | bar replay |
+| Trading core | `backend/app/modules/robot_lib/trading/core/trading_core.py` | один торговый цикл |
+| Strategies | `backend/app/modules/robot_lib/trading/strategies/*` | grain_seed, momentum_breakout, reversion_to_ma |
+| Risk | `backend/app/modules/robot_lib/trading/risk/*` | RiskManager, RiskParams |
+| Execution | `backend/app/modules/robot_lib/trading/execution/*` | LiveExecutionService, SimExecution |
+| Indicators | `backend/app/modules/robot_lib/trading/indicators/*` | bootstrap, on_closed_candle |
+| Broker factory | `backend/app/modules/robot_lib/trading/brokers/factory.py` | `create_broker_facade(type)` |
+| Broker routing | `backend/app/modules/robot_lib/trading/brokers/routing.py` | normalize, filter instruments |
 | Schedulers | `portfolio_updater/scheduler`, `trading/scheduler` | фоновые циклы |
 | Live WS hub | `backend/app/modules/robots/live_ws.py`, `live_hub.py` | стрим событий в UI |
-| Portfolio robot | `backend/app/modules/robots/portfolio_updater/robot.py` | type=1 |
+| Portfolio robot | `backend/app/modules/robot_lib/portfolio_updater/robot.py` | type=1 |
 
 ### 3.2 MOEX-only модули (T-Invest)
 
@@ -148,8 +148,8 @@ flowchart TB
 
 | Модуль | Путь | Назначение |
 |--------|------|------------|
-| Universe jobs П1/П2 | `backend/app/modules/robots/universe_jobs.py` | candidate_pool → `allowed_figis` |
-| Pipeline runner | `backend/app/modules/robots/trading/pipeline/runner.py` | **только MOEX:** DMS filters + dividend calendar |
+| Universe jobs П1/П2 | `backend/app/modules/robot_lib/universe_jobs.py` | candidate_pool → `allowed_figis` |
+| Pipeline runner | `backend/app/modules/robot_lib/trading/pipeline/runner.py` | **только MOEX:** DMS filters + dividend calendar |
 | DMS service | `backend/app/modules/dms/service.py` | snapshots, `candles_cache`, `daily_universe` |
 | MOEX market data | `trading/data/providers/moex_*` | backtest/live MOEX candles |
 | Grain seed orchestration | `trading/grain_seed_orchestrator.py` | сессионные правила MOEX |
@@ -1704,7 +1704,7 @@ flowchart TB
 
 ### 17.5 Backend: Pydantic registry
 
-> **Статус:** реализовано в `backend/app/modules/robots/config/profiles/`.
+> **Статус:** реализовано в `backend/app/modules/robot_lib/config/profiles/`.
 
 ```text
 config/

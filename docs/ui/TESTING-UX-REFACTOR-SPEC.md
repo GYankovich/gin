@@ -197,7 +197,7 @@ flowchart TD
 
 ### 7.4 Блок риска: робот выбран / не выбран `[ref: BRD-ARCH-02 §4.1B]`
 
-**Источник правды по числам пресета без робота:** дефолты Pydantic-модели **`GrainSeedRisk`** в `backend/app/modules/robots/schemas.py` (поля `stop_loss_percent`, `take_profit_percent`, `max_position_percent`, `max_position_rub`, `max_daily_loss`, `trading_hours_start` / `trading_hours_end`, `allowed_weekdays`). На фронте — одна константа/фабрика (например `getGrainSeedRiskPreset()`), **численно и по строковым полям совпадающая** с этими дефолтами, чтобы `POST /api/robots/history-backtest` при отсутствии `robot_id` всегда получал валидный **`config.risk`** (иначе сервер: `config.risk is required when robot_id is omitted`).
+**Источник правды по числам пресета без робота:** дефолты Pydantic-модели **`GrainSeedRisk`** в `backend/app/modules/robot_lib/schemas.py` (поля `stop_loss_percent`, `take_profit_percent`, `max_position_percent`, `max_position_rub`, `max_daily_loss`, `trading_hours_start` / `trading_hours_end`, `allowed_weekdays`). На фронте — одна константа/фабрика (например `getGrainSeedRiskPreset()`), **численно и по строковым полям совпадающая** с этими дефолтами, чтобы `POST /api/robots/history-backtest` при отсутствии `robot_id` всегда получал валидный **`config.risk`** (иначе сервер: `config.risk is required when robot_id is omitted`).
 
 | Ситуация | UX |
 |----------|-----|

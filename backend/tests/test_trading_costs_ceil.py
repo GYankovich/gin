@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 
-from app.modules.robots.trading.costs import (
+from app.modules.robot_lib.trading.costs import (
     TradingCosts,
     calculate_break_even_price,
     calculate_stop_loss_price,

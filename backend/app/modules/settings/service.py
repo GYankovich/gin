@@ -16,6 +16,11 @@ from app.modules.tinvest.methods import create_tbank_client
 
 logger = logging.getLogger(__name__)
 
+# Акторы аудита — стабильный REST-путь, не login пользователя.
+ACTOR_APIKEY_CREATE = "POST /api/apikey/create"
+ACTOR_APIKEY_DELETE = "POST /api/apikey/delete"
+ACTOR_APIKEY_TEST_STORED = "POST /api/apikey/test-stored"
+
 
 class ApiKeyService:
     """Сервис для работы с API ключами"""
@@ -158,7 +163,7 @@ class ApiKeyService:
             "token_secret": secret or None,
             "status": self._safe_int(row[5]) if len(row) > 5 else 1,
             "created_at": self._safe_datetime(row[6]) if len(row) > 6 else None,
-            "updated_at": self._safe_datetime(row[7]) if len(row) > 7 else None,
+            "modification_date": self._safe_datetime(row[7]) if len(row) > 7 else None,
             "expires_at": self._safe_datetime(row[8]) if len(row) > 8 else None,
             "last_used_at": self._safe_datetime(row[9]) if len(row) > 9 else None,
             "last_error": self._safe_str(row[10], None) if len(row) > 10 else None,
@@ -186,12 +191,14 @@ class ApiKeyService:
             key_type: str,
             name: Optional[str] = None,
             extra_data: Optional[Dict[str, Any]] = None,
+            actor: Optional[str] = None,
     ) -> dict:
         """
         Создание нового API ключа
         """
         self.db = db
         now = datetime.now(timezone.utc)
+        actor_value = (actor or "").strip() or ACTOR_APIKEY_CREATE
 
         try:
             # Проверяем, существует ли уже такой токен у пользователя
@@ -250,6 +257,7 @@ class ApiKeyService:
                     "name": name,
                     "created_at": now,
                     "extra_data": json.dumps(extra_data or {}, ensure_ascii=False),
+                    "actor": actor_value,
                 },
                 fetch_one=True
             )
@@ -352,9 +360,10 @@ class ApiKeyService:
             user_id: int,
             name: Optional[str] = None,
             status: Optional[int] = None,
+            actor: Optional[str] = None,
     ) -> Optional[dict]:
         """
-        Обновление информации о ключе
+        Обновление информации о ключе (внутренний хелпер; публичный REST update отключён).
         """
         self.db = db
 
@@ -385,7 +394,8 @@ class ApiKeyService:
         params = {
             "key_id": key_id,
             "user_id": user_id,
-            "now": datetime.now(timezone.utc)
+            "now": datetime.now(timezone.utc),
+            "actor": (actor or "").strip() or ACTOR_APIKEY_TEST_STORED,
         }
 
         if name is not None:
@@ -402,7 +412,13 @@ class ApiKeyService:
         response = self._row_to_api_key_response(result, include_token=False)
         return response
 
-    def deactivate_key(self, db: Session, key_id: int, user_id: int) -> bool:
+    def deactivate_key(
+            self,
+            db: Session,
+            key_id: int,
+            user_id: int,
+            actor: Optional[str] = None,
+    ) -> bool:
         """
         Деактивация ключа (мягкое удаление)
         """
@@ -414,7 +430,8 @@ class ApiKeyService:
             {
                 "key_id": key_id,
                 "user_id": user_id,
-                "now": datetime.now(timezone.utc)
+                "now": datetime.now(timezone.utc),
+                "actor": (actor or "").strip() or ACTOR_APIKEY_DELETE,
             },
             fetch_one=True
         )
@@ -640,7 +657,9 @@ class ApiKeyService:
         )
         if result and result.get("is_valid"):
             # Успешная проверка → активный статус (в т.ч. после истечения status=3).
-            self.update_key(db, key_id, user_id, status=1)
+            self.update_key(
+                db, key_id, user_id, status=1, actor=ACTOR_APIKEY_TEST_STORED,
+            )
             db.commit()
             logger.info("Key %s reactivated (status=1) after successful test for user %s", key_id, user_id)
         return result

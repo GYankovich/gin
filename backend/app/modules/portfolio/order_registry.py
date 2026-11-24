@@ -96,7 +96,7 @@ def resolve_portfolio_account_pk(
 
 def normalize_live_order_status(status: str, *, closing: bool = False) -> str:
     """Map broker / EXECUTION_REPORT statuses to Live portfolio_orders statuses."""
-    from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
+    from app.modules.robot_lib.trading.stages.stage6_orders import Stage6Orders
 
     raw = str(status or "").strip()
     if not raw:

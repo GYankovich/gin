@@ -1,6 +1,6 @@
 """Bootstrap stage progress mapping."""
 
-from app.modules.robots_v2.engine.types import cycle_stage_progress
+from app.modules.robots.engine.types import cycle_stage_progress
 
 
 def test_bootstrap_atr_warmup_progress_scales_with_ticker_count():

@@ -30,7 +30,7 @@ def main() -> None:
             text(
                 f"""
                 SELECT f.filled_at, f.ticker, f.side, f.quantity, f.price, f.pnl, f.kind, f.order_id
-                FROM {schema}.robots_v2_fills f
+                FROM {schema}.robot_fills f
                 WHERE f.robot_id = :rid AND f.ticker = ANY(:tickers)
                   AND f.filled_at >= CAST(:since AS timestamptz)
                 ORDER BY f.filled_at ASC
@@ -72,7 +72,7 @@ def main() -> None:
             text(
                 f"""
                 SELECT d.created_at, d.ticker, d.stage, d.code, d.message, d.context
-                FROM {schema}.robots_v2_decisions d
+                FROM {schema}.robot_decisions d
                 WHERE d.robot_id = :rid AND d.ticker = ANY(:tickers)
                   AND d.created_at >= CAST(:since AS timestamptz)
                   AND d.stage IN ('exits', 'strategy')
@@ -95,7 +95,7 @@ def main() -> None:
 
         print("\n=== ROBOT RISK CONFIG ===")
         row = db.execute(
-            text(f"SELECT config FROM {schema}.robots_v2 WHERE id = :id"),
+            text(f"SELECT config FROM {schema}.robots WHERE id = :id"),
             {"id": ROBOT_ID},
         ).fetchone()
         if row and row.config:

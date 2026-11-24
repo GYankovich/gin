@@ -12,11 +12,11 @@ os.environ.setdefault("SECRET_KEY", "test")
 
 import asyncio
 
-from app.modules.robots.trading.contracts import OrderIntent
-from app.modules.robots_v2.engine.execution import ExecutionService, attach_ticker_warnings
-from app.modules.robots_v2.engine.lot_size import lots_to_shares, shares_to_lots
-from app.modules.robots_v2.engine.order_flow import OrderFlowAggregator
-from app.modules.robots_v2.engine.paper_ledger import PaperLedger
+from app.modules.robot_lib.trading.contracts import OrderIntent
+from app.modules.robots.engine.execution import ExecutionService, attach_ticker_warnings
+from app.modules.robots.engine.lot_size import lots_to_shares, shares_to_lots
+from app.modules.robots.engine.order_flow import OrderFlowAggregator
+from app.modules.robots.engine.paper_ledger import PaperLedger
 
 
 def test_order_flow_delta_from_price_ticks():
@@ -81,8 +81,8 @@ def test_execution_live_rejects_without_broker():
 
 
 def test_resolve_bybit_instrument_map_identity():
-    from app.modules.robots_v2.engine.broker_factory import resolve_ticker_instrument_map
-    from app.modules.robots_v2.universe.token_context import TokenContext
+    from app.modules.robots.engine.broker_factory import resolve_ticker_instrument_map
+    from app.modules.robots.universe.token_context import TokenContext
 
     ctx = TokenContext(
         token_id=1, user_id=1, token_type=2, broker="bybit", market="crypto",
@@ -226,7 +226,7 @@ def test_live_no_order_id_does_not_mutate_ledger():
 
 
 def test_reconcile_overwrites_shadow_ledger():
-    from app.modules.robots_v2.engine.reconcile import reconcile_from_broker
+    from app.modules.robots.engine.reconcile import reconcile_from_broker
 
     ledger = PaperLedger(cash=10_000, commission_rate=0.0)
     ledger.apply_fill(ticker="SBER", side="BUY", quantity=5, price=200.0)
@@ -269,7 +269,7 @@ def test_reconcile_overwrites_shadow_ledger():
 def test_reconcile_preserves_opened_at():
     from datetime import datetime, timedelta, timezone
 
-    from app.modules.robots_v2.engine.reconcile import reconcile_from_broker
+    from app.modules.robots.engine.reconcile import reconcile_from_broker
 
     opened = datetime.now(timezone.utc) - timedelta(minutes=10)
     ledger = PaperLedger(cash=10_000, commission_rate=0.0)
@@ -424,7 +424,7 @@ def test_market_stop_loss_clears_resting():
 
 
 def test_normalize_and_scope_filter_orders():
-    from app.modules.robots_v2.engine.order_sync import (
+    from app.modules.robots.engine.order_sync import (
         filter_robot_scope_orders,
         normalize_broker_orders,
         pick_resting_per_ticker,
@@ -517,7 +517,7 @@ def test_sync_orders_fill_when_missing_from_get_orders():
         account_id="acc",
         instrument_map={"X5": "BBG00Y91R9K8"},
     )
-    from app.modules.robots_v2.engine.execution import RestingOrder
+    from app.modules.robots.engine.execution import RestingOrder
 
     exec_svc._resting["X5"] = RestingOrder(
         intent_id="i1",
@@ -566,7 +566,7 @@ def test_sync_orders_cancelled_when_missing():
         account_id="acc",
         instrument_map={"MGNT": "BBG004RVFCY3"},
     )
-    from app.modules.robots_v2.engine.execution import RestingOrder
+    from app.modules.robots.engine.execution import RestingOrder
 
     exec_svc._resting["MGNT"] = RestingOrder(
         intent_id="i2",
@@ -655,7 +655,7 @@ def test_limit_already_resting_after_broker_sync():
         account_id="acc",
         instrument_map={"SFIN": "BBG004S681P4"},
     )
-    from app.modules.robots_v2.engine.execution import RestingOrder
+    from app.modules.robots.engine.execution import RestingOrder
 
     exec_svc._resting["SFIN"] = RestingOrder(
         intent_id="i",

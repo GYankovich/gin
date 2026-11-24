@@ -4,13 +4,13 @@ import asyncio
 
 from app.modules.trading_core.sim.metrics import BacktestMetricsCalculator
 from app.modules.trading_core.sim.types import BacktestResult
-from app.modules.robots.trading.brokers.sim_backtest import SimBacktestBrokerFacade
-from app.modules.robots.trading.costs import (
+from app.modules.robot_lib.trading.brokers.sim_backtest import SimBacktestBrokerFacade
+from app.modules.robot_lib.trading.costs import (
     resolve_backtest_sim_rates,
     resolve_crypto_fee_rates,
     resolve_robot_cost_rates,
 )
-from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
+from app.modules.robot_lib.trading.stages.stage6_orders import Stage6Orders
 
 
 def test_resolve_robot_cost_rates_bybit_prefers_taker_and_no_ndfl():

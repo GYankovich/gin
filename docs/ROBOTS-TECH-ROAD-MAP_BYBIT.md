@@ -40,7 +40,7 @@
 **Разрешено и рекомендуется:**
 
 - отдельный модуль интеграции: `backend/app/modules/bybit/` (HTTP/WS, подпись, парсинг v5 API)
-- тонкий адаптер: `backend/app/modules/robots/trading/brokers/bybit.py` → `BrokerFacade`
+- тонкий адаптер: `backend/app/modules/robot_lib/trading/brokers/bybit.py` → `BrokerFacade`
 - провайдер данных: `trading/data/providers/bybit_market.py` → `MarketDataFacade`
 - crypto-специфика только в config + risk extensions + execution mapping
 
@@ -145,7 +145,7 @@ flowchart LR
 **Слои:**
 
 1. `backend/app/modules/bybit/facade.py` — низкоуровневый API (как `tinvest/facade`)
-2. `backend/app/modules/robots/trading/brokers/bybit.py` — реализация `BrokerFacade`
+2. `backend/app/modules/robot_lib/trading/brokers/bybit.py` — реализация `BrokerFacade`
 
 **Маппинг в единый контракт:**
 
@@ -438,4 +438,4 @@ flowchart LR
 1. Официальная документация ByBit API: https://bybit-exchange.github.io/docs/v5/intro
 ByBit Testnet: https://testnet.bybit.com/
 2. Текущая документация T-Invest (для сравнения): [внутренняя ссылка]
-3. Шаблон конфигурации ByBit-робота: backend/app/modules/robots/config/templates/bybit_template.json
+3. Шаблон конфигурации ByBit-робота: backend/app/modules/robot_lib/config/templates/bybit_template.json

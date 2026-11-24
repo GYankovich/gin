@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.modules.robots.config.profiles import (
+from app.modules.robot_lib.config.profiles import (
     PROFILE_REGISTRY,
     dump_robot_config,
     export_config_schema,

@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+﻿import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { StatTile } from '@/components/ui/StatTile'
@@ -30,7 +30,7 @@ export default function DemoPage() {
                             <StatTile label="Доходность к своим" value="+22,7%" valueClassName="color-up" />
                             <StatTile label="Просадка" value="−11,4%" valueClassName="color-down" />
                         </div>
-                        <p className="robots-v2-hint login-demo__note">
+                        <p className="robots-hint login-demo__note">
                             В приложении брокера эти 340 000 ₽ легко смешать с вводами. Здесь доходность считается от внесённых денег.
                         </p>
                     </Card>
@@ -45,7 +45,7 @@ export default function DemoPage() {
                             <StatTile label="Комиссия" value="4 120 ₽" />
                             <StatTile label="НДФЛ" value="6 800 ₽" />
                         </div>
-                        <p className="robots-v2-hint">Из-за чего были сделки:</p>
+                        <p className="robots-hint">Из-за чего были сделки:</p>
                         <ul className="login-demo__journal">
                             <li>SBER: цена выше средней, объём выше обычного.</li>
                             <li>GAZP: на одной свече задеты стоп и тейк — засчитан стоп.</li>

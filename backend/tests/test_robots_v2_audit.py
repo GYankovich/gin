@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-from app.modules.robots_v2.engine.audit import (
+from app.modules.robots.engine.audit import (
     AuditCycleBundle,
     AuditDecisionRow,
     AuditExecutionRow,
@@ -223,7 +223,7 @@ def test_audit_persist_cycle_swallows_db_errors():
         finished_at=datetime.now(timezone.utc),
     )
 
-    with patch("app.modules.robots_v2.engine.audit.AuditStore") as mock_cls:
+    with patch("app.modules.robots.engine.audit.AuditStore") as mock_cls:
         mock_cls.return_value.persist_cycle.side_effect = RuntimeError("db down")
         mock_cls.return_value.close.return_value = None
         asyncio.run(audit_persist_cycle(bundle))

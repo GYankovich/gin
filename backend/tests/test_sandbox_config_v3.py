@@ -1,6 +1,6 @@
 """Sandbox broker writes v3 type2_tinvest profile."""
 
-from app.modules.robots.config.profiles import validate_robot_config, dump_robot_config
+from app.modules.robot_lib.config.profiles import validate_robot_config, dump_robot_config
 
 
 def test_sandbox_broker_type2_v3_roundtrip():

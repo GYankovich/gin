@@ -11,16 +11,16 @@ os.environ.setdefault("SECRET_KEY", "test")
 
 from datetime import datetime, timedelta, timezone
 
-from app.modules.robots.trading.contracts import Candle
-from app.modules.robots_v2.backtest.credibility import (
+from app.modules.robot_lib.trading.contracts import Candle
+from app.modules.robots.backtest.credibility import (
     build_cost_stress,
     cap_fill_quantity,
     intrabar_protective_hit,
     plan_intrabar_sl_tp_intents,
 )
-from app.modules.robots_v2.backtest.host import BacktestHost
-from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
-from app.modules.robots_v2.engine.paper_ledger import PaperLedger
+from app.modules.robots.backtest.host import BacktestHost
+from app.modules.robots.config.v4_schema import TradingRobotConfigV4
+from app.modules.robots.engine.paper_ledger import PaperLedger
 
 
 def _sample_config() -> TradingRobotConfigV4:

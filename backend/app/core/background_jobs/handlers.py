@@ -20,7 +20,7 @@ JobHandler = Callable[[Dict[str, Any]], Awaitable[None]]
 
 async def handle_portfolio_sync(payload: Dict[str, Any]) -> None:
     from app.core.database import SessionLocal
-    from app.modules.robots_v2.portfolio.runner import run_portfolio_sync_v2
+    from app.modules.robots.portfolio.runner import run_portfolio_sync_v2
 
     db = SessionLocal()
     try:
@@ -42,7 +42,7 @@ async def handle_portfolio_sync(payload: Dict[str, Any]) -> None:
 async def handle_corporate_actions_dividend_etl(_payload: Dict[str, Any]) -> None:
     from app.core.database import SessionLocal
     from app.modules.corporate_actions import etl as corp_etl
-    from app.modules.robots.moex_securities_updater.robot import sync_moex_securities_reference
+    from app.modules.robot_lib.moex_securities_updater.robot import sync_moex_securities_reference
 
     db = SessionLocal()
     try:
@@ -68,7 +68,7 @@ async def handle_corporate_actions_dividend_etl(_payload: Dict[str, Any]) -> Non
 
 
 async def handle_backtest_run_job(payload: Dict[str, Any]) -> None:
-    from app.modules.robots_v2.backtest.worker_handler import handle_backtest_run
+    from app.modules.robots.backtest.worker_handler import handle_backtest_run
 
     await handle_backtest_run(dict(payload or {}))
 

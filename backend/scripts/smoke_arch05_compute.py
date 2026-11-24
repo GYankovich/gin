@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ARCH-05 / robots_v2 staging smoke.
+"""ARCH-05 / robots staging smoke.
 
 Usage:
   set GIN_BASE_URL=https://your-staging.example

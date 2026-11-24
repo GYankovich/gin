@@ -1,7 +1,7 @@
 """Tests for strategy interval resolution (M1/M5/M10/…)."""
 from __future__ import annotations
 
-from app.modules.robots.trading.intervals import (
+from app.modules.robot_lib.trading.intervals import (
     MOEX_ISS_CANDLE_INTERVAL_CODES,
     resolve_candle_interval_roles,
     resolve_strategy_interval,
@@ -48,7 +48,7 @@ def test_resolve_m1_m10_h1_d1():
 
 
 def test_normalize_interval_by_broker():
-    from app.modules.robots.trading.intervals import (
+    from app.modules.robot_lib.trading.intervals import (
         normalize_bybit_interval,
         normalize_interval,
         normalize_tinvest_interval,

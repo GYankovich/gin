@@ -7,7 +7,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.modules.robots_v2.audit_pnl import build_round_trips, enrich_fills_realized_pnl
+from app.modules.robots.audit_pnl import build_round_trips, enrich_fills_realized_pnl
 
 ROBOT_ID = 3
 
@@ -17,7 +17,7 @@ def main() -> None:
     db = SessionLocal()
     try:
         row = db.execute(
-            text(f"SELECT name, config FROM {schema}.robots_v2 WHERE id=:id"),
+            text(f"SELECT name, config FROM {schema}.robots WHERE id=:id"),
             {"id": ROBOT_ID},
         ).fetchone()
         if not row:
@@ -40,8 +40,8 @@ def main() -> None:
                 SELECT f.id, f.ticker, f.side, f.quantity, f.price, f.pnl, f.commission,
                        f.kind, f.filled_at, f.order_id,
                        o.kind AS order_kind, o.order_type, o.status AS order_status, o.price AS order_price
-                FROM {schema}.robots_v2_fills f
-                LEFT JOIN {schema}.robots_v2_orders o ON o.id = f.order_id
+                FROM {schema}.robot_fills f
+                LEFT JOIN {schema}.robot_orders o ON o.id = f.order_id
                 WHERE f.robot_id = :rid
                 ORDER BY f.filled_at ASC
                 """
@@ -52,7 +52,7 @@ def main() -> None:
             text(
                 f"""
                 SELECT id, ticker, side, kind, quantity, price, status, order_type, submitted_at
-                FROM {schema}.robots_v2_orders
+                FROM {schema}.robot_orders
                 WHERE robot_id = :rid
                 ORDER BY submitted_at ASC
                 """
@@ -186,7 +186,7 @@ def main() -> None:
             text(
                 f"""
                 SELECT id, started_at, ended_at, stop_reason
-                FROM {schema}.robots_v2_sessions
+                FROM {schema}.robot_sessions
                 WHERE robot_id = :rid ORDER BY started_at ASC
                 """
             ),

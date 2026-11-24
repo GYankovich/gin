@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from app.modules.robots_v2.queries import build_get_robot_query, build_list_robots_query
-from app.modules.robots_v2.service import RobotsV2Service
+from app.modules.robots.queries import build_get_robot_query, build_list_robots_query
+from app.modules.robots.service import RobotsV2Service
 
 
 def test_create_robot_defaults_status_enabled():
@@ -24,7 +24,7 @@ def test_create_robot_defaults_status_enabled():
 
     db.execute.side_effect = _execute
 
-    from app.modules.robots_v2.schemas import RobotV2CreateRequest
+    from app.modules.robots.schemas import RobotV2CreateRequest
 
     config = {
         "configVersion": 4,

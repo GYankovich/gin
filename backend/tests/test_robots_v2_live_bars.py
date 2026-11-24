@@ -12,7 +12,7 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots_v2.engine.live_bars import (
+from app.modules.robots.engine.live_bars import (
     closed_bars_ready,
     floor_bar_open,
     merge_closed_candles,
@@ -20,7 +20,7 @@ from app.modules.robots_v2.engine.live_bars import (
     series_needs_roll,
     update_forming_bar,
 )
-from app.modules.robots_v2.engine.market_data import (
+from app.modules.robots.engine.market_data import (
     parse_moex_candles_payload,
     parse_moex_marketdata_last,
     rest_marks_to_store,

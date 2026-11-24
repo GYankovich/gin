@@ -1,443 +1,401 @@
-#///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsQueries [1]
-#/// Исходный модуль `backend/app/modules/robots/queries.py` — автоматическая разметка для Obsidian Source Scanner.
+"""SQL query builders for robots v2."""
 
-# app/modules/robots/queries.py
-from typing import Optional, List, Dict, Any
-from datetime import datetime
+from __future__ import annotations
+
+from typing import Any
+
+from app.modules.trading_core.brokers.routing import TOKEN_TYPE_BROKER, normalize_broker_type
+
+# broker filter code → dictionary TOKEN.TYPE.num_value
+_BROKER_FILTER_TO_TOKEN_TYPE = {
+    code: num for num, code in TOKEN_TYPE_BROKER.items()
+}
 
 
-# === ЗАПРОСЫ ДЛЯ РОБОТОВ ===
-def build_get_user_robots_query(
-        robot_status: Optional[List[int]] = None,
-        robot_type: Optional[List[int]] = None,
-        robot_name: Optional[str] = None,
-        token_type: Optional[List[int]] = None,
-        limit: int = 100,
-        offset: int = 0,
-        sort_by: Optional[str] = None,
-        sort_order: str = "asc",
-        schema: str = "public"
-) -> tuple[str, Dict[str, Any]]:
-    """
-    Строит запрос для получения всех роботов пользователя
-    Возвращает: id, name, token_type, type, status_name, last_started, last_error
-    """
-    base_query = """
-                 SELECT
-                     r.id,
-                     r.user_id,
-                     t.id,
-                     t.name,
-                     t.status,
-                     t.token_type,
-                     da.name,
-                     r.name,
-                     r.type as type_id,
-                     dt.name as type_name,
-                     r.status as status_id,
-                     ds.name as status_name,
-                     r.config,
-                     r.last_started,
-                     r.last_error,
-                     r.last_error_at,
-                     r.last_stopped,
-                     r.usercre,
-                     r.date_creation,
-                     r.usermod,
-                     r.date_modification
-                 FROM robots r
-                          JOIN api_tokens t ON r.token_id = t.id
-                          join dictionary da ON t.token_type = da.num_value AND da.table_name = 'TOKEN' AND da.column_name = 'TYPE'
-                          JOIN dictionary dt ON r.type = dt.num_value AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
-                          JOIN dictionary ds ON r.status = ds.num_value AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
-                 WHERE r.user_id = :user_id
-                     AND R.STATUS != 0
-                 """.format(schema=schema)
-
-    params = {}
-    conditions = []
-
-    # Фильтр по статусу
+def build_list_robots_query(
+    *,
+    user_id: int,
+    robot_status: list[int] | None = None,
+    robot_type: list[int] | None = None,
+    broker: list[str] | None = None,
+    schema: str = "public",
+) -> tuple[str, dict[str, Any]]:
+    params: dict[str, Any] = {"user_id": user_id}
+    conditions = [
+        "r.user_id = :user_id",
+        "COALESCE(r.metadata->>'deletedAt', '') = ''",
+    ]
     if robot_status:
-        placeholders = ','.join([f':status_{i}' for i in range(len(robot_status))])
+        placeholders = ", ".join(f":status_{i}" for i in range(len(robot_status)))
         conditions.append(f"r.status IN ({placeholders})")
         for i, status in enumerate(robot_status):
-            params[f'status_{i}'] = status
-
-    # Фильтр по типу робота
+            params[f"status_{i}"] = status
     if robot_type:
-        placeholders = ','.join([f':type_{i}' for i in range(len(robot_type))])
+        placeholders = ", ".join(f":type_{i}" for i in range(len(robot_type)))
         conditions.append(f"r.type IN ({placeholders})")
-        for i, rt in enumerate(robot_type):
-            params[f'type_{i}'] = rt
-
-    # Фильтр по названию робота (поиск)
-    if robot_name:
-        conditions.append("r.name ILIKE :robot_name")
-        params["robot_name"] = f"%{robot_name}%"
-
-    # Фильтр по типу токена
-    if token_type:
-        placeholders = ','.join([f':token_type_{i}' for i in range(len(token_type))])
-        conditions.append(f"t.token_type IN ({placeholders})")
-        for i, tt in enumerate(token_type):
-            params[f'token_type_{i}'] = tt
-
-    if conditions:
-        base_query += " AND " + " AND ".join(conditions)
-
-    # Сортировка
-    sort_mapping = {
-        "status": "r.status",
-        "name": "r.name",
-        "token_type": "t.token_type"
-    }
-
-    if sort_by and sort_by in sort_mapping:
-        order = "ASC" if sort_order.lower() == "asc" else "DESC"
-        base_query += f" ORDER BY {sort_mapping[sort_by]} {order}, r.date_creation DESC"
-    else:
-        base_query += " ORDER BY r.date_creation DESC"
-
-    # Пагинация
-    base_query += " LIMIT :limit OFFSET :offset"
-    params["limit"] = limit
-    params["offset"] = offset
-
-    return base_query, params
-
-
-def build_count_user_robots_query(
-        robot_status: Optional[List[int]] = None,
-        robot_type: Optional[List[int]] = None,
-        robot_name: Optional[str] = None,
-        token_type: Optional[List[int]] = None,
-        schema: str = "public"
-) -> tuple[str, Dict[str, Any]]:
+        for i, t in enumerate(robot_type):
+            params[f"type_{i}"] = t
+    broker_nums: list[int] = []
+    for raw in broker or []:
+        code = normalize_broker_type(str(raw).strip())
+        num = _BROKER_FILTER_TO_TOKEN_TYPE.get(code)
+        if num is not None and num not in broker_nums:
+            broker_nums.append(num)
+    if broker_nums:
+        placeholders = ", ".join(f":broker_type_{i}" for i in range(len(broker_nums)))
+        conditions.append(f"at.token_type IN ({placeholders})")
+        for i, num in enumerate(broker_nums):
+            params[f"broker_type_{i}"] = num
+    where = " AND ".join(conditions)
+    query = f"""
+        SELECT
+            r.id,
+            r.name,
+            r.type,
+            r.token_id,
+            r.status,
+            r.config_version,
+            r.config,
+            r.metadata,
+            r.date_creation,
+            r.date_modification,
+            r.last_started,
+            dt.name AS type_name,
+            ds.name AS status_name,
+            dtok.string_value AS broker_code,
+            dtok.name AS broker_name,
+            (
+                SELECT COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'accountId', pa.account_id,
+                            'accountName', pa.account_name
+                        )
+                        ORDER BY pa.id
+                    ),
+                    '[]'::json
+                )
+                  FROM {schema}.portfolio_accounts pa
+                  JOIN {schema}.token_portfolio_accounts tpa
+                    ON tpa.portfolio_account_id = pa.id
+                   AND tpa.token_id = r.token_id
+                   AND tpa.status = 1
+                 WHERE pa.user_id = r.user_id
+                   AND UPPER(pa.account_status) = 'OPEN'
+            ) AS accounts_json
+        FROM {schema}.robots r
+        LEFT JOIN {schema}.api_tokens at
+            ON at.id = r.token_id
+        LEFT JOIN {schema}.dictionary dtok
+            ON dtok.num_value = at.token_type
+           AND dtok.table_name = 'TOKEN'
+           AND dtok.column_name = 'TYPE'
+        LEFT JOIN {schema}.dictionary dt
+            ON r.type = dt.num_value
+           AND dt.table_name = 'ROBOT'
+           AND dt.column_name = 'TYPE'
+        INNER JOIN {schema}.dictionary ds
+            ON r.status = ds.num_value
+           AND ds.table_name = 'ROBOT'
+           AND ds.column_name = 'STATUS'
+           AND COALESCE(ds.hide_from_ui, 0) != 1
+        WHERE {where}
+        ORDER BY r.date_creation DESC
     """
-    Строит запрос для подсчета количества роботов пользователя
-    """
-    base_query = """
-                 SELECT COUNT(*)
-                 FROM robots r
-                          JOIN api_tokens t ON r.token_id = t.id
-                 WHERE r.user_id = :user_id
-                     AND R.STATUS != 0
-                 """.format(schema=schema)
-
-    params = {}
-    conditions = []
-
-    if robot_status:
-        placeholders = ','.join([f':status_{i}' for i in range(len(robot_status))])
-        conditions.append(f"r.status IN ({placeholders})")
-        for i, status in enumerate(robot_status):
-            params[f'status_{i}'] = status
-
-    if robot_type:
-        placeholders = ','.join([f':type_{i}' for i in range(len(robot_type))])
-        conditions.append(f"r.type IN ({placeholders})")
-        for i, rt in enumerate(robot_type):
-            params[f'type_{i}'] = rt
-
-    if robot_name:
-        conditions.append("r.name ILIKE :robot_name")
-        params["robot_name"] = f"%{robot_name}%"
-
-    if token_type:
-        placeholders = ','.join([f':token_type_{i}' for i in range(len(token_type))])
-        conditions.append(f"t.token_type IN ({placeholders})")
-        for i, tt in enumerate(token_type):
-            params[f'token_type_{i}'] = tt
-
-    if conditions:
-        base_query += " AND " + " AND ".join(conditions)
-
-    return base_query, params
-
-
-def build_get_robot_by_id_query(schema: str = "public") -> str:
-    """Получение робота по ID с проверкой владельца"""
-    return """
-           SELECT
-               r.id,
-               r.user_id,
-               t.id,
-               t.name,
-              t.status,
-               t.token_type,
-               da.name,
-               r.name,
-               r.type as type_id,
-               dt.name as type_name,
-               r.status as status_id,
-               ds.name as status_name,
-               r.config,
-               r.last_started,
-               r.last_error,
-               r.last_error_at,
-               r.last_stopped,
-               r.usercre,
-               r.date_creation,
-               r.usermod,
-               r.date_modification
-           FROM robots r
-                    JOIN api_tokens t ON r.token_id = t.id and t.status != 0
-                    join dictionary da ON t.token_type = da.num_value AND da.table_name = 'TOKEN' AND da.column_name = 'TYPE'
-                    JOIN dictionary dt ON r.type = dt.num_value AND dt.table_name = 'ROBOT' AND dt.column_name = 'TYPE'
-                    JOIN dictionary ds ON r.status = ds.num_value AND ds.table_name = 'ROBOT' AND ds.column_name = 'STATUS'
-           WHERE r.id = :robot_id AND r.user_id = :user_id
-           """.format(schema=schema)
-
-
-def build_check_robot_name_exists_query(schema: str = "public") -> str:
-    """Проверка уникальности имени робота для пользователя"""
-    return """
-           SELECT id FROM robots
-           WHERE user_id = :user_id AND name = :name and status != 0\
-           """.format(schema=schema)
-
-
-def build_create_robot_query(schema: str = "public") -> str:
-    """Создание нового робота"""
-    return """
-           INSERT INTO robots
-               (user_id, token_id, name, type, status, usercre, date_creation)
-           VALUES
-               (:user_id, :token_id, :name, :type, :status, :usercre, :created_at)
-               RETURNING
-               id, user_id, token_id, name, type, status,
-               last_started, last_error, last_error_at,
-               usercre, date_creation, usermod, date_modification
-           """.format(schema=schema)
-
-
-#
-# def build_update_robot_last_started_query() -> str:
-#     """Обновление времени последнего запуска робота"""
-#     return """
-#            UPDATE robots
-#            SET last_started = :now,
-#                usermod = :usermod,
-#                date_modification = :now
-#            WHERE id = :robot_id \
-#            """
-
-#
-# def build_update_robot_error_query() -> str:
-#     """Обновление информации об ошибке робота"""
-#     return """
-#            UPDATE robots
-#            SET last_error = :error,
-#                last_error_at = :now,
-#                usermod = :usermod,
-#                date_modification = :now
-#            WHERE id = :robot_id \
-#            """
-#
-#
-def build_soft_delete_robot_query(schema: str = "public") -> str:
-    """Мягкое удаление робота (status=0)"""
-    return """
-           UPDATE robots
-           SET status = 0,
-               usermod = :usermod,
-               date_modification = :now
-           WHERE id = :robot_id AND user_id = :user_id AND status != 0
-               RETURNING id
-           """.format(schema=schema)
-
-# app/modules/robots/queries.py
-
-def build_change_robot_status_query(schema: str = "public") -> str:
-    """
-    Изменение статуса робота
-    status: 1 - активен, 2 - остановлен
-    """
-    return """
-           UPDATE robots
-           SET status = :status,
-               last_started = CASE WHEN :status = 1 THEN :now ELSE last_started END,
-               last_stopped = CASE WHEN :status = 2 THEN :now ELSE last_stopped END,
-               usermod = :usermod,
-               date_modification = :now
-           WHERE id = :robot_id AND user_id = :user_id
-               RETURNING
-               id, user_id, token_id, name, type, status, config,
-               last_started, last_error, last_error_at,
-               usercre, date_creation, usermod, date_modification
-           """.format(schema=schema)
-
-
-def build_update_robot_config_query(schema: str = "public") -> str:
-    """
-    Обновление конфигурации робота.
-    """
-    return """
-           UPDATE robots
-           SET config = :config,
-               usermod = :usermod,
-               date_modification = :now
-           WHERE id = :robot_id AND user_id = :user_id AND status != 0
-               RETURNING id \
-           """.format(schema=schema)
-
-
-# === ЗАПРОСЫ ДЛЯ СПРАВОЧНИКОВ ===
-
-def build_get_dictionary_values_query(
-        table_name: str,
-        column_name: str,
-        include_hidden: bool = False
-) -> tuple[str, Dict[str, Any]]:
-    """
-    Получение значений из справочника
-    """
-    query = """
-            SELECT
-                id,
-                num_value,
-                string_value,
-                name,
-                description
-            FROM dictionary
-            WHERE table_name = :table_name
-              AND column_name = :column_name \
-            """
-
-    params = {
-        "table_name": table_name,
-        "column_name": column_name
-    }
-
-    if not include_hidden:
-        query += " AND hide_from_ui = 0"
-
-    query += " ORDER BY num_value NULLS LAST, name"
-
     return query, params
 
-def build_check_token_query(schema: str = "public") -> str:
-    """Проверка существования и активности токена"""
-    return """
-           SELECT id, token_type
-           FROM api_tokens
-          WHERE id = :token_id AND user_id = :user_id AND status = 1
-           """.format(schema=schema)
+
+# Same window the /portfolio chart opens on (zoom «Месяц»).
+FLEET_SNAPSHOT_DAYS = 30
 
 
+def build_fleet_snapshot_curve_query(*, user_id: int, schema: str = "public") -> tuple[str, dict[str, Any]]:
+    """Daily portfolio value per robot, same source as /portfolio chart.
 
-def build_create_robot_log_query() -> str:
+    portfolio_snapshot_daily is the last snapshot of each Europe/Moscow day.
+    Several accounts on one token are summed on that day.
     """
-    Создание записи в логах роботов
+    query = f"""
+        SELECT
+            days.robot_id,
+            COALESCE(
+                json_agg(
+                    json_build_object(
+                        'time', days.snapshot_day,
+                        'equity', days.equity
+                    )
+                    ORDER BY days.snapshot_day
+                ),
+                '[]'::json
+            ) AS equity_curve
+        FROM (
+            SELECT
+                r.id AS robot_id,
+                d.snapshot_day,
+                SUM(d.total_amount_portfolio) AS equity
+            FROM {schema}.robots r
+            JOIN {schema}.token_portfolio_accounts tpa
+                ON tpa.token_id = r.token_id
+               AND tpa.status = 1
+            JOIN {schema}.portfolio_accounts pa
+                ON pa.id = tpa.portfolio_account_id
+               AND pa.user_id = r.user_id
+               AND UPPER(pa.account_status) = 'OPEN'
+            JOIN {schema}.portfolio_snapshot_daily d
+                ON d.account_id = pa.id
+               AND d.snapshot_day >= (timezone('Europe/Moscow', CURRENT_TIMESTAMP))::date
+                                    - :snapshot_days
+            WHERE r.user_id = :user_id
+              AND COALESCE(r.metadata->>'deletedAt', '') = ''
+            GROUP BY r.id, d.snapshot_day
+        ) days
+        GROUP BY days.robot_id
     """
-    return """
-           INSERT INTO robot_logs
-           (robot_name, robot_version, token_id, user_id,
-            started_at, endpoint, request_data)
-           VALUES
-               (:robot_name, :robot_version, :token_id, :user_id,
-                :started_at, :endpoint, :request_data)
-               RETURNING id \
-           """
+    return query, {"user_id": user_id, "snapshot_days": FLEET_SNAPSHOT_DAYS}
 
 
-def build_update_robot_log_success_query() -> str:
+def build_fleet_latest_snapshot_query(*, user_id: int, schema: str = "public") -> tuple[str, dict[str, Any]]:
+    """Latest portfolio snapshot per robot: equity, time, open positions."""
+    query = f"""
+        SELECT
+            r.id AS robot_id,
+            SUM(latest.total_amount_portfolio) AS equity,
+            MAX(latest.snapshot_date) AS snapshot_date,
+            SUM(latest.positions_count) AS positions_count,
+            SUM(funds.own_funds) AS own_funds
+        FROM {schema}.robots r
+        JOIN {schema}.token_portfolio_accounts tpa
+            ON tpa.token_id = r.token_id
+           AND tpa.status = 1
+        JOIN {schema}.portfolio_accounts pa
+            ON pa.id = tpa.portfolio_account_id
+           AND pa.user_id = r.user_id
+           AND UPPER(pa.account_status) = 'OPEN'
+        JOIN LATERAL (
+            SELECT
+                ps.total_amount_portfolio,
+                ps.snapshot_date,
+                ps.currency,
+                (
+                    SELECT COUNT(*)
+                    FROM {schema}.portfolio_positions pp
+                    WHERE pp.snapshot_id = ps.id
+                ) AS positions_count
+            FROM {schema}.portfolio_snapshots ps
+            WHERE ps.account_id = pa.id
+            ORDER BY ps.snapshot_date DESC
+            LIMIT 1
+        ) latest ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT SUM(signed_payment) AS own_funds
+            FROM (
+                SELECT
+                    CASE
+                        WHEN operation_type IN (
+                            'OPERATION_TYPE_INPUT',
+                            'OPERATION_TYPE_INPUT_ACQUIRING',
+                            'OPERATION_TYPE_INP_MULTI'
+                        )
+                        AND status = 'OPERATION_STATE_EXECUTED'
+                        AND UPPER(payment_currency) = UPPER(latest.currency)
+                        AND ABS(payment) > 1e-9
+                            THEN payment
+                        WHEN operation_type IN (
+                            'OPERATION_TYPE_OUTPUT',
+                            'OPERATION_TYPE_OUTPUT_ACQUIRING',
+                            'OPERATION_TYPE_OUT_MULTI'
+                        )
+                        AND status = 'OPERATION_STATE_EXECUTED'
+                        AND UPPER(payment_currency) = UPPER(latest.currency)
+                        AND ABS(payment) > 1e-9
+                            THEN -ABS(payment)
+                        WHEN operation_type LIKE 'BYBIT_FUND_IN%'
+                        AND UPPER(payment_currency) = UPPER(latest.currency)
+                            THEN CASE
+                                WHEN ABS(payment) > 1e-9 THEN payment
+                                WHEN ABS(quantity) > 1e-9 THEN ABS(quantity)
+                                ELSE NULL
+                            END
+                        WHEN operation_type LIKE 'BYBIT_FUND_OUT%'
+                        AND UPPER(payment_currency) = UPPER(latest.currency)
+                            THEN CASE
+                                WHEN ABS(payment) > 1e-9 THEN -ABS(payment)
+                                WHEN ABS(quantity) > 1e-9 THEN -ABS(quantity)
+                                ELSE NULL
+                            END
+                        WHEN operation_type LIKE 'BYBIT_TRANSFER_IN%'
+                        AND UPPER(payment_currency) = UPPER(latest.currency)
+                            THEN CASE
+                                WHEN ABS(payment) > 1e-9 THEN payment
+                                WHEN ABS(quantity) > 1e-9 THEN ABS(quantity)
+                                ELSE NULL
+                            END
+                        WHEN operation_type LIKE 'BYBIT_TRANSFER_OUT%'
+                        AND UPPER(payment_currency) = UPPER(latest.currency)
+                            THEN CASE
+                                WHEN ABS(payment) > 1e-9 THEN -ABS(payment)
+                                WHEN ABS(quantity) > 1e-9 THEN -ABS(quantity)
+                                ELSE NULL
+                            END
+                        ELSE NULL
+                    END AS signed_payment
+                FROM {schema}.portfolio_operations
+                WHERE account_id = pa.id
+            ) cashflows
+            WHERE signed_payment IS NOT NULL
+        ) funds ON TRUE
+        WHERE r.user_id = :user_id
+          AND COALESCE(r.metadata->>'deletedAt', '') = ''
+        GROUP BY r.id
     """
-    Обновление записи в логах при успешном выполнении
+    return query, {"user_id": user_id}
+
+
+def build_fleet_trade_stats_query(*, user_id: int, schema: str = "public") -> tuple[str, dict[str, Any]]:
+    """Closed robot fills over the same Moscow window as the fleet equity curve.
+
+    A close is a SELL or an exit-* kind. Wins and losses use the stored fill pnl.
     """
-    return """
-           UPDATE robot_logs
-           SET finished_at = :finished_at,
-               duration_ms = :duration_ms,
-               response_data = :response_data,
-               success = 1
-           WHERE id = :log_id \
-           """
-
-
-def build_update_robot_log_error_query() -> str:
+    query = f"""
+        SELECT
+            f.robot_id,
+            COUNT(*) FILTER (
+                WHERE UPPER(f.side) = 'SELL' OR f.kind ILIKE 'exit%'
+            ) AS trades_count,
+            COUNT(*) FILTER (
+                WHERE (UPPER(f.side) = 'SELL' OR f.kind ILIKE 'exit%')
+                  AND f.pnl > 0
+            ) AS wins,
+            COUNT(*) FILTER (
+                WHERE (UPPER(f.side) = 'SELL' OR f.kind ILIKE 'exit%')
+                  AND f.pnl < 0
+            ) AS losses
+        FROM {schema}.robot_fills f
+        JOIN {schema}.robots r
+            ON r.id = f.robot_id
+           AND r.user_id = :user_id
+           AND COALESCE(r.metadata->>'deletedAt', '') = ''
+        WHERE f.filled_at >= (
+            ((timezone('Europe/Moscow', CURRENT_TIMESTAMP))::date - :snapshot_days)
+            ::timestamp AT TIME ZONE 'Europe/Moscow'
+        )
+        GROUP BY f.robot_id
     """
-    Обновление записи в логах при ошибке
+    return query, {"user_id": user_id, "snapshot_days": FLEET_SNAPSHOT_DAYS}
+
+
+def build_has_broker_accounts_query(*, user_id: int, schema: str = "public") -> tuple[str, dict[str, Any]]:
+    query = f"""
+        SELECT EXISTS (
+            SELECT 1
+              FROM {schema}.portfolio_accounts pa
+             WHERE pa.user_id = :user_id
+               AND UPPER(pa.account_status) = 'OPEN'
+        ) AS has_accounts
     """
-    return """
-           UPDATE robot_logs
-           SET finished_at = :finished_at,
-               duration_ms = :duration_ms,
-               error_message = :error_message,
-               success = 0
-           WHERE id = :log_id \
-           """
+    return query, {"user_id": user_id}
 
 
-def build_get_account_by_id_query() -> str:
-    """Получение счета по ID"""
-    return """
-           SELECT id FROM portfolio_accounts
-           WHERE user_id = :user_id AND account_id = :account_id \
-           """
-
-
-def build_create_account_query() -> str:
+def build_get_robot_query(*, robot_id: int, user_id: int, schema: str = "public") -> tuple[str, dict[str, Any]]:
+    query = f"""
+        SELECT
+            r.id,
+            r.name,
+            r.type,
+            r.token_id,
+            r.status,
+            r.config_version,
+            r.config,
+            r.metadata,
+            r.date_creation,
+            r.date_modification,
+            r.last_started,
+            dt.name AS type_name,
+            ds.name AS status_name
+        FROM {schema}.robots r
+        LEFT JOIN {schema}.dictionary dt
+            ON r.type = dt.num_value
+           AND dt.table_name = 'ROBOT'
+           AND dt.column_name = 'TYPE'
+        LEFT JOIN {schema}.dictionary ds
+            ON r.status = ds.num_value
+           AND ds.table_name = 'ROBOT'
+           AND ds.column_name = 'STATUS'
+        WHERE r.id = :robot_id
+          AND r.user_id = :user_id
+          AND COALESCE(r.metadata->>'deletedAt', '') = ''
     """
-    Создание нового счета
-    """
-    return """
-           INSERT INTO portfolio_accounts
-           (user_id, account_id, account_type, account_name, account_status, opened_date, is_active)
-           VALUES
-               (:user_id, :account_id, :account_type, :account_name, :account_status, :opened_date, 1)
-               RETURNING id \
-           """
+    return query, {"robot_id": robot_id, "user_id": user_id}
 
 
-def build_update_account_query() -> str:
+def build_insert_robot_query(schema: str = "public") -> str:
+    return f"""
+        INSERT INTO {schema}.robots (
+            name, user_id, token_id, type, status, config_version, config, metadata, usercre
+        ) VALUES (
+            :name, :user_id, :token_id, :type, :status, :config_version, :config, :metadata, :usercre
+        )
+        RETURNING id
     """
-    Обновление информации о счете
-    """
-    return """
-           UPDATE portfolio_accounts
-           SET account_name = :account_name,
-               account_status = :account_status,
-               last_sync_at = :now,
-               updated_at = :now
-           WHERE id = :db_account_id \
-           """
 
 
-def build_create_snapshot_query() -> str:
+def build_update_robot_query(schema: str = "public") -> str:
+    return f"""
+        UPDATE {schema}.robots
+        SET
+            name = :name,
+            token_id = :token_id,
+            type = :type,
+            status = :status,
+            config_version = :config_version,
+            config = :config,
+            metadata = :metadata,
+            usermod = :usermod,
+            date_modification = NOW()
+        WHERE id = :robot_id AND user_id = :user_id
+        RETURNING id
     """
-    Создание нового снимка портфеля
-    """
-    return """
-           INSERT INTO portfolio_snapshots
-           (account_id, snapshot_date, total_amount_portfolio, total_amount_shares,
-            total_amount_bonds, total_amount_etf, total_amount_currencies,
-            total_amount_futures, total_amount_options, expected_yield,
-            daily_yield, daily_yield_relative, currency)
-           VALUES
-               (:account_id, :snapshot_date, :total_amount_portfolio, :total_amount_shares,
-                :total_amount_bonds, :total_amount_etf, :total_amount_currencies,
-                :total_amount_futures, :total_amount_options, :expected_yield,
-                :daily_yield, :daily_yield_relative, :currency)
-               RETURNING id \
-           """
 
 
-def build_create_position_query() -> str:
+def build_soft_delete_robot_query(schema: str = "public") -> str:
+    """Soft delete: metadata.deletedAt + status=0 for portfolio (legacy parity)."""
+    return f"""
+        UPDATE {schema}.robots
+        SET
+            status = :status,
+            metadata = CAST(:metadata AS jsonb),
+            usermod = :usermod,
+            date_modification = NOW()
+        WHERE id = :robot_id
+          AND user_id = :user_id
+          AND COALESCE(metadata->>'deletedAt', '') = ''
+        RETURNING id
     """
-    Создание позиции в снимке
-    """
-    return """
-           INSERT INTO portfolio_positions
-           (snapshot_id, figi, instrument_type, quantity,
-            average_position_price, current_price, expected_yield,
-            daily_yield, blocked, ticker, class_code,
-            position_uid, instrument_uid)
-           VALUES
-               (:snapshot_id, :figi, :instrument_type, :quantity,
-                :average_position_price, :current_price, :expected_yield,
-                :daily_yield, :blocked, :ticker, :class_code,
-                :position_uid, :instrument_uid) \
-           """
 
+
+def build_insert_config_history_query(schema: str = "public") -> str:
+    return f"""
+        INSERT INTO {schema}.robot_config_history (
+            id, robot_id, version, config, created_by
+        ) VALUES (
+            :id, :robot_id, :version, :config, :created_by
+        )
+    """
+
+
+def build_next_config_version_query(*, robot_id: int, schema: str = "public") -> tuple[str, dict[str, Any]]:
+    query = f"""
+        SELECT COALESCE(MAX(version), 0) + 1 AS next_version
+        FROM {schema}.robot_config_history
+        WHERE robot_id = :robot_id
+    """
+    return query, {"robot_id": robot_id}
+
+
+def build_update_status_query(schema: str = "public") -> str:
+    return f"""
+        UPDATE {schema}.robots
+        SET status = :status, usermod = :usermod, date_modification = NOW()
+        WHERE id = :robot_id AND user_id = :user_id
+        RETURNING id
+    """

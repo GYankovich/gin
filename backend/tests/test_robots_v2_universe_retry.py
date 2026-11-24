@@ -13,9 +13,9 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
-from app.modules.robots_v2.engine.session import TradingSessionV2
-from app.modules.robots_v2.engine.types import SessionState
+from app.modules.robots.config.v4_schema import TradingRobotConfigV4
+from app.modules.robots.engine.session import TradingSessionV2
+from app.modules.robots.engine.types import SessionState
 
 
 def _screener_config() -> dict:
@@ -88,10 +88,10 @@ def test_resolve_universe_retries_until_screener_returns_symbols():
             "_sleep_until_universe_retry",
             new=AsyncMock(return_value=True),
         ), patch(
-            "app.modules.robots_v2.engine.session.is_within_trading_session",
+            "app.modules.robots.engine.session.is_within_trading_session",
             return_value=True,
         ), patch(
-            "app.modules.robots_v2.engine.session.event_bus.publish",
+            "app.modules.robots.engine.session.event_bus.publish",
             new=AsyncMock(),
         ), patch.object(session, "_set_stage", new=AsyncMock()):
             return await session._resolve_universe_for_session()
@@ -125,10 +125,10 @@ def test_resolve_universe_uses_fallback_and_keeps_pending():
             "_fallback_universe_tickers",
             new=AsyncMock(return_value=["X5", "ROSN"]),
         ), patch(
-            "app.modules.robots_v2.engine.session.is_within_trading_session",
+            "app.modules.robots.engine.session.is_within_trading_session",
             return_value=True,
         ), patch(
-            "app.modules.robots_v2.engine.session.event_bus.publish",
+            "app.modules.robots.engine.session.event_bus.publish",
             new=AsyncMock(),
         ):
             return await session._resolve_universe_for_session()
@@ -163,10 +163,10 @@ def test_maybe_refresh_universe_keeps_previous_on_resolve_exception():
             "_resolve_universe_once",
             new=AsyncMock(side_effect=HTTPException(status_code=400, detail="MOEX ISS timeout")),
         ), patch(
-            "app.modules.robots_v2.engine.session.is_within_trading_session",
+            "app.modules.robots.engine.session.is_within_trading_session",
             return_value=True,
         ), patch(
-            "app.modules.robots_v2.engine.session.event_bus.publish",
+            "app.modules.robots.engine.session.event_bus.publish",
             new=AsyncMock(),
         ):
             return await session._apply_universe_refresh("pending")
@@ -205,10 +205,10 @@ def test_maybe_refresh_universe_clears_pending_when_screener_recovers():
                 "LKOH": "FIGI_LKOH",
             })),
         ), patch(
-            "app.modules.robots_v2.engine.session.is_within_trading_session",
+            "app.modules.robots.engine.session.is_within_trading_session",
             return_value=True,
         ), patch(
-            "app.modules.robots_v2.engine.session.event_bus.publish",
+            "app.modules.robots.engine.session.event_bus.publish",
             new=AsyncMock(),
         ):
             await session._maybe_refresh_universe()
@@ -246,13 +246,13 @@ def test_maybe_refresh_universe_on_new_trade_date():
             "_resolve_universe_once",
             new=AsyncMock(return_value=(["OZON", "VKUS"], {"OZON": "F1", "VKUS": "F2"})),
         ), patch(
-            "app.modules.robots_v2.engine.session.is_within_trading_session",
+            "app.modules.robots.engine.session.is_within_trading_session",
             return_value=True,
         ), patch(
-            "app.modules.robots_v2.engine.session.trade_date_msk",
+            "app.modules.robots.engine.session.trade_date_msk",
             return_value=date(2026, 8, 21),
         ), patch(
-            "app.modules.robots_v2.engine.session.event_bus.publish",
+            "app.modules.robots.engine.session.event_bus.publish",
             new=AsyncMock(),
         ):
             await session._maybe_refresh_universe()
@@ -284,10 +284,10 @@ def test_maybe_refresh_universe_skips_same_trade_date():
 
     async def _run() -> None:
         with patch.object(session, "_resolve_universe_once", new=resolve), patch(
-            "app.modules.robots_v2.engine.session.is_within_trading_session",
+            "app.modules.robots.engine.session.is_within_trading_session",
             return_value=True,
         ), patch(
-            "app.modules.robots_v2.engine.session.trade_date_msk",
+            "app.modules.robots.engine.session.trade_date_msk",
             return_value=date(2026, 8, 21),
         ):
             await session._maybe_refresh_universe()
@@ -318,7 +318,7 @@ def test_force_refresh_universe_rebuilds_candidates():
             "_resolve_universe_once",
             new=AsyncMock(return_value=(["OZON"], {"OZON": "F1"})),
         ), patch(
-            "app.modules.robots_v2.engine.session.event_bus.publish",
+            "app.modules.robots.engine.session.event_bus.publish",
             new=AsyncMock(),
         ):
             return await session.refresh_universe(reason="force")
@@ -389,10 +389,10 @@ def test_resolve_universe_retries_on_resolve_exception():
             "_sleep_until_universe_retry",
             new=AsyncMock(return_value=True),
         ), patch(
-            "app.modules.robots_v2.engine.session.is_within_trading_session",
+            "app.modules.robots.engine.session.is_within_trading_session",
             return_value=True,
         ), patch(
-            "app.modules.robots_v2.engine.session.event_bus.publish",
+            "app.modules.robots.engine.session.event_bus.publish",
             new=AsyncMock(),
         ):
             return await session._resolve_universe_for_session()
@@ -428,10 +428,10 @@ def test_resolve_universe_fails_outside_session_without_fallback():
             session,
             "_clear_session_desired_running",
         ), patch(
-            "app.modules.robots_v2.engine.session.is_within_trading_session",
+            "app.modules.robots.engine.session.is_within_trading_session",
             return_value=False,
         ), patch(
-            "app.modules.robots_v2.engine.session.event_bus.publish",
+            "app.modules.robots.engine.session.event_bus.publish",
             new=AsyncMock(),
         ):
             return await session._resolve_universe_for_session()
@@ -442,7 +442,7 @@ def test_resolve_universe_fails_outside_session_without_fallback():
 
 
 def test_resolve_universe_gives_up_after_max_start_retries():
-    from app.modules.robots_v2.engine.session import UNIVERSE_MAX_START_RETRIES
+    from app.modules.robots.engine.session import UNIVERSE_MAX_START_RETRIES
 
     cfg = _screener_config()
     session = TradingSessionV2(
@@ -472,10 +472,10 @@ def test_resolve_universe_gives_up_after_max_start_retries():
             "_set_stage",
             new=AsyncMock(),
         ), patch(
-            "app.modules.robots_v2.engine.session.is_within_trading_session",
+            "app.modules.robots.engine.session.is_within_trading_session",
             return_value=True,
         ), patch(
-            "app.modules.robots_v2.engine.session.event_bus.publish",
+            "app.modules.robots.engine.session.event_bus.publish",
             new=AsyncMock(),
         ):
             return await session._resolve_universe_for_session()
@@ -487,8 +487,8 @@ def test_resolve_universe_gives_up_after_max_start_retries():
 
 
 def test_commit_universe_syncs_figi_into_execution():
-    from app.modules.robots_v2.engine.execution import ExecutionService
-    from app.modules.robots_v2.engine.paper_ledger import PaperLedger
+    from app.modules.robots.engine.execution import ExecutionService
+    from app.modules.robots.engine.paper_ledger import PaperLedger
 
     cfg = _screener_config()
     session = TradingSessionV2(
@@ -512,7 +512,7 @@ def test_commit_universe_syncs_figi_into_execution():
 
     async def _run() -> None:
         with patch.object(session, "_resync_price_subscriptions", new=AsyncMock()), patch(
-            "app.modules.robots_v2.engine.session.event_bus.publish",
+            "app.modules.robots.engine.session.event_bus.publish",
             new=AsyncMock(),
         ):
             await session._commit_universe(

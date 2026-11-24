@@ -69,36 +69,36 @@ API с фронта:
 - `backend/app/modules/robots/router.py` — `history-backtest`, runs, cancel, list, compare
 - `backend/app/modules/robots/service.py`
 - `backend/app/modules/robots/usecases.py` — в т.ч. `robot_backtest_usecase`
-- `backend/app/modules/robots/schemas.py`
-- `backend/app/modules/robots/models.py`
+- `backend/app/modules/robot_lib/schemas.py`
+- `backend/app/modules/robot_lib/models.py`
 - `backend/app/modules/robots/queries.py`
 
 ---
 
 ## Движок бэктеста (симуляция)
 
-- `backend/app/modules/robots/trading/backtest/__init__.py`
-- `backend/app/modules/robots/trading/backtest/engine.py`
-- `backend/app/modules/robots/trading/backtest/sim_executor.py`
-- `backend/app/modules/robots/trading/backtest/broker_emulator.py`
-- `backend/app/modules/robots/trading/backtest/virtual_portfolio.py`
-- `backend/app/modules/robots/trading/backtest/metrics.py`
-- `backend/app/modules/robots/trading/backtest/persistence.py`
-- `backend/app/modules/robots/trading/backtest/dms_emulator.py`
+- `backend/app/modules/robot_lib/trading/backtest/__init__.py`
+- `backend/app/modules/robot_lib/trading/backtest/engine.py`
+- `backend/app/modules/robot_lib/trading/backtest/sim_executor.py`
+- `backend/app/modules/robot_lib/trading/backtest/broker_emulator.py`
+- `backend/app/modules/robot_lib/trading/backtest/virtual_portfolio.py`
+- `backend/app/modules/robot_lib/trading/backtest/metrics.py`
+- `backend/app/modules/robot_lib/trading/backtest/persistence.py`
+- `backend/app/modules/robot_lib/trading/backtest/dms_emulator.py`
 
 ---
 
 ## Стратегии и сигналы (используются в бэктесте)
 
-- `backend/app/modules/robots/trading/strategies/__init__.py`
-- `backend/app/modules/robots/trading/strategies/base.py`
-- `backend/app/modules/robots/trading/strategies/grain_seed.py`
-- `backend/app/modules/robots/trading/grain_seed_orchestrator.py`
-- `backend/app/modules/robots/trading/indicators/service.py`
-- `backend/app/modules/robots/trading/indicators/__init__.py`
-- `backend/app/modules/robots/trading/costs.py`
-- `backend/app/modules/robots/trading/cache.py`
-- `backend/app/modules/robots/trading/instrument_selector.py`
+- `backend/app/modules/robot_lib/trading/strategies/__init__.py`
+- `backend/app/modules/robot_lib/trading/strategies/base.py`
+- `backend/app/modules/robot_lib/trading/strategies/grain_seed.py`
+- `backend/app/modules/robot_lib/trading/grain_seed_orchestrator.py`
+- `backend/app/modules/robot_lib/trading/indicators/service.py`
+- `backend/app/modules/robot_lib/trading/indicators/__init__.py`
+- `backend/app/modules/robot_lib/trading/costs.py`
+- `backend/app/modules/robot_lib/trading/cache.py`
+- `backend/app/modules/robot_lib/trading/instrument_selector.py`
 
 ---
 
@@ -136,11 +136,11 @@ API с фронта:
 
 ## Трейдинг (live, тот же модуль `robots`)
 
-- `backend/app/modules/robots/trading/scheduler.py`
-- `backend/app/modules/robots/trading/robot.py`
-- `backend/app/modules/robots/trading/session.py`
-- `backend/app/modules/robots/trading/stages/stage1_collect.py` … `stage6_orders.py`
-- `backend/app/modules/robots/trading/brokers/` — `factory.py`, `tinvest.py`, `base.py`, и др.
+- `backend/app/modules/robot_lib/trading/scheduler.py`
+- `backend/app/modules/robot_lib/trading/robot.py`
+- `backend/app/modules/robot_lib/trading/session.py`
+- `backend/app/modules/robot_lib/trading/stages/stage1_collect.py` … `stage6_orders.py`
+- `backend/app/modules/robot_lib/trading/brokers/` — `factory.py`, `tinvest.py`, `base.py`, и др.
 - `backend/app/modules/robots/live_hub.py`
 - `backend/app/modules/robots/live_ws.py`
 - `frontend/src/pages/RobotsPage.tsx`
@@ -150,10 +150,10 @@ API с фронта:
 
 ## Обновление портфеля
 
-- `backend/app/modules/robots/portfolio_updater/__init__.py`
-- `backend/app/modules/robots/portfolio_updater/scheduler.py`
-- `backend/app/modules/robots/portfolio_updater/robot.py`
-- `backend/app/modules/robots/portfolio_updater/queries.py`
+- `backend/app/modules/robot_lib/portfolio_updater/__init__.py`
+- `backend/app/modules/robot_lib/portfolio_updater/scheduler.py`
+- `backend/app/modules/robot_lib/portfolio_updater/robot.py`
+- `backend/app/modules/robot_lib/portfolio_updater/queries.py`
 - `backend/app/modules/robots/scheduler.py`
 
 ---
@@ -194,4 +194,4 @@ API с фронта:
 
 ## Сводка
 
-Ядро бэктеста в коде: `backend/app/modules/robots/trading/backtest/` + `robots/router|service|schemas` + `frontend/src/pages/testing/*` + документы в `docs/` с `backtest` / `testing` в имени + миграции `0020`, `0027`, `0028` (и связанные `0029`, `0030`).
+Ядро бэктеста в коде: `backend/app/modules/robot_lib/trading/backtest/` + `robots/router|service|schemas` + `frontend/src/pages/testing/*` + документы в `docs/` с `backtest` / `testing` в имени + миграции `0020`, `0027`, `0028` (и связанные `0029`, `0030`).

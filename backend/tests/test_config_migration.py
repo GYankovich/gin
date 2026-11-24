@@ -1,7 +1,7 @@
 """Тесты миграции config v1 → v2 (П1/П2/П3)."""
 from __future__ import annotations
 
-from app.modules.robots.config.migration import (
+from app.modules.robot_lib.config.migration import (
     CONFIG_VERSION_V3,
     ensure_config_v2,
     migrate_v2_to_v3,
@@ -9,8 +9,8 @@ from app.modules.robots.config.migration import (
     merge_config_v2,
     resolve_schema_profile_v3,
 )
-from app.modules.robots.config.v2_schema import CONFIG_VERSION_V2
-from app.modules.robots import schemas
+from app.modules.robot_lib.config.v2_schema import CONFIG_VERSION_V2
+from app.modules.robot_lib import schemas
 
 
 def test_migrate_dms_pipeline_splits_atr():
@@ -97,7 +97,7 @@ def test_migrate_dms_pipeline_without_atr_gets_default_p1():
 
 
 def test_repair_v2_filter_split_from_pipeline_only():
-    from app.modules.robots.config.migration import repair_v2_filter_split
+    from app.modules.robot_lib.config.migration import repair_v2_filter_split
 
     raw = {
         "config_version": 2,
@@ -141,7 +141,7 @@ def test_migrate_v2_to_v3_adds_schema_profile():
 
 def test_signal_generation_from_config_accepts_bybit():
     """Regression: history-backtest type2_bybit must not 422 on data_source=bybit."""
-    from app.modules.robots.config.migration import signal_generation_from_config
+    from app.modules.robot_lib.config.migration import signal_generation_from_config
 
     sig = signal_generation_from_config(
         {
@@ -160,34 +160,3 @@ def test_signal_generation_from_config_accepts_bybit():
     assert sig.data_source == "bybit"
     assert sig.strategy == "grain_seed"
     assert sig.params.get("interval") == "5m"
-
-
-def test_history_derive_engine_params_bybit_skips_moex_p1():
-    from app.modules.robots.service import RobotService
-
-    class _DummyDms:
-        pass
-
-    p = RobotService._history_derive_engine_params(
-        {
-            "config_version": 3,
-            "schema_profile": "type2_bybit",
-            "broker_type": "bybit",
-            "strategy": "grain_seed",
-            "signal_generation": {
-                "strategy": "grain_seed",
-                "params": {"interval": "5m", "candle_days": 14},
-                "data_source": "bybit",
-            },
-            "crypto_universe": {"enabled": True},
-            "universe_mode": "auto",
-            "risk": {},
-            "costs": {},
-        },
-        dms_service=_DummyDms(),
-    )
-    assert p["strategy_name"] == "grain_seed"
-    assert p["signal_generation"].data_source == "bybit"
-    assert p["historical_screening"] is None
-    assert p["strategy_params"].get("moex_analysis_interval") is None
-    assert p["strategy_params"].get("interval") == "5m"

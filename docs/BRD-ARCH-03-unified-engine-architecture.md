@@ -1,6 +1,6 @@
 # BRD-ARCH-03 — Единое ядро торгового движка (backtest + live)
 
-> **Superseded for prod backtest (2026-10-02):** реализация — V2 `BacktestHost` + shared `robots_v2/engine`; пакеты `trading/engines/*` и `trading/data_provider/*` удалены. Документ сохранён как исторический ARCH-03 design record.
+> **Superseded for prod backtest (2026-10-02):** реализация — V2 `BacktestHost` + shared `robots/engine`; пакеты `trading/engines/*` и `trading/data_provider/*` удалены. Документ сохранён как исторический ARCH-03 design record.
 
 **Версия:** 1.0
 **Статус:** historical (partially implemented; experimental engines removed)
@@ -12,7 +12,7 @@
 
 ## §1. Executive summary
 
-В коде уже есть общий контракт стратегии (`BaseStrategy.generate_signals` вызывается и из live `Stage5Signals`, и из backtest `engine.run_backtest_simulation`), но **бизнес-логика дублируется**: SL/TP/trailing/daily-loss/cooling/EOD-flatten — в [`backend/app/modules/robots/trading/backtest/engine.py`](../backend/app/modules/robots/trading/backtest/engine.py), а оркестрация (резерв средств, серия убыточных дней, принудительное закрытие) — в [`backend/app/modules/robots/trading/grain_seed_orchestrator.py`](../backend/app/modules/robots/trading/grain_seed_orchestrator.py) и [`backend/app/modules/robots/trading/session.py`](../backend/app/modules/robots/trading/session.py) с хардкодом по имени стратегии. Контракты данных размыты (везде `Dict[str, Any]`), а history-backtest пишется в две схемы (`{DB_SCHEMA}.backtest_*` и `backtest.*`).
+В коде уже есть общий контракт стратегии (`BaseStrategy.generate_signals` вызывается и из live `Stage5Signals`, и из backtest `engine.run_backtest_simulation`), но **бизнес-логика дублируется**: SL/TP/trailing/daily-loss/cooling/EOD-flatten — в [`backend/app/modules/robot_lib/trading/backtest/engine.py`](../backend/app/modules/robot_lib/trading/backtest/engine.py), а оркестрация (резерв средств, серия убыточных дней, принудительное закрытие) — в [`backend/app/modules/robot_lib/trading/grain_seed_orchestrator.py`](../backend/app/modules/robot_lib/trading/grain_seed_orchestrator.py) и [`backend/app/modules/robot_lib/trading/session.py`](../backend/app/modules/robot_lib/trading/session.py) с хардкодом по имени стратегии. Контракты данных размыты (везде `Dict[str, Any]`), а history-backtest пишется в две схемы (`{DB_SCHEMA}.backtest_*` и `backtest.*`).
 
 Цель документа — зафиксировать 7-слойную архитектуру, в которой и **бэктест**, и **реальная торговля** запускают одну и ту же цепочку:
 
@@ -86,7 +86,7 @@ flowchart TB
 
 ## §3. Контракты данных
 
-Новый модуль [`backend/app/modules/robots/trading/contracts.py`](../backend/app/modules/robots/trading/contracts.py).
+Новый модуль [`backend/app/modules/robot_lib/trading/contracts.py`](../backend/app/modules/robot_lib/trading/contracts.py).
 
 Pydantic v2 `BaseModel` (для API и persist; arbitrary-types-allowed) + `dataclass(slots=True)` для hot-path (где BaseModel дорог). Все цены — `Decimal` или `float` в зависимости от роли.
 
@@ -204,7 +204,7 @@ class CostParams(BaseModel):
 
 ## §4. DataProvider
 
-Новый пакет [`backend/app/modules/robots/trading/data_provider/`](../backend/app/modules/robots/trading/data_provider/).
+Новый пакет [`backend/app/modules/robot_lib/trading/data_provider/`](../backend/app/modules/robot_lib/trading/data_provider/).
 
 ### `base.py`
 
@@ -238,7 +238,7 @@ class DataProvider(ABC):
 
 ### `live.py` — `LiveDataProvider`
 
-- обёртка над [`BrokerFacade`](../backend/app/modules/robots/trading/brokers/base.py) (`get_candles`, `subscribe_prices`);
+- обёртка над [`BrokerFacade`](../backend/app/modules/robot_lib/trading/brokers/base.py) (`get_candles`, `subscribe_prices`);
 - агрегирует тики в `Candle` по выбранному интервалу (если брокер не отдаёт готовые бары стриминговым каналом);
 - `list_universe` — из `tqbr_securities`;
 - `get_daily_summary` — через `DmsService.create_snapshot` (или последний кэш, если свежий).
@@ -249,7 +249,7 @@ class DataProvider(ABC):
 
 ## §5. Pipeline
 
-Новый пакет [`backend/app/modules/robots/trading/pipeline/`](../backend/app/modules/robots/trading/pipeline/).
+Новый пакет [`backend/app/modules/robot_lib/trading/pipeline/`](../backend/app/modules/robot_lib/trading/pipeline/).
 
 ```python
 class PipelineRunner:
@@ -308,7 +308,7 @@ Pipeline одинаково вызывается:
 
 ### `BaseStrategy` v2
 
-Расширение существующего класса в [`backend/app/modules/robots/trading/strategies/base.py`](../backend/app/modules/robots/trading/strategies/base.py).
+Расширение существующего класса в [`backend/app/modules/robot_lib/trading/strategies/base.py`](../backend/app/modules/robot_lib/trading/strategies/base.py).
 
 ```python
 class BaseStrategy(ABC):
@@ -446,7 +446,7 @@ Exits (передаются в `RiskParams`, не в стратегию):
 
 ## §7. RiskManager
 
-Новый пакет [`backend/app/modules/robots/trading/risk/`](../backend/app/modules/robots/trading/risk/).
+Новый пакет [`backend/app/modules/robot_lib/trading/risk/`](../backend/app/modules/robot_lib/trading/risk/).
 
 ### `params.py` — `RiskParams`
 
@@ -525,8 +525,8 @@ class RiskManager:
 ```
 
 Извлекается:
-- из [`engine.py`](../backend/app/modules/robots/trading/backtest/engine.py): `_risk_budget_max_quantity`, SL/TP по high/low бара, trailing-stop, daily loss cap, cooling, EOD flatten;
-- из [`grain_seed_orchestrator.py`](../backend/app/modules/robots/trading/grain_seed_orchestrator.py): `compute_effective_free_funds`, `fetch_consecutive_loss_days`, `parse_force_close_time`, `filter_grain_seed_signals` (обобщить, убрать привязку к имени стратегии).
+- из [`engine.py`](../backend/app/modules/robot_lib/trading/backtest/engine.py): `_risk_budget_max_quantity`, SL/TP по high/low бара, trailing-stop, daily loss cap, cooling, EOD flatten;
+- из [`grain_seed_orchestrator.py`](../backend/app/modules/robot_lib/trading/grain_seed_orchestrator.py): `compute_effective_free_funds`, `fetch_consecutive_loss_days`, `parse_force_close_time`, `filter_grain_seed_signals` (обобщить, убрать привязку к имени стратегии).
 
 После рефакторинга обе точки — `engine.py` и `session.py` — пользуются единственным `RiskManager`.
 
@@ -534,7 +534,7 @@ class RiskManager:
 
 ## §8. Execution
 
-Новый пакет [`backend/app/modules/robots/trading/execution/`](../backend/app/modules/robots/trading/execution/).
+Новый пакет [`backend/app/modules/robot_lib/trading/execution/`](../backend/app/modules/robot_lib/trading/execution/).
 
 ```python
 class Execution(ABC):
@@ -550,20 +550,20 @@ class Execution(ABC):
 
 ### `sim.py` — `SimExecution`
 
-- Использует существующие [`BrokerEmulator`](../backend/app/modules/robots/trading/backtest/broker_emulator.py) (`NEXT_BAR_OPEN`/`CURRENT_BAR_CLOSE`/`SIGNAL_BAR_HIGH_LOW`) + [`SimExecutor`](../backend/app/modules/robots/trading/backtest/sim_executor.py).
+- Использует существующие [`BrokerEmulator`](../backend/app/modules/robot_lib/trading/backtest/broker_emulator.py) (`NEXT_BAR_OPEN`/`CURRENT_BAR_CLOSE`/`SIGNAL_BAR_HIGH_LOW`) + [`SimExecutor`](../backend/app/modules/robot_lib/trading/backtest/sim_executor.py).
 - Передаёт `Order` → возвращает `Fill` синхронно (на бэктесте партикулярного `on_state_changed` нет).
 - Поддерживает `slippage_pct`.
 
 ### `live.py` — `LiveExecution`
 
-- Тонкая обёртка над [`BrokerFacade.post_order`](../backend/app/modules/robots/trading/brokers/base.py) / `get_order_state` / `post_market_order` (логика из [`Stage6Orders`](../backend/app/modules/robots/trading/stages/stage6_orders.py)).
+- Тонкая обёртка над [`BrokerFacade.post_order`](../backend/app/modules/robot_lib/trading/brokers/base.py) / `get_order_state` / `post_market_order` (логика из [`Stage6Orders`](../backend/app/modules/robot_lib/trading/stages/stage6_orders.py)).
 - `on_state_changed` — поток статусов через `BrokerFacade` (опционально подписка на собственный WS-канал в backlog).
 
 ---
 
 ## §9. Engines
 
-Новый пакет [`backend/app/modules/robots/trading/engines/`](../backend/app/modules/robots/trading/engines/).
+Новый пакет [`backend/app/modules/robot_lib/trading/engines/`](../backend/app/modules/robot_lib/trading/engines/).
 
 ```python
 @dataclass
@@ -580,7 +580,7 @@ class RuntimeContext:
 
 ### `backtest.py` — `BacktestEngine`
 
-Рефакторит `run_backtest_simulation` из [`engine.py`](../backend/app/modules/robots/trading/backtest/engine.py). Цикл:
+Рефакторит `run_backtest_simulation` из [`engine.py`](../backend/app/modules/robot_lib/trading/backtest/engine.py). Цикл:
 
 ```
 for day in trade_days:
@@ -618,7 +618,7 @@ for day in trade_days:
 
 ### `live.py` — `LiveTradingEngine`
 
-Рефактор [`TradingSession`](../backend/app/modules/robots/trading/session.py).
+Рефактор [`TradingSession`](../backend/app/modules/robot_lib/trading/session.py).
 
 - На старте сессии: `snapshot = await provider.get_daily_summary(universe, today)` + `pipeline.run(...)`. Тикеры/FIGI, прошедшие фильтр, становятся `allowed_figis` сессии. Это закрывает зазор §3.0.1 BRD-ARCH-02 (раньше живой робот не вызывал `DividendCalendarService`).
 - Цикл: `async for candle in provider.subscribe_candles(secids, interval)` — на каждую закрытую свечу повторяется тот же набор шагов 1–5, что и в backtest.
@@ -659,7 +659,7 @@ class LiveRecorder(RuntimeRecorder):      # пишет в {DB_SCHEMA}.robot_*
 
 Сейчас [`backend/app/modules/robots/service.py:run_robot_history_backtest`](../backend/app/modules/robots/service.py) пишет одновременно в `{DB_SCHEMA}.backtest_*` (схема приложения) и в `backtest.*` (отдельная схема из 0028). После рефакторинга:
 - Пишем **только** в `{DB_SCHEMA}.backtest_*`.
-- `BacktestPersistence` (`backend/app/modules/robots/trading/backtest/persistence.py`) помечается deprecated; ре-экспорты остаются как no-op, чтобы не сломать импорты.
+- `BacktestPersistence` (`backend/app/modules/robot_lib/trading/backtest/persistence.py`) помечается deprecated; ре-экспорты остаются как no-op, чтобы не сломать импорты.
 - Снос `CREATE SCHEMA backtest` и `DROP` всех `backtest.*` — отдельной миграцией в backlog (см. §11).
 
 ---
@@ -672,7 +672,7 @@ class LiveRecorder(RuntimeRecorder):      # пишет в {DB_SCHEMA}.robot_*
 2. **`GrainSeedRisk`** — alias на `RiskParams`. Pydantic v2 валидатор принимает оба написания.
 3. **`GrainSeedConfig.strategy == "grain_seed"`** валидатор расширяется до `Literal["grain_seed", "momentum_breakout", "reversion_to_ma"]`. Старые роботы с `strategy="grain_seed"` продолжают работать.
 4. **`signal_profile`** (`legacy` / `tz_signals_v1` / `tz_doc_v1` / `backtest_review`) сохраняется как режим внутри новой реализации `grain_seed.py`.
-5. **`run_backtest_simulation`** сохраняется как функция (тонкая обёртка над `BacktestEngine.run`). Импорт из `app.modules.robots.trading.backtest` остаётся валидным.
+5. **`run_backtest_simulation`** сохраняется как функция (тонкая обёртка над `BacktestEngine.run`). Импорт из `app.modules.robot_lib.trading.backtest` остаётся валидным.
 6. **`grain_seed_orchestrator`** — функции (`parse_force_close_time`, `compute_effective_free_funds`, `extract_broker_position_figis`, `extract_db_open_figis`, `evaluate_grain_seed_orchestration`, `filter_grain_seed_signals`) сохраняются как **deprecated re-exports** на обёртки `RiskManager` / `risk/utils.py`. Поведение не меняется.
 7. **`backtest/dms_emulator.py`** — помечается deprecated, остаётся в кодовой базе до сноса схемы `backtest` из 0028.
 
@@ -725,23 +725,23 @@ class LiveRecorder(RuntimeRecorder):      # пишет в {DB_SCHEMA}.robot_*
 
 | Путь | Назначение |
 |------|------------|
-| `backend/app/modules/robots/trading/contracts.py` | Контракты данных (§3) |
-| `backend/app/modules/robots/trading/indicators/library.py` | Индикаторы (§6) |
-| `backend/app/modules/robots/trading/risk/params.py` | `RiskParams` (§7) |
-| `backend/app/modules/robots/trading/risk/manager.py` | `RiskManager` (§7) |
-| `backend/app/modules/robots/trading/pipeline/runner.py` | `PipelineRunner` (§5) |
-| `backend/app/modules/robots/trading/data_provider/base.py` | `DataProvider` (§4) |
-| `backend/app/modules/robots/trading/data_provider/historical.py` | `HistoricalDataProvider` |
-| `backend/app/modules/robots/trading/data_provider/live.py` | `LiveDataProvider` |
-| `backend/app/modules/robots/trading/execution/base.py` | `Execution` (§8) |
-| `backend/app/modules/robots/trading/execution/sim.py` | `SimExecution` |
-| `backend/app/modules/robots/trading/execution/live.py` | `LiveExecution` |
-| `backend/app/modules/robots/trading/engines/backtest.py` | `BacktestEngine` (§9) |
-| `backend/app/modules/robots/trading/engines/live.py` | `LiveTradingEngine` |
-| `backend/app/modules/robots/trading/recorder.py` | `RuntimeRecorder` (§10) |
-| `backend/app/modules/robots/trading/strategies/grain_seed.py` | Переписан под BaseStrategy v2 |
-| `backend/app/modules/robots/trading/strategies/momentum_breakout.py` | Новая стратегия |
-| `backend/app/modules/robots/trading/strategies/reversion_to_ma.py` | Новая стратегия |
+| `backend/app/modules/robot_lib/trading/contracts.py` | Контракты данных (§3) |
+| `backend/app/modules/robot_lib/trading/indicators/library.py` | Индикаторы (§6) |
+| `backend/app/modules/robot_lib/trading/risk/params.py` | `RiskParams` (§7) |
+| `backend/app/modules/robot_lib/trading/risk/manager.py` | `RiskManager` (§7) |
+| `backend/app/modules/robot_lib/trading/pipeline/runner.py` | `PipelineRunner` (§5) |
+| `backend/app/modules/robot_lib/trading/data_provider/base.py` | `DataProvider` (§4) |
+| `backend/app/modules/robot_lib/trading/data_provider/historical.py` | `HistoricalDataProvider` |
+| `backend/app/modules/robot_lib/trading/data_provider/live.py` | `LiveDataProvider` |
+| `backend/app/modules/robot_lib/trading/execution/base.py` | `Execution` (§8) |
+| `backend/app/modules/robot_lib/trading/execution/sim.py` | `SimExecution` |
+| `backend/app/modules/robot_lib/trading/execution/live.py` | `LiveExecution` |
+| `backend/app/modules/robot_lib/trading/engines/backtest.py` | `BacktestEngine` (§9) |
+| `backend/app/modules/robot_lib/trading/engines/live.py` | `LiveTradingEngine` |
+| `backend/app/modules/robot_lib/trading/recorder.py` | `RuntimeRecorder` (§10) |
+| `backend/app/modules/robot_lib/trading/strategies/grain_seed.py` | Переписан под BaseStrategy v2 |
+| `backend/app/modules/robot_lib/trading/strategies/momentum_breakout.py` | Новая стратегия |
+| `backend/app/modules/robot_lib/trading/strategies/reversion_to_ma.py` | Новая стратегия |
 | `alembic/versions/0031_unified_engine_schema.py` | DDL: `backtest_decisions`, `backtest_risk_events`, `robot_risk_events` |
 
 ---

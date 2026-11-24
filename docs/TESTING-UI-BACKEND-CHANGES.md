@@ -56,7 +56,7 @@ MOEX режимы (`fixed`, `dms_pipeline`, `tqbr_scan`) **без изменен
 
 ### 2.2. Маппинг с существующим config v3
 
-Профиль [`type2_bybit.py`](../backend/app/modules/robots/config/profiles/type2_bybit.py):
+Профиль [`type2_bybit.py`](../backend/app/modules/robot_lib/config/profiles/type2_bybit.py):
 
 ```python
 class CryptoUniverseConfig(BaseModel):
@@ -79,10 +79,10 @@ universe_mode = "fixed" ⟺  явно fixed ИЛИ непустой allowed_symb
 
 | Файл | Изменение |
 |------|-----------|
-| [`universe.py`](../backend/app/modules/robots/universe.py) | `UNIVERSE_MODE_AUTO = "auto"`, `normalize_crypto_universe_mode(config)` |
-| [`type2_bybit.py`](../backend/app/modules/robots/config/profiles/type2_bybit.py) | Опциональное `universe_mode: Literal["fixed","auto"]` |
-| [`migration.py`](../backend/app/modules/robots/config/migration.py) | При миграции v2→v3: `enabled=True` + пустые symbols → `auto` |
-| [`schemas.py`](../backend/app/modules/robots/schemas.py) | Документация в `RobotHistoryBacktestRequest.config` (описание полей) |
+| [`universe.py`](../backend/app/modules/robot_lib/universe.py) | `UNIVERSE_MODE_AUTO = "auto"`, `normalize_crypto_universe_mode(config)` |
+| [`type2_bybit.py`](../backend/app/modules/robot_lib/config/profiles/type2_bybit.py) | Опциональное `universe_mode: Literal["fixed","auto"]` |
+| [`migration.py`](../backend/app/modules/robot_lib/config/migration.py) | При миграции v2→v3: `enabled=True` + пустые symbols → `auto` |
+| [`schemas.py`](../backend/app/modules/robot_lib/schemas.py) | Документация в `RobotHistoryBacktestRequest.config` (описание полей) |
 
 ### 2.4. Согласование фильтров (технический долг)
 
@@ -105,9 +105,9 @@ universe_mode = "fixed" ⟺  явно fixed ИЛИ непустой allowed_symb
 
 ### 3.1. Файл
 
-`backend/app/modules/robots/trading/pipeline/crypto_universe_scoring.py`
+`backend/app/modules/robot_lib/trading/pipeline/crypto_universe_scoring.py`
 
-По аналогии с [`universe_scoring.py`](../backend/app/modules/robots/trading/pipeline/universe_scoring.py) (MOEX).
+По аналогии с [`universe_scoring.py`](../backend/app/modules/robot_lib/trading/pipeline/universe_scoring.py) (MOEX).
 
 ### 3.2. API модуля
 
@@ -275,7 +275,7 @@ ByBit REST `get_tickers` отдаёт **текущие** turnover/spread, не �
 
 ### 7.1. Request
 
-[`RobotBacktestHistoryRequest`](../backend/app/modules/robots/schemas.py):
+[`RobotBacktestHistoryRequest`](../backend/app/modules/robot_lib/schemas.py):
 
 ```python
 broker_type: Optional[Literal["tinvest", "bybit"]] = Field(

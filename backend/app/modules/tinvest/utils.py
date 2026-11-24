@@ -8,7 +8,7 @@
 from datetime import datetime, timezone
 from typing import Any, Optional, Dict
 
-from app.modules.robots.common.utils import safe_int, safe_str, safe_float, safe_bool, mask_token
+from app.modules.robot_lib.common.utils import safe_int, safe_str, safe_float, safe_bool, mask_token
 
 
 def parse_api_timestamp(value: Any) -> Optional[datetime]:

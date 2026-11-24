@@ -5,7 +5,7 @@ from sqlalchemy import text
 from app.core.database import SessionLocal
 from app.core.config import settings
 from app.modules.dms.service import dms_service
-from app.modules.robots_v2.universe import presets
+from app.modules.robots.universe import presets
 
 schema = settings.DB_SCHEMA or "public"
 db = SessionLocal()

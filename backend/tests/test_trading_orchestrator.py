@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.modules.robots.trading.runtime import (
+from app.modules.robot_lib.trading.runtime import (
     TradingOrchestrator,
     build_allowed_figis_by_date,
     build_allowed_symbols_by_date,
@@ -52,7 +52,7 @@ def test_prefetch_crypto_candles_for_replay(monkeypatch):
     from unittest.mock import MagicMock
 
     from app.modules.trading_core.data.stats import CandlePrefetchStats
-    from app.modules.robots.trading.intervals import resolve_strategy_interval
+    from app.modules.robot_lib.trading.intervals import resolve_strategy_interval
 
     class _FakeOrch(TradingOrchestrator):
         def load_candles_by_symbol_from_cache(self, db, **kwargs):
@@ -73,7 +73,7 @@ def test_prefetch_crypto_candles_for_replay(monkeypatch):
         return CandlePrefetchStats(total_tickers=1, fetched_tickers=1, fetched_candles=2)
 
     monkeypatch.setattr(
-        "app.modules.robots.trading.data.providers.bybit_market.ensure_candles_bybit_market",
+        "app.modules.robot_lib.trading.data.providers.bybit_market.ensure_candles_bybit_market",
         _fake_ensure,
     )
     resolved = resolve_strategy_interval("CANDLE_INTERVAL_5_MIN")
@@ -100,8 +100,8 @@ def test_prefetch_crypto_candles_for_replay_load_cached_candles(monkeypatch):
     from unittest.mock import MagicMock
 
     from app.modules.trading_core.data.stats import CandlePrefetchStats
-    from app.modules.robots.trading.intervals import resolve_strategy_interval
-    from app.modules.robots.trading.runtime.orchestrator import TradingOrchestrator
+    from app.modules.robot_lib.trading.intervals import resolve_strategy_interval
+    from app.modules.robot_lib.trading.runtime.orchestrator import TradingOrchestrator
 
     cached = {
         "BTCUSDT": [
@@ -120,11 +120,11 @@ def test_prefetch_crypto_candles_for_replay_load_cached_candles(monkeypatch):
         return CandlePrefetchStats(total_tickers=1, fetched_tickers=1, fetched_candles=2)
 
     monkeypatch.setattr(
-        "app.modules.robots.trading.data.providers.bybit_market.ensure_candles_bybit_market",
+        "app.modules.robot_lib.trading.data.providers.bybit_market.ensure_candles_bybit_market",
         _fake_ensure,
     )
     monkeypatch.setattr(
-        "app.modules.robots_v2.backtest.candle_io.load_candles_by_symbol_from_cache",
+        "app.modules.robots.backtest.candle_io.load_candles_by_symbol_from_cache",
         lambda *a, **k: cached,
     )
     resolved = resolve_strategy_interval("CANDLE_INTERVAL_5_MIN")
@@ -161,11 +161,11 @@ def test_run_backtest_replay_delegates_to_session():
 
     orch = TradingOrchestrator()
     with patch(
-        "app.modules.robots.trading.runtime.orchestrator.create_trading_session",
+        "app.modules.robot_lib.trading.runtime.orchestrator.create_trading_session",
         return_value=mock_session,
     ):
         with patch(
-            "app.modules.robots.trading.runtime.orchestrator.SimBacktestBrokerFacade",
+            "app.modules.robot_lib.trading.runtime.orchestrator.SimBacktestBrokerFacade",
             return_value=MagicMock(),
         ):
             res = asyncio.run(

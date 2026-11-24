@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
-from app.modules.robots.trading.contracts import Position, Signal
-from app.modules.robots.trading.risk import RiskManager, RiskParams
-from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
+from app.modules.robot_lib.trading.contracts import Position, Signal
+from app.modules.robot_lib.trading.risk import RiskManager, RiskParams
+from app.modules.robot_lib.trading.stages.stage6_orders import Stage6Orders
 
 
 def test_risk_manager_blocks_short_when_disabled():

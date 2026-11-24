@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from app.modules.robots.trading.brokers.bybit import ByBitBrokerFacade
+from app.modules.robot_lib.trading.brokers.bybit import ByBitBrokerFacade
 
 
 class _FakeBybitHttp:

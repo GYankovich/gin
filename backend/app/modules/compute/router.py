@@ -20,7 +20,7 @@ from app.modules.compute.schemas import (
     ComputeRunCreateRequest,
 )
 from app.modules.compute.service import compute_service
-from app.modules.robots_v2.backtest.schemas import (
+from app.modules.robots.backtest.schemas import (
     RobotV2BacktestCompareResponse,
     RobotV2BacktestDetailsResponse,
     RobotV2BacktestListResponse,

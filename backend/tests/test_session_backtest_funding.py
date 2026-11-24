@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
-from app.modules.robots.trading.brokers.sim_backtest import SimBacktestBrokerFacade
-from app.modules.robots.trading.session_backtest import (
+from app.modules.robot_lib.trading.brokers.sim_backtest import SimBacktestBrokerFacade
+from app.modules.robot_lib.trading.session_backtest import (
     BacktestTradingSession,
     _funding_events_in_window,
 )

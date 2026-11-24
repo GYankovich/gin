@@ -1,4 +1,4 @@
-/* Dashboard: dark fintech. Flat charcoal, hairline cards, P&L only in green and red. */
+﻿/* Dashboard: dark fintech. Flat charcoal, hairline cards, P&L only in green and red. */
 
 body:has(:is([data-page='dashboard'], [data-page='portfolio'], [data-page='robots'], [data-page='settings'])) {
     --bg-page: #0b0d10;
@@ -1264,15 +1264,15 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     color: var(--text-muted);
 }
 
-[data-page='robots'] .robots-v2-fleet-collapse.collapsible-section,
-[data-page='robots'] .robots-v2-fleet-collapse.collapsible-section--open {
+[data-page='robots'] .robots-fleet-collapse.collapsible-section,
+[data-page='robots'] .robots-fleet-collapse.collapsible-section--open {
     border-radius: 12px;
 }
 
-[data-page='robots'] .robots-v2-fleet-collapse .collapsible-section__toggle,
-[data-page='robots'] .robots-v2-fleet-collapse .collapsible-section__title,
-[data-page='robots'] .robots-v2-fleet-collapse .collapsible-section__title .dashboard-collapse__label,
-[data-page='robots'] .robots-v2-fleet-collapse__count {
+[data-page='robots'] .robots-fleet-collapse .collapsible-section__toggle,
+[data-page='robots'] .robots-fleet-collapse .collapsible-section__title,
+[data-page='robots'] .robots-fleet-collapse .collapsible-section__title .dashboard-collapse__label,
+[data-page='robots'] .robots-fleet-collapse__count {
     font-family: Inter, var(--font-sans);
     font-size: 13px;
     font-weight: 500;
@@ -1282,27 +1282,27 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     text-shadow: none;
 }
 
-[data-page='robots'] .robots-v2-fleet-collapse .collapsible-section__chevron,
-[data-page='robots'] .robots-v2-fleet-collapse .dashboard-icon {
+[data-page='robots'] .robots-fleet-collapse .collapsible-section__chevron,
+[data-page='robots'] .robots-fleet-collapse .dashboard-icon {
     color: var(--text-muted);
 }
 
-[data-page='robots'] .robots-v2-fleet-collapse.collapsible-section--open .collapsible-section__body {
+[data-page='robots'] .robots-fleet-collapse.collapsible-section--open .collapsible-section__body {
     padding: var(--space-2) var(--space-5) var(--space-3);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet {
     display: flex;
     flex-direction: column;
     gap: 0;
     width: 100%;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-section {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-section {
     margin-bottom: 8px;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-section-label {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-section-label {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1314,24 +1314,24 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     text-transform: uppercase;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-section-label:after {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-section-label:after {
     content: "";
     flex: 1;
     height: 1px;
     background: var(--border-subtle);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-section + .robots-v2-fleet-section .robots-v2-fleet-section-label {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-section + .robots-fleet-section .robots-fleet-section-label {
     margin-top: 25px;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-stack {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-stack {
     display: grid;
     gap: 12px;
     width: 100%;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-empty {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-empty {
     padding: 45px 20px;
     border: 1px dashed var(--border-subtle);
     border-radius: 14px;
@@ -1340,10 +1340,10 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     text-align: center;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card.card,
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card.card.card--clickable,
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card.card:hover,
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card.card.card--clickable:hover {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card.card,
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card.card.card--clickable,
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card.card:hover,
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card.card.card--clickable:hover {
     position: relative;
     display: flex;
     flex-direction: column;
@@ -1360,31 +1360,31 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     transition: border-color 0.18s ease, background 0.18s ease;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card.card:hover,
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card.card.card--clickable:hover {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card.card:hover,
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card.card.card--clickable:hover {
     border-color: var(--border-medium);
     background: var(--bg-card);
     box-shadow: none;
     transform: none;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card--bad.card,
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card--bad.card:hover,
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card--bad.card.card--clickable:hover {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card--bad.card,
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card--bad.card:hover,
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card--bad.card.card--clickable:hover {
     border-color: var(--border-subtle);
     border-left-color: var(--color-down);
     box-shadow: inset 3px 0 0 var(--color-down);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card--warn.card,
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card--warn.card:hover,
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card--warn.card.card--clickable:hover {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card--warn.card,
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card--warn.card:hover,
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card--warn.card.card--clickable:hover {
     border-color: var(--border-subtle);
     border-left-color: var(--color-warn);
     box-shadow: inset 3px 0 0 var(--color-warn);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__main {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__main {
     display: grid;
     grid-template-columns: minmax(230px, 1.55fr) repeat(3, minmax(105px, 0.75fr)) auto;
     align-items: center;
@@ -1392,11 +1392,11 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     width: 100%;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__main--portfolio {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__main--portfolio {
     grid-template-columns: minmax(220px, 1.4fr) minmax(110px, 0.85fr) minmax(160px, 1.1fr) auto;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__main--trading {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__main--trading {
     grid-template-columns:
         minmax(160px, 1.15fr)
         minmax(90px, 0.4fr)
@@ -1407,7 +1407,7 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     gap: 18px;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__meta {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__meta {
     margin: 0;
     color: var(--text-muted);
     font-size: 12px;
@@ -1419,7 +1419,7 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     white-space: nowrap;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__inline-alert {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__inline-alert {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1434,7 +1434,7 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     font-weight: 500;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__equity {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__equity {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     gap: 12px;
@@ -1446,11 +1446,11 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     background: color-mix(in srgb, var(--text-primary) 3%, transparent);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__equity-main {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__equity-main {
     min-width: 0;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__equity-label {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__equity-label {
     display: block;
     color: var(--text-muted);
     font-size: 10px;
@@ -1459,7 +1459,7 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     text-transform: uppercase;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__equity-value {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__equity-value {
     display: block;
     margin-top: 2px;
     color: var(--text-primary);
@@ -1470,7 +1470,7 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     line-height: 1.2;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__equity-side {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__equity-side {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
@@ -1479,45 +1479,45 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     justify-self: stretch;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__pnl {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__pnl {
     font-size: 16px;
     font-weight: 650;
     font-variant-numeric: tabular-nums;
     text-align: right;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__pnl.is-up {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__pnl.is-up {
     color: var(--color-up);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__pnl.is-down {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__pnl.is-down {
     color: var(--color-down);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__pnl.is-idle {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__pnl.is-idle {
     color: var(--text-muted);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__spark {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__spark {
     width: 100%;
     max-width: 140px;
     height: 40px;
     display: block;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__spark--up {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__spark--up {
     color: var(--color-up);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__spark--down {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__spark--down {
     color: var(--color-down);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__spark--idle {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__spark--idle {
     color: var(--text-muted);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__side {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__side {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -1525,21 +1525,21 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     min-width: 132px;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__side .robots-v2-fleet-card__action-main.btn {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__side .robots-fleet-card__action-main.btn {
     width: 100%;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__side-row {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__side-row {
     display: flex;
     align-items: center;
     gap: 6px;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__side-row .robots-v2-fleet-card__action-alt.btn {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__side-row .robots-fleet-card__action-alt.btn {
     flex: 1;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__identity {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__identity {
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -1547,7 +1547,7 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     gap: 4px;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__name-line {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__name-line {
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
@@ -1556,7 +1556,7 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     max-width: 100%;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__name {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__name {
     color: var(--text-primary);
     font-size: 15px;
     font-weight: 500;
@@ -1569,22 +1569,22 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     white-space: nowrap;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__id {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__id {
     color: var(--text-muted);
     font-size: 11px;
     font-weight: 500;
     flex: 0 0 auto;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__status-slot--mobile {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__status-slot--mobile {
     display: none;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__status-slot--desktop {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__status-slot--desktop {
     display: contents;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__status {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__status {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -1598,7 +1598,7 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     align-self: flex-start;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__status:before {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__status:before {
     content: "";
     width: 6px;
     height: 6px;
@@ -1606,34 +1606,34 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     background: currentColor;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__status--ok {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__status--ok {
     background: color-mix(in srgb, var(--color-up) 16%, transparent);
     color: var(--color-up);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__status--bad {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__status--bad {
     background: color-mix(in srgb, var(--color-down) 14%, transparent);
     color: var(--color-down);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__status--warn {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__status--warn {
     background: color-mix(in srgb, var(--color-warn) 16%, transparent);
     color: var(--color-warn);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__status--idle {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__status--idle {
     background: color-mix(in srgb, var(--text-primary) 8%, transparent);
     color: var(--text-secondary);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__tags {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__tags {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
     margin-top: 9px;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__tag {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__tag {
     padding: 4px 8px;
     border-radius: 6px;
     background: color-mix(in srgb, var(--text-primary) 6%, transparent);
@@ -1642,16 +1642,16 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     font-weight: 500;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__tag--mode {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__tag--mode {
     background: color-mix(in srgb, var(--accent, #4263eb) 12%, transparent);
     color: color-mix(in srgb, var(--accent, #4263eb) 70%, var(--text-primary));
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__metric {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__metric {
     min-width: 0;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__metric-label {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__metric-label {
     margin-bottom: 5px;
     color: var(--text-muted);
     font-size: 10px;
@@ -1660,7 +1660,7 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     text-transform: uppercase;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__metric-value {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__metric-value {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1671,21 +1671,21 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     line-height: 1.25;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__metric-value.is-up {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__metric-value.is-up {
     color: var(--color-up);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__metric-value.is-down {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__metric-value.is-down {
     color: var(--color-down);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__metric-sub {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__metric-sub {
     margin-top: 3px;
     color: var(--text-muted);
     font-size: 11px;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__actions {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__actions {
     display: flex;
     align-items: center;
     justify-content: flex-end;
@@ -1693,21 +1693,21 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     min-width: 0;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__actions .robots-v2-fleet-card__status {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__actions .robots-fleet-card__status {
     margin: 0;
     max-width: none;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__action-main.btn {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__action-main.btn {
     white-space: nowrap;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__action-alt.btn {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__action-alt.btn {
     white-space: nowrap;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__icon-btn.btn.btn--ghost.btn--sm,
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-more-trigger.btn.btn--ghost.btn--sm {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__icon-btn.btn.btn--ghost.btn--sm,
+[data-page='robots'][data-robots-view='fleet'] .robots-more-trigger.btn.btn--ghost.btn--sm {
     width: 34px;
     min-width: 34px;
     height: 34px;
@@ -1719,21 +1719,21 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     color: var(--text-muted);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__icon-btn.btn.btn--ghost.btn--sm:hover:not(:disabled) {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__icon-btn.btn.btn--ghost.btn--sm:hover:not(:disabled) {
     background: color-mix(in srgb, var(--text-primary) 6%, transparent);
     box-shadow: none;
     color: var(--text-primary);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-more-menu .robots-v2-more-trigger.btn.btn--ghost.btn--sm:hover:not(:disabled),
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-more-menu .robots-v2-more-trigger.btn.btn--ghost.btn--sm[aria-expanded='true'] {
+[data-page='robots'][data-robots-view='fleet'] .robots-more-menu .robots-more-trigger.btn.btn--ghost.btn--sm:hover:not(:disabled),
+[data-page='robots'][data-robots-view='fleet'] .robots-more-menu .robots-more-trigger.btn.btn--ghost.btn--sm[aria-expanded='true'] {
     background: transparent;
     border-color: transparent;
     box-shadow: none;
     color: var(--text-primary);
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__alert {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__alert {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1746,7 +1746,7 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     line-height: 1.4;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__link {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__link {
     border: 0;
     background: none;
     color: var(--text-secondary);
@@ -1757,97 +1757,97 @@ body:has([data-page='portfolio']) .date-popover__day--range {
     cursor: pointer;
 }
 
-[data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__link:hover {
+[data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__link:hover {
     color: var(--accent, #4263eb);
 }
 
 @media (max-width: 900px) {
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__main {
+    [data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__main {
         grid-template-columns: 1.4fr 1fr 1fr;
         gap: 16px;
     }
 
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__main--portfolio {
+    [data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__main--portfolio {
         grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.85fr) minmax(0, 1fr) auto;
     }
 
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__side {
+    [data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__side {
         flex-direction: row;
         align-items: center;
         justify-content: flex-start;
     }
 
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__side .robots-v2-fleet-card__action-main.btn {
+    [data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__side .robots-fleet-card__action-main.btn {
         width: auto;
     }
 }
 
 @media (max-width: 767px) {
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card__icon-btn.btn {
+    [data-page='robots'][data-robots-view='fleet'] .robots-fleet-card__icon-btn.btn {
         display: none;
     }
 
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-more-trigger.btn {
+    [data-page='robots'][data-robots-view='fleet'] .robots-more-trigger.btn {
         display: inline-flex;
     }
 }
 
-[data-page='robots'] .robots-v2-status-trigger {
+[data-page='robots'] .robots-status-trigger {
     border-radius: 10px;
     font-family: Inter, var(--font-sans);
     font-weight: 500;
     background: transparent;
 }
 
-[data-page='robots'] .robots-v2-status-trigger--up,
-[data-page='robots'] .robots-v2-status-trigger--cyan {
+[data-page='robots'] .robots-status-trigger--up,
+[data-page='robots'] .robots-status-trigger--cyan {
     --robot-status-color: var(--color-up);
     border-color: var(--border-subtle);
 }
 
-[data-page='robots'] .robots-v2-status-trigger--up::before,
-[data-page='robots'] .robots-v2-status-trigger--cyan::before {
+[data-page='robots'] .robots-status-trigger--up::before,
+[data-page='robots'] .robots-status-trigger--cyan::before {
     background: var(--color-up);
     animation: none;
 }
 
-[data-page='robots'] .robots-v2-status-trigger:hover,
-[data-page='robots'] .robots-v2-status-trigger[aria-expanded='true'] {
+[data-page='robots'] .robots-status-trigger:hover,
+[data-page='robots'] .robots-status-trigger[aria-expanded='true'] {
     background: rgba(255, 255, 255, 0.06);
     border-color: var(--border-medium);
     box-shadow: none;
 }
 
-[data-theme='light'] [data-page='robots'] .robots-v2-status-trigger:hover,
-[data-theme='light'] [data-page='robots'] .robots-v2-status-trigger[aria-expanded='true'] {
+[data-theme='light'] [data-page='robots'] .robots-status-trigger:hover,
+[data-theme='light'] [data-page='robots'] .robots-status-trigger[aria-expanded='true'] {
     background: rgba(15, 23, 42, 0.05);
 }
 
-[data-page='robots'] .robots-v2-more-trigger.btn--ghost.btn--sm {
+[data-page='robots'] .robots-more-trigger.btn--ghost.btn--sm {
     border-radius: 10px;
 }
 
-[data-page='robots'] .robots-v2-steps {
+[data-page='robots'] .robots-steps {
     background: var(--border-subtle);
     box-shadow: none;
     border-radius: 12px;
 }
 
-[data-page='robots'] .robots-v2-steps__item {
+[data-page='robots'] .robots-steps__item {
     background: var(--bg-card);
 }
 
-[data-page='robots'] .robots-v2-steps__item:hover {
+[data-page='robots'] .robots-steps__item:hover {
     background: var(--bg-elevated);
     color: var(--text-primary);
 }
 
-[data-page='robots'] .robots-v2-steps__item--active {
+[data-page='robots'] .robots-steps__item--active {
     background: var(--bg-card);
     box-shadow: inset 0 -2px var(--text-primary);
 }
 
-[data-page='robots'] .robots-v2-steps__num {
+[data-page='robots'] .robots-steps__num {
     background: var(--bg-input);
     color: var(--text-secondary);
     font-family: Inter, var(--font-sans);
@@ -1998,12 +1998,12 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 /* Wizard create/edit — rail + working card (UX-10 option D). */
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-layout {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-layout {
     width: 100%;
     max-width: none;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail-layout {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail-layout {
     display: grid;
     grid-template-columns: 240px minmax(0, 1fr);
     gap: 16px;
@@ -2011,7 +2011,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 /* Wizard rail — variant J: soft select (mobile) + edge bar (desktop) */
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail.side-rail {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail.side-rail {
     gap: 10px;
     padding: 10px 8px 8px;
     border: 1px solid var(--border-subtle);
@@ -2019,14 +2019,14 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     background: var(--bg-card);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__title {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__title {
     margin: 0 4px 0;
     padding: 2px 8px 10px;
     border-bottom: 1px solid var(--border-subtle);
     color: var(--text-secondary);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__nav {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__nav {
     gap: 2px;
     max-height: min(420px, 70vh);
     overflow-x: hidden;
@@ -2035,15 +2035,15 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     scrollbar-width: thin;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__viewport::before,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__viewport::after {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__viewport::before,
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__viewport::after {
     left: 0;
     right: 0;
     height: 24px;
     width: auto;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__viewport::before {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__viewport::before {
     top: 0;
     background: linear-gradient(
         to bottom,
@@ -2053,7 +2053,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     );
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__viewport::after {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__viewport::after {
     bottom: 0;
     top: auto;
     background: linear-gradient(
@@ -2064,11 +2064,11 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     );
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__mark {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__mark {
     display: none;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item {
     position: relative;
     justify-content: flex-start;
     gap: 0;
@@ -2076,7 +2076,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     border-radius: 8px;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__indicator {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__indicator {
     display: block;
     position: absolute;
     z-index: 1;
@@ -2095,7 +2095,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
         opacity 160ms ease;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__indicator[data-axis='x'] {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__indicator[data-axis='x'] {
     top: auto;
     right: auto;
     bottom: 0;
@@ -2103,7 +2103,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     height: 2px;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__indicator[data-axis='y'] {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__indicator[data-axis='y'] {
     top: 0;
     right: auto;
     bottom: auto;
@@ -2112,36 +2112,36 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__indicator {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__indicator {
         transition: none;
     }
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item.is-active::before {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item.is-active::before {
     content: none;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item-name {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item-name {
     font-size: 13px;
     font-weight: 600;
 }
 
 @media (min-width: 900px) {
-    [data-page='robots'][data-robots-view='wizard'][data-robot-kind='portfolio'] .robots-v2-wizard-rail-layout {
+    [data-page='robots'][data-robots-view='wizard'][data-robot-kind='portfolio'] .robots-wizard-rail-layout {
         gap: 20px;
     }
 
     /* Desktop J: active = edge bar only, без fill-«паддинга» */
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item.is-active {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item.is-active {
         background: transparent;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item:hover:not(:disabled):not(.is-active) {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item:hover:not(:disabled):not(.is-active) {
         background: var(--fill-hover);
         color: var(--text-primary);
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item.is-active:hover:not(:disabled) {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item.is-active:hover:not(:disabled) {
         background: var(--fill-active-hover);
         color: var(--text-primary);
     }
@@ -2149,7 +2149,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 
 @media (max-width: 899px) {
     /* Surface F: две панели одного материала — nav-плашка + карточка шага */
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail-layout {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail-layout {
         grid-template-columns: 1fr;
         gap: 8px;
         padding: 0;
@@ -2158,7 +2158,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
         background: transparent;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail.side-rail {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail.side-rail {
         gap: 0;
         padding: 6px;
         border: 1px solid var(--border-subtle);
@@ -2166,11 +2166,11 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
         background: var(--bg-card);
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__viewport {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__viewport {
         border-bottom: 0;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__nav {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__nav {
         gap: 0;
         width: 100%;
         min-width: 0;
@@ -2185,25 +2185,25 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
         -ms-overflow-style: none;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item {
         scroll-snap-align: none;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__nav::-webkit-scrollbar {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__nav::-webkit-scrollbar {
         display: none;
         width: 0;
         height: 0;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__viewport::before,
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__viewport::after {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__viewport::before,
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__viewport::after {
         top: 0;
         bottom: 0;
         width: 20px;
         height: auto;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__viewport::before {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__viewport::before {
         left: 0;
         right: auto;
         background: linear-gradient(
@@ -2213,7 +2213,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
         );
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__viewport::after {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__viewport::after {
         right: 0;
         left: auto;
         top: 0;
@@ -2225,7 +2225,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     /* Mobile: underline active, stretch when the row fits, scroll when it does not */
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item {
         flex: 1 1 0;
         flex-direction: row;
         align-items: center;
@@ -2242,34 +2242,34 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
         -webkit-tap-highlight-color: transparent;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item::before,
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item.is-active::before {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item::before,
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item.is-active::before {
         content: none;
         display: none;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item:hover:not(:disabled):not(.is-active),
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item:focus-visible:not(.is-active) {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item:hover:not(:disabled):not(.is-active),
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item:focus-visible:not(.is-active) {
         background: transparent;
         color: var(--text-primary);
         box-shadow: none;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item.is-active,
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item.is-active:hover:not(:disabled),
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item.is-active:focus,
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item.is-active:focus-visible {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item.is-active,
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item.is-active:hover:not(:disabled),
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item.is-active:focus,
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item.is-active:focus-visible {
         background: transparent;
         color: var(--text-primary);
         box-shadow: none;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item-text {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item-text {
         width: auto;
         align-items: center;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail .side-rail__item-name {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail .side-rail__item-name {
         display: block;
         padding: 0;
         white-space: nowrap;
@@ -2280,8 +2280,8 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-card.card,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-card.card:hover {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-card.card,
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-card.card:hover {
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -2298,13 +2298,13 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     font-family: var(--font-sans);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-card__pills {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-card__pills {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-card__pill {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-card__pill {
     display: inline-flex;
     align-items: center;
     min-height: 24px;
@@ -2317,18 +2317,18 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     line-height: 1.2;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-card__pill--ok {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-card__pill--ok {
     color: var(--color-up);
     background: color-mix(in srgb, var(--color-up) 14%, transparent);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-card__pill--draft {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-card__pill--draft {
     gap: 6px;
     color: var(--color-warn);
     background: color-mix(in srgb, var(--color-warn) 14%, transparent);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-card__pill--draft::before {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-card__pill--draft::before {
     content: '';
     width: 6px;
     height: 6px;
@@ -2336,17 +2336,17 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     background: currentColor;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-card__pill--mode {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-card__pill--mode {
     background: color-mix(in srgb, #4263eb 14%, transparent);
     color: #9db0ff;
 }
 
-[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-card__pill--mode {
+[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-wizard-card__pill--mode {
     background: color-mix(in srgb, #4263eb 12%, transparent);
     color: #3b5bdb;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-card__back {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-card__back {
     flex: 0 0 auto;
     margin: 0;
     padding: 0;
@@ -2359,18 +2359,18 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     cursor: pointer;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-card__back:hover {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-card__back:hover {
     color: var(--text-primary);
 }
 
 @media (max-width: 899px) {
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-schedule-grid {
+    [data-page='robots'][data-robots-view='wizard'] .robots-schedule-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 8px;
     }
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form {
+[data-page='robots'][data-robots-view='wizard'] .robots-form {
     position: relative;
     min-width: 0;
     max-width: 100%;
@@ -2378,13 +2378,13 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     padding-bottom: 16px;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-field {
+[data-page='robots'][data-robots-view='wizard'] .robots-field {
     min-width: 0;
     max-width: 100%;
     gap: 4px;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form::after {
+[data-page='robots'][data-robots-view='wizard'] .robots-form::after {
     content: '';
     position: absolute;
     right: 0;
@@ -2394,31 +2394,31 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     background: var(--border-subtle);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-field {
+[data-page='robots'][data-robots-view='wizard'] .robots-field {
     color: var(--text-secondary);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-field > span:first-child {
+[data-page='robots'][data-robots-view='wizard'] .robots-field > span:first-child {
     color: var(--text-secondary);
     font-size: 13px;
     font-weight: 500;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-field > span:first-child small,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-hint {
+[data-page='robots'][data-robots-view='wizard'] .robots-field > span:first-child small,
+[data-page='robots'][data-robots-view='wizard'] .robots-hint {
     color: var(--text-muted);
 }
 
-[data-page='robots'][data-robots-view='wizard'] textarea.robots-v2-input {
+[data-page='robots'][data-robots-view='wizard'] textarea.robots-input {
     height: auto;
     min-height: 76px;
     padding: 10px 12px;
     line-height: 1.45;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-input,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-select .gin-select__trigger,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-time .gin-time-select__trigger {
+[data-page='robots'][data-robots-view='wizard'] .robots-input,
+[data-page='robots'][data-robots-view='wizard'] .robots-select .gin-select__trigger,
+[data-page='robots'][data-robots-view='wizard'] .robots-time .gin-time-select__trigger {
     box-sizing: border-box;
     width: 100%;
     height: 38px;
@@ -2435,38 +2435,38 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     box-shadow: none;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-input:hover,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-select .gin-select__trigger:hover,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-time .gin-time-select__trigger:hover {
+[data-page='robots'][data-robots-view='wizard'] .robots-input:hover,
+[data-page='robots'][data-robots-view='wizard'] .robots-select .gin-select__trigger:hover,
+[data-page='robots'][data-robots-view='wizard'] .robots-time .gin-time-select__trigger:hover {
     border-color: var(--border-medium, var(--border-subtle));
     background: transparent;
     box-shadow: none;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-input:focus,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-select.gin-select--open .gin-select__trigger,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-select .gin-select__trigger:focus,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-time.gin-time-select--open .gin-time-select__trigger,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-time .gin-time-select__trigger:focus-visible {
+[data-page='robots'][data-robots-view='wizard'] .robots-input:focus,
+[data-page='robots'][data-robots-view='wizard'] .robots-select.gin-select--open .gin-select__trigger,
+[data-page='robots'][data-robots-view='wizard'] .robots-select .gin-select__trigger:focus,
+[data-page='robots'][data-robots-view='wizard'] .robots-time.gin-time-select--open .gin-time-select__trigger,
+[data-page='robots'][data-robots-view='wizard'] .robots-time .gin-time-select__trigger:focus-visible {
     border-color: color-mix(in srgb, var(--text-primary) 40%, transparent);
     background: transparent;
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-primary) 10%, transparent);
     outline: none;
 }
 
-[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-v2-input:focus,
-[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-v2-select.gin-select--open .gin-select__trigger,
-[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-v2-select .gin-select__trigger:focus,
-[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-v2-time.gin-time-select--open .gin-time-select__trigger,
-[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-v2-time .gin-time-select__trigger:focus-visible {
+[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-input:focus,
+[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-select.gin-select--open .gin-select__trigger,
+[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-select .gin-select__trigger:focus,
+[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-time.gin-time-select--open .gin-time-select__trigger,
+[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-time .gin-time-select__trigger:focus-visible {
     border-color: rgba(15, 23, 42, 0.35);
     box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08);
     background: transparent;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-type-card,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-archetype,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-chip {
+[data-page='robots'][data-robots-view='wizard'] .robots-type-card,
+[data-page='robots'][data-robots-view='wizard'] .robots-archetype,
+[data-page='robots'][data-robots-view='wizard'] .robots-chip {
     border: 1px solid var(--border-subtle);
     border-radius: 10px;
     background: transparent;
@@ -2475,34 +2475,34 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     transform: none;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-type-card {
+[data-page='robots'][data-robots-view='wizard'] .robots-type-card {
     grid-template-columns: 1fr;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-type-card small,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-archetype span {
+[data-page='robots'][data-robots-view='wizard'] .robots-type-card small,
+[data-page='robots'][data-robots-view='wizard'] .robots-archetype span {
     color: var(--text-muted);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-type-card:hover,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-archetype:hover,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-chip:hover {
+[data-page='robots'][data-robots-view='wizard'] .robots-type-card:hover,
+[data-page='robots'][data-robots-view='wizard'] .robots-archetype:hover,
+[data-page='robots'][data-robots-view='wizard'] .robots-chip:hover {
     border-color: var(--border-medium, var(--border-subtle));
     background: var(--fill-hover);
     color: var(--text-primary);
     transform: none;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-type-card--on,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-type-card--on:disabled:hover,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-chip--on {
+[data-page='robots'][data-robots-view='wizard'] .robots-type-card--on,
+[data-page='robots'][data-robots-view='wizard'] .robots-type-card--on:disabled:hover,
+[data-page='robots'][data-robots-view='wizard'] .robots-chip--on {
     border-color: var(--border-medium, var(--border-subtle));
     background: var(--fill-active);
     color: var(--text-primary);
     box-shadow: none;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field {
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
@@ -2517,25 +2517,25 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     background: transparent;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__label {
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__label {
     grid-area: label;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__full-week {
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__full-week {
     grid-area: toggle;
 }
 
 @media (min-width: 900px) {
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field {
+    [data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field {
         grid-template-areas:
             'label label'
             'days toggle';
     }
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field .form-label,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__full-week,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__full-week .dashboard-settings-toggle-field__label {
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field .form-label,
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__full-week,
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__full-week .dashboard-settings-toggle-field__label {
     display: inline-flex;
     align-items: center;
     flex: 0 0 auto;
@@ -2551,7 +2551,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     text-transform: none;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__full-week.dashboard-settings-toggle-field {
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__full-week.dashboard-settings-toggle-field {
     min-height: 0;
     gap: 8px;
     flex-shrink: 0;
@@ -2559,24 +2559,24 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     align-self: center;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__full-week .dashboard-settings-toggle__track {
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__full-week .dashboard-settings-toggle__track {
     width: 34px;
     height: 20px;
     border-radius: 999px;
     padding: 2px;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__full-week .dashboard-settings-toggle__thumb {
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__full-week .dashboard-settings-toggle__thumb {
     width: 14px;
     height: 14px;
     border-radius: 50%;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__full-week .dashboard-settings-toggle input[type='checkbox']:checked + .dashboard-settings-toggle__track .dashboard-settings-toggle__thumb {
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__full-week .dashboard-settings-toggle input[type='checkbox']:checked + .dashboard-settings-toggle__track .dashboard-settings-toggle__thumb {
     transform: translateX(14px);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__days {
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__days {
     grid-area: days;
     display: flex;
     flex-wrap: nowrap;
@@ -2588,7 +2588,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     background: var(--bg-input);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__day {
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__day {
     flex: 1 1 0;
     min-width: 0;
     min-height: 40px;
@@ -2605,17 +2605,17 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     text-transform: none;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__day:last-child {
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__day:last-child {
     border-right: 0;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__day:hover:not(.weekdays-mask-field__day--on) {
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__day:hover:not(.weekdays-mask-field__day--on) {
     color: var(--text-secondary);
     background: transparent;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__day--on,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__day--on:hover {
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__day--on,
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__day--on:hover {
     border-right: 1px solid var(--border-subtle);
     color: var(--text-primary);
     background: transparent;
@@ -2625,27 +2625,27 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 @media (max-width: 899px) {
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__day--on,
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__day--on:hover {
+    [data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__day--on,
+    [data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__day--on:hover {
         font-weight: 500;
     }
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__day--on:last-child,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__day--on:hover:last-child {
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__day--on:last-child,
+[data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__day--on:hover:last-child {
     border-right: 0;
 }
 
-[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__days {
+[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__days {
     background: #ffffff;
     border-color: rgba(0, 0, 0, 0.12);
 }
 
-[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-v2-form .weekdays-mask-field__day {
+[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-form .weekdays-mask-field__day {
     border-right-color: rgba(0, 0, 0, 0.1);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-schedule-grid {
+[data-page='robots'][data-robots-view='wizard'] .robots-schedule-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     margin-top: 0;
@@ -2653,21 +2653,21 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     align-items: end;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-schedule-grid .robots-v2-field > span:first-child {
+[data-page='robots'][data-robots-view='wizard'] .robots-schedule-grid .robots-field > span:first-child {
     color: var(--text-secondary);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form:has(.robots-v2-form-group) {
+[data-page='robots'][data-robots-view='wizard'] .robots-form:has(.robots-form-group) {
     gap: 0;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form-group {
+[data-page='robots'][data-robots-view='wizard'] .robots-form-group {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-param-group__title {
+[data-page='robots'][data-robots-view='wizard'] .robots-param-group__title {
     margin: 0;
     color: var(--text-secondary);
     font-size: 13px;
@@ -2675,41 +2675,41 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     line-height: 1.2;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form-group + .robots-v2-form-group {
+[data-page='robots'][data-robots-view='wizard'] .robots-form-group + .robots-form-group {
     margin-top: 10px;
     padding-top: 10px;
     border-top: 1px solid var(--border-subtle);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form .robots-v2-grid {
+[data-page='robots'][data-robots-view='wizard'] .robots-form .robots-grid {
     gap: 8px;
     align-items: end;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-grid--5 {
+[data-page='robots'][data-robots-view='wizard'] .robots-grid--5 {
     grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-span-2 {
+[data-page='robots'][data-robots-view='wizard'] .robots-span-2 {
     grid-column: span 2;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-span-all {
+[data-page='robots'][data-robots-view='wizard'] .robots-span-all {
     grid-column: 1 / -1;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-grid .robots-v2-field > .robots-v2-hint {
+[data-page='robots'][data-robots-view='wizard'] .robots-grid .robots-field > .robots-hint {
     display: flex;
     align-items: center;
     min-height: 38px;
     margin: 0;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-screener-custom {
+[data-page='robots'][data-robots-view='wizard'] .robots-screener-custom {
     gap: 4px;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-assets-actions > .btn {
+[data-page='robots'][data-robots-view='wizard'] .robots-assets-actions > .btn {
     width: 100%;
     align-self: end;
 }
@@ -2733,9 +2733,9 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     box-shadow: none;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-footer .btn--ghost.btn--md,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-footer .btn--ghost.btn--md:hover:not(:disabled),
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-footer .btn--ghost.btn--md:focus-visible:not(:disabled) {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-footer .btn--ghost.btn--md,
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-footer .btn--ghost.btn--md:hover:not(:disabled),
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-footer .btn--ghost.btn--md:focus-visible:not(:disabled) {
     background: var(--bg-card);
 }
 
@@ -2762,32 +2762,32 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     box-shadow: none;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-archetype-grid {
+[data-page='robots'][data-robots-view='wizard'] .robots-archetype-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-archetype {
+[data-page='robots'][data-robots-view='wizard'] .robots-archetype {
     position: relative;
     min-height: 0;
     gap: 4px;
     padding: 12px;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-archetype span {
+[data-page='robots'][data-robots-view='wizard'] .robots-archetype span {
     font-size: 12px;
     line-height: 1.35;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-archetype--on,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-archetype--on:hover {
+[data-page='robots'][data-robots-view='wizard'] .robots-archetype--on,
+[data-page='robots'][data-robots-view='wizard'] .robots-archetype--on:hover {
     padding-left: 18px;
     border-color: var(--border-subtle);
     background: transparent;
     box-shadow: none;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-archetype--on::before {
+[data-page='robots'][data-robots-view='wizard'] .robots-archetype--on::before {
     content: '';
     position: absolute;
     left: 8px;
@@ -2798,11 +2798,11 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     background: var(--text-primary);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-archetype--on span {
+[data-page='robots'][data-robots-view='wizard'] .robots-archetype--on span {
     color: var(--text-secondary);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-segmented.segmented-control {
+[data-page='robots'][data-robots-view='wizard'] .robots-segmented.segmented-control {
     display: flex;
     width: 100%;
     align-self: stretch;
@@ -2812,7 +2812,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     background: var(--bg-input);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-segmented .segmented-control__item {
+[data-page='robots'][data-robots-view='wizard'] .robots-segmented .segmented-control__item {
     flex: 1 1 0;
     min-width: 0;
     min-height: 0;
@@ -2827,17 +2827,17 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     color: var(--text-muted);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-segmented .segmented-control__item:last-child {
+[data-page='robots'][data-robots-view='wizard'] .robots-segmented .segmented-control__item:last-child {
     border-right: 0;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-segmented .segmented-control__item:hover:not(.segmented-control__item--active) {
+[data-page='robots'][data-robots-view='wizard'] .robots-segmented .segmented-control__item:hover:not(.segmented-control__item--active) {
     background: transparent;
     color: var(--text-secondary);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-segmented .segmented-control__item--active,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-segmented .segmented-control__item--active:hover {
+[data-page='robots'][data-robots-view='wizard'] .robots-segmented .segmented-control__item--active,
+[data-page='robots'][data-robots-view='wizard'] .robots-segmented .segmented-control__item--active:hover {
     border-right: 1px solid var(--border-subtle);
     background: transparent;
     color: var(--text-primary);
@@ -2845,28 +2845,28 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     box-shadow: inset 0 -2px 0 var(--text-primary);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-segmented .segmented-control__item--active:last-child,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-segmented .segmented-control__item--active:hover:last-child {
+[data-page='robots'][data-robots-view='wizard'] .robots-segmented .segmented-control__item--active:last-child,
+[data-page='robots'][data-robots-view='wizard'] .robots-segmented .segmented-control__item--active:hover:last-child {
     border-right: 0;
 }
 
 @media (max-width: 899px) {
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-segmented .segmented-control__item--active,
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-segmented .segmented-control__item--active:hover {
+    [data-page='robots'][data-robots-view='wizard'] .robots-segmented .segmented-control__item--active,
+    [data-page='robots'][data-robots-view='wizard'] .robots-segmented .segmented-control__item--active:hover {
         font-weight: 500;
     }
 }
 
-[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-v2-segmented.segmented-control {
+[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-segmented.segmented-control {
     background: #ffffff;
     border-color: rgba(0, 0, 0, 0.12);
 }
 
-[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-v2-segmented .segmented-control__item {
+[data-theme='light'] [data-page='robots'][data-robots-view='wizard'] .robots-segmented .segmented-control__item {
     border-right-color: rgba(0, 0, 0, 0.1);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-toggle-row {
+[data-page='robots'][data-robots-view='wizard'] .robots-toggle-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -2875,46 +2875,46 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     align-self: end;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-toggle-row > span {
+[data-page='robots'][data-robots-view='wizard'] .robots-toggle-row > span {
     color: var(--text-secondary);
     font-size: 13px;
     font-weight: 500;
     line-height: 1.3;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-eod-toggle {
+[data-page='robots'][data-robots-view='wizard'] .robots-eod-toggle {
     align-self: stretch;
     min-height: 0;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-eod-toggle > span {
+[data-page='robots'][data-robots-view='wizard'] .robots-eod-toggle > span {
     display: inline-flex;
     align-items: center;
     gap: 6px;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-toggle-row .dashboard-settings-toggle__track {
+[data-page='robots'][data-robots-view='wizard'] .robots-toggle-row .dashboard-settings-toggle__track {
     width: 34px;
     height: 20px;
     border-radius: 999px;
     padding: 2px;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-toggle-row .dashboard-settings-toggle__thumb {
+[data-page='robots'][data-robots-view='wizard'] .robots-toggle-row .dashboard-settings-toggle__thumb {
     width: 14px;
     height: 14px;
     border-radius: 50%;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-toggle-row .dashboard-settings-toggle input[type='checkbox']:checked + .dashboard-settings-toggle__track .dashboard-settings-toggle__thumb {
+[data-page='robots'][data-robots-view='wizard'] .robots-toggle-row .dashboard-settings-toggle input[type='checkbox']:checked + .dashboard-settings-toggle__track .dashboard-settings-toggle__thumb {
     transform: translateX(14px);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-form > .btn {
+[data-page='robots'][data-robots-view='wizard'] .robots-form > .btn {
     align-self: flex-start;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-preview {
+[data-page='robots'][data-robots-view='wizard'] .robots-preview {
     margin: 0;
     padding: 0;
     border: 0;
@@ -2922,13 +2922,13 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     background: transparent;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-preview__meta {
+[data-page='robots'][data-robots-view='wizard'] .robots-preview__meta {
     padding: 2px 0 6px;
     color: var(--text-muted);
     font-size: 12px;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-preview__row {
+[data-page='robots'][data-robots-view='wizard'] .robots-preview__row {
     display: grid;
     grid-template-columns: 72px minmax(0, 1fr) auto;
     gap: 10px;
@@ -2938,24 +2938,24 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     font-size: 13px;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-preview__row strong {
+[data-page='robots'][data-robots-view='wizard'] .robots-preview__row strong {
     font-weight: 600;
     color: var(--text-primary);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-preview__row span {
+[data-page='robots'][data-robots-view='wizard'] .robots-preview__row span {
     min-width: 0;
     color: var(--text-secondary);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-preview__row em {
+[data-page='robots'][data-robots-view='wizard'] .robots-preview__row em {
     font-style: normal;
     font-variant-numeric: tabular-nums;
     font-weight: 500;
     color: var(--text-primary);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-preview__pager {
+[data-page='robots'][data-robots-view='wizard'] .robots-preview__pager {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -2964,11 +2964,11 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     font-size: 12px;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-preview__rejected {
+[data-page='robots'][data-robots-view='wizard'] .robots-preview__rejected {
     margin-top: 4px;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-preview__rejected > strong {
+[data-page='robots'][data-robots-view='wizard'] .robots-preview__rejected > strong {
     display: block;
     padding-top: 8px;
     color: var(--text-muted);
@@ -2977,65 +2977,65 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 @media (max-width: 899px) {
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-grid--2,
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-grid--3,
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-grid--4,
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-grid--5 {
+    [data-page='robots'][data-robots-view='wizard'] .robots-grid--2,
+    [data-page='robots'][data-robots-view='wizard'] .robots-grid--3,
+    [data-page='robots'][data-robots-view='wizard'] .robots-grid--4,
+    [data-page='robots'][data-robots-view='wizard'] .robots-grid--5 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-span-2,
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-span-mobile {
+    [data-page='robots'][data-robots-view='wizard'] .robots-span-2,
+    [data-page='robots'][data-robots-view='wizard'] .robots-span-mobile {
         grid-column: 1 / -1;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-assets-actions > .robots-v2-field {
+    [data-page='robots'][data-robots-view='wizard'] .robots-assets-actions > .robots-field {
         grid-column: 1;
         grid-row: 1;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-assets-actions > .btn {
+    [data-page='robots'][data-robots-view='wizard'] .robots-assets-actions > .btn {
         grid-column: 2;
         grid-row: 1;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-assets-actions > .robots-v2-toggle-row {
+    [data-page='robots'][data-robots-view='wizard'] .robots-assets-actions > .robots-toggle-row {
         grid-column: 1 / -1;
         grid-row: 2;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-archetype span {
+    [data-page='robots'][data-robots-view='wizard'] .robots-archetype span {
         font-size: 11px;
     }
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-advanced {
+[data-page='robots'][data-robots-view='wizard'] .robots-advanced {
     border: 1px solid var(--border-subtle);
     border-radius: 10px;
     background: transparent;
     color: var(--text-secondary);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-advanced summary {
+[data-page='robots'][data-robots-view='wizard'] .robots-advanced summary {
     color: var(--text-primary);
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-main {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-main {
     display: flex;
     flex-direction: column;
     min-width: 0;
 }
 
 @media (min-width: 900px) {
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-card.card,
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-card.card:hover {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-card.card,
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-card.card:hover {
         padding-bottom: 0;
         border-bottom: 0;
         border-radius: 16px 16px 0 0;
     }
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-footer {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-footer {
     position: static;
     display: flex;
     flex-wrap: nowrap;
@@ -3052,7 +3052,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 @media (min-width: 900px) {
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-footer {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-footer {
         padding: 16px;
         border: 1px solid var(--border-subtle);
         border-top: 0;
@@ -3061,7 +3061,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-footer__right {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-footer__right {
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
@@ -3070,40 +3070,40 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     min-width: 0;
 }
 
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-footer > .btn,
-[data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-footer__right > .btn {
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-footer > .btn,
+[data-page='robots'][data-robots-view='wizard'] .robots-wizard-footer__right > .btn {
     width: auto;
     flex: 0 0 auto;
 }
 
 @media (max-width: 899px) {
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-main {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-main {
         gap: 8px;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-form {
+    [data-page='robots'][data-robots-view='wizard'] .robots-form {
         padding-bottom: 0;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-form::after {
+    [data-page='robots'][data-robots-view='wizard'] .robots-form::after {
         content: none;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-footer {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-footer {
         width: 100%;
         gap: 8px;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-footer > span {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-footer > span {
         display: none;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-footer__right {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-footer__right {
         display: contents;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-footer > .btn,
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-footer__right > .btn {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-footer > .btn,
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-footer__right > .btn {
         flex: 1 1 0;
         width: auto;
         height: auto;
@@ -3112,7 +3112,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
         padding: 8px;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-footer .btn__content {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-footer .btn__content {
         white-space: normal;
         text-align: center;
         line-height: 1.15;
@@ -3917,7 +3917,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 
 /* Same side inset on Лайв and История (logs-card used to be tighter than .card space-5) */
 [data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades.dashboard-assets-card,
-[data-page='robots'][data-robots-view='logs'] .robots-v2-logs-card.dashboard-assets-card {
+[data-page='robots'][data-robots-view='logs'] .robots-logs-card.dashboard-assets-card {
     padding: var(--space-3) var(--space-4);
 }
 
@@ -4178,7 +4178,10 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     color: var(--text-primary);
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-chart {
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-cockpit__grid > .robots-monitor-chart {
+    /* Global .robots-monitor-chart { grid-column: 1 / -1 } is for the old cockpit.
+       Here the chart is the second column next to the summary. */
+    grid-column: auto;
     min-width: 0;
     min-height: 220px;
 }
@@ -4204,12 +4207,12 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     background: var(--bg-card);
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-v2-monitor-decisions .robots-v2-event-list {
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-decisions .robots-event-list {
     max-height: none;
     font-size: 13px;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-v2-monitor-decisions .robots-v2-event-list--compact li {
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-decisions .robots-event-list--compact li {
     align-items: baseline;
     gap: 10px;
     padding: 10px 0;
@@ -4228,7 +4231,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     margin: 0 0 6px;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-why .robots-v2-event-list {
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-why .robots-event-list {
     max-height: none;
 }
 
@@ -4250,7 +4253,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     overflow: visible;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-v2-fleet-collapse .collapsible-section__body {
+[data-page='robots'][data-robots-view='monitor'] .robots-fleet-collapse .collapsible-section__body {
     overflow: auto;
 }
 
@@ -4279,7 +4282,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     font-weight: 600;
 }
 
-.robots-monitor-stage--top .robots-v2-stage-progress {
+.robots-monitor-stage--top .robots-stage-progress {
     height: 4px;
 }
 
@@ -4292,11 +4295,11 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     color: var(--text-muted);
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-stage .robots-v2-stage-progress__bar {
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-stage .robots-stage-progress__bar {
     background: var(--color-up);
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-v2-monitor-scan .dashboard-assets-card__head {
+[data-page='robots'][data-robots-view='monitor'] .robots-monitor-scan .dashboard-assets-card__head {
     justify-content: flex-end;
     margin-bottom: var(--space-3);
 }
@@ -4410,13 +4413,13 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
    ========================================= */
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading.card,
+.robots-fleet-card--trading.card,
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading.card.card--clickable,
+.robots-fleet-card--trading.card.card--clickable,
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading.card:hover,
+.robots-fleet-card--trading.card:hover,
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading.card.card--clickable:hover {
+.robots-fleet-card--trading.card.card--clickable:hover {
     --trading-gap: 22px;
 
     padding: 22px 24px;
@@ -4429,9 +4432,9 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading.card:hover,
+.robots-fleet-card--trading.card:hover,
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading.card.card--clickable:hover {
+.robots-fleet-card--trading.card.card--clickable:hover {
     border-color: var(--border-medium);
     background: var(--bg-card);
     box-shadow: none;
@@ -4439,21 +4442,21 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading.robots-v2-fleet-card--bad.card,
+.robots-fleet-card--trading.robots-fleet-card--bad.card,
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading.robots-v2-fleet-card--bad.card:hover,
+.robots-fleet-card--trading.robots-fleet-card--bad.card:hover,
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading.robots-v2-fleet-card--bad.card.card--clickable:hover {
+.robots-fleet-card--trading.robots-fleet-card--bad.card.card--clickable:hover {
     border-color: var(--border-subtle);
     box-shadow: inset 3px 0 0 var(--color-down);
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading.robots-v2-fleet-card--warn.card,
+.robots-fleet-card--trading.robots-fleet-card--warn.card,
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading.robots-v2-fleet-card--warn.card:hover,
+.robots-fleet-card--trading.robots-fleet-card--warn.card:hover,
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading.robots-v2-fleet-card--warn.card.card--clickable:hover {
+.robots-fleet-card--trading.robots-fleet-card--warn.card.card--clickable:hover {
     border-color: var(--border-subtle);
     box-shadow: inset 3px 0 0 var(--color-warn);
 }
@@ -4461,7 +4464,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 /* Main layout */
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card__main--trading {
+.robots-fleet-card__main--trading {
     display: grid;
     grid-template-columns:
         minmax(160px, 1.15fr)
@@ -4475,43 +4478,43 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 
 /* Kill mobile tap/focus “layer flash” on fleet cards */
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card.card,
+.robots-fleet-card.card,
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card.card * {
+.robots-fleet-card.card * {
     -webkit-tap-highlight-color: transparent;
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card.card:focus,
+.robots-fleet-card.card:focus,
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card.card:focus-visible {
+.robots-fleet-card.card:focus-visible {
     outline: none;
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card.card:active {
+.robots-fleet-card.card:active {
     transform: none;
     filter: none;
 }
 
 @media (hover: none) {
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card.card:hover,
+    .robots-fleet-card.card:hover,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card.card.card--clickable:hover {
+    .robots-fleet-card.card.card--clickable:hover {
         border-color: var(--border-subtle);
         background: var(--bg-card);
         box-shadow: none;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-accounts__trigger:hover,
+    .robots-fleet-accounts__trigger:hover,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-accounts__trigger:focus,
+    .robots-fleet-accounts__trigger:focus,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-more-trigger.btn:hover,
+    .robots-more-trigger.btn:hover,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-more-trigger.btn:focus {
+    .robots-more-trigger.btn:focus {
         color: inherit;
         background: transparent;
     }
@@ -4520,25 +4523,25 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 /* Identity */
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__meta {
+.robots-fleet-card--trading .robots-fleet-card__meta {
     font-size: 12px;
     color: var(--text-muted);
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__identity {
+.robots-fleet-card--trading .robots-fleet-card__identity {
     gap: 6px;
 }
 
 /* Metrics */
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__metric {
+.robots-fleet-card--trading .robots-fleet-card__metric {
     min-width: 0;
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__metric-label {
+.robots-fleet-card--trading .robots-fleet-card__metric-label {
     margin-bottom: 7px;
     font-size: 11px;
     font-weight: 500;
@@ -4546,7 +4549,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__metric-value {
+.robots-fleet-card--trading .robots-fleet-card__metric-value {
     font-size: 15px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
@@ -4554,7 +4557,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__metric-sub {
+.robots-fleet-card--trading .robots-fleet-card__metric-sub {
     margin-top: 5px;
     font-size: 11px;
     color: var(--text-muted);
@@ -4563,7 +4566,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 /* Equity */
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity {
+.robots-fleet-card--trading .robots-fleet-card__equity {
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -4576,7 +4579,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-primary {
+.robots-fleet-card--trading .robots-fleet-card__equity-primary {
     display: flex;
     align-items: stretch;
     gap: 8px 16px;
@@ -4585,7 +4588,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-stack {
+.robots-fleet-card--trading .robots-fleet-card__equity-stack {
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
@@ -4595,7 +4598,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-hero {
+.robots-fleet-card--trading .robots-fleet-card__equity-hero {
     display: flex;
     flex-direction: column;
     gap: 5px;
@@ -4603,7 +4606,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-hero-head {
+.robots-fleet-card--trading .robots-fleet-card__equity-hero-head {
     display: flex;
     align-items: baseline;
     justify-content: flex-start;
@@ -4612,7 +4615,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-value {
+.robots-fleet-card--trading .robots-fleet-card__equity-value {
     display: block;
     font-size: calc(22px * var(--equity-scale, 1));
     font-weight: 650;
@@ -4626,7 +4629,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-meta {
+.robots-fleet-card--trading .robots-fleet-card__equity-meta {
     display: flex;
     align-items: baseline;
     flex-wrap: nowrap;
@@ -4635,7 +4638,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-meta-item {
+.robots-fleet-card--trading .robots-fleet-card__equity-meta-item {
     display: inline-flex;
     align-items: baseline;
     gap: 6px;
@@ -4644,14 +4647,14 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-meta-label {
+.robots-fleet-card--trading .robots-fleet-card__equity-meta-label {
     font-size: 11px;
     font-weight: 500;
     color: var(--text-muted);
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-meta-value {
+.robots-fleet-card--trading .robots-fleet-card__equity-meta-value {
     font-size: calc(13px * var(--equity-scale, 1));
     font-weight: 600;
     font-variant-numeric: tabular-nums;
@@ -4660,12 +4663,12 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-meta-item.robots-v2-fleet-card__pnl .robots-v2-fleet-card__equity-meta-value {
+.robots-fleet-card--trading .robots-fleet-card__equity-meta-item.robots-fleet-card__pnl .robots-fleet-card__equity-meta-value {
     color: inherit;
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-secondary {
+.robots-fleet-card--trading .robots-fleet-card__equity-secondary {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
@@ -4678,7 +4681,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-period {
+.robots-fleet-card--trading .robots-fleet-card__equity-period {
     flex: 0 0 auto;
     font-size: 11px;
     font-weight: 500;
@@ -4687,7 +4690,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-stats {
+.robots-fleet-card--trading .robots-fleet-card__equity-stats {
     display: flex;
     align-items: baseline;
     justify-content: flex-end;
@@ -4698,7 +4701,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-stat {
+.robots-fleet-card--trading .robots-fleet-card__equity-stat {
     display: inline-flex;
     align-items: baseline;
     gap: 6px;
@@ -4708,19 +4711,19 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-stat-label {
+.robots-fleet-card--trading .robots-fleet-card__equity-stat-label {
     font-size: 11px;
     font-weight: 500;
     color: var(--text-muted);
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-stat-label-short {
+.robots-fleet-card--trading .robots-fleet-card__equity-stat-label-short {
     display: none;
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-stat-value {
+.robots-fleet-card--trading .robots-fleet-card__equity-stat-value {
     font-size: 13px;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
@@ -4728,29 +4731,29 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-stat-value.is-up {
+.robots-fleet-card--trading .robots-fleet-card__equity-stat-value.is-up {
     color: var(--color-up);
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-stat-value.is-down {
+.robots-fleet-card--trading .robots-fleet-card__equity-stat-value.is-down {
     color: var(--color-down);
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-stat-value.is-idle {
+.robots-fleet-card--trading .robots-fleet-card__equity-stat-value.is-idle {
     color: var(--text-muted);
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-label {
+.robots-fleet-card--trading .robots-fleet-card__equity-label {
     font-size: 11px;
     font-weight: 500;
     color: var(--text-muted);
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-side {
+.robots-fleet-card--trading .robots-fleet-card__equity-side {
     display: flex;
     flex: 0 0 auto;
     align-items: stretch;
@@ -4762,22 +4765,22 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__pnl.is-up {
+.robots-fleet-card--trading .robots-fleet-card__pnl.is-up {
     color: var(--color-up);
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__pnl.is-down {
+.robots-fleet-card--trading .robots-fleet-card__pnl.is-down {
     color: var(--color-down);
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__pnl.is-idle {
+.robots-fleet-card--trading .robots-fleet-card__pnl.is-idle {
     color: var(--text-muted);
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__spark {
+.robots-fleet-card--trading .robots-fleet-card__spark {
     display: block;
     width: 100%;
     height: 100%;
@@ -4787,7 +4790,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 /* Actions */
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__actions {
+.robots-fleet-card--trading .robots-fleet-card__actions {
     display: flex;
     align-items: center;
     justify-content: flex-end;
@@ -4795,24 +4798,24 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card__facts {
+.robots-fleet-card__facts {
     display: none;
 }
 
-.robots-v2-fleet-accounts-wrap {
+.robots-fleet-accounts-wrap {
     display: inline-flex;
     min-width: 0;
     max-width: 100%;
     vertical-align: baseline;
 }
 
-.robots-v2-fleet-accounts.menu-dropdown-root {
+.robots-fleet-accounts.menu-dropdown-root {
     display: inline-flex;
     min-width: 0;
     max-width: 100%;
 }
 
-.robots-v2-fleet-accounts__trigger {
+.robots-fleet-accounts__trigger {
     display: inline-flex;
     align-items: center;
     gap: 5px;
@@ -4830,9 +4833,9 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     -webkit-tap-highlight-color: transparent;
 }
 
-.robots-v2-fleet-accounts__trigger:hover,
-.robots-v2-fleet-accounts__trigger:focus-visible,
-.robots-v2-fleet-accounts__trigger.is-open {
+.robots-fleet-accounts__trigger:hover,
+.robots-fleet-accounts__trigger:focus-visible,
+.robots-fleet-accounts__trigger.is-open {
     color: var(--text-primary);
     outline: none;
     background: transparent;
@@ -4840,14 +4843,14 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     box-shadow: none;
 }
 
-.robots-v2-fleet-accounts__label {
+.robots-fleet-accounts__label {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.robots-v2-fleet-accounts__chev {
+.robots-fleet-accounts__chev {
     flex: 0 0 auto;
     color: var(--text-muted);
     font-size: 0.75em;
@@ -4855,41 +4858,41 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     transform: translateY(-0.5px);
 }
 
-.robots-v2-fleet-accounts__trigger.is-open .robots-v2-fleet-accounts__chev {
+.robots-fleet-accounts__trigger.is-open .robots-fleet-accounts__chev {
     transform: translateY(-0.5px) rotate(180deg);
 }
 
-.robots-v2-fleet-card__metric .robots-v2-fleet-accounts-wrap,
-.robots-v2-fleet-card__fact--accounts .robots-v2-fleet-accounts-wrap,
-.robots-v2-fleet-card__fact--primary .robots-v2-fleet-accounts-wrap {
+.robots-fleet-card__metric .robots-fleet-accounts-wrap,
+.robots-fleet-card__fact--accounts .robots-fleet-accounts-wrap,
+.robots-fleet-card__fact--primary .robots-fleet-accounts-wrap {
     display: inline-flex;
     max-width: 100%;
     min-width: 0;
 }
 
-.robots-v2-fleet-card__metric .robots-v2-fleet-accounts-wrap {
+.robots-fleet-card__metric .robots-fleet-accounts-wrap {
     display: flex;
     width: 100%;
 }
 
-.robots-v2-fleet-accounts__trigger--metric {
+.robots-fleet-accounts__trigger--metric {
     display: flex;
     width: 100%;
 }
 
-.robots-v2-fleet-accounts__trigger--fact {
+.robots-fleet-accounts__trigger--fact {
     width: auto;
     max-width: 100%;
 }
 
-.robots-v2-fleet-accounts-menu.menu-dropdown {
+.robots-fleet-accounts-menu.menu-dropdown {
     min-width: min(220px, calc(100vw - 16px));
     max-width: min(320px, calc(100vw - 16px));
     padding: 8px;
     box-sizing: border-box;
 }
 
-.robots-v2-fleet-accounts-menu__title {
+.robots-fleet-accounts-menu__title {
     padding: 4px 8px 8px;
     color: var(--text-muted);
     font-size: 11px;
@@ -4898,7 +4901,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     text-transform: uppercase;
 }
 
-.robots-v2-fleet-accounts-menu__list {
+.robots-fleet-accounts-menu__list {
     margin: 0;
     padding: 0;
     list-style: none;
@@ -4909,7 +4912,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     overflow: auto;
 }
 
-.robots-v2-fleet-accounts-menu__item {
+.robots-fleet-accounts-menu__item {
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -4918,7 +4921,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     background: color-mix(in srgb, var(--bg-elevated, var(--bg-card)) 70%, transparent);
 }
 
-.robots-v2-fleet-accounts-menu__name {
+.robots-fleet-accounts-menu__name {
     color: var(--text-primary);
     font-size: 13px;
     font-weight: 500;
@@ -4926,7 +4929,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     word-break: break-word;
 }
 
-.robots-v2-fleet-accounts-menu__id {
+.robots-fleet-accounts-menu__id {
     color: var(--text-muted);
     font-size: 11px;
     font-weight: 400;
@@ -4936,7 +4939,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 
 
 [data-page='robots'][data-robots-view='fleet']
-.robots-v2-fleet-card--trading .robots-v2-fleet-card__inline-alert {
+.robots-fleet-card--trading .robots-fleet-card__inline-alert {
     grid-column: 1 / -1;
 }
 
@@ -4944,18 +4947,18 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 
 @media (max-width: 1100px) {
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__main--trading {
+    .robots-fleet-card__main--trading {
         grid-template-columns: minmax(0, 1.4fr) minmax(90px, 0.7fr) auto;
         gap: 16px 14px;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__metric--accounts {
+    .robots-fleet-card--trading .robots-fleet-card__metric--accounts {
         display: none;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity {
+    .robots-fleet-card--trading .robots-fleet-card__equity {
         grid-column: 1 / -1;
         border-left: 0;
         padding: 14px 0 0;
@@ -4963,7 +4966,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__actions {
+    .robots-fleet-card--trading .robots-fleet-card__actions {
         grid-column: 3;
         grid-row: 1;
         align-self: start;
@@ -4980,12 +4983,12 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-section {
+    .robots-fleet-section {
         margin-bottom: 4px;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-section-label {
+    .robots-fleet-section-label {
         margin: 4px 0 8px;
         font-size: var(--fleet-font-section);
         font-weight: 500;
@@ -4995,51 +4998,51 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-section-label:after {
+    .robots-fleet-section-label:after {
         display: none;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-section-label span {
+    .robots-fleet-section-label span {
         margin-left: 4px;
         color: var(--text-muted);
         font-weight: 500;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-section + .robots-v2-fleet-section .robots-v2-fleet-section-label {
+    .robots-fleet-section + .robots-fleet-section .robots-fleet-section-label {
         margin-top: 16px;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-stack {
+    .robots-fleet-stack {
         gap: 6px;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card.card,
+    .robots-fleet-card.card,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card.card.card--clickable,
+    .robots-fleet-card.card.card--clickable,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card.card:hover,
+    .robots-fleet-card.card:hover,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card.card.card--clickable:hover,
+    .robots-fleet-card.card.card--clickable:hover,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading.card,
+    .robots-fleet-card--trading.card,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading.card.card--clickable,
+    .robots-fleet-card--trading.card.card--clickable,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading.card:hover,
+    .robots-fleet-card--trading.card:hover,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading.card.card--clickable:hover,
+    .robots-fleet-card--trading.card.card--clickable:hover,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--portfolio.card,
+    .robots-fleet-card--portfolio.card,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--portfolio.card.card--clickable,
+    .robots-fleet-card--portfolio.card.card--clickable,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--portfolio.card:hover,
+    .robots-fleet-card--portfolio.card:hover,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--portfolio.card.card--clickable:hover {
+    .robots-fleet-card--portfolio.card.card--clickable:hover {
         padding: 8px 10px;
         gap: 0;
         border-radius: 12px;
@@ -5047,27 +5050,27 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--warn.card,
+    .robots-fleet-card--warn.card,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--warn.card:hover,
+    .robots-fleet-card--warn.card:hover,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--warn.card.card--clickable:hover,
+    .robots-fleet-card--warn.card.card--clickable:hover,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading.robots-v2-fleet-card--warn.card,
+    .robots-fleet-card--trading.robots-fleet-card--warn.card,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading.robots-v2-fleet-card--warn.card:hover,
+    .robots-fleet-card--trading.robots-fleet-card--warn.card:hover,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading.robots-v2-fleet-card--warn.card.card--clickable:hover {
+    .robots-fleet-card--trading.robots-fleet-card--warn.card.card--clickable:hover {
         border-left-color: color-mix(in srgb, var(--border-subtle) 80%, transparent);
         box-shadow: none;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__main,
+    .robots-fleet-card__main,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__main--trading,
+    .robots-fleet-card__main--trading,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__main--portfolio {
+    .robots-fleet-card__main--portfolio {
         width: 100%;
         margin: 0;
         padding: 0;
@@ -5075,27 +5078,27 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 
     /* Shared dense row: name | status | ⋯ */
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__main--trading,
+    .robots-fleet-card__main--trading,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__main--portfolio {
+    .robots-fleet-card__main--portfolio {
         grid-template-columns: minmax(0, 1fr) auto;
         gap: 6px 8px;
         align-items: center;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__identity,
+    .robots-fleet-card--trading .robots-fleet-card__identity,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--portfolio .robots-v2-fleet-card__identity {
+    .robots-fleet-card--portfolio .robots-fleet-card__identity {
         grid-column: 1;
         grid-row: 1;
         min-width: 0;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__actions,
+    .robots-fleet-card--trading .robots-fleet-card__actions,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--portfolio .robots-v2-fleet-card__actions {
+    .robots-fleet-card--portfolio .robots-fleet-card__actions {
         grid-column: 2;
         grid-row: 1;
         align-self: center;
@@ -5106,7 +5109,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__name-line {
+    .robots-fleet-card__name-line {
         flex-wrap: nowrap;
         align-items: baseline;
         gap: 6px;
@@ -5115,7 +5118,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__name {
+    .robots-fleet-card__name {
         font-size: var(--fleet-font-name);
         font-weight: 500;
         overflow: hidden;
@@ -5126,7 +5129,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__id {
+    .robots-fleet-card__id {
         display: inline;
         flex: 0 0 auto;
         font-size: var(--fleet-font-meta);
@@ -5135,28 +5138,28 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__meta {
+    .robots-fleet-card--trading .robots-fleet-card__meta {
         display: none;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__identity {
+    .robots-fleet-card__identity {
         gap: 0;
         min-width: 0;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__status-slot--desktop {
+    .robots-fleet-card__status-slot--desktop {
         display: none;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__status-slot--mobile {
+    .robots-fleet-card__status-slot--mobile {
         display: contents;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__status {
+    .robots-fleet-card__status {
         padding: 2px 7px;
         border-radius: 999px;
         font-size: var(--fleet-font-meta);
@@ -5172,43 +5175,43 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__status:before {
+    .robots-fleet-card__status:before {
         width: 5px;
         height: 5px;
         flex: 0 0 auto;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__status--ok {
+    .robots-fleet-card__status--ok {
         background: color-mix(in srgb, var(--color-up) 14%, transparent);
         color: var(--color-up);
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__status--bad {
+    .robots-fleet-card__status--bad {
         background: color-mix(in srgb, var(--color-down) 12%, transparent);
         color: var(--color-down);
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__status--warn {
+    .robots-fleet-card__status--warn {
         background: color-mix(in srgb, var(--color-warn) 14%, transparent);
         color: var(--color-warn);
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__status--idle {
+    .robots-fleet-card__status--idle {
         background: color-mix(in srgb, var(--text-primary) 7%, transparent);
         color: var(--text-secondary);
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__metric {
+    .robots-fleet-card__metric {
         display: none;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__facts {
+    .robots-fleet-card__facts {
         display: flex;
         flex-wrap: nowrap;
         align-items: baseline;
@@ -5224,7 +5227,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__fact {
+    .robots-fleet-card__fact {
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -5232,7 +5235,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__fact--primary {
+    .robots-fleet-card__fact--primary {
         display: inline-flex;
         align-items: baseline;
         gap: 6px;
@@ -5242,7 +5245,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__fact-broker {
+    .robots-fleet-card__fact-broker {
         flex: 0 1 auto;
         min-width: 0;
         overflow: hidden;
@@ -5251,17 +5254,17 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__fact-sep {
+    .robots-fleet-card__fact-sep {
         flex: 0 0 auto;
         color: color-mix(in srgb, var(--text-muted) 75%, transparent);
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__fact--primary .robots-v2-fleet-accounts-wrap,
+    .robots-fleet-card__fact--primary .robots-fleet-accounts-wrap,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__fact--primary .robots-v2-fleet-accounts__trigger--fact,
+    .robots-fleet-card__fact--primary .robots-fleet-accounts__trigger--fact,
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__fact--primary > span {
+    .robots-fleet-card__fact--primary > span {
         min-width: 0;
         max-width: 100%;
         overflow: hidden;
@@ -5270,7 +5273,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card__fact--sync {
+    .robots-fleet-card__fact--sync {
         flex: 0 0 auto;
         text-align: right;
         font-variant-numeric: tabular-nums;
@@ -5279,7 +5282,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 
     /* Trading equity strip: more air + wider spark */
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity {
+    .robots-fleet-card--trading .robots-fleet-card__equity {
         grid-column: 1 / -1;
         display: flex;
         flex-direction: column;
@@ -5293,7 +5296,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-primary {
+    .robots-fleet-card--trading .robots-fleet-card__equity-primary {
         display: flex;
         align-items: stretch;
         gap: 12px;
@@ -5302,24 +5305,24 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-stack {
+    .robots-fleet-card--trading .robots-fleet-card__equity-stack {
         flex: 1 1 auto;
         gap: 8px;
         min-width: 0;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-hero {
+    .robots-fleet-card--trading .robots-fleet-card__equity-hero {
         gap: 8px;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-hero-head {
+    .robots-fleet-card--trading .robots-fleet-card__equity-hero-head {
         gap: 8px;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-value {
+    .robots-fleet-card--trading .robots-fleet-card__equity-value {
         font-size: calc(var(--fleet-font-value) * var(--equity-scale, 1));
         font-weight: 600;
         line-height: 1.2;
@@ -5327,42 +5330,42 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-meta {
+    .robots-fleet-card--trading .robots-fleet-card__equity-meta {
         gap: 8px;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-meta-item {
+    .robots-fleet-card--trading .robots-fleet-card__equity-meta-item {
         gap: 6px;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-meta-label {
+    .robots-fleet-card--trading .robots-fleet-card__equity-meta-label {
         font-size: var(--fleet-font-meta);
         font-weight: 500;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-meta-value {
+    .robots-fleet-card--trading .robots-fleet-card__equity-meta-value {
         font-size: calc(var(--fleet-font-meta) * var(--equity-scale, 1));
         font-weight: 500;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-hero-head .robots-v2-fleet-card__equity-meta-value {
+    .robots-fleet-card--trading .robots-fleet-card__equity-hero-head .robots-fleet-card__equity-meta-value {
         font-size: calc(var(--fleet-font-meta) * var(--equity-scale, 1));
         font-weight: 500;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-secondary {
+    .robots-fleet-card--trading .robots-fleet-card__equity-secondary {
         gap: 8px 10px;
         padding-top: 10px;
         border-top: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-period {
+    .robots-fleet-card--trading .robots-fleet-card__equity-period {
         flex: 0 1 auto;
         max-width: 30%;
         overflow: hidden;
@@ -5372,41 +5375,41 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-stats {
+    .robots-fleet-card--trading .robots-fleet-card__equity-stats {
         flex: 1 1 auto;
         gap: 8px 12px;
         min-width: 0;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-stat {
+    .robots-fleet-card--trading .robots-fleet-card__equity-stat {
         gap: 5px;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-stat-label {
+    .robots-fleet-card--trading .robots-fleet-card__equity-stat-label {
         font-size: var(--fleet-font-meta);
         font-weight: 500;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-stat-value {
+    .robots-fleet-card--trading .robots-fleet-card__equity-stat-value {
         font-size: var(--fleet-font-meta);
         font-weight: 500;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-stat-label-full {
+    .robots-fleet-card--trading .robots-fleet-card__equity-stat-label-full {
         display: none;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-stat-label-short {
+    .robots-fleet-card--trading .robots-fleet-card__equity-stat-label-short {
         display: inline;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-label {
+    .robots-fleet-card--trading .robots-fleet-card__equity-label {
         font-size: var(--fleet-font-meta);
         font-weight: 500;
         letter-spacing: 0.03em;
@@ -5414,19 +5417,19 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__equity-side {
+    .robots-fleet-card--trading .robots-fleet-card__equity-side {
         width: 128px;
         min-width: 112px;
         max-width: 42%;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__spark {
+    .robots-fleet-card--trading .robots-fleet-card__spark {
         opacity: 0.95;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-card--trading .robots-v2-fleet-card__inline-alert {
+    .robots-fleet-card--trading .robots-fleet-card__inline-alert {
         grid-column: 1 / -1;
         margin-top: 2px;
         padding: 6px 8px;
@@ -5435,14 +5438,14 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-more-trigger.btn.btn--ghost.btn--sm {
+    .robots-more-trigger.btn.btn--ghost.btn--sm {
         width: 28px;
         min-width: 28px;
         height: 28px;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-accounts-menu.menu-dropdown {
+    .robots-fleet-accounts-menu.menu-dropdown {
         min-width: min(200px, calc(100vw - 16px));
         max-width: calc(100vw - 16px);
         padding: 6px;
@@ -5450,30 +5453,30 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-accounts-menu__title {
+    .robots-fleet-accounts-menu__title {
         padding: 2px 8px 6px;
         font-size: var(--fleet-font-meta);
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-accounts-menu__item {
+    .robots-fleet-accounts-menu__item {
         padding: 7px 8px;
         border-radius: 7px;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-accounts-menu__name {
+    .robots-fleet-accounts-menu__name {
         font-size: var(--fleet-font-name);
         font-weight: 500;
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-accounts-menu__id {
+    .robots-fleet-accounts-menu__id {
         font-size: var(--fleet-font-meta);
     }
 
     [data-page='robots'][data-robots-view='fleet']
-    .robots-v2-fleet-accounts-menu__list {
+    .robots-fleet-accounts-menu__list {
         max-height: min(240px, 45vh);
     }
 }

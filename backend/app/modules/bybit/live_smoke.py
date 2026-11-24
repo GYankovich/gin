@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from app.modules.bybit.http_client import BybitHttpClient
-from app.modules.robots.trading.brokers.factory import create_broker_facade
+from app.modules.robot_lib.trading.brokers.factory import create_broker_facade
 
 
 def _position_view(position: Dict[str, Any]) -> Dict[str, Any]:

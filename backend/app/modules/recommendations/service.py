@@ -7,9 +7,9 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from app.modules.analytics.service import analytics_service
-from app.modules.robots_v2.service import robots_v2_service
-from app.modules.robots_v2.strategy.registry import list_archetypes
-from app.modules.robots.trading.strategies import get_strategy_info, list_strategies
+from app.modules.robots.service import robots_v2_service
+from app.modules.robots.strategy.registry import list_archetypes
+from app.modules.robot_lib.trading.strategies import get_strategy_info, list_strategies
 
 from . import queries
 from .context import AnalysisContext

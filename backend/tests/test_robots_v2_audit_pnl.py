@@ -1,6 +1,6 @@
 """Tests for price-based audit fill PnL."""
 
-from app.modules.robots_v2.audit_pnl import (
+from app.modules.robots.audit_pnl import (
     build_round_trips,
     enrich_fills_realized_pnl,
     normalize_live_fill_price,
@@ -132,7 +132,7 @@ def test_net_pnl_repairs_notional_buy_price():
 
 
 def test_nvtk_notional_sell_price_normalized():
-    from app.modules.robots_v2.audit_pnl import build_round_trips, enrich_fills_realized_pnl
+    from app.modules.robots.audit_pnl import build_round_trips, enrich_fills_realized_pnl
 
     timeline = [
         {"id": "b1", "ticker": "NVTK", "side": "BUY", "quantity": 3, "price": 935.2, "filledAt": "t1"},
@@ -153,7 +153,7 @@ def test_nvtk_notional_sell_price_normalized():
 
 
 def test_build_round_trips_closed():
-    from app.modules.robots_v2.audit_pnl import build_round_trips
+    from app.modules.robots.audit_pnl import build_round_trips
 
     timeline = [
         {
@@ -207,7 +207,7 @@ def test_build_round_trips_closed():
 
 
 def test_build_round_trips_open_position():
-    from app.modules.robots_v2.audit_pnl import build_round_trips
+    from app.modules.robots.audit_pnl import build_round_trips
 
     timeline = [
         {

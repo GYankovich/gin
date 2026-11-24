@@ -110,11 +110,14 @@ def fetch_risk_events_count(
     robot_id: int,
     days: int = 7,
 ) -> int:
+    """Risk denies from robot_decisions (legacy robot_risk_events retired)."""
     sql = f"""
         SELECT COUNT(*)::int
-        FROM robot_risk_events
+        FROM {schema}.robot_decisions
         WHERE robot_id = :robot_id
-          AND ts >= NOW() - make_interval(days => :days)
+          AND stage = 'risk'
+          AND outcome = 'deny'
+          AND created_at >= NOW() - make_interval(days => :days)
     """
     return int(
         db.execute(text(sql), {"robot_id": robot_id, "days": days}).scalar() or 0
@@ -127,17 +130,25 @@ def fetch_signal_execution_stats(
     robot_id: int,
     limit: int = 200,
 ) -> Dict[str, int]:
+    """Signals that got a same-cycle/ticker order (legacy robot_signals retired)."""
     sql = f"""
         SELECT
             COUNT(*)::int AS total,
-            COUNT(*) FILTER (WHERE was_executed = 1)::int AS executed
+            COUNT(*) FILTER (WHERE executed = 1)::int AS executed
         FROM (
-            SELECT was_executed
-            FROM robot_signals
-            WHERE robot_id = :robot_id
-            ORDER BY created_at DESC
+            SELECT
+                CASE WHEN EXISTS (
+                    SELECT 1
+                    FROM {schema}.robot_orders o
+                    WHERE o.robot_id = s.robot_id
+                      AND o.cycle_id = s.cycle_id
+                      AND o.ticker = s.ticker
+                ) THEN 1 ELSE 0 END AS executed
+            FROM {schema}.robot_signals s
+            WHERE s.robot_id = :robot_id
+            ORDER BY s.created_at DESC
             LIMIT :limit
-        ) s
+        ) x
     """
     row = db.execute(text(sql), {"robot_id": robot_id, "limit": limit}).first()
     if not row:

@@ -2,15 +2,15 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from app.modules.robots_v2.portfolio.queries import build_get_active_portfolio_v2_robots_query
-from app.modules.robots_v2.portfolio.schedule import poll_interval_seconds, should_run_portfolio
-from app.modules.robots_v2.queries import build_get_robot_query, build_list_robots_query
+from app.modules.robots.portfolio.queries import build_get_active_portfolio_v2_robots_query
+from app.modules.robots.portfolio.schedule import poll_interval_seconds, should_run_portfolio
+from app.modules.robots.queries import build_get_robot_query, build_list_robots_query
 
 
 def test_portfolio_v2_query_reads_robots_v2_not_legacy():
     sql = build_get_active_portfolio_v2_robots_query(schema="public")
-    assert "robots_v2" in sql
-    assert "robots r" not in sql.replace("robots_v2", "")
+    assert "robots" in sql
+    assert "robots r" not in sql.replace("robots", "")
     assert "robot_schedules" not in sql
 
 
@@ -24,7 +24,7 @@ def test_list_and_get_queries_use_v2_last_started_only():
 
 
 def test_fleet_live_uses_portfolio_snapshots():
-    from app.modules.robots_v2.queries import (
+    from app.modules.robots.queries import (
         build_fleet_latest_snapshot_query,
         build_fleet_snapshot_curve_query,
         build_fleet_trade_stats_query,
@@ -41,7 +41,7 @@ def test_fleet_live_uses_portfolio_snapshots():
     assert "portfolio_snapshot_daily" in curve_sql
     assert curve_params["snapshot_days"] == 30
     trades_sql, trades_params = build_fleet_trade_stats_query(user_id=1, schema="public")
-    assert "robots_v2_fills" in trades_sql
+    assert "robot_fills" in trades_sql
     assert trades_params["snapshot_days"] == 30
 
 

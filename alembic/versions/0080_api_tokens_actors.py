@@ -3,7 +3,7 @@
 Revision ID: 0080_api_tokens_actors
 Revises: 0079_user_pkg_actors
 
-usercre / usermod store a login (varchar 128), not a user id.
+usercre / usermod store a stable REST actor path (varchar 128), not a user id/login.
 """
 
 from alembic import op

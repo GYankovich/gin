@@ -308,7 +308,7 @@ async def run_scheduled_dividend_etl(db: Session) -> Dict[str, Any]:
 
 async def sync_tqbr_securities_reference(db: Session) -> int:
     """Backward-compatible wrapper around shares+bonds MOEX reference sync."""
-    from app.modules.robots.moex_securities_updater.robot import sync_moex_securities_reference
+    from app.modules.robot_lib.moex_securities_updater.robot import sync_moex_securities_reference
 
     summary = await sync_moex_securities_reference(db)
     return int(summary.get("upserted") or 0)

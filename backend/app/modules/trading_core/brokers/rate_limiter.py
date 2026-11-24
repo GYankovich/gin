@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 #///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingBrokersRateLimiter [1]
-#/// Исходный модуль `backend/app/modules/robots/trading/brokers/rate_limiter.py` — автоматическая разметка для Obsidian Source Scanner.
+#/// Исходный модуль `backend/app/modules/robot_lib/trading/brokers/rate_limiter.py` — автоматическая разметка для Obsidian Source Scanner.
 
 import asyncio
 from collections import deque

@@ -1,4 +1,4 @@
-/* ===== Responsive — Desktop first ===== */
+﻿/* ===== Responsive — Desktop first ===== */
 
 /* ===== MOBILE DOCK (hidden on desktop) ===== */
 .mobile-dock {
@@ -466,6 +466,10 @@
         padding-bottom: calc(var(--tabbar-h) + 16px + env(safe-area-inset-bottom, 0px));
     }
 
+    html[data-backend='down'] .main-content {
+        padding-top: calc(var(--backend-banner-h, 48px) + var(--space-3));
+    }
+
     /* Dock clearance lives inside the screen. Added under a min-height page,
        it made a collapsed dashboard a few pixels too tall and drew a scrollbar.
        The opened list grows this scroller, so the extra accounts stay reachable. */
@@ -501,6 +505,10 @@
     body:has([data-page='dashboard']) .main-content:has(.dashboard-mobile-header) {
         padding-top: 0;
         padding-inline: 0;
+    }
+
+    html[data-backend='down'] body:has([data-page='dashboard']) .main-content:has(.dashboard-mobile-header) {
+        padding-top: var(--backend-banner-h, 48px);
     }
 
     [data-page='dashboard'].page {
@@ -595,9 +603,9 @@
         overflow: hidden;
     }
 
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-layout,
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-rail-layout,
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-main {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-layout,
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-rail-layout,
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-main {
         min-width: 0;
         max-width: 100%;
     }
@@ -2209,8 +2217,8 @@
     [data-page='dashboard'] .dashboard-accounts-collapse .collapsible-section__body,
     [data-page='dashboard'] .dashboard-assets-collapse .collapsible-section__toggle,
     [data-page='dashboard'] .dashboard-assets-collapse .collapsible-section__body,
-    .robots-v2-fleet-collapse .collapsible-section__toggle,
-    .robots-v2-fleet-collapse .collapsible-section__body {
+    .robots-fleet-collapse .collapsible-section__toggle,
+    .robots-fleet-collapse .collapsible-section__body {
         padding-left: var(--space-4);
         padding-right: var(--space-4);
     }
@@ -2267,17 +2275,17 @@
         gap: 12px;
     }
 
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card.card.card--clickable {
+    [data-page='robots'][data-robots-view='fleet'] .robots-fleet-card.card.card--clickable {
         min-width: 0;
         max-width: 100%;
     }
 
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-card .robots-v2-more-menu.mobile-dock__menu {
+    [data-page='robots'][data-robots-view='fleet'] .robots-fleet-card .robots-more-menu.mobile-dock__menu {
         flex: 0 0 auto;
         padding: 0;
     }
 
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-more-trigger.btn--ghost.btn--sm {
+    [data-page='robots'][data-robots-view='fleet'] .robots-more-trigger.btn--ghost.btn--sm {
         min-width: 32px;
         min-height: 32px;
         width: 32px;
@@ -2286,41 +2294,41 @@
     }
 
     /* Section title + count; chevron stays trailing */
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__toggle {
+    [data-page='robots'][data-robots-view='fleet'] .robots-fleet-collapse .collapsible-section__toggle {
         min-width: 0;
         gap: var(--space-2);
     }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__toggle-main {
+    [data-page='robots'][data-robots-view='fleet'] .robots-fleet-collapse .collapsible-section__toggle-main {
         flex: 1 1 auto;
         width: auto;
         min-width: 0;
         overflow: hidden;
     }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__title-row {
+    [data-page='robots'][data-robots-view='fleet'] .robots-fleet-collapse .collapsible-section__title-row {
         display: flex;
         align-items: center;
         flex: 1 1 auto;
         min-width: 0;
         overflow: hidden;
     }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__title {
+    [data-page='robots'][data-robots-view='fleet'] .robots-fleet-collapse .collapsible-section__title {
         min-width: 0;
         overflow: hidden;
     }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__title .dashboard-collapse__label {
+    [data-page='robots'][data-robots-view='fleet'] .robots-fleet-collapse .collapsible-section__title .dashboard-collapse__label {
         display: inline-flex;
         align-items: center;
         max-width: 100%;
         min-width: 0;
         overflow: hidden;
     }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__title .dashboard-collapse__label > :not(svg) {
+    [data-page='robots'][data-robots-view='fleet'] .robots-fleet-collapse .collapsible-section__title .dashboard-collapse__label > :not(svg) {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse__count,
-    [data-page='robots'][data-robots-view='fleet'] .robots-v2-fleet-collapse .collapsible-section__chevron {
+    [data-page='robots'][data-robots-view='fleet'] .robots-fleet-collapse__count,
+    [data-page='robots'][data-robots-view='fleet'] .robots-fleet-collapse .collapsible-section__chevron {
         flex-shrink: 0;
     }
 [data-page='dashboard'] .dashboard-accounts-collapse .collapsible-section__body, [data-page='portfolio'] .dashboard-accounts-collapse .collapsible-section__body {
@@ -2418,10 +2426,10 @@
         box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--text-primary) 55%, transparent);
     }
 
-    [data-page='robots'] .robots-v2-backtest-toolbar .segmented-control {
+    [data-page='robots'] .robots-backtest-toolbar .segmented-control {
         width: 100%;
     }
-    [data-page='robots'] .robots-v2-backtest-toolbar .segmented-control__item {
+    [data-page='robots'] .robots-backtest-toolbar .segmented-control__item {
         flex: 1 1 0;
         min-width: 0;
         padding-inline: 6px;
@@ -2429,31 +2437,31 @@
     }
 
     /* Logs toolbar B: two strips — sections, then period */
-    [data-page='robots'] .robots-v2-logs-toolbar {
+    [data-page='robots'] .robots-logs-toolbar {
         flex-direction: column;
         align-items: stretch;
         flex-wrap: nowrap;
         gap: var(--space-2);
     }
-    [data-page='robots'] .robots-v2-logs-toolbar__view {
+    [data-page='robots'] .robots-logs-toolbar__view {
         width: 100%;
         justify-content: space-between;
     }
-    [data-page='robots'] .robots-v2-logs-toolbar__sections {
+    [data-page='robots'] .robots-logs-toolbar__sections {
         flex: 1 1 auto;
         width: auto;
         min-width: 0;
     }
-    [data-page='robots'] .robots-v2-logs-toolbar__sections .segmented-control__item {
+    [data-page='robots'] .robots-logs-toolbar__sections .segmented-control__item {
         flex: 1 1 0;
         min-width: 0;
         padding-inline: 6px;
         text-align: center;
     }
-    [data-page='robots'] .robots-v2-logs-toolbar__count {
+    [data-page='robots'] .robots-logs-toolbar__count {
         margin-left: 0;
     }
-    [data-page='robots'] .robots-v2-logs-toolbar__period {
+    [data-page='robots'] .robots-logs-toolbar__period {
         width: 100%;
         margin-left: 0;
         flex-direction: column;
@@ -2462,72 +2470,72 @@
         flex-wrap: nowrap;
         gap: var(--space-2);
     }
-    [data-page='robots'] .robots-v2-logs-toolbar__period-label {
+    [data-page='robots'] .robots-logs-toolbar__period-label {
         display: block;
         font-size: 11px;
         letter-spacing: 0.04em;
         text-transform: uppercase;
         color: var(--text-muted);
     }
-    [data-page='robots'] .robots-v2-logs-toolbar__period > .robots-v2-logs-toolbar__presets {
+    [data-page='robots'] .robots-logs-toolbar__period > .robots-logs-toolbar__presets {
         width: 100%;
         display: grid;
         grid-template-columns: repeat(5, minmax(0, 1fr));
     }
-    [data-page='robots'] .robots-v2-logs-toolbar__period > .robots-v2-logs-toolbar__presets .segmented-control__item {
+    [data-page='robots'] .robots-logs-toolbar__period > .robots-logs-toolbar__presets .segmented-control__item {
         flex: 1 1 0;
         min-width: 0;
         padding-inline: 4px;
         text-align: center;
     }
-    [data-page='robots'] .robots-v2-logs-toolbar__period > .robots-v2-logs-toolbar__presets .segmented-control__item:last-child:nth-child(odd) {
+    [data-page='robots'] .robots-logs-toolbar__period > .robots-logs-toolbar__presets .segmented-control__item:last-child:nth-child(odd) {
         grid-column: auto;
     }
-    [data-page='robots'] .robots-v2-logs-toolbar__period .date-range-picker--fields {
+    [data-page='robots'] .robots-logs-toolbar__period .date-range-picker--fields {
         width: 100%;
         max-width: none;
     }
-    [data-page='robots'] .robots-v2-logs-toolbar__reset {
+    [data-page='robots'] .robots-logs-toolbar__reset {
         display: inline-flex;
         align-self: flex-start;
     }
-    [data-page='robots'] .robots-v2-backtest-dates .date-range-picker--fields {
+    [data-page='robots'] .robots-backtest-dates .date-range-picker--fields {
         flex: 0 0 auto;
         width: 100%;
         max-width: none;
         height: auto;
         min-height: 0;
     }
-    [data-page='robots'] .robots-v2-bt-guide {
+    [data-page='robots'] .robots-bt-guide {
         gap: var(--space-2);
         margin-bottom: 0;
     }
-    .robots-v2-cockpit {
+    .robots-cockpit {
         gap: var(--space-2);
     }
-    [data-page='robots'] .robots-v2-backtest-toolbar .segmented-control {
+    [data-page='robots'] .robots-backtest-toolbar .segmented-control {
         display: grid;
         grid-template-columns: 1fr 1fr;
     }
-    [data-page='robots'] .robots-v2-backtest-toolbar .segmented-control .segmented-control__item:last-child:nth-child(odd) {
+    [data-page='robots'] .robots-backtest-toolbar .segmented-control .segmented-control__item:last-child:nth-child(odd) {
         grid-column: 1 / -1;
     }
-    [data-page='robots'][data-robots-view='wizard'] .robots-v2-wizard-footer > .btn {
+    [data-page='robots'][data-robots-view='wizard'] .robots-wizard-footer > .btn {
         width: auto;
     }
-    [data-page='robots'] .robots-v2-run-list {
+    [data-page='robots'] .robots-run-list {
         max-height: min(70vh, 28rem) !important;
     }
-    [data-page='robots'] .robots-v2-bt-guide__steps {
+    [data-page='robots'] .robots-bt-guide__steps {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: var(--space-2);
     }
-    [data-page='robots'] .robots-v2-steps__item {
+    [data-page='robots'] .robots-steps__item {
         flex: 0 0 46%;
         min-width: 0;
     }
-    [data-page='robots'] .robots-v2-backtest-toolbar {
+    [data-page='robots'] .robots-backtest-toolbar {
         align-items: stretch;
     }
     [data-page='robots'] .dashboard-assets-card__head,
@@ -2536,10 +2544,10 @@
         align-items: flex-start;
         gap: var(--space-2);
     }
-    .robots-v2-inspector {
+    .robots-inspector {
         align-items: flex-end;
     }
-    .robots-v2-inspector__panel {
+    .robots-inspector__panel {
         width: 100%;
         height: min(88dvh, 100%);
         border-left: 0;
@@ -2547,13 +2555,13 @@
         border-radius: var(--radius-lg) var(--radius-lg) 0 0;
         padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
         box-shadow: 0 -12px 32px -16px rgba(0, 0, 0, 0.5);
-        animation-name: robots-v2-inspector-sheet;
+        animation-name: robots-inspector-sheet;
     }
-    @keyframes robots-v2-inspector-sheet {
+    @keyframes robots-inspector-sheet {
         from { transform: translateY(16px); opacity: 0.6; }
         to { transform: translateY(0); opacity: 1; }
     }
-    .robots-v2-inspector__field {
+    .robots-inspector__field {
         grid-template-columns: 1fr;
         gap: 2px;
     }

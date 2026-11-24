@@ -14,14 +14,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.modules.robots.config.profiles import dump_robot_config, validate_robot_config
+from app.modules.robot_lib.config.profiles import dump_robot_config, validate_robot_config
 from app.modules.trading_core.sim.types import BacktestResult
-from app.modules.robots.trading.brokers.sim_backtest import SimBacktestBrokerFacade
-from app.modules.robots.trading.runtime.orchestrator import (
+from app.modules.robot_lib.trading.brokers.sim_backtest import SimBacktestBrokerFacade
+from app.modules.robot_lib.trading.runtime.orchestrator import (
     TradingOrchestrator,
     build_allowed_symbols_by_date,
 )
-from app.modules.robots.trading.session_backtest import BacktestTradingSession
+from app.modules.robot_lib.trading.session_backtest import BacktestTradingSession
 
 
 def _price_q(value: float) -> Dict[str, Any]:

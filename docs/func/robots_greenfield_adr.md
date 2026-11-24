@@ -6,7 +6,7 @@
 
 > **As-built (2026-09-29):** v2 — единственный пользовательский контур.
 > UI `/robots` → `/api/v2/robots/*`. Routes `/testing`, `/live`, `/robots-v2/*` redirect to `/robots`.
-> Legacy `/api/robots/*` unmounted. History-backtest monolith removed; prod backtest = `robots_v2.backtest`.
+> Legacy `/api/robots/*` unmounted. History-backtest monolith removed; prod backtest = `robots.backtest`.
 > Sections below describing a long-lived parallel v1 contour are historical context only.
 
 Документ фиксирует продуктовые и архитектурные решения для параллельного контура v2. Отменяет или уточняет отдельные пункты greenfield-спеки там, где указано явно.
@@ -21,7 +21,7 @@
 | Аспект | v1 (as-is) | v2 (greenfield) |
 |--------|------------|-----------------|
 | API | `/api/robots/*` | `/api/v2/robots/*` |
-| Таблица | `robots` (v2/v3 config) | **Отдельная** (`robots_v2` или эквивалент) |
+| Таблица | `robots` (v2/v3 config) | **Отдельная** (`robots` или эквивалент) |
 | UI | `/robots`, `/live`, `/testing` (legacy) | `/robots-v2`, новый live-monitor |
 | Feature flag | — | `ROBOTS_V2_ENABLED` |
 

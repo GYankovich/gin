@@ -15,11 +15,11 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots_v2.engine.paper_ledger import PaperLedger
-from app.modules.robots_v2.engine.session import TradingSessionV2
-from app.modules.robots_v2.engine.types import SessionState, SessionStatus
-from app.modules.robots_v2.schemas import RobotV2Response, RobotV2StatusResponse
-from app.modules.robots_v2.service import RobotsV2Service, _IDLE_BROKER_CACHE
+from app.modules.robots.engine.paper_ledger import PaperLedger
+from app.modules.robots.engine.session import TradingSessionV2
+from app.modules.robots.engine.types import SessionState, SessionStatus
+from app.modules.robots.schemas import RobotV2Response, RobotV2StatusResponse
+from app.modules.robots.service import RobotsV2Service, _IDLE_BROKER_CACHE
 
 
 def _robot(
@@ -54,7 +54,7 @@ def test_idle_paper_exposes_last_virtual_capital_as_balance():
     )
 
     with patch.object(service, "get_robot", return_value=robot), patch(
-        "app.modules.robots_v2.engine.session_manager.session_manager"
+        "app.modules.robots.engine.session_manager.session_manager"
     ) as sm:
         sm.status.return_value = None
         payload = asyncio.run(service.get_status(db, user_id=7, robot_id=13))
@@ -77,7 +77,7 @@ def test_idle_paper_without_capital_keeps_null_balances():
     robot = _robot(metadata={})
 
     with patch.object(service, "get_robot", return_value=robot), patch(
-        "app.modules.robots_v2.engine.session_manager.session_manager"
+        "app.modules.robots.engine.session_manager.session_manager"
     ) as sm:
         sm.status.return_value = None
         payload = asyncio.run(service.get_status(db, user_id=7, robot_id=13))
@@ -95,7 +95,7 @@ def test_idle_paper_zero_capital_treated_as_missing():
     robot = _robot(metadata={"lastVirtualCapital": 0})
 
     with patch.object(service, "get_robot", return_value=robot), patch(
-        "app.modules.robots_v2.engine.session_manager.session_manager"
+        "app.modules.robots.engine.session_manager.session_manager"
     ) as sm:
         sm.status.return_value = None
         payload = asyncio.run(service.get_status(db, user_id=7, robot_id=13))
@@ -124,9 +124,9 @@ def test_idle_live_broker_snap_sets_balance_source_broker():
     )
 
     with patch.object(service, "get_robot", return_value=robot), patch(
-        "app.modules.robots_v2.engine.session_manager.session_manager"
+        "app.modules.robots.engine.session_manager.session_manager"
     ) as sm, patch(
-        "app.modules.robots_v2.engine.broker_positions.open_tickers_from_audit_fills",
+        "app.modules.robots.engine.broker_positions.open_tickers_from_audit_fills",
         return_value={},
     ):
         sm.status.return_value = None
@@ -147,9 +147,9 @@ def test_idle_live_broker_fail_keeps_null_balance_source():
     _IDLE_BROKER_CACHE.clear()
 
     with patch.object(service, "get_robot", return_value=robot), patch(
-        "app.modules.robots_v2.engine.session_manager.session_manager"
+        "app.modules.robots.engine.session_manager.session_manager"
     ) as sm, patch(
-        "app.modules.robots_v2.engine.broker_positions.open_tickers_from_audit_fills",
+        "app.modules.robots.engine.broker_positions.open_tickers_from_audit_fills",
         return_value={},
     ), patch.object(
         service,
@@ -180,7 +180,7 @@ def test_active_session_balance_source_session():
     )
 
     with patch.object(service, "get_robot", return_value=robot), patch(
-        "app.modules.robots_v2.engine.session_manager.session_manager"
+        "app.modules.robots.engine.session_manager.session_manager"
     ) as sm:
         sm.status.return_value = snap
         payload = asyncio.run(service.get_status(db, user_id=7, robot_id=13))
@@ -221,7 +221,7 @@ def test_persist_paper_last_virtual_capital_writes_metadata():
     db.execute.side_effect = _execute
 
     with patch(
-        "app.modules.robots_v2.engine.session.SessionLocal",
+        "app.modules.robots.engine.session.SessionLocal",
         return_value=db,
     ), patch("app.core.config.settings") as settings_mock:
         settings_mock.DB_SCHEMA = "public"
@@ -247,7 +247,7 @@ def test_persist_paper_last_virtual_capital_skips_live():
     session.ledger = PaperLedger(cash=10_000.0)
 
     with patch(
-        "app.modules.robots_v2.engine.session.SessionLocal",
+        "app.modules.robots.engine.session.SessionLocal",
     ) as session_local:
         session._persist_paper_last_virtual_capital()
     session_local.assert_not_called()

@@ -11,8 +11,8 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
-from app.modules.robots.trading.broker_position_sync import extract_account_position_meta
-from app.modules.robots.trading.stage5_universe import (
+from app.modules.robot_lib.trading.broker_position_sync import extract_account_position_meta
+from app.modules.robot_lib.trading.stage5_universe import (
     collect_open_position_symbols,
     merge_stage5_figis,
 )

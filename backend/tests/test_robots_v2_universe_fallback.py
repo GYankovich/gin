@@ -13,8 +13,8 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
-from app.modules.robots_v2.engine.session import TradingSessionV2
+from app.modules.robots.config.v4_schema import TradingRobotConfigV4
+from app.modules.robots.engine.session import TradingSessionV2
 
 
 def _screener_config() -> dict:
@@ -69,10 +69,10 @@ def test_fallback_universe_from_audit_and_snapshot():
 
     mock_db = MagicMock()
     with patch(
-        "app.modules.robots_v2.engine.session.SessionLocal",
+        "app.modules.robots.engine.session.SessionLocal",
         return_value=mock_db,
     ), patch(
-        "app.modules.robots_v2.engine.broker_positions.open_tickers_from_audit_fills",
+        "app.modules.robots.engine.broker_positions.open_tickers_from_audit_fills",
         return_value={"X5": None, "ROSN": None, "SMLT": None},
     ):
         tickers = asyncio.run(session._fallback_universe_tickers())

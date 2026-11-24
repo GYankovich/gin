@@ -224,15 +224,20 @@ def build_account_ownership_check_query(
            """, {"account_id": account_id, "user_id": user_id}
 
 
+_CLOSED_FILL = "(UPPER(f.side) = 'SELL' OR f.kind ILIKE 'exit%')"
+
+
 def build_robot_ownership_query(
         robot_id: int,
         user_id: int,
         schema: str = "public",
 ) -> tuple[str, Dict[str, Any]]:
-    """Проверка: робот принадлежит пользователю."""
+    """Проверка: робот v2 принадлежит пользователю."""
     return f"""
-        SELECT 1 FROM robots
-        WHERE id = :robot_id AND user_id = :user_id
+        SELECT 1 FROM {schema}.robots
+        WHERE id = :robot_id
+          AND user_id = :user_id
+          AND COALESCE(metadata->>'deletedAt', '') = ''
         LIMIT 1
     """, {"robot_id": robot_id, "user_id": user_id}
 
@@ -241,24 +246,25 @@ def build_robot_trades_summary_query(
         robot_id: int,
         schema: str = "public",
 ) -> tuple[str, Dict[str, Any]]:
-    """Агрегированные метрики по сделкам робота."""
+    """Агрегированные метрики по fills робота v2 (exit/SELL = closed)."""
     return f"""
         SELECT
             COUNT(*) as total_trades,
-            COUNT(*) FILTER (WHERE status IN ('open', 'partial')) as open_trades,
-            COUNT(*) FILTER (WHERE status = 'closed') as closed_trades,
-            COUNT(*) FILTER (WHERE status = 'closed' AND profit > 0) as winning_trades,
-            COUNT(*) FILTER (WHERE status = 'closed' AND profit <= 0) as losing_trades,
-            COALESCE(SUM(profit) FILTER (WHERE status = 'closed'), 0) as total_pnl,
-            AVG(profit) FILTER (WHERE status = 'closed' AND profit > 0) as avg_profit,
-            AVG(profit) FILTER (WHERE status = 'closed' AND profit <= 0) as avg_loss,
-            MAX(profit) FILTER (WHERE status = 'closed') as best_trade,
-            MIN(profit) FILTER (WHERE status = 'closed') as worst_trade,
-            AVG(EXTRACT(EPOCH FROM (closed_at - created_at)) / 3600)
-                FILTER (WHERE status = 'closed' AND closed_at IS NOT NULL) as avg_duration_hours,
-            COALESCE(SUM(commission) FILTER (WHERE status = 'closed'), 0) as total_commission
-        FROM robot_trades
-        WHERE robot_id = :robot_id
+            COUNT(*) FILTER (
+                WHERE UPPER(f.side) = 'BUY' AND f.kind ILIKE 'entry%'
+            ) as open_trades,
+            COUNT(*) FILTER (WHERE {_CLOSED_FILL}) as closed_trades,
+            COUNT(*) FILTER (WHERE {_CLOSED_FILL} AND f.pnl > 0) as winning_trades,
+            COUNT(*) FILTER (WHERE {_CLOSED_FILL} AND COALESCE(f.pnl, 0) <= 0) as losing_trades,
+            COALESCE(SUM(f.pnl) FILTER (WHERE {_CLOSED_FILL}), 0) as total_pnl,
+            AVG(f.pnl) FILTER (WHERE {_CLOSED_FILL} AND f.pnl > 0) as avg_profit,
+            AVG(f.pnl) FILTER (WHERE {_CLOSED_FILL} AND f.pnl <= 0) as avg_loss,
+            MAX(f.pnl) FILTER (WHERE {_CLOSED_FILL}) as best_trade,
+            MIN(f.pnl) FILTER (WHERE {_CLOSED_FILL}) as worst_trade,
+            NULL::float as avg_duration_hours,
+            COALESCE(SUM(f.commission), 0) as total_commission
+        FROM {schema}.robot_fills f
+        WHERE f.robot_id = :robot_id
     """, {"robot_id": robot_id}
 
 
@@ -266,12 +272,13 @@ def build_robot_closed_pnl_series_query(
         robot_id: int,
         schema: str = "public",
 ) -> tuple[str, Dict[str, Any]]:
-    """Кумулятивный PnL по закрытым сделкам (для расчёта drawdown)."""
+    """Кумулятивный PnL по закрытым fills (для расчёта drawdown)."""
     return f"""
-        SELECT profit
-        FROM robot_trades
-        WHERE robot_id = :robot_id AND status = 'closed'
-        ORDER BY closed_at ASC
+        SELECT f.pnl
+        FROM {schema}.robot_fills f
+        WHERE f.robot_id = :robot_id
+          AND {_CLOSED_FILL}
+        ORDER BY f.filled_at ASC
     """, {"robot_id": robot_id}
 
 
@@ -279,21 +286,30 @@ def build_user_robots_trades_aggregate_query(
         user_id: int,
         schema: str = "public",
 ) -> tuple[str, Dict[str, Any]]:
-    """Сводка по сделкам всех роботов пользователя (для дашборда)."""
+    """Сводка по fills всех роботов v2 пользователя (для дашборда)."""
     return f"""
         SELECT
             COUNT(*)::int as total_trades,
-            COUNT(*) FILTER (WHERE t.status IN ('open', 'partial'))::int as open_trades,
-            COUNT(*) FILTER (WHERE t.status = 'closed')::int as closed_trades,
-            COUNT(*) FILTER (WHERE t.status = 'closed' AND t.profit > 0)::int as winning_trades,
-            COUNT(*) FILTER (WHERE t.status = 'closed' AND t.profit <= 0)::int as losing_trades,
-            COALESCE(SUM(t.profit) FILTER (WHERE t.status = 'closed'), 0) as total_pnl,
-            COALESCE(SUM(t.commission) FILTER (WHERE t.status = 'closed'), 0) as total_commission,
-            COUNT(DISTINCT t.robot_id) FILTER (WHERE t.status = 'closed')::int as robots_with_closed_trades,
-            COALESCE(SUM(t.profit) FILTER (WHERE t.status = 'closed' AND t.profit > 0), 0) as sum_winning_profit,
-            COALESCE(SUM(ABS(t.profit)) FILTER (WHERE t.status = 'closed' AND t.profit < 0), 0) as sum_losing_loss
-        FROM robot_trades t
-        INNER JOIN robots r ON r.id = t.robot_id AND r.user_id = :user_id
+            COUNT(*) FILTER (
+                WHERE UPPER(f.side) = 'BUY' AND f.kind ILIKE 'entry%'
+            )::int as open_trades,
+            COUNT(*) FILTER (WHERE {_CLOSED_FILL})::int as closed_trades,
+            COUNT(*) FILTER (WHERE {_CLOSED_FILL} AND f.pnl > 0)::int as winning_trades,
+            COUNT(*) FILTER (
+                WHERE {_CLOSED_FILL} AND COALESCE(f.pnl, 0) <= 0
+            )::int as losing_trades,
+            COALESCE(SUM(f.pnl) FILTER (WHERE {_CLOSED_FILL}), 0) as total_pnl,
+            COALESCE(SUM(f.commission), 0) as total_commission,
+            COUNT(DISTINCT f.robot_id) FILTER (WHERE {_CLOSED_FILL})::int as robots_with_closed_trades,
+            COALESCE(SUM(f.pnl) FILTER (WHERE {_CLOSED_FILL} AND f.pnl > 0), 0) as sum_winning_profit,
+            COALESCE(
+                SUM(ABS(f.pnl)) FILTER (WHERE {_CLOSED_FILL} AND f.pnl < 0), 0
+            ) as sum_losing_loss
+        FROM {schema}.robot_fills f
+        INNER JOIN {schema}.robots r
+            ON r.id = f.robot_id
+           AND r.user_id = :user_id
+           AND COALESCE(r.metadata->>'deletedAt', '') = ''
     """, {"user_id": user_id}
 
 
@@ -301,13 +317,16 @@ def build_user_robots_closed_pnl_series_query(
         user_id: int,
         schema: str = "public",
 ) -> tuple[str, Dict[str, Any]]:
-    """Закрытые сделки всех роботов пользователя по времени (drawdown / risk)."""
+    """Закрытые fills всех роботов v2 пользователя по времени (drawdown / risk)."""
     return f"""
-        SELECT t.profit
-        FROM robot_trades t
-        INNER JOIN robots r ON r.id = t.robot_id AND r.user_id = :user_id
-        WHERE t.status = 'closed'
-        ORDER BY t.closed_at ASC NULLS LAST, t.id ASC
+        SELECT f.pnl
+        FROM {schema}.robot_fills f
+        INNER JOIN {schema}.robots r
+            ON r.id = f.robot_id
+           AND r.user_id = :user_id
+           AND COALESCE(r.metadata->>'deletedAt', '') = ''
+        WHERE {_CLOSED_FILL}
+        ORDER BY f.filled_at ASC NULLS LAST, f.id ASC
     """, {"user_id": user_id}
 
 
@@ -316,13 +335,32 @@ def build_robot_recent_trades_query(
         limit: int,
         schema: str = "public",
 ) -> tuple[str, Dict[str, Any]]:
-    """Последние сделки робота."""
+    """Последние fills робота v2 (API-совместимая проекция)."""
     return f"""
-        SELECT id, figi, side, quantity, entry_price, exit_price,
-               profit, profit_percent, status, created_at, closed_at
-        FROM robot_trades
-        WHERE robot_id = :robot_id
-        ORDER BY created_at DESC
+        SELECT
+            f.id::text AS id,
+            f.ticker AS figi,
+            f.side,
+            f.quantity,
+            CASE
+                WHEN UPPER(f.side) = 'BUY' OR f.kind ILIKE 'entry%' THEN f.price
+                ELSE NULL
+            END AS entry_price,
+            CASE
+                WHEN {_CLOSED_FILL} THEN f.price
+                ELSE NULL
+            END AS exit_price,
+            f.pnl AS profit,
+            NULL::float AS profit_percent,
+            CASE
+                WHEN {_CLOSED_FILL} THEN 'closed'
+                ELSE 'open'
+            END AS status,
+            f.filled_at AS created_at,
+            CASE WHEN {_CLOSED_FILL} THEN f.filled_at ELSE NULL END AS closed_at
+        FROM {schema}.robot_fills f
+        WHERE f.robot_id = :robot_id
+        ORDER BY f.filled_at DESC
         LIMIT :limit
     """, {"robot_id": robot_id, "limit": limit}
 
@@ -671,12 +709,12 @@ def build_account_instrument_chart_query(
 
 
 def build_robot_status_counts_query(robot_id: int) -> tuple[str, Dict[str, Any]]:
-    """Строит запрос количества сделок робота по статусам."""
+    """Статусы ордеров робота v2 (fill_rate / reject_rate)."""
     return """
-        SELECT status, COUNT(*)::int
-        FROM robot_trades
+        SELECT LOWER(status) AS status, COUNT(*)::int
+        FROM robot_orders
         WHERE robot_id = :robot_id
-        GROUP BY status
+        GROUP BY LOWER(status)
     """, {"robot_id": robot_id}
 
 

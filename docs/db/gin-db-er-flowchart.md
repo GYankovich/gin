@@ -1,6 +1,6 @@
 # GIN — ER flowchart (стиль subgraph)
 
-Runtime: **87** таблиц/view · FK: **71** · зеркала: **33** (внизу списком).
+Runtime: **69** таблиц/view · FK: **42** · зеркала: **33** (внизу списком).
 
 Стрелка: владелец → зависимое (как в вашем примере). В БД FK обратный. Пунктир — смысл без FK.
 
@@ -48,28 +48,14 @@ flowchart TB
     N_market_backtests["market_backtests"]
     N_optimization_batch_items["optimization_batch_items"]
     N_optimization_batches["optimization_batches"]
-    N_robot_backtest_runs["robot_backtest_runs"]
     N_robot_config_history["robot_config_history<br/>версии конфига"]
-    N_robot_configs["robot_configs"]
-    N_robot_decisions["robot_decisions"]
-    N_robot_execution_logs["robot_execution_logs"]
-    N_robot_logs["robot_logs"]
-    N_robot_order_events["robot_order_events"]
-    N_robot_risk_events["robot_risk_events"]
-    N_robot_run_cycles["robot_run_cycles"]
-    N_robot_schedules["robot_schedules"]
-    N_robot_session_logs["robot_session_logs"]
-    N_robot_signals["robot_signals"]
-    N_robot_strategies["robot_strategies"]
-    N_robot_trades["robot_trades"]
-    N_robots["robots"]
-    N_robots_v2["robots_v2<br/>live/paper"]
-    N_robots_v2_cycles["robots_v2_cycles<br/>цикл"]
-    N_robots_v2_decisions["robots_v2_decisions<br/>решение"]
-    N_robots_v2_fills["robots_v2_fills<br/>fill"]
-    N_robots_v2_orders["robots_v2_orders<br/>ордер"]
-    N_robots_v2_sessions["robots_v2_sessions<br/>сессия"]
-    N_robots_v2_signals["robots_v2_signals<br/>сигнал"]
+    N_robot_cycles["robot_cycles<br/>цикл"]
+    N_robot_decisions["robot_decisions<br/>решение"]
+    N_robot_fills["robot_fills<br/>fill"]
+    N_robot_orders["robot_orders<br/>ордер"]
+    N_robot_sessions["robot_sessions<br/>сессия"]
+    N_robot_signals["robot_signals<br/>сигнал"]
+    N_robots["robots<br/>live/paper"]
     N_backtest_runs --> N_backtest_decisions
     N_backtest_runs --> N_backtest_execution_events
     N_backtest_runs --> N_backtest_metrics
@@ -79,44 +65,23 @@ flowchart TB
     N_backtest_runs --> N_backtest_signals
     N_backtest_runs --> N_backtest_universe_membership
     N_optimization_batches --> N_optimization_batch_items
-    N_robots --> N_robot_backtest_runs
-    N_robots_v2 --> N_robot_config_history
-    N_robot_execution_logs --> N_robot_decisions
-    N_robot_run_cycles --> N_robot_decisions
+    N_robots --> N_robot_config_history
+    N_robot_sessions --> N_robot_cycles
+    N_robots --> N_robot_cycles
+    N_robot_cycles --> N_robot_decisions
     N_robots --> N_robot_decisions
-    N_robot_strategies --> N_robot_execution_logs
-    N_robots --> N_robot_execution_logs
-    N_api_tokens --> N_robot_logs
-    N_robot_execution_logs --> N_robot_logs
-    N_robots --> N_robot_logs
-    N_robot_trades --> N_robot_order_events
-    N_robots --> N_robot_order_events
-    N_robot_execution_logs --> N_robot_run_cycles
-    N_robots --> N_robot_run_cycles
-    N_robots --> N_robot_schedules
-    N_robots --> N_robot_session_logs
-    N_robot_trades --> N_robot_signals
+    N_robot_orders --> N_robot_fills
+    N_robots --> N_robot_fills
+    N_robot_cycles --> N_robot_orders
+    N_robots --> N_robot_orders
+    N_robots --> N_robot_sessions
+    N_robot_cycles --> N_robot_signals
     N_robots --> N_robot_signals
-    N_robots --> N_robot_strategies
-    N_robots --> N_robot_trades
     N_api_tokens --> N_robots
-    N_api_tokens --> N_robots_v2
-    N_robots_v2 --> N_robots_v2_cycles
-    N_robots_v2_sessions --> N_robots_v2_cycles
-    N_robots_v2 --> N_robots_v2_decisions
-    N_robots_v2_cycles --> N_robots_v2_decisions
-    N_robots_v2 --> N_robots_v2_fills
-    N_robots_v2_orders --> N_robots_v2_fills
-    N_robots_v2 --> N_robots_v2_orders
-    N_robots_v2_cycles --> N_robots_v2_orders
-    N_robots_v2 --> N_robots_v2_sessions
-    N_robots_v2 --> N_robots_v2_signals
-    N_robots_v2_cycles --> N_robots_v2_signals
   end
 
   subgraph A["3. Счета и прогресс"]
     direction TB
-    N_account_orders["account_orders<br/>журнал заявок"]
     N_portfolio_accounts["portfolio_accounts<br/>брокерский счёт"]
     N_portfolio_operations["portfolio_operations<br/>операции"]
     N_portfolio_orders["portfolio_orders<br/>заявки UI"]
@@ -124,7 +89,6 @@ flowchart TB
     N_portfolio_snapshot_daily["portfolio_snapshot_daily<br/>дневной агрегат"]
     N_portfolio_snapshots["portfolio_snapshots<br/>снимок"]
     N_token_portfolio_accounts["token_portfolio_accounts<br/>ключ↔счёт"]
-    N_portfolio_accounts --> N_account_orders
     N_portfolio_accounts --> N_portfolio_operations
     N_portfolio_accounts --> N_portfolio_orders
     N_portfolio_snapshots --> N_portfolio_positions
@@ -138,16 +102,13 @@ flowchart TB
     N_bybit_lsr_history["bybit_lsr_history"]
     N_bybit_open_interest_history["bybit_open_interest_history"]
     N_candles_cache["candles_cache<br/>кэш свечей"]
-    N_crypto_universe_daily["crypto_universe_daily<br/>crypto universe"]
-    N_daily_universe["daily_universe<br/>вселенная дня"]
-    N_dms_subscriptions["dms_subscriptions"]
     N_equity_dividend_events["equity_dividend_events"]
     N_instrument_cache["instrument_cache"]
     N_market_cache_leases["market_cache_leases"]
     N_market_candles["market_candles"]
     N_market_depth_latest["market_depth_latest"]
     N_market_instruments["market_instruments"]
-    N_market_snapshot["market_snapshot"]
+    N_market_snapshot["market_snapshot<br/>снимки MOEX"]
     N_market_snapshot_data["market_snapshot_data"]
     N_market_snapshot_data_history["market_snapshot_data_history"]
     N_market_snapshot_history["market_snapshot_history"]
@@ -156,8 +117,6 @@ flowchart TB
     N_securities_static["securities_static"]
     N_shared_market_candles["shared_market_candles<br/>общие свечи"]
     N_tqbr_securities["tqbr_securities"]
-    N_market_snapshot --> N_daily_universe
-    N_market_snapshot --> N_dms_subscriptions
     N_market_snapshot --> N_market_snapshot_data
   end
 
@@ -188,22 +147,16 @@ flowchart TB
   end
 
   %% cross-block FK
-  N_robots --> N_account_orders
   N_user --> N_api_tokens
   N_user --> N_backtest_runs
-  N_robots --> N_crypto_universe_daily
-  N_robots --> N_daily_universe
-  N_robots --> N_dms_subscriptions
   N_user --> N_external_api_logs
   N_user --> N_portfolio_accounts
-  N_user --> N_robot_logs
   N_user --> N_robots
-  N_user --> N_robots_v2
   N_api_tokens --> N_token_portfolio_accounts
   %% semantic
   N_email_confirmation -.->|"до появления user"| N_user
   N_portfolio_snapshots -.-> N_portfolio_snapshot_daily
-  N_candles_cache -.-> N_robots_v2
+  N_candles_cache -.-> N_robots
   N_candles_cache -.-> N_backtest_runs
   N_background_jobs -.-> N_backtest_runs
   %% block flow

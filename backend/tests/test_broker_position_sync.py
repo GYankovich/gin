@@ -14,8 +14,8 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
 from datetime import datetime, timezone
 
-from app.modules.robots.trading.stages.stage4_positions import Stage4Positions
-from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
+from app.modules.robot_lib.trading.stages.stage4_positions import Stage4Positions
+from app.modules.robot_lib.trading.stages.stage6_orders import Stage6Orders
 
 
 class _Broker:

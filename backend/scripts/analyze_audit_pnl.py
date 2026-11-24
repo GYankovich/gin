@@ -41,7 +41,7 @@ def main() -> None:
             text(
                 f"""
                 SELECT id, mode, started_at, ended_at, stop_reason, virtual_capital
-                FROM {schema}.robots_v2_sessions
+                FROM {schema}.robot_sessions
                 WHERE robot_id = :rid
                 ORDER BY started_at DESC
                 LIMIT 10
@@ -61,8 +61,8 @@ def main() -> None:
                 f"""
                 SELECT f.ticker, f.side, f.quantity, f.price, f.pnl, f.kind, f.filled_at,
                        o.broker_order_id
-                FROM {schema}.robots_v2_fills f
-                LEFT JOIN {schema}.robots_v2_orders o ON o.id = f.order_id
+                FROM {schema}.robot_fills f
+                LEFT JOIN {schema}.robot_orders o ON o.id = f.order_id
                 WHERE f.robot_id = :rid
                 ORDER BY f.filled_at ASC
                 """
@@ -140,7 +140,7 @@ def main() -> None:
             text(
                 f"""
                 SELECT code, COUNT(*) cnt
-                FROM {schema}.robots_v2_decisions
+                FROM {schema}.robot_decisions
                 WHERE robot_id = :rid AND outcome = 'deny'
                 GROUP BY code ORDER BY cnt DESC LIMIT 15
                 """
@@ -155,7 +155,7 @@ def main() -> None:
             text(
                 f"""
                 SELECT skip_reason, COUNT(*) cnt
-                FROM {schema}.robots_v2_cycles
+                FROM {schema}.robot_cycles
                 WHERE robot_id = :rid AND status = 'skip'
                 GROUP BY skip_reason ORDER BY cnt DESC
                 """
@@ -253,7 +253,7 @@ def main() -> None:
         eq_rows = db.execute(
             text(f"""
                 SELECT cycle_number, equity, status, skip_reason, triggered_by, started_at
-                FROM {schema}.robots_v2_cycles
+                FROM {schema}.robot_cycles
                 WHERE robot_id = :rid AND equity IS NOT NULL
                 ORDER BY started_at
             """),

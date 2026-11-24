@@ -1,4 +1,4 @@
-"""Thin compute facade over robots_v2 backtest + optimization batches (ARCH-05 C)."""
+"""Thin compute facade over robots backtest + optimization batches (ARCH-05 C)."""
 
 from __future__ import annotations
 
@@ -24,16 +24,16 @@ from app.modules.compute.schemas import (
     ComputeRunAccepted,
     ComputeRunCreateRequest,
 )
-from app.modules.robots_v2.backtest.quotas import assert_can_start_optimization_batch
-from app.modules.robots_v2.backtest.schemas import (
+from app.modules.robots.backtest.quotas import assert_can_start_optimization_batch
+from app.modules.robots.backtest.schemas import (
     RobotV2BacktestCompareResponse,
     RobotV2BacktestDetailsResponse,
     RobotV2BacktestListResponse,
     RobotV2BacktestRequest,
     RobotV2BacktestStatusResponse,
 )
-from app.modules.robots_v2.backtest.service import backtest_service
-from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
+from app.modules.robots.backtest.service import backtest_service
+from app.modules.robots.config.v4_schema import TradingRobotConfigV4
 
 logger = logging.getLogger(__name__)
 

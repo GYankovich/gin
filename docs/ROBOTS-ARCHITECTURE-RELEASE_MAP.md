@@ -140,7 +140,7 @@ flowchart LR
 | Артефакт | Статус | Действие |
 |----------|--------|----------|
 | `trading/engines/*` | **removed** 2026-10-02 | Prod backtest = V2 `BacktestHost` only |
-| `trading/data_provider/*` | **removed** 2026-10-02 | Prefetch via `trading_core` + `robots_v2/backtest` |
+| `trading/data_provider/*` | **removed** 2026-10-02 | Prefetch via `trading_core` + `robots/backtest` |
 | `trading/execution/live.py` | deprecated | Единый путь через `service.py` (R1.3) |
 | `modules/bitby/` | удалён 06.2026 | — |
 

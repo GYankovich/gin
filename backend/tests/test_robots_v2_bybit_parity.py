@@ -9,9 +9,9 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots_v2.backtest.service import v4_timeframe_to_interval_raw
-from app.modules.robots_v2.engine.paper_ledger import PaperLedger
-from app.modules.robots_v2.universe import presets
+from app.modules.robots.backtest.service import v4_timeframe_to_interval_raw
+from app.modules.robots.engine.paper_ledger import PaperLedger
+from app.modules.robots.universe import presets
 
 
 def test_paper_short_open_and_close_profit():

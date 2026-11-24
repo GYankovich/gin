@@ -37,7 +37,7 @@
 | Phase | In scope |
 |-------|----------|
 | **P0** | Lab route + list of user runs; start backtest from config snapshot **without** requiring an existing robot; optional `robotId` attach; robot page = filter; reuse glass-box results UI; migration so orphan runs persist reliably |
-| **P1** | «Сохранить как робота» from a successful Lab run (create `robots_v2` from `config_snapshot`, optional link-back) |
+| **P1** | «Сохранить как робота» from a successful Lab run (create `robots` from `config_snapshot`, optional link-back) |
 | **P2** | Share/compare across robots (cross-robot compare UX, tagging, richer Lab filters) — beyond today’s single-pair compare |
 
 ### Out of scope
@@ -84,7 +84,7 @@
 
 | ID | Requirement |
 |----|-------------|
-| `[R-11]` | From a successful Lab run, user can create a new `robots_v2` row from `config_snapshot` (name prompt, token optional per mode). |
+| `[R-11]` | From a successful Lab run, user can create a new `robots` row from `config_snapshot` (name prompt, token optional per mode). |
 | `[R-12]` | After create, optionally set run’s `robot_id` / `v2RobotId` to the new robot (attach history). |
 | `[R-13]` | Navigate to wizard/monitor of the new robot; do not auto-start live. |
 
@@ -169,7 +169,7 @@ erDiagram
 ```
 
 **Migration need (P0):**  
-`ALTER TABLE backtest_runs ALTER COLUMN robot_id DROP NOT NULL;` (guarded / IF applicable). Confirm in target DB; ship Alembic revision. No FK re-add to `robots_v2` (soft bind by design). **Resolved:** on robot delete, **nullify** `robot_id` (and clear `config_snapshot.v2RobotId` when present); keep run rows as Lab orphans — do not cascade-wipe history.
+`ALTER TABLE backtest_runs ALTER COLUMN robot_id DROP NOT NULL;` (guarded / IF applicable). Confirm in target DB; ship Alembic revision. No FK re-add to `robots` (soft bind by design). **Resolved:** on robot delete, **nullify** `robot_id` (and clear `config_snapshot.v2RobotId` when present); keep run rows as Lab orphans — do not cascade-wipe history.
 
 ---
 
@@ -309,9 +309,9 @@ sequenceDiagram
 sequenceDiagram
   participant UI as Lab results
   participant API as POST …/save-as-robot [ref: R-11]
-  participant DB as robots_v2 + backtest_runs
+  participant DB as robots + backtest_runs
   UI->>API: name (+ tokenId, attachRun)
-  API->>DB: INSERT robots_v2 from config_snapshot
+  API->>DB: INSERT robots from config_snapshot
   opt attachRun
     API->>DB: UPDATE run.robot_id + v2RobotId
   end

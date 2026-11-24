@@ -37,7 +37,7 @@ def build_deactivate_old_key_query() -> str:
     """Деактивация старого ключа"""
     return """
            UPDATE api_tokens
-           SET status = 0, updated_at = :now
+           SET status = 0, modification_date = :now
            WHERE id = :old_id \
            """
 
@@ -46,9 +46,9 @@ def build_create_api_key_query() -> str:
     """Создание нового API ключа"""
     return """
            INSERT INTO api_tokens
-           (user_id, token, token_secret, token_type, name, status, created_at, extra_data)
+           (user_id, token, token_secret, token_type, name, status, created_at, extra_data, usercre, usermod)
            VALUES
-               (:user_id, :token, :token_secret, :key_type, :name, 1, :created_at, CAST(:extra_data AS jsonb))
+               (:user_id, :token, :token_secret, :key_type, :name, 1, :created_at, CAST(:extra_data AS jsonb), :actor, :actor)
                RETURNING id, name, token_type, status, created_at, token, token_secret, extra_data \
            """
 
@@ -140,7 +140,7 @@ def build_get_key_by_id_query() -> str:
                token_secret,
                status,
                created_at,
-               updated_at,
+               modification_date,
                expires_at,
                last_used_at,
                last_error,
@@ -167,7 +167,7 @@ def build_update_key_query(
     """
     base_query = """
                  UPDATE api_tokens
-                 SET {updates}, updated_at = :now
+                 SET {updates}, modification_date = :now, usermod = :actor
                  WHERE id = :key_id AND user_id = :user_id
                      RETURNING id, name, token_type, status, created_at, token, token_secret, extra_data \
                  """
@@ -194,10 +194,12 @@ def build_update_key_query(
 
 
 def build_deactivate_key_query() -> str:
-    """Деактивация ключа"""
+    """Деактивация ключа (soft delete) с аудитом актора."""
     return """
            UPDATE api_tokens
-           SET status = 0, updated_at = :now
+           SET status = 0,
+               modification_date = :now,
+               usermod = :actor
            WHERE id = :key_id AND user_id = :user_id AND status != 0
                RETURNING id \
            """
@@ -210,7 +212,7 @@ def build_update_last_used_query() -> str:
            SET last_used_at = :now,
                last_error = NULL,
                last_error_at = NULL,
-               updated_at = :now
+               modification_date = :now
            WHERE id = :key_id
            """
 
@@ -269,6 +271,6 @@ def build_bulk_deactivate_tokens_query() -> str:
     """Массовая деактивация токенов"""
     return """
            UPDATE api_tokens
-           SET status = 0, updated_at = :now
+           SET status = 0, modification_date = :now
            WHERE user_id = :user_id AND token_type = :token_type \
            """

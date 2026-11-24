@@ -44,19 +44,19 @@ HTTP API роботов подключается через:
 
 ## 3.1 Portfolio updater
 
-- Планировщик: `backend/app/modules/robots/portfolio_updater/scheduler.py`
-- Исполнитель: `backend/app/modules/robots/portfolio_updater/robot.py`
-- SQL для выборки активных роботов: `backend/app/modules/robots/portfolio_updater/queries.py`
+- Планировщик: `backend/app/modules/robot_lib/portfolio_updater/scheduler.py`
+- Исполнитель: `backend/app/modules/robot_lib/portfolio_updater/robot.py`
+- SQL для выборки активных роботов: `backend/app/modules/robot_lib/portfolio_updater/queries.py`
 
 ## 3.2 Trading
 
-- Планировщик live-сессий: `backend/app/modules/robots/trading/scheduler.py`
-- Фабрика сессий: `backend/app/modules/robots/trading/session_factory.py`
-- Live-сессия: `backend/app/modules/robots/trading/session.py`
-- Backtest-сессия: `backend/app/modules/robots/trading/session_backtest.py`
-- Legacy/modular bot pipeline: `backend/app/modules/robots/trading/robot.py`
-- Единый pipeline-фильтр тикеров: `backend/app/modules/robots/trading/pipeline/runner.py`
-- Политика расписаний: `backend/app/modules/robots/scheduling/schedule_policy.py`
+- Планировщик live-сессий: `backend/app/modules/robot_lib/trading/scheduler.py`
+- Фабрика сессий: `backend/app/modules/robot_lib/trading/session_factory.py`
+- Live-сессия: `backend/app/modules/robot_lib/trading/session.py`
+- Backtest-сессия: `backend/app/modules/robot_lib/trading/session_backtest.py`
+- Legacy/modular bot pipeline: `backend/app/modules/robot_lib/trading/robot.py`
+- Единый pipeline-фильтр тикеров: `backend/app/modules/robot_lib/trading/pipeline/runner.py`
+- Политика расписаний: `backend/app/modules/robot_lib/scheduling/schedule_policy.py`
 
 ---
 
@@ -253,7 +253,7 @@ HTTP API роботов подключается через:
 
 `run_session_history_backtest(...)` в `session_backtest.py` проксирует в `TradingOrchestrator.run_backtest_replay(...)` — **smoke/market API**, не prod UI backtest.
 
-Prod UI backtest: `robots_v2/backtest` → job `backtest_run` → `BacktestHost`. Пакет `trading/engines/*` удалён (2026-10-02).
+Prod UI backtest: `robots/backtest` → job `backtest_run` → `BacktestHost`. Пакет `trading/engines/*` удалён (2026-10-02).
 
 ---
 
@@ -517,7 +517,7 @@ UI режимы:
 
 ## 19.1 П1: Historical screening
 
-Компонент: `backend/app/modules/robots/universe_jobs.py::rebuild_candidate_pool`
+Компонент: `backend/app/modules/robot_lib/universe_jobs.py::rebuild_candidate_pool`
 
 Что делает:
 
@@ -532,7 +532,7 @@ UI режимы:
 
 ## 19.2 П2: Paper selection
 
-Компонент: `backend/app/modules/robots/universe_jobs.py::rebuild_paper_selection`
+Компонент: `backend/app/modules/robot_lib/universe_jobs.py::rebuild_paper_selection`
 
 Что делает:
 
@@ -549,7 +549,7 @@ UI режимы:
 
 ## 19.3 П3: Signal generation + execution
 
-Компонент: `backend/app/modules/robots/trading/session.py`
+Компонент: `backend/app/modules/robot_lib/trading/session.py`
 
 Что делает:
 
@@ -764,9 +764,9 @@ Backend динамически меняет набор подписок брок
 
 В контуре robots/trading используется брокерский фасад и вспомогательные компоненты:
 
-- `backend/app/modules/robots/trading/brokers/*`
-- `backend/app/modules/robots/trading/brokers/rate_limiter.py`
-- `backend/app/modules/robots/trading/brokers/global_websocket.py`
+- `backend/app/modules/robot_lib/trading/brokers/*`
+- `backend/app/modules/robot_lib/trading/brokers/rate_limiter.py`
+- `backend/app/modules/robot_lib/trading/brokers/global_websocket.py`
 
 Фактическая стратегия защиты от лимитов:
 

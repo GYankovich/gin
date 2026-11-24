@@ -4,7 +4,7 @@ from __future__ import annotations
 from sqlalchemy import text
 
 from app.core.database import SessionLocal
-from app.modules.robots_v2.audit_pnl import enrich_fills_realized_pnl
+from app.modules.robots.audit_pnl import enrich_fills_realized_pnl
 
 
 def main() -> None:
@@ -14,7 +14,7 @@ def main() -> None:
             text(
                 """
                 SELECT f.id, f.filled_at, f.ticker, f.side, f.quantity, f.price, f.pnl, f.kind
-                FROM public.robots_v2_fills f
+                FROM public.robot_fills f
                 WHERE f.robot_id = 1 AND f.ticker = 'SMLT'
                 ORDER BY f.filled_at ASC
                 """
@@ -63,7 +63,7 @@ def main() -> None:
             text(
                 """
                 SELECT f.id, f.filled_at, f.ticker, f.side, f.quantity, f.price, f.pnl, f.kind
-                FROM public.robots_v2_fills f
+                FROM public.robot_fills f
                 WHERE f.robot_id = 1
                 ORDER BY f.filled_at DESC
                 LIMIT 50
@@ -86,7 +86,7 @@ def main() -> None:
             text(
                 """
                 SELECT f.id, f.filled_at, f.ticker, f.side, f.quantity, f.price, f.pnl
-                FROM public.robots_v2_fills f
+                FROM public.robot_fills f
                 WHERE f.robot_id = 1
                 ORDER BY f.filled_at ASC
                 """

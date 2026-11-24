@@ -52,7 +52,7 @@ class ApiKeyResponse(BaseModel):
 
 class ApiKeyDetailResponse(ApiKeyResponse):
     """Детальная информация о ключе"""
-    updated_at: Optional[datetime] = None
+    modification_date: Optional[datetime] = None
     expires_at: Optional[datetime] = None
     last_used_at: Optional[datetime] = None
     last_error: Optional[str] = None

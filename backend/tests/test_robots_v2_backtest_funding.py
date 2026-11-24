@@ -12,15 +12,15 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots_v2.backtest.funding import (
+from app.modules.robots.backtest.funding import (
     apply_funding_charges_for_bar,
     crypto_funding_enabled,
     funding_events_in_window,
     instrument_category_for_config,
 )
-from app.modules.robots_v2.backtest.host import BacktestHost
-from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
-from app.modules.robots_v2.engine.paper_ledger import PaperLedger, PaperPosition
+from app.modules.robots.backtest.host import BacktestHost
+from app.modules.robots.config.v4_schema import TradingRobotConfigV4
+from app.modules.robots.engine.paper_ledger import PaperLedger, PaperPosition
 from app.modules.trading_core.contracts import Candle
 
 

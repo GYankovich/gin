@@ -67,12 +67,8 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
-
-    trading_robots = relationship(
-        "Robot",
-        back_populates="user",
-        cascade="all, delete-orphan"
-    )
+    # Legacy Robot relationship removed with the old robots ORM (0091).
+    # Product robots live on RobotV2 and are loaded by id, not via User.
 
 
 class Package(Base):

@@ -16,7 +16,7 @@ description: >-
 
 ## Reference implementation (this repo)
 
-- `backend/app/modules/robots/trading/brokers/rate_limiter.py` — `TokenRateLimiter`, `get_token_rate_limiter`.
+- `backend/app/modules/robot_lib/trading/brokers/rate_limiter.py` — `TokenRateLimiter`, `get_token_rate_limiter`.
 
 ## Usage pattern
 

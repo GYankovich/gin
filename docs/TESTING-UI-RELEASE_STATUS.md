@@ -154,7 +154,7 @@
 
 #### Артефакты
 
-- `backend/app/modules/robots/schemas.py` — `broker_type` filter, поля в item
+- `backend/app/modules/robot_lib/schemas.py` — `broker_type` filter, поля в item
 
 - `backend/app/modules/robots/service.py` — `get_backtest_history`
 

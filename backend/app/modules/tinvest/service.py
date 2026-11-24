@@ -176,7 +176,7 @@ class TInvestService:
                 text(
                     f"""
                     UPDATE api_tokens
-                    SET status = 3, updated_at = :now
+                    SET status = 3, modification_date = :now
                     WHERE id = :token_id AND user_id = :user_id
                     """
                 ),
@@ -194,6 +194,7 @@ class TInvestService:
                 WHERE token_id = :token_id
                   AND user_id = :user_id
                   AND status != 0
+                  AND COALESCE(metadata->>'deletedAt', '') = ''
                 """
             ),
             params

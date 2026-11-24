@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from app.modules.robots.trading.brokers.factory import create_broker_facade
-from app.modules.robots.trading.brokers.routing import (
+from app.modules.robot_lib.trading.brokers.factory import create_broker_facade
+from app.modules.robot_lib.trading.brokers.routing import (
     filter_allowed_instruments,
     is_supported_live_broker,
     live_market_data_provider,
     normalize_broker_type,
 )
-from app.modules.robots.trading.brokers.bybit import ByBitBrokerFacade
-from app.modules.robots.trading.brokers.tinvest import TInvestBrokerFacade
+from app.modules.robot_lib.trading.brokers.bybit import ByBitBrokerFacade
+from app.modules.robot_lib.trading.brokers.tinvest import TInvestBrokerFacade
 
 
 def test_normalize_broker_type():

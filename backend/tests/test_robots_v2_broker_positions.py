@@ -6,13 +6,13 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from app.modules.robots_v2.engine.broker_positions import (
+from app.modules.robots.engine.broker_positions import (
     apply_opened_at_hints,
     map_broker_meta_to_positions,
     open_tickers_from_audit_fills,
     paper_positions_to_rows,
 )
-from app.modules.robots_v2.engine.paper_ledger import PaperPosition
+from app.modules.robots.engine.paper_ledger import PaperPosition
 
 
 def test_map_broker_meta_includes_extra_tickers_outside_universe():

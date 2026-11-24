@@ -6,8 +6,8 @@ import type { TestingMarket } from './market'
  * (`grain_seed`, `momentum_breakout`, `reversion_to_ma`).
  *
  * Дефолты ДОЛЖНЫ совпадать с Pydantic-моделями в
- * `backend/app/modules/robots/schemas.py` и реестром стратегий в
- * `backend/app/modules/robots/trading/strategies/__init__.py`
+ * `backend/app/modules/robot_lib/schemas.py` и реестром стратегий в
+ * `backend/app/modules/robot_lib/trading/strategies/__init__.py`
  * (BRD-ARCH-03 §6, TESTING-UX §7.4).
  */
 export const STRATEGY_NAMES = ['grain_seed', 'momentum_breakout', 'reversion_to_ma'] as const

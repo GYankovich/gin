@@ -57,7 +57,7 @@ class OverallSummaryResponse(BaseModel):
 # --- Robot trading analytics ---
 
 class RobotTradeItem(BaseModel):
-    id: int
+    id: str
     figi: str
     side: str
     quantity: float

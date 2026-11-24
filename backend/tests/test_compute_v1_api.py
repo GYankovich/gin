@@ -20,11 +20,11 @@ os.environ.setdefault("SECRET_KEY", "test")
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.modules.auth.models import User
-from app.modules.robots_v2.backtest.schemas import (
+from app.modules.robots.backtest.schemas import (
     RobotV2BacktestListResponse,
     RobotV2BacktestStatusResponse,
 )
-from app.modules.robots_v2.backtest.store import BacktestRunRecord
+from app.modules.robots.backtest.store import BacktestRunRecord
 
 
 def _sample_config() -> dict[str, Any]:

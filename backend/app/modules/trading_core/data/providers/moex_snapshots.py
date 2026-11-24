@@ -186,7 +186,7 @@ async def fetch_moex_history_snapshot_day(
         timeout=httpx.Timeout(60.0, connect=8.0, read=20.0, write=20.0, pool=20.0),
         verify=False
     ) as client:
-        from app.modules.robots.backtest_progress import touch_backtest_progress_runtime
+        from app.modules.robot_lib.backtest_progress import touch_backtest_progress_runtime
 
         for _ in range(max_pages):
             if _cancelled():

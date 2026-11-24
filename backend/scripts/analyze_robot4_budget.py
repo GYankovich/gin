@@ -18,8 +18,8 @@ from datetime import datetime, timedelta, timezone
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.security import create_access_token
-from app.modules.robots_v2.audit_pnl import build_round_trips
-from app.modules.robots_v2.service import robots_v2_service
+from app.modules.robots.audit_pnl import build_round_trips
+from app.modules.robots.service import robots_v2_service
 
 schema = settings.DB_SCHEMA or "public"
 
@@ -31,10 +31,10 @@ def main() -> None:
             text(f"""
                 SELECT f.ticker, f.side, f.quantity, f.price, f.commission,
                        f.pnl, f.filled_at, f.kind, f.order_id
-                FROM {schema}.robots_v2_fills f
-                JOIN {schema}.robots_v2_orders o ON o.id = f.order_id
-                JOIN {schema}.robots_v2_cycles c ON c.id = o.cycle_id
-                JOIN {schema}.robots_v2_sessions s ON s.id = c.session_id
+                FROM {schema}.robot_fills f
+                JOIN {schema}.robot_orders o ON o.id = f.order_id
+                JOIN {schema}.robot_cycles c ON c.id = o.cycle_id
+                JOIN {schema}.robot_sessions s ON s.id = c.session_id
                 WHERE s.robot_id = 4
                 ORDER BY f.filled_at
             """),
@@ -75,9 +75,9 @@ def main() -> None:
         orders = db.execute(
             text(f"""
                 SELECT o.ticker, o.side, o.quantity, o.status, o.submitted_at, o.kind, o.reject_reason
-                FROM {schema}.robots_v2_orders o
-                JOIN {schema}.robots_v2_cycles c ON c.id = o.cycle_id
-                JOIN {schema}.robots_v2_sessions s ON s.id = c.session_id
+                FROM {schema}.robot_orders o
+                JOIN {schema}.robot_cycles c ON c.id = o.cycle_id
+                JOIN {schema}.robot_sessions s ON s.id = c.session_id
                 WHERE s.robot_id = 4
                 ORDER BY o.submitted_at DESC
                 LIMIT 30

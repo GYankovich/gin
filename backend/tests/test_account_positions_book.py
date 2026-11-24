@@ -11,13 +11,13 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
-from app.modules.robots.trading.account_positions_book import (
+from app.modules.robot_lib.trading.account_positions_book import (
     apply_trade_to_account_positions,
     revert_trade_on_account_positions,
     signed_qty,
 )
-from app.modules.robots.trading.execution.service import LiveExecutionContext, LiveExecutionService
-from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
+from app.modules.robot_lib.trading.execution.service import LiveExecutionContext, LiveExecutionService
+from app.modules.robot_lib.trading.stages.stage6_orders import Stage6Orders
 
 
 def test_apply_buy_sell_and_flat():

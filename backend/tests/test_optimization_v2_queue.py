@@ -22,8 +22,8 @@ from app.modules.recommendations.optimization_engine import (
     resolve_strategy_key,
 )
 from app.modules.recommendations.optimization_runner import _enqueue_variant_backtest
-from app.modules.robots_v2.backtest.quotas import assert_can_start_optimization_batch
-from app.modules.robots_v2.backtest.store import BacktestRunRecord
+from app.modules.robots.backtest.quotas import assert_can_start_optimization_batch
+from app.modules.robots.backtest.store import BacktestRunRecord
 
 
 def _v4_momentum_config() -> dict:
@@ -123,7 +123,7 @@ def test_enqueue_variant_uses_backtest_service_batch_priority():
 
     async def _run():
         with patch(
-            "app.modules.robots_v2.backtest.service.backtest_service"
+            "app.modules.robots.backtest.service.backtest_service"
         ) as svc:
             svc.start = AsyncMock(return_value=(rec, True))
             rid = await _enqueue_variant_backtest(

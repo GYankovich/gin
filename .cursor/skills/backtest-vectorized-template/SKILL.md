@@ -25,12 +25,12 @@ description: >-
 1. **Load** candles (DB or service) → sort by time.
 2. **Features** — numpy / polars / pandas; keep dtypes explicit for mypy-friendly helpers.
 3. **Positions** — vectorized weights or event list → **validate** constraints (max leverage, integer lots if required).
-4. **Costs** — reuse project `TradingCosts` / `resolve_robot_cost_rates` from `app.modules.robots.trading.costs` when simulating this codebase.
+4. **Costs** — reuse project `TradingCosts` / `resolve_robot_cost_rates` from `app.modules.robot_lib.trading.costs` when simulating this codebase.
 5. **Metrics** — equity curve, drawdown, Sharpe (document assumptions); align with `skill://trading-metrics-calculation` for reporting text.
 
 ## Integration in this repo
 
-- Reference implementation and orchestration: `backend/app/modules/robots/trading/backtest/engine.py` and siblings (`broker_emulator.py`, `virtual_portfolio.py`, `sim_executor.py`, `metrics.py`).
+- Reference implementation and orchestration: `backend/app/modules/robot_lib/trading/backtest/engine.py` and siblings (`broker_emulator.py`, `virtual_portfolio.py`, `sim_executor.py`, `metrics.py`).
 - Business scope inputs: `skill://backtest-requirements-template`.
 
 ## Checklist

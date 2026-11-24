@@ -35,7 +35,7 @@ def build_get_user_tokens_query(active_only: bool = True) -> str:
                      name,
                      status,
                      created_at,
-                     updated_at,
+                     modification_date,
                      last_used_at,
                      expires_at
                  FROM api_tokens
@@ -61,75 +61,13 @@ def build_get_token_by_id_query() -> str:
                name,
                status,
                created_at,
-               updated_at,
+               modification_date,
                last_used_at,
                expires_at,
                extra_data,
                token_secret
            FROM api_tokens
            WHERE id = :token_id AND user_id = :user_id \
-           """
-
-
-def build_check_token_exists_query() -> str:
-    """Проверка существования токена"""
-    return """
-           SELECT token FROM api_tokens
-           WHERE user_id = :user_id AND status = 1 \
-           """
-
-
-def build_create_token_query() -> str:
-    """Создание нового токена"""
-    return """
-           INSERT INTO api_tokens
-               (user_id, token_type, token, name, status, created_at)
-           VALUES
-               (:user_id, :token_type, :token, :token_name, 1, :created_at)
-               RETURNING
-            id, user_id, token_type, token, token_name, status, created_at \
-           """
-
-
-def build_update_token_query(fields: List[str]) -> tuple[str, Dict[str, Any]]:
-    """
-    Динамически строит запрос обновления токена
-    """
-    base_query = """
-                 UPDATE api_tokens
-                 SET {updates}, updated_at = :now
-                 WHERE id = :token_id AND user_id = :user_id
-                     RETURNING
-                    id, user_id, token_type, token, token_name, status, created_at, updated_at, last_used_at, expires_at \
-                 """
-
-    field_mapping = {
-        "token_name": "token_name = :token_name",
-        "status": "status = :status"
-    }
-
-    updates = [field_mapping[f] for f in fields if f in field_mapping]
-
-    if not updates:
-        return "", {}
-
-    query = base_query.format(updates=", ".join(updates))
-
-    params = {
-        "token_id": ":token_id",
-        "user_id": ":user_id",
-        "now": ":now"
-    }
-
-    return query, params
-
-
-def build_delete_token_query() -> str:
-    """Удаление токена"""
-    return """
-           DELETE FROM api_tokens
-           WHERE id = :token_id AND user_id = :user_id
-               RETURNING id \
            """
 
 
@@ -140,7 +78,7 @@ def build_update_last_used_query() -> str:
            SET last_used_at = :now,
                last_error = NULL,
                last_error_at = NULL,
-               updated_at = :now
+               modification_date = :now
            WHERE id = :token_id
            """
 

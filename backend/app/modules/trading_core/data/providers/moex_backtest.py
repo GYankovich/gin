@@ -8,7 +8,7 @@ from typing import Callable, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.modules.robots.backtest_progress import touch_backtest_progress_runtime
+from app.modules.robot_lib.backtest_progress import touch_backtest_progress_runtime
 from app.modules.trading_core.data.stats import CandlePrefetchStats, GapFillResult
 from app.modules.trading_core.intervals import MOEX_CANDLE_INTERVAL_CODES, ResolvedInterval
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 #///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingBrokersTinvest [1]
-#/// Исходный модуль `backend/app/modules/robots/trading/brokers/tinvest.py` — автоматическая разметка для Obsidian Source Scanner.
+#/// Исходный модуль `backend/app/modules/robot_lib/trading/brokers/tinvest.py` — автоматическая разметка для Obsidian Source Scanner.
 
 import asyncio
 from datetime import datetime

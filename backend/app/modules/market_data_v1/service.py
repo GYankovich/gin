@@ -362,7 +362,7 @@ def query_candles(
 
 
 def list_tqbr_bulk(db: Session, *, limit: int = 12_000) -> TqbrSearchResponse:
-    from app.modules.robots.moex_securities_updater import queries as moex_q
+    from app.modules.robot_lib.moex_securities_updater import queries as moex_q
 
     sql, params = moex_q.build_list_securities_bulk_query(board="TQBR", limit=limit, active_only=True)
     rows = db.execute(text(sql), params).fetchall()
@@ -379,7 +379,7 @@ def list_tqbr_bulk(db: Session, *, limit: int = 12_000) -> TqbrSearchResponse:
 
 
 def search_tqbr(db: Session, *, prefix: str, limit: int = 50) -> TqbrSearchResponse:
-    from app.modules.robots.moex_securities_updater import queries as moex_q
+    from app.modules.robot_lib.moex_securities_updater import queries as moex_q
 
     sql, params = moex_q.build_search_securities_query(
         prefix=prefix,

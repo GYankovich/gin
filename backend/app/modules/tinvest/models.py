@@ -47,7 +47,7 @@ class ApiToken(Base):
     status = Column(Integer, nullable=False, default=1)
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), nullable=True, onupdate=datetime.utcnow)
+    modification_date = Column(DateTime(timezone=True), nullable=True, onupdate=datetime.utcnow)
     last_used_at = Column(DateTime(timezone=True), nullable=True)
     last_error = Column(Text, nullable=True)
     last_error_at = Column(DateTime(timezone=True), nullable=True)
@@ -58,4 +58,4 @@ class ApiToken(Base):
     usermod = Column(String(128), nullable=True)
 
     user = relationship("User", back_populates="api_tokens")
-    robots = relationship("Robot", back_populates="token")
+    # Legacy Robot relationship removed (table dropped in 0091); use robots.

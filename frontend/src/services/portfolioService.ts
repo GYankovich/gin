@@ -2,7 +2,6 @@
 ///@ Исходный модуль `frontend/src/services/portfolioService.ts` — автоматическая разметка для Obsidian Source Scanner.
 
 import { api } from './api'
-import type { TokenResponse } from '@/types/portfolio'
 
 export const portfolioService = {
     async getPortfolioData(): Promise<any> {
@@ -45,35 +44,6 @@ export const portfolioService = {
         params?: { from_date?: string; to_date?: string; limit?: number },
     ): Promise<{ account_id: number; from_date: string; to_date: string; total: number; items: any[] }> {
         const { data } = await api.get(`/tinvest/portfolio/operations/${accountId}`, { params })
-        return data
-    },
-
-    async getTokens(): Promise<TokenResponse[]> {
-        const { data } = await api.get('/tinvest/portfolio/tokens')
-        return Array.isArray(data) ? data : data.items ?? []
-    },
-
-    async getToken(tokenId: number): Promise<TokenResponse> {
-        const { data } = await api.get<TokenResponse>(`/tinvest/portfolio/tokens/${tokenId}`)
-        return data
-    },
-
-    async createToken(payload: { token_name: string; token_value: string; token_type?: string }): Promise<TokenResponse> {
-        const { data } = await api.post<TokenResponse>('/tinvest/portfolio/tokens', payload)
-        return data
-    },
-
-    async updateToken(tokenId: number, payload: Record<string, any>): Promise<TokenResponse> {
-        const { data } = await api.patch<TokenResponse>(`/tinvest/portfolio/tokens/${tokenId}`, payload)
-        return data
-    },
-
-    async deleteToken(tokenId: number): Promise<void> {
-        await api.delete(`/tinvest/portfolio/tokens/${tokenId}`)
-    },
-
-    async testToken(payload: { token_value: string }): Promise<{ is_valid: boolean; message: string }> {
-        const { data } = await api.post('/tinvest/portfolio/tokens/test', payload)
         return data
     },
 }

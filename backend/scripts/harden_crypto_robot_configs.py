@@ -46,7 +46,7 @@ get_settings.cache_clear()
 settings = get_settings()
 
 from app.core.database import SessionLocal  # noqa: E402
-from app.modules.robots.config.migration import config_equals  # noqa: E402
+from app.modules.robot_lib.config.migration import config_equals  # noqa: E402
 
 DEFAULT_MIN_LAST_PRICE = 0.05
 DEFAULT_MIN_OI_USD = 20_000_000.0

@@ -7,7 +7,7 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots_v2.universe import presets
+from app.modules.robots.universe import presets
 
 
 def test_stock_screener_preview_does_not_require_token():
@@ -15,7 +15,7 @@ def test_stock_screener_preview_does_not_require_token():
     from datetime import date
     from unittest.mock import MagicMock
 
-    from app.modules.robots_v2.universe.service import UniverseService
+    from app.modules.robots.universe.service import UniverseService
 
     captured = {}
 
@@ -78,7 +78,7 @@ def test_crypto_high_liquidity_preset():
 
 
 def test_filters_without_trading_status_keeps_other_gates():
-    from app.modules.robots_v2.universe.service import (
+    from app.modules.robots.universe.service import (
         _filters_without_trading_status,
         _has_trading_status_filter,
     )
@@ -96,7 +96,7 @@ def test_filters_without_trading_status_keeps_other_gates():
 
 
 def test_filter_tqbr_candidate_rows_falls_back_when_board_is_n():
-    from app.modules.robots.universe import filter_tqbr_candidate_rows
+    from app.modules.robot_lib.universe import filter_tqbr_candidate_rows
 
     overnight = [
         {"ticker": "SBER", "security_status": "A", "trading_status": "N"},

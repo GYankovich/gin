@@ -9,8 +9,8 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.modules.robots_v2.engine.session_manager import session_manager
-from app.modules.robots_v2.service import RobotsV2Service
+from app.modules.robots.engine.session_manager import session_manager
+from app.modules.robots.service import RobotsV2Service
 
 ROBOT_ID = int(sys.argv[1]) if len(sys.argv) > 1 else 1
 schema = settings.DB_SCHEMA or "public"
@@ -54,7 +54,7 @@ def main() -> None:
         robot = db.execute(
             text(
                 f"SELECT id, name, status, token_id, user_id, config, metadata "
-                f"FROM {schema}.robots_v2 WHERE id = :id"
+                f"FROM {schema}.robots WHERE id = :id"
             ),
             {"id": ROBOT_ID},
         ).fetchone()
@@ -90,7 +90,7 @@ def main() -> None:
             text(
                 f"""
                 SELECT id, mode, started_at, ended_at, stop_reason, virtual_capital, account_id
-                FROM {schema}.robots_v2_sessions
+                FROM {schema}.robot_sessions
                 WHERE robot_id = :rid ORDER BY started_at DESC LIMIT 3
                 """
             ),
@@ -107,7 +107,7 @@ def main() -> None:
             text(
                 f"""
                 SELECT cycle_number, status, skip_reason, triggered_by, equity, started_at, finished_at
-                FROM {schema}.robots_v2_cycles
+                FROM {schema}.robot_cycles
                 WHERE robot_id = :rid ORDER BY cycle_number DESC LIMIT 5
                 """
             ),

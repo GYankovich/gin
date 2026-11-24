@@ -1,0 +1,1090 @@
+"""Backtest orchestration: candle load, universe resolve, queue worker."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from datetime import date, datetime, time, timedelta, timezone
+from time import monotonic
+from typing import Any
+
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.core.background_jobs.repository import enqueue_background_job
+from app.core.background_jobs.worker import LANE_HEAVY
+from app.core.config import settings
+from app.core.database import get_db_context
+from app.modules.trading_core.intervals import resolve_strategy_interval
+from app.modules.robots.backtest.candle_io import (
+    load_candles_by_symbol_from_cache,
+    prefetch_crypto_candles_for_replay,
+)
+from app.modules.robots.backtest.candle_prefetch import prefetch_candles_for_backtest
+from app.modules.robots.backtest.host import BacktestHost, dicts_to_candles
+from app.modules.robots.backtest.funding import (
+    crypto_funding_enabled,
+    instrument_category_for_config,
+)
+from app.modules.robots.backtest.persist import (
+    _bound_robot_id_from_run,
+    apply_signals_page_to_details,
+    attach_backtest_run_to_robot,
+    build_cycle_inspector_bundle,
+    build_observability,
+    compare_runs,
+    create_db_run,
+    enrich_run_observability,
+    fetch_db_run,
+    filter_signals,
+    is_cancel_requested,
+    list_db_runs,
+    load_execution_events,
+    load_universe_membership,
+    paginate_signals,
+    persist_result_payload,
+    trading_config_from_snapshot,
+    update_db_run,
+    update_db_run_required,
+)
+from app.modules.robots.backtest.price_window import fetch_price_window
+from app.modules.robots.backtest.quotas import assert_can_enqueue_backtest
+from app.modules.robots.backtest.schemas import (
+    RobotV2BacktestCompareResponse,
+    RobotV2BacktestCycleBundleResponse,
+    RobotV2BacktestDetailsResponse,
+    RobotV2BacktestExecutionEventsResponse,
+    RobotV2BacktestListResponse,
+    RobotV2BacktestNarrativeResponse,
+    RobotV2BacktestPriceWindowResponse,
+    RobotV2BacktestRequest,
+    RobotV2BacktestSaveAsRobotRequest,
+    RobotV2BacktestSaveAsRobotResponse,
+    RobotV2BacktestSignalsPageResponse,
+    RobotV2BacktestStatusResponse,
+    RobotV2BacktestUniverseResponse,
+)
+from app.modules.robots.schemas import RobotV2CreateRequest
+from app.modules.robots.service import RobotsV2Service
+from app.modules.robots.backtest.store import BacktestRunRecord, backtest_run_store
+from app.modules.robots.backtest.worker_handler import JOB_TYPE_BACKTEST_RUN
+from app.modules.robots.config.v4_schema import TradingRobotConfigV4
+from app.modules.robots.universe.service import universe_service
+
+logger = logging.getLogger(__name__)
+
+_V4_TIMEFRAME_MAP: dict[str, str] = {
+    "1m": "CANDLE_INTERVAL_1_MIN",
+    "5m": "CANDLE_INTERVAL_5_MIN",
+    "10m": "CANDLE_INTERVAL_10_MIN",
+    "15m": "CANDLE_INTERVAL_15_MIN",
+    "30m": "CANDLE_INTERVAL_30_MIN",
+    "1h": "CANDLE_INTERVAL_HOUR",
+    "4h": "CANDLE_INTERVAL_4_HOUR",
+    "1d": "CANDLE_INTERVAL_DAY",
+}
+
+
+def v4_timeframe_to_interval_raw(timeframe: str) -> str:
+    tf = str(timeframe or "").strip()
+    if tf.startswith("CANDLE_INTERVAL"):
+        return tf
+    return _V4_TIMEFRAME_MAP.get(tf.lower(), "CANDLE_INTERVAL_5_MIN")
+
+
+def _record_to_status(rec: BacktestRunRecord) -> dict[str, Any]:
+    payload = dict(rec.result_payload or {})
+    signals = list(rec.signals or [])
+    if "observability" not in payload:
+        payload["observability"] = build_observability(
+            signals,
+            history_stats=payload.get("history_stats") or {},
+        )
+    out = {
+        "run_id": rec.run_id,
+        "robot_id": rec.robot_id,
+        "status": rec.status,
+        "requested_from": rec.requested_from,
+        "requested_to": rec.requested_to,
+        "started_at": rec.started_at,
+        "finished_at": rec.finished_at,
+        "initial_capital": rec.initial_capital,
+        "progress_percent": rec.progress_percent,
+        "run_phase": rec.run_phase,
+        "phase_label": rec.phase_label,
+        "phase_units_done": rec.phase_units_done,
+        "phase_units_total": rec.phase_units_total,
+        "cancel_requested": rec.cancel_requested,
+        "partial_result": bool(rec.cancel_requested) and str(rec.status).upper() in (
+            "CANCELLED", "CANCELED", "RUNNING", "QUEUED",
+        ),
+        "error_message": rec.error_message,
+        "config_snapshot": rec.config_snapshot,
+        "total_return_percent": payload.get("total_return_percent"),
+        "max_drawdown_percent": payload.get("max_drawdown_percent"),
+        "final_equity": payload.get("final_equity"),
+        "trades_total": len(payload.get("trades") or []),
+        "result_payload": payload,
+        "signals": signals,
+        "orders": rec.orders,
+        "portfolio_snapshots": rec.portfolio_snapshots,
+        "daily_summary": rec.daily_summary,
+        "observability": payload.get("observability"),
+        "fee_summary": payload.get("fee_summary"),
+        "narrative": list(payload.get("narrative") or []),
+        "execution_events": list(getattr(rec, "execution_events", None) or payload.get("execution_events") or []),
+        "signals_total": len(signals),
+    }
+    enrich_run_observability(out)
+    return out
+
+
+class BacktestService:
+    def __init__(self) -> None:
+        self._host = BacktestHost()
+        self._cancel_flags: dict[int, bool] = {}
+        self._cancel_db_checked_at: dict[int, float] = {}
+
+    async def start(
+        self,
+        db: Session,
+        user_id: int,
+        request: RobotV2BacktestRequest,
+        *,
+        robot_config: dict[str, Any] | None = None,
+        priority: str = "interactive",
+    ) -> tuple[BacktestRunRecord, bool]:
+        """Enqueue a v2 backtest (always async). Returns (record, async_enqueued=True)."""
+        raw_config = dict(request.config or robot_config or {})
+        try:
+            config = TradingRobotConfigV4.model_validate(raw_config)
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f"Invalid v4 config: {exc}") from exc
+
+        if config.strategy.archetype == "scalper":
+            raise HTTPException(
+                status_code=422,
+                detail="Scalper requires tick/order-flow data and cannot run on bar-close backtest",
+            )
+
+        assert_can_enqueue_backtest(
+            db,
+            user_id=user_id,
+            from_date=request.from_date,
+            to_date=request.to_date,
+            skip_user_limits=(priority == "batch"),
+        )
+
+        capital = float(request.initial_capital or config.risk.capital)
+        config.risk.capital = capital
+        snap = config.model_dump(by_alias=True)
+        # Lab-native: robotId omitted/null → orphan run (robot_id NULL in DB).
+        bind_robot_id = request.robot_id if request.robot_id and request.robot_id > 0 else None
+
+        db_id = create_db_run(
+            db,
+            user_id=user_id,
+            robot_id=bind_robot_id,
+            requested_from=request.from_date,
+            requested_to=request.to_date,
+            initial_capital=capital,
+            config_snapshot=snap,
+        )
+        if db_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Не удалось создать запись прогона в БД",
+            )
+        if bind_robot_id is None:
+            logger.info(
+                "event=backtest_run.started run_id=%s user_id=%s robot_id=null",
+                db_id,
+                user_id,
+            )
+
+        job_priority = (
+            int(settings.COMPUTE_JOB_PRIORITY_BATCH)
+            if priority == "batch"
+            else int(settings.COMPUTE_JOB_PRIORITY_INTERACTIVE)
+        )
+        payload = {
+            "run_id": int(db_id),
+            "user_id": int(user_id),
+            "token_id": request.token_id,
+            "priority": priority,
+            "robot_id": bind_robot_id,
+        }
+        job_id = enqueue_background_job(
+            db,
+            lane=LANE_HEAVY,
+            job_type=JOB_TYPE_BACKTEST_RUN,
+            payload=payload,
+            idempotency_key=f"backtest_run:{db_id}",
+            priority=job_priority,
+        )
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        if job_id is None:
+            logger.warning("backtest_run job already active for run_id=%s", db_id)
+
+        rec = BacktestRunRecord(
+            run_id=int(db_id),
+            user_id=user_id,
+            robot_id=bind_robot_id,
+            status="QUEUED",
+            requested_from=request.from_date,
+            requested_to=request.to_date,
+            started_at=datetime.now(timezone.utc),
+            initial_capital=capital,
+            config_snapshot=snap,
+        )
+        await backtest_run_store.upsert(rec)
+        return rec, True
+
+    async def get_status(
+        self, run_id: int, *, user_id: int, db: Session | None = None,
+    ) -> RobotV2BacktestStatusResponse:
+        # DB is source of truth across API / compute processes.
+        if db is not None:
+            row = fetch_db_run(
+                db,
+                run_id,
+                user_id=user_id,
+                include_artifacts=False,
+            )
+            if row is not None:
+                mem = await backtest_run_store.get(run_id, user_id=user_id)
+                db_status = str(row.get("status") or "").upper()
+                # A dead worker can leave in-process memory on RUNNING after the
+                # row is already FAILED/CANCELLED. Terminal DB status wins.
+                if (
+                    mem is not None
+                    and str(mem.status).upper() == "RUNNING"
+                    and db_status not in ("SUCCESS", "FAILED", "CANCELLED")
+                ):
+                    row = {
+                        **row,
+                        "progress_percent": mem.progress_percent or row.get("progress_percent"),
+                        "run_phase": mem.run_phase or row.get("run_phase"),
+                        "phase_label": mem.phase_label or row.get("phase_label"),
+                        "phase_units_done": mem.phase_units_done,
+                        "phase_units_total": mem.phase_units_total,
+                        "status": mem.status or row.get("status"),
+                    }
+                return RobotV2BacktestStatusResponse.model_validate(row)
+        rec = await backtest_run_store.get(run_id, user_id=user_id)
+        if rec is not None:
+            return RobotV2BacktestStatusResponse.model_validate(_record_to_status(rec))
+        raise HTTPException(status_code=404, detail="Backtest run not found")
+
+    async def get_details(
+        self,
+        run_id: int,
+        *,
+        user_id: int,
+        db: Session | None = None,
+        signals_limit: int | None = None,
+        signals_offset: int = 0,
+        signals_status: str | None = None,
+        reject_reason: str | None = None,
+    ) -> RobotV2BacktestDetailsResponse:
+        if db is not None:
+            row = fetch_db_run(db, run_id, user_id=user_id)
+            if row is not None:
+                mem = await backtest_run_store.get(run_id, user_id=user_id)
+                if mem is not None and mem.result_payload:
+                    merged = {**row, **_record_to_status(mem)}
+                    # Prefer DB child artifacts (flattened) when present.
+                    if row.get("signals"):
+                        merged["signals"] = row["signals"]
+                    if row.get("orders"):
+                        merged["orders"] = row["orders"]
+                    if row.get("portfolio_snapshots"):
+                        merged["portfolio_snapshots"] = row["portfolio_snapshots"]
+                    if row.get("execution_events"):
+                        merged["execution_events"] = row["execution_events"]
+                    if row.get("narrative"):
+                        merged["narrative"] = row["narrative"]
+                    apply_signals_page_to_details(
+                        merged,
+                        signals_limit=signals_limit,
+                        signals_offset=signals_offset,
+                        signals_status=signals_status,
+                        reject_reason=reject_reason,
+                    )
+                    return RobotV2BacktestDetailsResponse.model_validate(merged)
+                apply_signals_page_to_details(
+                    row,
+                    signals_limit=signals_limit,
+                    signals_offset=signals_offset,
+                    signals_status=signals_status,
+                    reject_reason=reject_reason,
+                )
+                return RobotV2BacktestDetailsResponse.model_validate(row)
+        rec = await backtest_run_store.get(run_id, user_id=user_id)
+        if rec is not None:
+            out = _record_to_status(rec)
+            apply_signals_page_to_details(
+                out,
+                signals_limit=signals_limit,
+                signals_offset=signals_offset,
+                signals_status=signals_status,
+                reject_reason=reject_reason,
+            )
+            return RobotV2BacktestDetailsResponse.model_validate(out)
+        raise HTTPException(status_code=404, detail="Backtest run not found")
+
+    async def get_cycle_bundle(
+        self,
+        run_id: int,
+        cycle_id: str,
+        *,
+        user_id: int,
+        db: Session | None = None,
+    ) -> RobotV2BacktestCycleBundleResponse:
+        if db is None:
+            raise HTTPException(status_code=503, detail="Database required for cycle inspector")
+        row = fetch_db_run(db, run_id, user_id=user_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Backtest run not found")
+        mem = await backtest_run_store.get(run_id, user_id=user_id)
+        if mem is not None and mem.result_payload:
+            merged = {**row, **_record_to_status(mem)}
+            if row.get("signals"):
+                merged["signals"] = row["signals"]
+            if row.get("orders"):
+                merged["orders"] = row["orders"]
+            if row.get("execution_events"):
+                merged["execution_events"] = row["execution_events"]
+            if not merged.get("config_snapshot"):
+                merged["config_snapshot"] = mem.config_snapshot or row.get("config_snapshot")
+            row = merged
+        bundle = build_cycle_inspector_bundle(row, cycle_id)
+        if bundle is None:
+            raise HTTPException(status_code=404, detail="Cycle not found in this run")
+        return RobotV2BacktestCycleBundleResponse.model_validate(bundle)
+
+    async def get_universe_membership(
+        self,
+        run_id: int,
+        *,
+        user_id: int,
+        db: Session,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> RobotV2BacktestUniverseResponse:
+        row = fetch_db_run(db, run_id, user_id=user_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Backtest run not found")
+        items = load_universe_membership(
+            db, run_id, from_date=from_date, to_date=to_date,
+        )
+        days = sorted({date.fromisoformat(str(i["trade_date"])[:10]) for i in items})
+        return RobotV2BacktestUniverseResponse(
+            run_id=run_id,
+            items=items,
+            days=days,
+            total=len(items),
+        )
+
+    async def get_execution_events(
+        self,
+        run_id: int,
+        *,
+        user_id: int,
+        db: Session,
+        cycle_id: str | None = None,
+        limit: int = 5000,
+    ) -> RobotV2BacktestExecutionEventsResponse:
+        row = fetch_db_run(db, run_id, user_id=user_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Backtest run not found")
+        items = load_execution_events(db, run_id, cycle_id=cycle_id, limit=limit)
+        if not items and row.get("execution_events"):
+            items = list(row["execution_events"])
+            if cycle_id:
+                items = [e for e in items if str(e.get("cycle_id") or "") == str(cycle_id)]
+        return RobotV2BacktestExecutionEventsResponse(
+            run_id=run_id, items=items, total=len(items),
+        )
+
+    async def get_narrative(
+        self,
+        run_id: int,
+        *,
+        user_id: int,
+        db: Session,
+    ) -> RobotV2BacktestNarrativeResponse:
+        row = fetch_db_run(db, run_id, user_id=user_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Backtest run not found")
+        items = list(row.get("narrative") or [])
+        if not items:
+            payload = row.get("result_payload") if isinstance(row.get("result_payload"), dict) else {}
+            items = list(payload.get("narrative") or [])
+        return RobotV2BacktestNarrativeResponse(
+            run_id=run_id, items=items, total=len(items),
+        )
+
+    async def get_price_window(
+        self,
+        run_id: int,
+        *,
+        user_id: int,
+        db: Session,
+        ticker: str,
+        around: datetime,
+        bars: int = 50,
+    ) -> RobotV2BacktestPriceWindowResponse:
+        row = fetch_db_run(db, run_id, user_id=user_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="Backtest run not found")
+        win = fetch_price_window(
+            db,
+            config_snapshot=row.get("config_snapshot"),
+            ticker=ticker,
+            around=around,
+            bars=bars,
+        )
+        return RobotV2BacktestPriceWindowResponse(run_id=run_id, **win)
+
+    async def get_signals_page(
+        self,
+        run_id: int,
+        *,
+        user_id: int,
+        db: Session | None = None,
+        limit: int = 200,
+        offset: int = 0,
+        status_filter: str | None = None,
+        reject_reason: str | None = None,
+        ticker: str | None = None,
+        cycle_id: str | None = None,
+    ) -> RobotV2BacktestSignalsPageResponse:
+        signals: list[dict[str, Any]] = []
+        truncated_run = False
+        if db is not None:
+            row = fetch_db_run(db, run_id, user_id=user_id)
+            if row is None:
+                raise HTTPException(status_code=404, detail="Backtest run not found")
+            signals = list(row.get("signals") or [])
+            obs = row.get("observability") or {}
+            truncated_run = bool(obs.get("signals_truncated"))
+        else:
+            rec = await backtest_run_store.get(run_id, user_id=user_id)
+            if rec is None:
+                raise HTTPException(status_code=404, detail="Backtest run not found")
+            out = _record_to_status(rec)
+            signals = list(out.get("signals") or [])
+            obs = out.get("observability") or {}
+            truncated_run = bool(obs.get("signals_truncated"))
+
+        filtered = filter_signals(
+            signals,
+            status=status_filter,
+            reject_reason=reject_reason,
+            ticker=ticker,
+            cycle_id=cycle_id,
+        )
+        page, total = paginate_signals(filtered, limit=limit, offset=offset)
+        return RobotV2BacktestSignalsPageResponse(
+            items=page,
+            total=total,
+            truncated_run=truncated_run,
+            limit=max(1, min(int(limit), 1000)),
+            offset=max(0, int(offset)),
+        )
+
+    async def list_runs(
+        self, db: Session, *, user_id: int, robot_id: int | None = None, limit: int = 30,
+    ) -> RobotV2BacktestListResponse:
+        items = list_db_runs(db, user_id=user_id, robot_id=robot_id, limit=limit)
+        return RobotV2BacktestListResponse(items=items, total=len(items))
+
+    async def compare(
+        self, db: Session, *, user_id: int, base_run_id: int, compare_run_id: int,
+    ) -> RobotV2BacktestCompareResponse:
+        base = fetch_db_run(db, base_run_id, user_id=user_id)
+        other = fetch_db_run(db, compare_run_id, user_id=user_id)
+        mem_base = await backtest_run_store.get(base_run_id, user_id=user_id)
+        mem_other = await backtest_run_store.get(compare_run_id, user_id=user_id)
+        if mem_base is not None and mem_base.result_payload:
+            base = {**_record_to_status(mem_base), "config_snapshot": mem_base.config_snapshot}
+        if mem_other is not None and mem_other.result_payload:
+            other = {**_record_to_status(mem_other), "config_snapshot": mem_other.config_snapshot}
+        if base is None or other is None:
+            raise HTTPException(status_code=404, detail="One or both backtest runs were not found")
+        return RobotV2BacktestCompareResponse.model_validate(compare_runs(base, other))
+
+    def save_as_robot(
+        self,
+        db: Session,
+        *,
+        user_id: int,
+        run_id: int,
+        request: RobotV2BacktestSaveAsRobotRequest,
+    ) -> RobotV2BacktestSaveAsRobotResponse:
+        """SPEC-05 §6.5 — clone run config into robots; optional attach; no session start."""
+        row = fetch_db_run(db, run_id, user_id=user_id)
+        if row is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backtest run not found")
+        run_status = str(row.get("status") or "").upper()
+        if run_status != "SUCCESS":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Only successful backtest runs can be saved as a robot",
+            )
+        snap_raw = row.get("config_snapshot")
+        try:
+            trading_config = trading_config_from_snapshot(
+                snap_raw if isinstance(snap_raw, dict) else None,
+            )
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid config snapshot on backtest run",
+            ) from None
+
+        robots = RobotsV2Service()
+        token_id = request.token_id
+        if token_id is None:
+            bound_robot = _bound_robot_id_from_run(row)
+            if bound_robot is not None:
+                try:
+                    src = robots.get_robot(db, user_id, bound_robot)
+                    if src.token_id:
+                        token_id = int(src.token_id)
+                except HTTPException:
+                    pass
+        if token_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="tokenId is required to create a trading robot",
+            )
+
+        if request.attach_run:
+            # Fail before insert if rebinding would conflict with an existing owner robot.
+            bound = _bound_robot_id_from_run(row)
+            if bound is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Run is already bound to another robot; disable attach or use an orphan run",
+                )
+
+        created = robots.create_or_update(
+            db,
+            user_id,
+            RobotV2CreateRequest(
+                name=request.name.strip(),
+                type=2,
+                tokenId=int(token_id),
+                config=trading_config,
+                status=2,
+            ),
+        )
+        new_robot_id = int(created.id)
+
+        if request.attach_run:
+            try:
+                attach_backtest_run_to_robot(
+                    db,
+                    run_id=run_id,
+                    user_id=user_id,
+                    robot_id=new_robot_id,
+                )
+            except RuntimeError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Could not attach run to the new robot",
+                ) from exc
+            db.commit()
+
+        logger.info(
+            "event=backtest_run.save_as_robot run_id=%s user_id=%s robot_id=%s attach=%s",
+            run_id,
+            user_id,
+            new_robot_id,
+            request.attach_run,
+        )
+        return RobotV2BacktestSaveAsRobotResponse(robotId=new_robot_id, runId=int(run_id))
+
+    async def cancel(self, run_id: int, *, user_id: int, db: Session | None = None) -> BacktestRunRecord:
+        self._cancel_flags[run_id] = True
+        rec = await backtest_run_store.request_cancel(run_id, user_id=user_id)
+        if db is not None:
+            row = fetch_db_run(db, run_id, user_id=user_id)
+            if row is None:
+                raise HTTPException(status_code=404, detail="Backtest run not found")
+            update_db_run_required(db, run_id, cancel_requested=True, partial_result=True)
+            if rec is None:
+                rec = BacktestRunRecord(
+                    run_id=run_id,
+                    user_id=user_id,
+                    robot_id=row.get("robot_id"),
+                    status=str(row.get("status") or "QUEUED"),
+                    requested_from=row["requested_from"],
+                    requested_to=row["requested_to"],
+                    started_at=row["started_at"],
+                    initial_capital=float(row.get("initial_capital") or 0),
+                    cancel_requested=True,
+                    run_phase="cancel_pending",
+                    phase_label="Cancel requested",
+                )
+                await backtest_run_store.upsert(rec)
+            return rec
+        if rec is None:
+            raise HTTPException(status_code=404, detail="Backtest run not found")
+        return rec
+
+    async def execute_run(
+        self,
+        user_id: int,
+        run_id: int,
+        config: TradingRobotConfigV4,
+        request: RobotV2BacktestRequest,
+    ) -> None:
+        """Public entry for the heavy-lane worker."""
+        await self._execute(user_id, run_id, config, request)
+
+    async def _execute(
+        self,
+        user_id: int,
+        run_id: int,
+        config: TradingRobotConfigV4,
+        request: RobotV2BacktestRequest,
+    ) -> None:
+        with get_db_context() as db:
+            await self._execute_with_db(db, user_id, run_id, config, request)
+
+    async def _execute_with_db(
+        self,
+        db: Session,
+        user_id: int,
+        run_id: int,
+        config: TradingRobotConfigV4,
+        request: RobotV2BacktestRequest,
+    ) -> None:
+        await backtest_run_store.update(
+            run_id,
+            status="RUNNING",
+            run_phase="loading_candles",
+            phase_label="Loading candles",
+            started_at=datetime.now(timezone.utc),
+        )
+        update_db_run(db, run_id, status="RUNNING", run_phase="loading_candles")
+        try:
+            await backtest_run_store.update(
+                run_id,
+                run_phase="resolving_universe",
+                phase_label="Resolving universe",
+            )
+            update_db_run(db, run_id, run_phase="resolving_universe")
+
+            from_dt = request.from_date.astimezone(timezone.utc)
+            to_dt = request.to_date.astimezone(timezone.utc)
+            from_date = from_dt.date()
+            till_date = to_dt.date()
+
+            from app.modules.robots.backtest.universe_schedule import build_universe_by_day
+
+            universe, universe_by_day, universe_stats = await build_universe_by_day(
+                db,
+                user_id=user_id,
+                config=config,
+                from_date=from_date,
+                to_date=till_date,
+                token_id=request.token_id,
+                robot_id=request.robot_id,
+                is_cancelled=lambda: self._is_cancelled(run_id),
+            )
+            if self._is_cancelled(run_id) or bool(universe_stats.get("cancelled")):
+                finished = datetime.now(timezone.utc)
+                await backtest_run_store.update(
+                    run_id,
+                    status="CANCELLED",
+                    run_phase="cancelled",
+                    phase_label="Cancelled",
+                    finished_at=finished,
+                    progress_percent=100.0,
+                )
+                update_db_run_required(
+                    db, run_id,
+                    status="CANCELLED",
+                    run_phase="cancelled",
+                    finished_at=finished,
+                    progress_percent=100,
+                    cancel_requested=True,
+                    partial_result=True,
+                )
+                return
+            if not universe:
+                raise ValueError("Universe is empty after resolve")
+
+            await backtest_run_store.update(
+                run_id,
+                run_phase="loading_candles",
+                phase_label="Loading candles",
+            )
+            update_db_run(db, run_id, run_phase="loading_candles")
+
+            interval_raw = v4_timeframe_to_interval_raw(config.strategy.timeframe)
+            resolved = resolve_strategy_interval(interval_raw)
+            market = "bybit" if config.core.instrument_type in ("perpetual", "coin_futures") else "moex"
+            cache_market = market
+            if market == "moex":
+                cache_market = (settings.OSENGINE_MARKET_KEY or "osengine").strip() or "osengine"
+
+            from app.modules.robots.engine.candle_seed import lookback_days_for_warmup, warmup_bars_needed
+
+            need_warmup = warmup_bars_needed(config)
+            warmup_days = lookback_days_for_warmup(
+                timeframe=config.strategy.timeframe,
+                need_bars=need_warmup,
+            ) if need_warmup else 0
+            load_from_date = from_date - timedelta(days=warmup_days)
+            load_from_dt = datetime.combine(load_from_date, time.min, tzinfo=timezone.utc)
+
+            if market == "moex":
+                from app.modules.robots.universe.token_context import board_for_instrument_type
+
+                board = board_for_instrument_type(config.core.instrument_type)
+                await prefetch_candles_for_backtest(
+                    db,
+                    board=board,
+                    tickers=universe,
+                    resolved=resolved,
+                    from_date=load_from_date,
+                    till_date=till_date,
+                    user_id=user_id,
+                    run_id=run_id,
+                    is_cancelled=lambda: self._is_cancelled(run_id),
+                    source="osengine",
+                )
+            else:
+                if request.token_id:
+                    from app.modules.robots.universe.token_context import load_token_context
+
+                    ctx = load_token_context(
+                        db,
+                        user_id=user_id,
+                        token_id=request.token_id,
+                        instrument_type=config.core.instrument_type,
+                    )
+                    if ctx.api_key:
+                        category = "inverse" if config.core.instrument_type == "coin_futures" else "linear"
+                        await prefetch_crypto_candles_for_replay(
+                            db,
+                            symbols=universe,
+                            resolved=resolved,
+                            from_date=load_from_date,
+                            till_date=till_date,
+                            instrument_category=category,
+                            testnet=ctx.testnet,
+                            user_id=user_id,
+                            run_id=run_id,
+                            api_key=ctx.api_key,
+                            api_secret=ctx.api_secret or "",
+                            is_cancelled=lambda: self._is_cancelled(run_id),
+                            load_cached_candles=False,
+                        )
+                        if crypto_funding_enabled(config):
+                            from app.modules.trading_core.data.providers.bybit_market import (
+                                ensure_funding_bybit_market,
+                            )
+
+                            await ensure_funding_bybit_market(
+                                db,
+                                symbols=universe,
+                                from_date=load_from_date,
+                                till_date=till_date,
+                                instrument_category=category,
+                                testnet=ctx.testnet,
+                                user_id=user_id,
+                                run_id=run_id,
+                                api_key=ctx.api_key,
+                                api_secret=ctx.api_secret or "",
+                                is_cancelled=lambda: self._is_cancelled(run_id),
+                            )
+
+            await backtest_run_store.update(
+                run_id,
+                run_phase="simulating",
+                phase_label="Simulating",
+            )
+            update_db_run(db, run_id, run_phase="simulating")
+
+            to_dt_exclusive = datetime.combine(
+                till_date + timedelta(days=1), time.min, tzinfo=timezone.utc,
+            )
+            raw_candles = load_candles_by_symbol_from_cache(
+                db,
+                symbols=universe,
+                interval_code=resolved.cache_label,
+                interval_code_num=resolved.code_num,
+                from_dt=load_from_dt,
+                to_dt_exclusive=to_dt_exclusive,
+                market=cache_market,
+            )
+
+            candles_by_ticker = {
+                t: dicts_to_candles(series, ticker=t, interval=interval_raw)
+                for t, series in raw_candles.items()
+            }
+            total_bars = sum(len(series) for series in candles_by_ticker.values())
+            if total_bars <= 0:
+                raise ValueError(
+                    "No candle data in cache for requested universe/range "
+                    f"(tickers={len(universe)}, market={cache_market})"
+                )
+
+            funding_by_symbol: dict[str, list] = {}
+            if crypto_funding_enabled(config):
+                from app.modules.trading_core.data.providers.bybit_market import (
+                    load_funding_history_from_cache,
+                )
+
+                funding_by_symbol = load_funding_history_from_cache(
+                    db,
+                    symbols=universe,
+                    instrument_category=instrument_category_for_config(config),
+                    from_dt=load_from_dt,
+                    to_dt_exclusive=to_dt_exclusive,
+                )
+
+            progress_state = {"done": 0, "total": 1}
+            sim_done = False
+            last_db_progress = 0.0
+
+            def on_progress(done: int, total: int) -> None:
+                progress_state["done"] = done
+                progress_state["total"] = total
+
+            async def pump_progress() -> None:
+                nonlocal last_db_progress
+                last_touch = 0.0
+                while True:
+                    done = int(progress_state["done"])
+                    total = int(progress_state["total"] or 1)
+                    now_m = monotonic()
+                    if now_m - last_touch >= 0.25 or sim_done:
+                        last_touch = now_m
+                        pct = round(done / total * 100.0, 1) if total > 0 else 0.0
+                        await backtest_run_store.update(
+                            run_id,
+                            progress_percent=pct,
+                            phase_units_done=done,
+                            phase_units_total=total,
+                            run_phase="simulating",
+                            phase_label="Simulating",
+                        )
+                        if now_m - last_db_progress >= 1.0 or sim_done:
+                            last_db_progress = now_m
+                            update_db_run(
+                                db,
+                                run_id,
+                                progress_percent=pct,
+                                phase_units_done=done,
+                                phase_units_total=total,
+                                run_phase="simulating",
+                            )
+                    if sim_done:
+                        return
+                    await asyncio.sleep(0.25)
+
+            session_id = 1_000_000 + run_id
+            pump_task = asyncio.create_task(pump_progress())
+            try:
+                result = await asyncio.to_thread(
+                    self._host.run_sync,
+                    config=config,
+                    universe=universe,
+                    candles_by_ticker=candles_by_ticker,
+                    initial_capital=float(request.initial_capital or config.risk.capital),
+                    session_id=session_id,
+                    robot_id=request.robot_id or 0,
+                    user_id=user_id,
+                    trade_from=from_dt,
+                    is_cancelled=lambda: self._is_cancelled(run_id),
+                    progress_callback=on_progress,
+                    funding_by_symbol=funding_by_symbol or None,
+                    universe_by_day=universe_by_day,
+                )
+            finally:
+                sim_done = True
+                await pump_task
+
+            payload = {
+                "initial_capital": result.initial_capital,
+                "final_equity": result.final_equity,
+                "total_return_percent": result.total_return_percent,
+                "max_drawdown_percent": result.max_drawdown_percent,
+                "trades": result.trades,
+                "equity_curve": result.equity_curve,
+                "stages": result.stages,
+                "history_stats": {**(result.history_stats or {}), **universe_stats},
+                "daily_summary": result.daily_summary,
+                "funding_charges_total": result.funding_charges_total,
+                "fee_summary": result.fee_summary,
+                "narrative": result.narrative,
+                "execution_events": result.execution_events,
+                "broker_type": (
+                    "bybit"
+                    if config.core.instrument_type in ("perpetual", "coin_futures")
+                    else "moex"
+                ),
+                "engine_version": "v2",
+                "credibility": result.credibility,
+                "observability": {
+                    **build_observability(
+                        result.signals,
+                        history_stats={**(result.history_stats or {}), **universe_stats},
+                    ),
+                    **({"credibility": result.credibility} if result.credibility else {}),
+                },
+            }
+
+            if self._is_cancelled(run_id):
+                finished = datetime.now(timezone.utc)
+                risk_metrics = persist_result_payload(
+                    db,
+                    run_id,
+                    payload,
+                    orders=result.orders,
+                    portfolio_snapshots=result.portfolio_snapshots,
+                    signals=result.signals,
+                    universe_by_day=universe_by_day or result.universe_by_day,
+                    execution_events=result.execution_events,
+                )
+                payload.update(risk_metrics)
+                await backtest_run_store.update(
+                    run_id,
+                    status="CANCELLED",
+                    run_phase="cancelled",
+                    phase_label="Cancelled",
+                    finished_at=finished,
+                    progress_percent=100.0,
+                    result_payload=payload,
+                    portfolio_snapshots=result.portfolio_snapshots,
+                    orders=result.orders,
+                    signals=result.signals,
+                    daily_summary=result.daily_summary,
+                )
+                update_db_run_required(
+                    db, run_id,
+                    status="CANCELLED",
+                    run_phase="cancelled",
+                    finished_at=finished,
+                    progress_percent=100,
+                    cancel_requested=True,
+                    partial_result=True,
+                )
+                return
+
+            if result.history_stats.get("bars", 1) == 0 or (
+                result.stages and result.stages[0] == "No candle data in requested range"
+            ):
+                raise ValueError("No candle data in requested range after simulation host")
+
+            finished = datetime.now(timezone.utc)
+            await backtest_run_store.update(
+                run_id,
+                status="SUCCESS",
+                run_phase="done",
+                phase_label="Done",
+                finished_at=finished,
+                progress_percent=100.0,
+                result_payload=payload,
+                portfolio_snapshots=result.portfolio_snapshots,
+                orders=result.orders,
+                signals=result.signals,
+                daily_summary=result.daily_summary,
+            )
+            update_db_run_required(
+                db, run_id,
+                status="SUCCESS",
+                run_phase="completed",
+                finished_at=finished,
+                progress_percent=100,
+            )
+            risk_metrics = persist_result_payload(
+                db,
+                run_id,
+                payload,
+                orders=result.orders,
+                portfolio_snapshots=result.portfolio_snapshots,
+                signals=result.signals,
+                universe_by_day=universe_by_day or result.universe_by_day,
+                execution_events=result.execution_events,
+            )
+            payload.update(risk_metrics)
+            await backtest_run_store.update(run_id, result_payload=payload)
+        except Exception as exc:
+            logger.exception("v2 backtest run_id=%s failed", run_id)
+            finished = datetime.now(timezone.utc)
+            await backtest_run_store.update(
+                run_id,
+                status="FAILED",
+                run_phase="failed",
+                phase_label="Failed",
+                finished_at=finished,
+                error_message=str(exc),
+            )
+            update_db_run_required(
+                db, run_id,
+                status="FAILED",
+                run_phase="failed",
+                finished_at=finished,
+                error_message=str(exc)[:2000],
+            )
+
+    async def _resolve_universe(
+        self,
+        db: Session,
+        user_id: int,
+        config: TradingRobotConfigV4,
+        request: RobotV2BacktestRequest,
+    ) -> list[str]:
+        u = config.universe
+        if u.mode == "fixed":
+            tickers = [t.upper() for t in (u.fixed_list or []) if t]
+            excluded = {x.upper() for x in u.excluded}
+            tickers = [t for t in tickers if t not in excluded]
+            return tickers[: u.max_assets]
+
+        token_id = request.token_id
+        resolved = await universe_service.resolve(
+            db,
+            user_id,
+            token_id=token_id,
+            instrument_type=config.core.instrument_type,
+            universe_raw=config.universe.model_dump(by_alias=True),
+            robot_id=request.robot_id,
+            as_of=request.from_date,
+        )
+        tickers = [i.ticker.upper() for i in resolved.instruments]
+        excluded = {x.upper() for x in u.excluded}
+        tickers = [t for t in tickers if t not in excluded]
+        return tickers[: u.max_assets]
+
+    def _is_cancelled(self, run_id: int) -> bool:
+        if self._cancel_flags.get(run_id, False):
+            return True
+        now = monotonic()
+        last = self._cancel_db_checked_at.get(run_id, 0.0)
+        if now - last < 0.5:
+            return False
+        self._cancel_db_checked_at[run_id] = now
+        try:
+            with get_db_context() as db:
+                if is_cancel_requested(db, run_id):
+                    self._cancel_flags[run_id] = True
+                    return True
+        except Exception:
+            logger.debug("cancel check failed run_id=%s", run_id, exc_info=True)
+        return False
+
+
+backtest_service = BacktestService()

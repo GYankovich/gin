@@ -17,7 +17,7 @@ from app.modules.bybit.schemas import BybitLiveSmokeResponse
 from app.modules.bybit.schemas import BybitUniverseScreeningPreviewRequest
 from app.modules.bybit.schemas import BybitUniverseScreeningPreviewResponse
 from app.modules.bybit.service import bybit_market_service
-from app.modules.robots.crypto_universe import _find_active_bybit_token
+from app.modules.robot_lib.crypto_universe import _find_active_bybit_token
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/bybit", tags=["bybit"])

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.modules.robots.trading.execution import (
+from app.modules.robot_lib.trading.execution import (
     LiveExecutionService,
     build_live_execution_service,
     execution_service_for_session,
@@ -40,7 +40,7 @@ def test_submit_signals_delegates_to_stage6():
     )
     expected = [{"figi": "SBER", "status": "open", "order_id": "oid-1"}]
     with patch(
-        "app.modules.robots.trading.execution.service.Stage6Orders.execute_signals",
+        "app.modules.robot_lib.trading.execution.service.Stage6Orders.execute_signals",
         new_callable=AsyncMock,
         return_value=expected,
     ) as mock_exec:

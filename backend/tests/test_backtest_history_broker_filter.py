@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.modules.robots.schemas import RobotBacktestHistoryItem, RobotBacktestHistoryRequest
+from app.modules.robot_lib.schemas import RobotBacktestHistoryItem, RobotBacktestHistoryRequest
 
 
 def test_history_request_broker_type_optional():

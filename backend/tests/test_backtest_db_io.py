@@ -5,10 +5,10 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.modules.robots.trading.contracts import ExecutionMode
-from app.modules.robots.trading.core.trading_core import run_single_trading_cycle
-from app.modules.robots.trading.indicators.service import IndicatorService
-from app.modules.robots.trading.session_backtest import BacktestTradingSession
+from app.modules.robot_lib.trading.contracts import ExecutionMode
+from app.modules.robot_lib.trading.core.trading_core import run_single_trading_cycle
+from app.modules.robot_lib.trading.indicators.service import IndicatorService
+from app.modules.robot_lib.trading.session_backtest import BacktestTradingSession
 
 
 def test_on_closed_candle_skips_db_when_persist_false():
@@ -17,7 +17,7 @@ def test_on_closed_candle_skips_db_when_persist_false():
     broker.cache_namespace = "sim"
 
     async def _run():
-        with patch("app.modules.robots.trading.indicators.service.SessionLocal") as mock_sl:
+        with patch("app.modules.robot_lib.trading.indicators.service.SessionLocal") as mock_sl:
             await svc.on_closed_candle(
                 1,
                 broker,

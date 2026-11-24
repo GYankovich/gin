@@ -182,7 +182,7 @@ def _is_valid_v4_config(cfg: Dict[str, Any]) -> bool:
     if int(cfg.get("configVersion") or 0) != 4:
         return True  # legacy — do not validate here
     try:
-        from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
+        from app.modules.robots.config.v4_schema import TradingRobotConfigV4
 
         TradingRobotConfigV4.model_validate(cfg)
         return True

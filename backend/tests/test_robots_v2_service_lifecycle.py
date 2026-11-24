@@ -1,4 +1,4 @@
-"""Lifecycle fixes: delete/change_status stop sessions; WS stream auth."""
+﻿"""Lifecycle fixes: delete/change_status stop sessions; WS stream auth."""
 
 from __future__ import annotations
 
@@ -17,8 +17,8 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots_v2.schemas import RobotV2ChangeStatusRequest, RobotV2Response
-from app.modules.robots_v2.service import RobotsV2Service
+from app.modules.robots.schemas import RobotV2ChangeStatusRequest, RobotV2Response
+from app.modules.robots.service import RobotsV2Service
 
 
 def _trading_robot(*, robot_id: int = 42, metadata: dict | None = None) -> RobotV2Response:
@@ -42,9 +42,9 @@ def test_delete_robot_stops_active_session():
     mock_session = MagicMock()
 
     with patch.object(service, "get_robot", return_value=robot), patch(
-        "app.modules.robots_v2.engine.session_manager.session_manager"
+        "app.modules.robots.engine.session_manager.session_manager"
     ) as sm, patch(
-        "app.modules.robots_v2.backtest.persist.nullify_robot_soft_bind",
+        "app.modules.robots.backtest.persist.nullify_robot_soft_bind",
         return_value=0,
     ) as nullify:
         sm.get.return_value = mock_session
@@ -69,9 +69,9 @@ def test_delete_robot_skips_stop_when_no_session():
     robot = _trading_robot()
 
     with patch.object(service, "get_robot", return_value=robot), patch(
-        "app.modules.robots_v2.engine.session_manager.session_manager"
+        "app.modules.robots.engine.session_manager.session_manager"
     ) as sm, patch(
-        "app.modules.robots_v2.backtest.persist.nullify_robot_soft_bind",
+        "app.modules.robots.backtest.persist.nullify_robot_soft_bind",
         return_value=0,
     ):
         sm.get.return_value = None
@@ -101,7 +101,7 @@ def test_change_status_disable_stops_active_session_with_stop_mode():
     db.execute.side_effect = _execute
 
     with patch.object(service, "get_robot", side_effect=[robot, robot]), patch(
-        "app.modules.robots_v2.engine.session_manager.session_manager"
+        "app.modules.robots.engine.session_manager.session_manager"
     ) as sm:
         sm.get.return_value = mock_session
         sm.stop = AsyncMock()
@@ -122,7 +122,7 @@ def test_change_status_enable_does_not_stop_session():
     db.execute.return_value = MagicMock(fetchone=MagicMock(return_value=updated_row))
 
     with patch.object(service, "get_robot", side_effect=[robot, robot]), patch(
-        "app.modules.robots_v2.engine.session_manager.session_manager"
+        "app.modules.robots.engine.session_manager.session_manager"
     ) as sm:
         sm.get.return_value = MagicMock()
         sm.stop = AsyncMock()
@@ -136,12 +136,12 @@ def test_change_status_enable_does_not_stop_session():
 def test_robot_stream_ws_rejects_missing_token():
     from app.main import app
 
-    with patch("app.modules.robots_v2.router.settings.ROBOTS_V2_ENABLED", True), patch(
-        "app.modules.robots_v2.router.authenticate_ws_user_id",
+    with patch("app.modules.robots.router.settings.ROBOTS_V2_ENABLED", True), patch(
+        "app.modules.robots.router.authenticate_ws_user_id",
         return_value=None,
     ):
         client = TestClient(app)
-        with client.websocket_connect("/api/v2/robots/1/stream") as ws:
+        with client.websocket_connect("/api/robots/1/stream") as ws:
             payload = ws.receive_json()
             assert payload == {"type": "error", "message": "Unauthorized"}
 
@@ -149,8 +149,8 @@ def test_robot_stream_ws_rejects_missing_token():
 def test_robot_stream_ws_rejects_unknown_robot():
     from app.main import app
 
-    with patch("app.modules.robots_v2.router.settings.ROBOTS_V2_ENABLED", True), patch(
-        "app.modules.robots_v2.router.authenticate_ws_user_id",
+    with patch("app.modules.robots.router.settings.ROBOTS_V2_ENABLED", True), patch(
+        "app.modules.robots.router.authenticate_ws_user_id",
         return_value=99,
     ), patch.object(
         RobotsV2Service,
@@ -158,6 +158,6 @@ def test_robot_stream_ws_rejects_unknown_robot():
         side_effect=HTTPException(status_code=404, detail="Robot not found"),
     ):
         client = TestClient(app)
-        with client.websocket_connect("/api/v2/robots/1/stream?token=good") as ws:
+        with client.websocket_connect("/api/robots/1/stream?token=good") as ws:
             payload = ws.receive_json()
             assert payload == {"type": "error", "message": "Robot not found"}

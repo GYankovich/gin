@@ -1,7 +1,7 @@
 """Shared trading domain core for live robots and backtest.
 
 Waves 1–4: contracts, intervals, costs, risk, brokers, market data.
-Must not import ``robots`` / ``robots_v2`` except soft progress hooks in data providers.
+Must not import ``robots`` / ``robots`` except soft progress hooks in data providers.
 """
 
 from __future__ import annotations

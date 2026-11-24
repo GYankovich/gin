@@ -358,8 +358,8 @@ def generate_recommendations(ctx: AnalysisContext) -> List[RecommendationItem]:
                 RecommendationCategory.RISK,
                 RecommendationSeverity.WARNING,
                 "Частые срабатывания риска",
-                f"За 7 дней зафиксировано {ctx.risk_events_7d} risk events. "
-                "Просмотрите robot_risk_events и ослабьте агрессию или расширьте лимиты осознанно.",
+                f"За 7 дней зафиксировано {ctx.risk_events_7d} risk denies. "
+                "Просмотрите решения risk в мониторе робота и ослабьте агрессию или расширьте лимиты осознанно.",
                 evidence={"risk_events_7d": ctx.risk_events_7d},
                 key="risk_events",
             )

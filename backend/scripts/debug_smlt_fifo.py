@@ -1,16 +1,16 @@
 from sqlalchemy import text
 
 from app.core.database import SessionLocal
-from app.modules.robots_v2.audit_pnl import enrich_fills_realized_pnl
+from app.modules.robots.audit_pnl import enrich_fills_realized_pnl
 
 db = SessionLocal()
 rows = db.execute(
     text(
         """
         SELECT f.id, f.filled_at, f.ticker, f.side, f.quantity, f.price, f.pnl, c.session_id
-        FROM public.robots_v2_fills f
-        JOIN public.robots_v2_orders o ON o.id = f.order_id
-        JOIN public.robots_v2_cycles c ON c.id = o.cycle_id
+        FROM public.robot_fills f
+        JOIN public.robot_orders o ON o.id = f.order_id
+        JOIN public.robot_cycles c ON c.id = o.cycle_id
         WHERE f.robot_id = 1 AND f.ticker = 'SMLT'
         ORDER BY f.filled_at ASC
         """

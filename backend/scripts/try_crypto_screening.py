@@ -12,7 +12,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.modules.robots.crypto_universe import rebuild_crypto_universe, resolve_crypto_universe_filters
+from app.modules.robot_lib.crypto_universe import rebuild_crypto_universe, resolve_crypto_universe_filters
 
 
 def _token_owner(db, token_id: int) -> int | None:
@@ -85,7 +85,7 @@ def main() -> int:
 
         if robot_id is None:
             print("No robot_id — screening in-memory only (ad-hoc path uses same ByBit fetch)")
-            from app.modules.robots.trading.pipeline.crypto_universe_scoring import _fetch_and_score_symbols
+            from app.modules.robot_lib.trading.pipeline.crypto_universe_scoring import _fetch_and_score_symbols
 
             symbols, decisions, scanned = asyncio.run(
                 _fetch_and_score_symbols(db, user_id=user_id, config=config, candidate_pool=None)

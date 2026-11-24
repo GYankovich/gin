@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 #///EPIC Modules.ITEM Module.TOPIC BackendAppModulesRobotsTradingBacktestBrokerEmulator [1]
-#/// Исходный модуль `backend/app/modules/robots/trading/backtest/broker_emulator.py` — автоматическая разметка для Obsidian Source Scanner.
+#/// Исходный модуль `backend/app/modules/robot_lib/trading/backtest/broker_emulator.py` — автоматическая разметка для Obsidian Source Scanner.
 
 from typing import Any, Dict, List, Optional
 

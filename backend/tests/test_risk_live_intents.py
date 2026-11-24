@@ -12,12 +12,12 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
-from app.modules.robots.trading.risk.manager import (
+from app.modules.robot_lib.trading.risk.manager import (
     RiskManager,
     decide_take_profit_order,
     should_skip_take_profit,
 )
-from app.modules.robots.trading.costs import calculate_take_profit_price
+from app.modules.robot_lib.trading.costs import calculate_take_profit_price
 
 
 def test_plan_sl_tp_exit_intents_take_profit_when_reached():

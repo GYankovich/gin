@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.modules.robots.crypto_universe import (
+from app.modules.robot_lib.crypto_universe import (
     CryptoUniverseFilters,
     ScreeningRow,
     apply_basic_filters,
@@ -10,7 +10,7 @@ from app.modules.robots.crypto_universe import (
     apply_volatility_filters,
     resolve_crypto_universe_filters,
 )
-from app.modules.robots.crypto_universe_metrics import (
+from app.modules.robot_lib.crypto_universe_metrics import (
     compute_atr_percent,
     compute_rvol,
     passes_funding_range,

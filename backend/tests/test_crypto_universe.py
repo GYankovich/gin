@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
-from app.modules.robots.crypto_universe import CryptoUniverseFilters, rebuild_crypto_universe, score_bybit_tickers
+from app.modules.robot_lib.crypto_universe import CryptoUniverseFilters, rebuild_crypto_universe, score_bybit_tickers
 
 
 def test_score_bybit_tickers_filters_volume_and_spread():
@@ -36,8 +36,8 @@ def test_rebuild_crypto_universe_updates_allowed_symbols(monkeypatch):
             {"symbol": "XRPUSDT", "turnover24h": "4500000", "lastPrice": "0.5", "bid1Price": "0.49", "ask1Price": "0.51"},
         ]
 
-    monkeypatch.setattr("app.modules.robots.crypto_universe._find_active_bybit_token", lambda db, user_id: {"token": "k", "token_secret": "s", "testnet": True})
-    monkeypatch.setattr("app.modules.robots.crypto_universe.fetch_bybit_tickers", _fake_fetch)
+    monkeypatch.setattr("app.modules.robot_lib.crypto_universe._find_active_bybit_token", lambda db, user_id: {"token": "k", "token_secret": "s", "testnet": True})
+    monkeypatch.setattr("app.modules.robot_lib.crypto_universe.fetch_bybit_tickers", _fake_fetch)
 
     db = _DB()
     cfg = {

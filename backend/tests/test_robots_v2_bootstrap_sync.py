@@ -13,11 +13,11 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
-from app.modules.robots_v2.engine.paper_ledger import PaperLedger
-from app.modules.robots_v2.engine.session import TradingSessionV2
-from app.modules.robots_v2.engine.types import SessionState
-from app.modules.robots_v2.risk.engine import RiskEngine
+from app.modules.robots.config.v4_schema import TradingRobotConfigV4
+from app.modules.robots.engine.paper_ledger import PaperLedger
+from app.modules.robots.engine.session import TradingSessionV2
+from app.modules.robots.engine.types import SessionState
+from app.modules.robots.risk.engine import RiskEngine
 
 
 def _minimal_config() -> dict:
@@ -75,10 +75,10 @@ def test_bootstrap_sync_paper_unlocks_without_trading():
 
     async def _run() -> bool:
         with patch(
-            "app.modules.robots_v2.engine.session.fetch_prices_for_session",
+            "app.modules.robots.engine.session.fetch_prices_for_session",
             new=AsyncMock(return_value={"SBER": 250.0}),
         ), patch(
-            "app.modules.robots_v2.engine.session.SessionLocal",
+            "app.modules.robots.engine.session.SessionLocal",
             return_value=MagicMock(**{"close": MagicMock()}),
         ):
             return await session._bootstrap_sync_once()

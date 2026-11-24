@@ -1,4 +1,4 @@
-/// <reference types="vite/client" />
+﻿/// <reference types="vite/client" />
 ///@EPIC Frontend.ITEM Src.TOPIC FrontendSrcViteEnvD [1]
 ///@ Исходный модуль `frontend/src/vite-env.d.ts` — автоматическая разметка для Obsidian Source Scanner.
 
@@ -11,7 +11,7 @@ interface ImportMetaEnv {
     readonly VITE_WS_PORT?: string
     /** @deprecated T6.1 — refactored UI is default; use `VITE_TESTING_LEGACY=true` to force legacy. */
     readonly VITE_TESTING_REFACTOR?: string
-    /** When true, /testing history-backtest uses POST /api/v2/robots/backtest (v4 config). */
+    /** When true, /testing history-backtest uses POST /api/robots/backtest (v4 config). */
     readonly VITE_ROBOTS_V2_BACKTEST?: string
 }
 

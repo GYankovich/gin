@@ -12,9 +12,9 @@ from app.core.security import get_current_user
 from app.modules.auth.models import User
 from app.modules.market_data import schemas
 from app.modules.market_data import service as market_service
-from app.modules.robots.schemas import RobotHistoryBacktestResponse, RobotHistoryBacktestTrade
+from app.modules.robot_lib.schemas import RobotHistoryBacktestResponse, RobotHistoryBacktestTrade
 from app.core.config import settings
-from app.modules.robots.trading.runtime import get_trading_orchestrator
+from app.modules.robot_lib.trading.runtime import get_trading_orchestrator
 
 router = APIRouter(prefix="/market", tags=["Market data"])
 

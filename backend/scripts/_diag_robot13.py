@@ -1,4 +1,4 @@
-"""Diagnose robots_v2 #13 start hang."""
+"""Diagnose robots #13 start hang."""
 from __future__ import annotations
 
 import json

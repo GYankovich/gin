@@ -14,15 +14,15 @@ os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
 from app.modules.bybit.http_client import BybitApiError
-from app.modules.robots.trading.broker_position_sync import (
+from app.modules.robot_lib.trading.broker_position_sync import (
     broker_positions_missing_in_db,
     configured_leverage,
     extract_account_position_meta,
     is_fatal_broker_error,
 )
-from app.modules.robots.trading.brokers.margin import resolve_margin_params
-from app.modules.robots.trading.risk import RiskManager, RiskParams
-from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
+from app.modules.robot_lib.trading.brokers.margin import resolve_margin_params
+from app.modules.robot_lib.trading.risk import RiskManager, RiskParams
+from app.modules.robot_lib.trading.stages.stage6_orders import Stage6Orders
 
 
 def test_resolve_margin_disabled_when_leverage_zero():
@@ -53,7 +53,7 @@ def test_configured_leverage_preserves_zero():
 
 
 def test_is_synthetic_broker_order_id():
-    from app.modules.robots.trading.broker_position_sync import is_synthetic_broker_order_id
+    from app.modules.robot_lib.trading.broker_position_sync import is_synthetic_broker_order_id
 
     assert is_synthetic_broker_order_id("broker_import:24:XLMUSDT:buy")
     assert is_synthetic_broker_order_id("broker_import:XLMUSDT:buy")
@@ -103,7 +103,7 @@ def test_fatal_broker_error_codes():
 
 def test_risk_manager_zero_leverage_blocks_sizing():
     rm = RiskManager(RiskParams(allow_short=True, max_leverage=0, max_position_pct=100.0))
-    from app.modules.robots.trading.contracts import Signal
+    from app.modules.robot_lib.trading.contracts import Signal
 
     qty = rm.compute_quantity(
         Signal(secid="BTCUSDT", side="BUY", target_price=100.0),

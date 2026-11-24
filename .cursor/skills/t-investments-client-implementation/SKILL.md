@@ -27,7 +27,7 @@ description: >-
 
 ## Rate limits
 
-- Use `skill://async-rate-limiter`; see `backend/app/modules/robots/trading/brokers/rate_limiter.py` for sliding-window pattern in this repo.
+- Use `skill://async-rate-limiter`; see `backend/app/modules/robot_lib/trading/brokers/rate_limiter.py` for sliding-window pattern in this repo.
 
 ## Testing
 

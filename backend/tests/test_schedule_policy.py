@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from app.modules.robots.scheduling.schedule_policy import (
+from app.modules.robot_lib.scheduling.schedule_policy import (
     inside_schedule_window,
     should_start_trading_session,
 )

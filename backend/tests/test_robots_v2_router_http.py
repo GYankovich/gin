@@ -1,4 +1,4 @@
-"""HTTP integration tests for /api/v2/robots/* (mocked DB and services)."""
+﻿"""HTTP integration tests for /api/robots/* (mocked DB and services)."""
 
 from __future__ import annotations
 
@@ -22,8 +22,8 @@ os.environ.setdefault("SECRET_KEY", "test")
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.modules.auth.models import User
-from app.modules.robots_v2 import schemas, service
-from app.modules.robots_v2.backtest.schemas import (
+from app.modules.robots import schemas, service
+from app.modules.robots.backtest.schemas import (
     RobotV2BacktestCompareResponse,
     RobotV2BacktestDetailsResponse,
     RobotV2BacktestListResponse,
@@ -120,7 +120,7 @@ def _v2_client(
     app.dependency_overrides[get_db] = override_db
     try:
         with (
-            patch("app.modules.robots_v2.router.settings.ROBOTS_V2_ENABLED", v2_enabled),
+            patch("app.modules.robots.router.settings.ROBOTS_V2_ENABLED", v2_enabled),
             patch("app.modules.auth.package_service.user_has_tab", return_value=True),
         ):
             yield TestClient(app)
@@ -140,21 +140,21 @@ AUTH_HEADERS = {"Authorization": "Bearer test-token"}
 @pytest.mark.parametrize(
     ("method", "path", "json_body"),
     [
-        ("POST", "/api/v2/robots/data", {}),
-        ("POST", "/api/v2/robots/create", {"name": "R", "type": 2, "tokenId": 1, "config": {}}),
-        ("GET", "/api/v2/robots/1", None),
-        ("POST", "/api/v2/robots/delete", {"robotId": 1}),
-        ("POST", "/api/v2/robots/change_status", {"robotId": 1, "status": 0}),
-        ("POST", "/api/v2/robots/validate", {"type": 2, "config": {}}),
-        ("POST", "/api/v2/robots/audit", {"robotId": 1}),
-        ("GET", "/api/v2/robots/backtest/runs", None),
-        ("GET", "/api/v2/robots/1/status", None),
+        ("POST", "/api/robots/data", {}),
+        ("POST", "/api/robots/create", {"name": "R", "type": 2, "tokenId": 1, "config": {}}),
+        ("GET", "/api/robots/1", None),
+        ("POST", "/api/robots/delete", {"robotId": 1}),
+        ("POST", "/api/robots/change_status", {"robotId": 1, "status": 0}),
+        ("POST", "/api/robots/validate", {"type": 2, "config": {}}),
+        ("POST", "/api/robots/audit", {"robotId": 1}),
+        ("GET", "/api/robots/backtest/runs", None),
+        ("GET", "/api/robots/1/status", None),
     ],
 )
 def test_v2_routes_require_auth(method: str, path: str, json_body: dict | None) -> None:
     from app.main import app
 
-    with patch("app.modules.robots_v2.router.settings.ROBOTS_V2_ENABLED", True):
+    with patch("app.modules.robots.router.settings.ROBOTS_V2_ENABLED", True):
         client = TestClient(app)
         kwargs: dict[str, Any] = {}
         if json_body is not None:
@@ -166,7 +166,7 @@ def test_v2_routes_require_auth(method: str, path: str, json_body: dict | None) 
 
 def test_v2_disabled_returns_404(mock_user: User, mock_db: MagicMock) -> None:
     with _v2_client(mock_user, mock_db, v2_enabled=False) as client:
-        response = client.post("/api/v2/robots/data", json={}, headers=AUTH_HEADERS)
+        response = client.post("/api/robots/data", json={}, headers=AUTH_HEADERS)
 
     assert response.status_code == 404
     assert "ROBOTS_V2_ENABLED" in response.json()["detail"]
@@ -177,7 +177,7 @@ def test_delete_route_is_async_and_delegates_to_service(
     mock_db: MagicMock,
     mock_user: User,
 ) -> None:
-    from app.modules.robots_v2.router import delete_robot
+    from app.modules.robots.router import delete_robot
 
     assert inspect.iscoroutinefunction(delete_robot)
 
@@ -188,7 +188,7 @@ def test_delete_route_is_async_and_delegates_to_service(
         return_value={"id": 42, "deleted": True},
     ) as mock_delete:
         response = auth_client.post(
-            "/api/v2/robots/delete",
+            "/api/robots/delete",
             json={"robotId": 42},
             headers=AUTH_HEADERS,
         )
@@ -203,7 +203,7 @@ def test_change_status_route_is_async_and_delegates_to_service(
     mock_db: MagicMock,
     mock_user: User,
 ) -> None:
-    from app.modules.robots_v2.router import change_robot_status
+    from app.modules.robots.router import change_robot_status
 
     assert inspect.iscoroutinefunction(change_robot_status)
 
@@ -215,7 +215,7 @@ def test_change_status_route_is_async_and_delegates_to_service(
         return_value=robot,
     ) as mock_change:
         response = auth_client.post(
-            "/api/v2/robots/change_status",
+            "/api/robots/change_status",
             json={"robotId": 42, "status": 0, "stopMode": "hard"},
             headers=AUTH_HEADERS,
         )
@@ -250,7 +250,7 @@ def test_list_robots_delegates_to_service(auth_client: TestClient, mock_user: Us
         hasBrokerAccounts=True,
     )
     with patch.object(service.robots_v2_service, "list_robots", return_value=fleet) as mock_list:
-        response = auth_client.post("/api/v2/robots/data", json={}, headers=AUTH_HEADERS)
+        response = auth_client.post("/api/robots/data", json={}, headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     body = response.json()
@@ -264,7 +264,7 @@ def test_list_robots_delegates_to_service(auth_client: TestClient, mock_user: Us
 def test_get_robot_delegates_to_service(auth_client: TestClient, mock_user: User) -> None:
     robot = _robot_response(robot_id=5)
     with patch.object(service.robots_v2_service, "get_robot", return_value=robot) as mock_get:
-        response = auth_client.get("/api/v2/robots/5", headers=AUTH_HEADERS)
+        response = auth_client.get("/api/robots/5", headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     assert response.json()["id"] == 5
@@ -279,7 +279,7 @@ def test_audit_post_accepts_valid_payload_shape(auth_client: TestClient, mock_us
     }
     with patch.object(service.robots_v2_service, "query_audit", return_value=audit_payload) as mock_audit:
         response = auth_client.post(
-            "/api/v2/robots/audit",
+            "/api/robots/audit",
             json={"robotId": 42, "limit": 50, "types": ["sessions", "fills"]},
             headers=AUTH_HEADERS,
         )
@@ -299,11 +299,11 @@ def test_audit_post_accepts_valid_payload_shape(auth_client: TestClient, mock_us
 def test_backtest_list_runs_returns_200(auth_client: TestClient, mock_user: User) -> None:
     empty = RobotV2BacktestListResponse(items=[], total=0)
     with patch(
-        "app.modules.robots_v2.router.backtest_service.list_runs",
+        "app.modules.robots.router.backtest_service.list_runs",
         new_callable=AsyncMock,
         return_value=empty,
     ) as mock_list:
-        response = auth_client.get("/api/v2/robots/backtest/runs", headers=AUTH_HEADERS)
+        response = auth_client.get("/api/robots/backtest/runs", headers=AUTH_HEADERS)
 
     assert response.status_code == 200
     assert response.json()["total"] == 0
@@ -314,12 +314,12 @@ def test_backtest_list_runs_returns_200(auth_client: TestClient, mock_user: User
 def test_backtest_start_returns_202_when_enqueued(auth_client: TestClient, mock_user: User) -> None:
     rec = MagicMock(run_id=99)
     with patch(
-        "app.modules.robots_v2.router.backtest_service.start",
+        "app.modules.robots.router.backtest_service.start",
         new_callable=AsyncMock,
         return_value=(rec, True),
     ) as mock_start:
         response = auth_client.post(
-            "/api/v2/robots/backtest",
+            "/api/robots/backtest",
             json={
                 "config": _sample_trading_config(),
                 "from_date": "2025-01-01T00:00:00Z",
@@ -344,12 +344,12 @@ def test_backtest_status_returns_200(auth_client: TestClient, mock_user: User) -
         started_at=now,
     )
     with patch(
-        "app.modules.robots_v2.router.backtest_service.get_status",
+        "app.modules.robots.router.backtest_service.get_status",
         new_callable=AsyncMock,
         return_value=status_payload,
     ):
         response = auth_client.get(
-            "/api/v2/robots/backtest/runs/10/status",
+            "/api/robots/backtest/runs/10/status",
             headers=AUTH_HEADERS,
         )
 
@@ -370,12 +370,12 @@ def test_backtest_details_returns_200(auth_client: TestClient) -> None:
         total_return_percent=1.5,
     )
     with patch(
-        "app.modules.robots_v2.router.backtest_service.get_details",
+        "app.modules.robots.router.backtest_service.get_details",
         new_callable=AsyncMock,
         return_value=details,
     ):
         response = auth_client.get(
-            "/api/v2/robots/backtest/runs/11",
+            "/api/robots/backtest/runs/11",
             headers=AUTH_HEADERS,
         )
 
@@ -390,12 +390,12 @@ def test_backtest_compare_returns_200(auth_client: TestClient, mock_user: User) 
         compare_run_id=2,
     )
     with patch(
-        "app.modules.robots_v2.router.backtest_service.compare",
+        "app.modules.robots.router.backtest_service.compare",
         new_callable=AsyncMock,
         return_value=compare,
     ) as mock_compare:
         response = auth_client.post(
-            "/api/v2/robots/backtest/compare",
+            "/api/robots/backtest/compare",
             json={"baseRunId": 1, "compareRunId": 2},
             headers=AUTH_HEADERS,
         )
@@ -409,12 +409,12 @@ def test_backtest_compare_returns_200(auth_client: TestClient, mock_user: User) 
 def test_backtest_cancel_returns_200(auth_client: TestClient, mock_user: User) -> None:
     rec = MagicMock(run_id=7, status="cancelled")
     with patch(
-        "app.modules.robots_v2.router.backtest_service.cancel",
+        "app.modules.robots.router.backtest_service.cancel",
         new_callable=AsyncMock,
         return_value=rec,
     ) as mock_cancel:
         response = auth_client.post(
-            "/api/v2/robots/backtest/runs/7/cancel",
+            "/api/robots/backtest/runs/7/cancel",
             headers=AUTH_HEADERS,
         )
 
@@ -431,7 +431,7 @@ def test_refresh_universe_route_delegates_to_service(
     mock_db: MagicMock,
     mock_user: User,
 ) -> None:
-    from app.modules.robots_v2.router import refresh_robot_universe
+    from app.modules.robots.router import refresh_robot_universe
 
     assert inspect.iscoroutinefunction(refresh_robot_universe)
 
@@ -452,7 +452,7 @@ def test_refresh_universe_route_delegates_to_service(
         return_value=payload,
     ) as mock_refresh:
         response = auth_client.post(
-            "/api/v2/robots/42/refresh-universe",
+            "/api/robots/42/refresh-universe",
             headers=AUTH_HEADERS,
         )
 

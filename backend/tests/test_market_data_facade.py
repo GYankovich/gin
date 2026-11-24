@@ -10,7 +10,7 @@ from app.modules.trading_core.data import (
     CandlePrefetchStats,
     get_market_data_facade,
 )
-from app.modules.robots.trading.intervals import resolve_strategy_interval
+from app.modules.robot_lib.trading.intervals import resolve_strategy_interval
 
 
 def test_get_market_data_facade_singleton():

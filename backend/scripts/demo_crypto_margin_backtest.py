@@ -58,8 +58,8 @@ async def _bootstrap_from_sim_broker(
     log_func=None,
     **_
 ) -> None:
-    from app.modules.robots.trading.cache import get_candles_cache
-    from app.modules.robots.trading.indicators.service import indicator_service
+    from app.modules.robot_lib.trading.cache import get_candles_cache
+    from app.modules.robot_lib.trading.indicators.service import indicator_service
 
     interval = strategy_params.get("interval") or "1h"
     days = indicator_service._resolve_request_days(strategy_params, interval)
@@ -81,8 +81,8 @@ async def _on_closed_candle_no_db(
     strategy_params: Dict,
     **_
 ) -> None:
-    from app.modules.robots.trading.cache import get_candles_cache
-    from app.modules.robots.trading.indicators.service import BOOTSTRAP_INTERVAL, indicator_service
+    from app.modules.robot_lib.trading.cache import get_candles_cache
+    from app.modules.robot_lib.trading.indicators.service import BOOTSTRAP_INTERVAL, indicator_service
 
     interval = strategy_params.get("interval") or BOOTSTRAP_INTERVAL
     days = indicator_service._resolve_request_days(strategy_params, interval)
@@ -98,13 +98,13 @@ async def main() -> int:
     from unittest.mock import MagicMock, patch
 
     from app.core.config import settings
-    from app.modules.robots.trading.brokers.margin import liquidation_price_long
-    from app.modules.robots.trading.brokers.sim_backtest import SimBacktestBrokerFacade
-    from app.modules.robots.trading.contracts import ExecutionMode
-    from app.modules.robots.trading.costs import resolve_backtest_fee_model, resolve_backtest_sim_rates
-    from app.modules.robots.trading.indicators import service as ind_svc
-    from app.modules.robots.trading.runtime.orchestrator import build_allowed_figis_by_date
-    from app.modules.robots.trading.session_factory import create_trading_session
+    from app.modules.robot_lib.trading.brokers.margin import liquidation_price_long
+    from app.modules.robot_lib.trading.brokers.sim_backtest import SimBacktestBrokerFacade
+    from app.modules.robot_lib.trading.contracts import ExecutionMode
+    from app.modules.robot_lib.trading.costs import resolve_backtest_fee_model, resolve_backtest_sim_rates
+    from app.modules.robot_lib.trading.indicators import service as ind_svc
+    from app.modules.robot_lib.trading.runtime.orchestrator import build_allowed_figis_by_date
+    from app.modules.robot_lib.trading.session_factory import create_trading_session
 
     symbol = "BTCUSDT"
     candles = build_synthetic_btcusdt_series()
@@ -169,7 +169,7 @@ async def main() -> int:
     )
 
     mock_db = MagicMock()
-    with patch("app.modules.robots.trading.session.SessionLocal", return_value=mock_db):
+    with patch("app.modules.robot_lib.trading.session.SessionLocal", return_value=mock_db):
         session = create_trading_session(
             ExecutionMode.BACKTEST,
             db=mock_db,

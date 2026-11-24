@@ -1,4 +1,4 @@
-"""Preview Bybit screener universe for robots_v2 (like robot 3)."""
+"""Preview Bybit screener universe for robots (like robot 3)."""
 from __future__ import annotations
 
 import asyncio
@@ -10,7 +10,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.core.database import SessionLocal
-from app.modules.robots_v2.universe.service import UniverseService
+from app.modules.robots.universe.service import UniverseService
 
 UNIVERSE = {
     "mode": "screener",

@@ -18,10 +18,10 @@ os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
 from app.core.background_jobs.handlers import JOB_HANDLERS
-from app.modules.robots_v2.backtest.quotas import assert_can_enqueue_backtest
-from app.modules.robots_v2.backtest.schemas import RobotV2BacktestRequest
-from app.modules.robots_v2.backtest.service import BacktestService
-from app.modules.robots_v2.backtest.worker_handler import JOB_TYPE_BACKTEST_RUN
+from app.modules.robots.backtest.quotas import assert_can_enqueue_backtest
+from app.modules.robots.backtest.schemas import RobotV2BacktestRequest
+from app.modules.robots.backtest.service import BacktestService
+from app.modules.robots.backtest.worker_handler import JOB_TYPE_BACKTEST_RUN
 
 
 def _sample_config_dict() -> dict:
@@ -100,13 +100,13 @@ def test_start_enqueues_without_create_task():
 
     async def _run():
         with (
-            patch("app.modules.robots_v2.backtest.service.assert_can_enqueue_backtest"),
+            patch("app.modules.robots.backtest.service.assert_can_enqueue_backtest"),
             patch(
-                "app.modules.robots_v2.backtest.service.create_db_run",
+                "app.modules.robots.backtest.service.create_db_run",
                 return_value=501,
             ) as create_mock,
             patch(
-                "app.modules.robots_v2.backtest.service.enqueue_background_job",
+                "app.modules.robots.backtest.service.enqueue_background_job",
                 return_value="job-uuid",
             ) as enqueue_mock,
             patch.object(svc, "_execute") as execute_mock,
@@ -144,8 +144,8 @@ def test_start_requires_db_row():
 
     async def _run():
         with (
-            patch("app.modules.robots_v2.backtest.service.assert_can_enqueue_backtest"),
-            patch("app.modules.robots_v2.backtest.service.create_db_run", return_value=None),
+            patch("app.modules.robots.backtest.service.assert_can_enqueue_backtest"),
+            patch("app.modules.robots.backtest.service.create_db_run", return_value=None),
         ):
             await svc.start(db, user_id=1, request=request)
 
@@ -156,7 +156,7 @@ def test_start_requires_db_row():
 
 def test_quota_span_too_long():
     db = MagicMock()
-    with patch("app.modules.robots_v2.backtest.quotas.settings") as settings_mock:
+    with patch("app.modules.robots.backtest.quotas.settings") as settings_mock:
         settings_mock.COMPUTE_MAX_SPAN_DAYS = 30
         settings_mock.COMPUTE_MAX_USER_RUNNING = 1
         settings_mock.COMPUTE_MAX_USER_QUEUED = 10
@@ -174,9 +174,9 @@ def test_quota_span_too_long():
 def test_quota_user_running():
     db = MagicMock()
     with (
-        patch("app.modules.robots_v2.backtest.quotas.settings") as settings_mock,
+        patch("app.modules.robots.backtest.quotas.settings") as settings_mock,
         patch(
-            "app.modules.robots_v2.backtest.quotas.count_v2_runs_by_status",
+            "app.modules.robots.backtest.quotas.count_v2_runs_by_status",
             side_effect=[1, 0],
         ),
     ):
@@ -195,8 +195,8 @@ def test_quota_user_running():
 
 
 def test_handle_backtest_run_calls_execute():
-    from app.modules.robots_v2.backtest import worker_handler as wh
-    from app.modules.robots_v2.backtest.service import backtest_service
+    from app.modules.robots.backtest import worker_handler as wh
+    from app.modules.robots.backtest.service import backtest_service
 
     row = {
         "run_id": 77,
@@ -239,8 +239,8 @@ def test_handle_backtest_run_calls_execute():
 
 
 def test_handle_backtest_run_marks_failed_when_worker_cancelled():
-    from app.modules.robots_v2.backtest import worker_handler as wh
-    from app.modules.robots_v2.backtest.service import backtest_service
+    from app.modules.robots.backtest import worker_handler as wh
+    from app.modules.robots.backtest.service import backtest_service
 
     row = {
         "run_id": 77,

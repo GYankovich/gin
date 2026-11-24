@@ -11,7 +11,7 @@
 | Контур | FK робота | Audit-сделки | Статус |
 |--------|-----------|--------------|--------|
 | **Robots v1** | `robots.id` | `robot_trades`, `robot_signals`, `robot_run_cycles`, `robot_decisions` | Legacy, **v2 не пишет** |
-| **Robots v2** | `robots_v2.id` | `robots_v2_*` (6 таблиц ниже) | Актуальный audit store |
+| **Robots v2** | `robots.id` | `robots_v2_*` (6 таблиц ниже) | Актуальный audit store |
 
 Robots v2 — отдельный greenfield-контур. Таблицы v1 не переиспользуются и не мигрируются автоматически из файловых логов.
 
@@ -21,12 +21,12 @@ Robots v2 — отдельный greenfield-контур. Таблицы v1 не
 
 ```mermaid
 erDiagram
-  robots_v2 ||--o{ robots_v2_sessions : has
-  robots_v2_sessions ||--o{ robots_v2_cycles : has
-  robots_v2_cycles ||--o{ robots_v2_signals : has
-  robots_v2_cycles ||--o{ robots_v2_decisions : has
-  robots_v2_cycles ||--o{ robots_v2_orders : has
-  robots_v2_orders ||--o{ robots_v2_fills : has
+  robots ||--o{ robot_sessions : has
+  robot_sessions ||--o{ robot_cycles : has
+  robot_cycles ||--o{ robot_signals : has
+  robot_cycles ||--o{ robot_decisions : has
+  robot_cycles ||--o{ robot_orders : has
+  robot_orders ||--o{ robot_fills : has
 ```
 
 Иерархия: **сессия → цикл → (сигналы | решения | ордера → fills)**.
@@ -37,7 +37,7 @@ erDiagram
 
 Миграция: `0059_robots_v2_audit` (`down_revision=0058_moex_index_cache`).
 
-Код записи: `backend/app/modules/robots_v2/engine/audit.py` (`AuditStore`).  
+Код записи: `backend/app/modules/robots/engine/audit.py` (`AuditStore`).  
 Точки вызова:
 
 - `session.py` — старт/стоп сессии, skip-циклы, fire-and-forget persist после `run_trading_cycle`
@@ -47,14 +47,14 @@ erDiagram
 
 ---
 
-### `robots_v2_sessions`
+### `robot_sessions`
 
 Одна строка = один запуск робота (от Start до Stop/Error).
 
 | Колонка | Тип | Описание |
 |---------|-----|----------|
 | `id` | UUID PK | Audit session id (не путать с `session_id` в `run_trading_cycle`, там `robot_id`) |
-| `robot_id` | bigint FK → `robots_v2.id` | Робот |
+| `robot_id` | bigint FK → `robots.id` | Робот |
 | `mode` | varchar(16) | `paper` / `live` |
 | `virtual_capital` | numeric(20,4) | Стартовый капитал сессии |
 | `account_id` | varchar(64) | Брокерский счёт (live) |
@@ -68,14 +68,14 @@ erDiagram
 
 ---
 
-### `robots_v2_cycles`
+### `robot_cycles`
 
 Один торговый цикл (poll / bar_close / price_tick) или skip-цикл.
 
 | Колонка | Тип | Описание |
 |---------|-----|----------|
 | `id` | UUID PK | Стабильный `cycle_id` на весь pipeline |
-| `session_id` | UUID FK → `robots_v2_sessions.id` | Сессия |
+| `session_id` | UUID FK → `robot_sessions.id` | Сессия |
 | `robot_id` | bigint FK | Денормализация для фильтров |
 | `cycle_number` | int | Счётчик цикла в сессии |
 | `triggered_by` | varchar(32) | `poll`, `bar_close`, `price_tick` |
@@ -101,7 +101,7 @@ erDiagram
 
 ---
 
-### `robots_v2_signals`
+### `robot_signals`
 
 Сигналы **стратегии** (не SL/TP exits из risk).
 
@@ -125,7 +125,7 @@ erDiagram
 
 ---
 
-### `robots_v2_decisions`
+### `robot_decisions`
 
 Решения risk / strategy / schedule (allow / deny / skip).
 
@@ -152,7 +152,7 @@ erDiagram
 
 ---
 
-### `robots_v2_orders`
+### `robot_orders`
 
 Каждая попытка исполнения intent (paper и live — один путь через cycle).
 
@@ -179,14 +179,14 @@ erDiagram
 
 ---
 
-### `robots_v2_fills`
+### `robot_fills`
 
 Факт исполнения (только `status=filled`, qty>0, price>0).
 
 | Колонка | Тип | Описание |
 |---------|-----|----------|
 | `id` | UUID PK | |
-| `order_id` | UUID FK → `robots_v2_orders.id` | |
+| `order_id` | UUID FK → `robot_orders.id` | |
 | `robot_id` | bigint FK | |
 | `ticker` | varchar(32) | |
 | `side` | varchar(8) | |
@@ -213,7 +213,7 @@ erDiagram
 | Текстовый action log | Файл `logs/app/{date}/robots/trading_robot/id_{robotId}_{HH}-{HH}.log` |
 | HTTP к брокеру | `external_api_logs` (через `session_log.log_external_api`) |
 | Live события (stage, equity) | WebSocket `/v2/robots/{id}/stream`, in-memory `event_bus` |
-| Конфиг робота | `robots_v2.config`, история — `robot_config_history` |
+| Конфиг робота | `robots.config`, история — `robot_config_history` |
 
 Backfill из старых файловых логов в audit **не делается**.
 
@@ -230,7 +230,7 @@ sequenceDiagram
   participant DB as Postgres
 
   Sess->>Audit: audit_start_session
-  Audit->>DB: INSERT robots_v2_sessions
+  Audit->>DB: INSERT robot_sessions
 
   loop каждый wake
     Sess->>Cycle: run_trading_cycle(audit_session_id, cycle_id)
@@ -242,7 +242,7 @@ sequenceDiagram
   end
 
   Sess->>Audit: audit_end_session
-  Audit->>DB: UPDATE robots_v2_sessions SET ended_at
+  Audit->>DB: UPDATE robot_sessions SET ended_at
 ```
 
 ---
@@ -305,11 +305,11 @@ FK: `robot_id → robots.id`.
 | Файл | Роль |
 |------|------|
 | `alembic/versions/0059_robots_v2_audit.py` | DDL |
-| `backend/app/modules/robots_v2/engine/audit.py` | INSERT writer |
-| `backend/app/modules/robots_v2/engine/cycle.py` | Сбор bundle |
-| `backend/app/modules/robots_v2/engine/session.py` | Session start/stop, skip persist |
-| `backend/app/modules/robots_v2/audit_queries.py` | SELECT для REST |
-| `backend/app/modules/robots_v2/service.py` | `query_audit()` |
+| `backend/app/modules/robots/engine/audit.py` | INSERT writer |
+| `backend/app/modules/robots/engine/cycle.py` | Сбор bundle |
+| `backend/app/modules/robots/engine/session.py` | Session start/stop, skip persist |
+| `backend/app/modules/robots/audit_queries.py` | SELECT для REST |
+| `backend/app/modules/robots/service.py` | `query_audit()` |
 | `frontend/.../RobotV2MonitorPage.tsx` | Таблица «Сделки» (`types: ['fills']`) |
 
 ---

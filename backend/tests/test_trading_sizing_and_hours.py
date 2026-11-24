@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
-from app.modules.robots.config.risk_crypto import CryptoRiskConfig
-from app.modules.robots.trading.costs import calculate_position_size
-from app.modules.robots.trading.stages.stage6_orders import Stage6Orders
+from app.modules.robot_lib.config.risk_crypto import CryptoRiskConfig
+from app.modules.robot_lib.trading.costs import calculate_position_size
+from app.modules.robot_lib.trading.stages.stage6_orders import Stage6Orders
 
 
 def test_calculate_position_size_caps_by_portfolio_percent():

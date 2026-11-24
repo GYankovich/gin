@@ -18,7 +18,7 @@ os.environ.setdefault("DB_USER", "test")
 os.environ.setdefault("DB_PASSWORD", "test")
 os.environ.setdefault("SECRET_KEY", "test")
 
-from app.modules.robots_v2.backtest.persist import (
+from app.modules.robots.backtest.persist import (
     _bound_robot_id_from_run,
     _config_label_from_snapshot,
     _row_to_dict,
@@ -29,14 +29,14 @@ from app.modules.robots_v2.backtest.persist import (
     nullify_robot_soft_bind,
     trading_config_from_snapshot,
 )
-from app.modules.robots_v2.backtest.schemas import RobotV2BacktestSaveAsRobotRequest
-from app.modules.robots_v2.backtest.schemas import (
+from app.modules.robots.backtest.schemas import RobotV2BacktestSaveAsRobotRequest
+from app.modules.robots.backtest.schemas import (
     RobotV2BacktestListItem,
     RobotV2BacktestRequest,
 )
-from app.modules.robots_v2.backtest.service import BacktestService
-from app.modules.robots_v2.schemas import RobotV2Response
-from app.modules.robots_v2.service import RobotsV2Service
+from app.modules.robots.backtest.service import BacktestService
+from app.modules.robots.schemas import RobotV2Response
+from app.modules.robots.service import RobotsV2Service
 
 
 def _sample_config_dict() -> dict:
@@ -331,13 +331,13 @@ def test_start_orphan_without_robot_id():
 
     async def _run():
         with (
-            patch("app.modules.robots_v2.backtest.service.assert_can_enqueue_backtest"),
+            patch("app.modules.robots.backtest.service.assert_can_enqueue_backtest"),
             patch(
-                "app.modules.robots_v2.backtest.service.create_db_run",
+                "app.modules.robots.backtest.service.create_db_run",
                 return_value=901,
             ) as create_mock,
             patch(
-                "app.modules.robots_v2.backtest.service.enqueue_background_job",
+                "app.modules.robots.backtest.service.enqueue_background_job",
                 return_value="job-uuid",
             ) as enqueue_mock,
         ):
@@ -378,8 +378,8 @@ def test_save_as_robot_success_orphan_attach():
     )
 
     with (
-        patch("app.modules.robots_v2.backtest.service.fetch_db_run", return_value=run_row),
-        patch("app.modules.robots_v2.backtest.service.attach_backtest_run_to_robot") as attach_mock,
+        patch("app.modules.robots.backtest.service.fetch_db_run", return_value=run_row),
+        patch("app.modules.robots.backtest.service.attach_backtest_run_to_robot") as attach_mock,
         patch.object(RobotsV2Service, "create_or_update", return_value=created) as create_mock,
     ):
         out = svc.save_as_robot(
@@ -403,7 +403,7 @@ def test_save_as_robot_rejects_non_success():
     svc = BacktestService()
     db = MagicMock()
     with patch(
-        "app.modules.robots_v2.backtest.service.fetch_db_run",
+        "app.modules.robots.backtest.service.fetch_db_run",
         return_value={"status": "FAILED", "config_snapshot": _sample_config_dict()},
     ):
         with pytest.raises(HTTPException) as exc:
@@ -424,7 +424,7 @@ def test_save_as_robot_attach_conflict_when_bound():
         "robot_id": 13,
         "config_snapshot": {**_sample_config_dict(), "engine_version": "v2", "v2RobotId": 13},
     }
-    with patch("app.modules.robots_v2.backtest.service.fetch_db_run", return_value=run_row):
+    with patch("app.modules.robots.backtest.service.fetch_db_run", return_value=run_row):
         with pytest.raises(HTTPException) as exc:
             svc.save_as_robot(
                 db,
@@ -453,9 +453,9 @@ def test_delete_robot_nullifies_soft_bind():
 
     with (
         patch.object(service, "get_robot", return_value=robot),
-        patch("app.modules.robots_v2.engine.session_manager.session_manager") as sm,
+        patch("app.modules.robots.engine.session_manager.session_manager") as sm,
         patch(
-            "app.modules.robots_v2.backtest.persist.nullify_robot_soft_bind",
+            "app.modules.robots.backtest.persist.nullify_robot_soft_bind",
             return_value=2,
         ) as nullify,
     ):

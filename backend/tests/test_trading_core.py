@@ -6,7 +6,7 @@ import asyncio
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
-from app.modules.robots.trading.core import TradingCore, run_single_trading_cycle
+from app.modules.robot_lib.trading.core import TradingCore, run_single_trading_cycle
 
 
 def test_run_single_trading_cycle_no_prices_skips_signal_path():

@@ -6,10 +6,10 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from app.modules.robots_v2.config.v4_schema import TradingRobotConfigV4
-from app.modules.robots_v2.engine.cycle_sync import run_paper_cycle_sync
-from app.modules.robots_v2.engine.paper_ledger import PaperLedger
-from app.modules.robots_v2.risk.engine import RiskEngine
+from app.modules.robots.config.v4_schema import TradingRobotConfigV4
+from app.modules.robots.engine.cycle_sync import run_paper_cycle_sync
+from app.modules.robots.engine.paper_ledger import PaperLedger
+from app.modules.robots.risk.engine import RiskEngine
 from app.modules.trading_core.contracts import Candle, Signal
 from app.modules.trading_core.risk.manager import RiskDecision
 

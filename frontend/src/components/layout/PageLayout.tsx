@@ -1,4 +1,4 @@
-///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsLayoutPagelayout [1]
+﻿///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsLayoutPagelayout [1]
 ///@ Исходный модуль `frontend/src/components/layout/PageLayout.tsx` — автоматическая разметка для Obsidian Source Scanner.
 
 import React, { Suspense } from 'react'
@@ -8,6 +8,7 @@ import { MobileTabBar } from './MobileTabBar'
 import { api } from '@/services/api'
 import { authService } from '@/services/authService'
 import { useAuthStore } from '@/stores/authStore'
+import { useBackendStatusStore } from '@/stores/backendStatusStore'
 
 function PageFallback() {
     return (
@@ -21,6 +22,15 @@ export function PageLayout() {
     const [hasExpiredToken, setHasExpiredToken] = React.useState(false)
     const featuresLoaded = useAuthStore(s => s.featuresLoaded)
     const features = useAuthStore(s => s.features)
+    const backendEpoch = useBackendStatusStore(s => s.epoch)
+
+    React.useEffect(() => {
+        if (!featuresLoaded) return
+        document.documentElement.dataset.shell = 'app'
+        return () => {
+            delete document.documentElement.dataset.shell
+        }
+    }, [featuresLoaded])
 
     React.useEffect(() => {
         void authService.bootstrapSession().catch(() => {
@@ -63,7 +73,7 @@ export function PageLayout() {
     // Warm the robots fleet chunk so the first dock tap does not flash PageFallback.
     React.useEffect(() => {
         if (features.robots) {
-            void import('@/pages/robots-v2/RobotsV2FleetPage')
+            void import('@/pages/robots/RobotsFleetPage')
         }
     }, [features.robots])
 
@@ -77,7 +87,7 @@ export function PageLayout() {
             <main className="main-content">
                 {/* Keep shell mounted while lazy route chunks load (avoids full-page “refresh”). */}
                 <Suspense fallback={<PageFallback />}>
-                    <Outlet />
+                    <Outlet key={backendEpoch} />
                 </Suspense>
             </main>
             <MobileTabBar hasExpiredToken={hasExpiredToken} />

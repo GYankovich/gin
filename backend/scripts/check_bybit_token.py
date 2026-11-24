@@ -10,7 +10,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import SessionLocal
-from app.modules.robots.crypto_universe import _find_active_bybit_token
+from app.modules.robot_lib.crypto_universe import _find_active_bybit_token
 
 
 def main() -> int:

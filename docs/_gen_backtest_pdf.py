@@ -185,7 +185,7 @@ def main() -> None:
     body(
         pdf,
         "Документ для анализа реализации и пользовательского сценария. "
-        "Дата: 2026-10-02. Источник правды по продукту: robots_v2 (V2).",
+        "Дата: 2026-10-02. Источник правды по продукту: robots (V2).",
     )
     note(
         pdf,
@@ -201,9 +201,9 @@ def main() -> None:
         pdf,
         ["Слой", "Путь", "Роль"],
         [
-            ["V2 façade", "robots_v2/backtest/*", "Enqueue, квоты, status, persist, worker"],
+            ["V2 façade", "robots/backtest/*", "Enqueue, квоты, status, persist, worker"],
             ["Sim host", "…/backtest/host.py", "Bar replay через paper cycle"],
-            ["Shared live core", "robots_v2/engine|risk|strategy", "Тот же цикл/риск/стратегия"],
+            ["Shared live core", "robots/engine|risk|strategy", "Тот же цикл/риск/стратегия"],
             ["Shared helpers", "trading_core + session_backtest", "Live/smoke replay helpers (не prod UI)"],
             ["Prefetch", "trading_core/data/providers", "MOEX snapshots / Bybit candles"],
             ["Queue", "core/background_jobs", "lane=heavy, job_type=backtest_run"],
@@ -298,7 +298,7 @@ def main() -> None:
         pdf,
         ["Concern", "Live", "Backtest V2"],
         [
-            ["Config", "V4 на robots_v2", "Тот же snapshot в request/БД"],
+            ["Config", "V4 на robots", "Тот же snapshot в request/БД"],
             ["Strategy", "StrategyRuntime plugins", "Те же; scalper blocked"],
             ["Risk", "RiskEngine", "Тот же"],
             ["Cycle", "async run_trading_cycle", "sync run_paper_cycle_sync"],
@@ -385,9 +385,9 @@ def main() -> None:
     )
 
     h2(pdf, "10. Ключевые файлы")
-    bullet(pdf, "robots_v2/backtest/{service,host,persist,universe_schedule,funding,worker_handler}.py")
-    bullet(pdf, "robots_v2/universe/{service,historical_dms,board_as_of}.py")
-    bullet(pdf, "robots_v2/engine/{cycle_sync,session,paper_ledger}.py")
+    bullet(pdf, "robots/backtest/{service,host,persist,universe_schedule,funding,worker_handler}.py")
+    bullet(pdf, "robots/universe/{service,historical_dms,board_as_of}.py")
+    bullet(pdf, "robots/engine/{cycle_sync,session,paper_ledger}.py")
     bullet(pdf, "frontend/src/pages/robots-v2/RobotV2BacktestPage.tsx")
     bullet(pdf, "frontend/src/modules/robots/shared/*")
     bullet(pdf, "docs/ARCH-05 · BRD-ARCH-02")

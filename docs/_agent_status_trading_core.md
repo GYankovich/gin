@@ -11,8 +11,8 @@ Updated: 2026-09-29 (later)
    - market data + OsEngine prefetch helper
    - sim (BrokerEmulator, metrics, types) + run logging
    - cancel helpers also in `trading_core.cancel`
-2. Shims on old `robots.trading.*` / `robots_v2.backtest.cancel`.
-3. `robots_v2` retargeted to `trading_core`.
+2. Shims on old `robots.trading.*` / `robots.backtest.cancel`.
+3. `robots` retargeted to `trading_core`.
 4. Fixed rebind_capital test (budget cap).
 
 ## Known debt (leave for review with you)
