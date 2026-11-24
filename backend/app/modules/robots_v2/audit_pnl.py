@@ -324,6 +324,49 @@ def build_round_trips(
     return trips
 
 
+def _parse_trip_ts(value: Any) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def filter_round_trips_by_range(
+    trips: list[dict[str, Any]],
+    *,
+    from_at: datetime | None = None,
+    to_at: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """Keep trips whose close (or open) time falls in half-open [from_at, to_at)."""
+    if from_at is None and to_at is None:
+        return trips
+    out: list[dict[str, Any]] = []
+    for trip in trips:
+        ts = _parse_trip_ts(trip.get("sellAt") or trip.get("sell_at") or trip.get("buyAt") or trip.get("buy_at"))
+        if ts is None:
+            continue
+        if from_at is not None and ts < from_at:
+            continue
+        if to_at is not None and ts >= to_at:
+            continue
+        out.append(trip)
+    return out
+
+
 def _listed_sell_price(order: dict[str, Any] | None) -> float | None:
     if not order:
         return None

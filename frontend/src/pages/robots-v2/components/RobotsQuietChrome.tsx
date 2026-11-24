@@ -72,6 +72,7 @@ function statusBadge(
     return { label: sessionStateLabel(sessionState), variant: 'neutral' }
 }
 
+/** Cycle phase track — Live only; prefer WebSocket `stage`, seed from status until first event. */
 function PhaseTrack({
     status,
     statusLoaded,
@@ -85,9 +86,9 @@ function PhaseTrack({
 }) {
     const sessionState = String(pick(status || ({} as RobotV2Status), 'sessionState', 'session_state') || '')
     const sessionUpper = sessionState.toUpperCase()
-    const isRunning = sessionUpper === 'RUNNING' || sessionUpper === 'BOOTSTRAP'
-    const isStopping = sessionUpper === 'STOPPING'
-    const isActive = isRunning || isStopping
+    const isActive = sessionUpper === 'RUNNING'
+        || sessionUpper === 'BOOTSTRAP'
+        || sessionUpper === 'STOPPING'
     const statusStage = pick<string>(status || ({} as RobotV2Status), 'cycleStage', 'cycle_stage')
     const statusProgress = pick<number>(status || ({} as RobotV2Status), 'cycleProgress', 'cycle_progress')
 
@@ -104,10 +105,9 @@ function PhaseTrack({
         )),
     )
     const stagePct = Math.round(stageProgress * 100)
-    const show = statusLoaded && Boolean(stageText)
     const stageIndex = CYCLE_STAGE_ORDER.indexOf(stageKey as typeof CYCLE_STAGE_ORDER[number])
 
-    if (!show) return null
+    if (!statusLoaded || !stageText) return null
 
     return (
         <div className="robots-monitor-phase">
@@ -235,12 +235,6 @@ export function RobotsQuietChrome({
                 </div>
                 {actions ? <div className="robots-quiet-chrome__actions">{actions}</div> : null}
             </div>
-            <PhaseTrack
-                status={status}
-                statusLoaded={Boolean(statusLoaded)}
-                liveStage={liveStage}
-                phaseNote={phaseNote}
-            />
             {!isNarrow ? (
                 <nav className="robots-quiet-chrome__nav" aria-label="Разделы робота">
                     {tab('Лайв', `/robots/${robotId}/monitor`, active === 'monitor')}
@@ -249,6 +243,14 @@ export function RobotsQuietChrome({
             ) : (
                 <RobotMobileSubnav items={navItems} active={active} />
             )}
+            {active === 'monitor' ? (
+                <PhaseTrack
+                    status={status}
+                    statusLoaded={Boolean(statusLoaded)}
+                    liveStage={liveStage}
+                    phaseNote={phaseNote}
+                />
+            ) : null}
         </header>
     )
 }

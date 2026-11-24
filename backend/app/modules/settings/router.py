@@ -30,7 +30,6 @@ async def create_api_key(
             token=key_data.token,
             key_type=key_data.key_type,
             name=key_data.name,
-            refresh_interval_minutes=int(key_data.refresh_interval_minutes or 60),
             extra_data={
                 "token_secret": key_data.token_secret,
                 "testnet": key_data.testnet,
@@ -149,14 +148,13 @@ async def update_api_key(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
 ):
-    """Обновление названия / статуса / интервала обновления ключа."""
+    """Обновление названия или статуса ключа."""
     updated = service.api_key_service.update_key(
         db=db,
         key_id=key_id,
         user_id=current_user.id,
         name=key_data.name,
         status=key_data.status,
-        refresh_interval_minutes=key_data.refresh_interval_minutes,
     )
     if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="API key not found")

@@ -11,6 +11,7 @@ def build_get_active_portfolio_v2_robots_query(*, schema: str = "public") -> str
             r.user_id,
             r.token_id,
             at.token AS token_value,
+            at.token_secret,
             da.string_value AS broker_type,
             at.extra_data AS token_extra_data,
             at.token_type

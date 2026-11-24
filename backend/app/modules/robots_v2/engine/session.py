@@ -1206,7 +1206,7 @@ class TradingSessionV2:
                     preferred = load_token_account_id(self.token_id, self.user_id)
                 started_acc = datetime.now(timezone.utc)
                 account_id = await resolve_account_id(broker, preferred)
-                if account_id:
+                if account_id and not preferred:
                     persist_token_account_id(
                         user_id=self.user_id,
                         token_id=self.token_id,

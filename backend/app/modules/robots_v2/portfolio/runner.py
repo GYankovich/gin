@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.secret_box import open_broker_material
 from app.modules.trading_core.brokers.routing import enforce_broker_for_token
 from app.modules.robots.portfolio_updater.robot import PortfolioUpdaterRobot
 from app.modules.robots_v2.portfolio.queries import (
@@ -62,7 +63,7 @@ async def run_portfolio_sync_v2(db: Session, payload: dict[str, Any]) -> dict[st
         text(
             f"""
             SELECT r.id, r.user_id, r.token_id, r.config, r.last_started,
-                   at.token AS token_value, at.extra_data, at.token_type,
+                   at.token AS token_value, at.token_secret, at.extra_data, at.token_type,
                    da.string_value AS broker_type
             FROM {schema}.robots_v2 r
             INNER JOIN {schema}.api_tokens at ON r.token_id = at.id
@@ -97,7 +98,11 @@ async def run_portfolio_sync_v2(db: Session, payload: dict[str, Any]) -> dict[st
         mutate=False,
         require_token=True,
     )
-    token_extra = row.extra_data if isinstance(row.extra_data, dict) else payload.get("token_extra_data") or {}
+    plain_token, token_extra = open_broker_material(
+        row.token_value or payload.get("token"),
+        row.token_secret,
+        row.extra_data if isinstance(row.extra_data, dict) else payload.get("token_extra_data") or {},
+    )
 
     updater = PortfolioUpdaterRobot("scheduler-v2")
     updater.db = db
@@ -106,7 +111,7 @@ async def run_portfolio_sync_v2(db: Session, payload: dict[str, Any]) -> dict[st
             robot_id=int(row.id),
             user_id=int(row.user_id),
             token_id=int(row.token_id),
-            token=str(row.token_value or payload.get("token") or ""),
+            token=plain_token,
             broker_type=broker_type,
             token_extra_data=token_extra,
             caller="scheduler",

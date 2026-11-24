@@ -23,11 +23,10 @@ def main() -> int:
         row = db.execute(
             text(
                 f"""
-                SELECT id, user_id, token_type, is_active, created_at,
+                SELECT id, user_id, token_type, status, created_at,
                        extra_data,
                        CASE WHEN token IS NOT NULL AND length(token::text) > 0 THEN true ELSE false END AS has_token,
-                       CASE WHEN extra_data ? 'token_secret'
-                            AND length(COALESCE(extra_data->>'token_secret','')) > 0 THEN true ELSE false END AS has_secret
+                       CASE WHEN token_secret IS NOT NULL AND length(token_secret) > 0 THEN true ELSE false END AS has_secret
                 FROM api_tokens
                 WHERE id = :tid
                 """

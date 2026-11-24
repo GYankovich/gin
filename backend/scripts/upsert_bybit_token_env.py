@@ -9,6 +9,7 @@ import sys
 from sqlalchemy import text
 
 from app.core.config import settings
+from app.core.secret_box import seal
 from app.core.database import SessionLocal
 
 
@@ -27,7 +28,7 @@ def main() -> int:
         row = db.execute(
             text(
                 f"""
-                SELECT id, user_id, token_type, is_active
+                SELECT id, user_id, token_type, status
                 FROM api_tokens
                 WHERE id = :tid
                 """
@@ -38,20 +39,24 @@ def main() -> int:
             print(f"Token id={token_id} not found", file=sys.stderr)
             return 1
 
-        extra = json.dumps({"token_secret": api_secret, "testnet": testnet}, ensure_ascii=False)
+        extra = json.dumps({"testnet": testnet}, ensure_ascii=False)
         db.execute(
             text(
-                f"""
+                """
                 UPDATE api_tokens
                 SET token = :token,
-                    token_type = 'bybit',
-                    is_active = 1,
-                    extra_data = CAST(:extra AS jsonb),
+                    token_secret = :token_secret,
+                    extra_data = COALESCE(extra_data, '{}'::jsonb) || CAST(:extra AS jsonb) - 'token_secret' - 'api_secret',
                     updated_at = NOW()
                 WHERE id = :tid
                 """
             ),
-            {"token": api_key, "extra": extra, "tid": token_id},
+            {
+                "token": seal(api_key),
+                "token_secret": seal(api_secret),
+                "extra": extra,
+                "tid": token_id,
+            },
         )
         db.commit()
         print(f"updated api_tokens.id={token_id} user_id={row['user_id']} testnet={testnet}")

@@ -18,7 +18,6 @@ export interface ApiKey {
     status_description?: string | null;
     created_at: string;
     masked_token: string;
-    refresh_interval_minutes?: number;
     last_used_at?: string | null;
 }
 
@@ -32,13 +31,11 @@ export interface ApiKeyCreate {
     token: string;
     token_type: TokenTypeInfo;
     name?: string | null;
-    refresh_interval_minutes?: number;
 }
 
 export interface ApiKeyUpdate {
     name?: string | null;
     status?: number | null;
-    refresh_interval_minutes?: number;
 }
 
 export interface ApiKeyListResponse {

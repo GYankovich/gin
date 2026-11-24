@@ -121,6 +121,7 @@ class UserOut(BaseModel):
     """Схема для публичных данных пользователя"""
     id: int
     login: str
+    status: int = 1
     email: Optional[str] = None
     phone: Optional[str] = None
     created_at: Optional[datetime] = None

@@ -262,6 +262,8 @@ def build_list_decisions_query(
     limit: int,
     offset: int = 0,
     session_id: UUID | None = None,
+    from_at: datetime | None = None,
+    to_at: datetime | None = None,
     schema: str = "public",
 ) -> tuple[str, dict[str, Any]]:
     params: dict[str, Any] = {
@@ -281,6 +283,8 @@ def build_list_decisions_query(
         params["session_id"] = session_id
     else:
         session_filter = ""
+    range_filter, range_params = _range_clause("d.created_at", from_at, to_at)
+    params.update(range_params)
 
     query = f"""
         SELECT
@@ -298,6 +302,7 @@ def build_list_decisions_query(
         JOIN {schema}.robots_v2 r ON r.id = d.robot_id
         WHERE d.robot_id = :robot_id AND r.user_id = :user_id
         {session_filter}
+        {range_filter}
         ORDER BY d.created_at DESC
         LIMIT :limit OFFSET :offset
     """
@@ -309,6 +314,8 @@ def build_count_decisions_query(
     robot_id: int,
     user_id: int,
     session_id: UUID | None = None,
+    from_at: datetime | None = None,
+    to_at: datetime | None = None,
     schema: str = "public",
 ) -> tuple[str, dict[str, Any]]:
     params: dict[str, Any] = {"robot_id": robot_id, "user_id": user_id}
@@ -323,12 +330,15 @@ def build_count_decisions_query(
         params["session_id"] = session_id
     else:
         session_filter = ""
+    range_filter, range_params = _range_clause("d.created_at", from_at, to_at)
+    params.update(range_params)
     query = f"""
         SELECT COUNT(*) AS cnt
         FROM {schema}.robots_v2_decisions d
         JOIN {schema}.robots_v2 r ON r.id = d.robot_id
         WHERE d.robot_id = :robot_id AND r.user_id = :user_id
         {session_filter}
+        {range_filter}
     """
     return query, params
 

@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.logging_config import get_logger
+from app.core.secret_box import open_secret
 from app.modules.robots.trading import queries as trading_queries
 
 logger = get_logger(__name__)
@@ -70,7 +71,7 @@ class Stage1Collect:
                     "user_id": row[1],
                     "token_id": row[2],
                     "config": row[3] or {},
-                    "token": row[4],
+                    "token": open_secret(row[4]),
                     "schedule_type": row[5],
                     "interval_seconds": row[6],
                     "start_time": row[7],

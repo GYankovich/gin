@@ -413,7 +413,7 @@ class RobotV2AuditRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     robot_id: int = Field(..., alias="robotId", ge=1)
-    limit: int = Field(default=100, ge=1, le=500)
+    limit: int = Field(default=100, ge=1, le=5000)
     offset: int = Field(default=0, ge=0)
     session_id: str | None = Field(default=None, alias="sessionId")
     from_at: datetime | None = Field(

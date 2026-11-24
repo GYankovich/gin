@@ -1,0 +1,210 @@
+{
+  "main": {
+    "id": "9d81bf54249cf815",
+    "type": "split",
+    "children": [
+      {
+        "id": "81fb829c0d657d68",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "13f652bb1f33bfa5",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "docs/db/gin-db-er-flowchart.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "gin-db-er-flowchart"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "0071368076a7b89d",
+    "type": "split",
+    "children": [
+      {
+        "id": "3067b2cab451b3f2",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "8a24f627e1aca79c",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Файловый менеджер"
+            }
+          },
+          {
+            "id": "3886a1f7c58311a7",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Поиск"
+            }
+          },
+          {
+            "id": "f47e24042d07d1d2",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-bookmark",
+              "title": "Закладки"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "52ed7462de7cffe6",
+    "type": "split",
+    "children": [
+      {
+        "id": "2f0fd2780af7da76",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "c51f72c7ab61c6ff",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "docs/db/gin-db-er-flowchart.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Обратные ссылки"
+            }
+          },
+          {
+            "id": "c57cf3f7d6ca859e",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "docs/db/gin-db-er-flowchart.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Исходящие ссылки"
+            }
+          },
+          {
+            "id": "7c9006780dd32138",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Теги"
+            }
+          },
+          {
+            "id": "a20901da3a258e59",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "Все свойства"
+            }
+          },
+          {
+            "id": "ce1a3adb7cc401e5",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "docs/db/gin-db-er-flowchart.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Структура"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Меню быстрого перехода": false,
+      "graph:Граф": false,
+      "canvas:Создать новый холст": false,
+      "daily-notes:Сегодняшняя заметка": false,
+      "templates:Вставить шаблон": false,
+      "command-palette:Открыть палитру команд": false,
+      "bases:Создать новую базу": false
+    }
+  },
+  "active": "13f652bb1f33bfa5",
+  "lastOpenFiles": [
+    "docs/db/Текущая база данных.md",
+    "docs/db/gin-db-er-flowchart.md",
+    "docs/db/_build_mermaid_er.py",
+    "docs/db/gin-db-mirrors-list.png",
+    "docs/db/gin-db-full-er.dot",
+    "docs/db/gin-db-full-er.png",
+    "docs/db/_render_full_er.py",
+    "docs/db/gin-db-blocks-print.png",
+    "docs/db/GIN-база-по-блокам.png",
+    "docs/db/_render_db_blocks_print.py",
+    "backend/scripts/_check_seal.py",
+    "alembic/versions/__pycache__/0089_user_modified_at_token_secret.cpython-314.pyc",
+    "logs/app/2026-11-24/robots/trading_robot/id_1_16-20.log",
+    "backend/app/core/__pycache__/secret_box.cpython-314.pyc",
+    "backend/tests/__pycache__/test_secret_box.cpython-314-pytest-9.1.1.pyc",
+    "backend/tests/test_secret_box.py"
+  ]
+}

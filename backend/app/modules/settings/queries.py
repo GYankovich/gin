@@ -8,19 +8,17 @@ from typing import Optional, Dict, Any, List
 def build_check_existing_token_query() -> str:
     """Проверка существования активного токена"""
     return """
-           SELECT id FROM api_tokens
-           WHERE token = :token AND status = 1
-               LIMIT 1 \
+           SELECT token FROM api_tokens
+           WHERE status = 1 \
            """
 
 
 def build_check_existing_token_by_user_query() -> str:
     """Проверка существования токена у конкретного пользователя"""
     return """
-           SELECT id, name, token_type, status, created_at
+           SELECT token
            FROM api_tokens
            WHERE user_id = :user_id
-             AND token = :token
              AND status = 1 \
            """
 
@@ -48,10 +46,10 @@ def build_create_api_key_query() -> str:
     """Создание нового API ключа"""
     return """
            INSERT INTO api_tokens
-           (user_id, token, token_type, name, status, created_at, refresh_interval_minutes, extra_data)
+           (user_id, token, token_secret, token_type, name, status, created_at, extra_data)
            VALUES
-               (:user_id, :token, :key_type, :name, 1, :created_at, :refresh_interval_minutes, CAST(:extra_data AS jsonb))
-               RETURNING id, name, token_type, status, created_at, refresh_interval_minutes, token, extra_data \
+               (:user_id, :token, :token_secret, :key_type, :name, 1, :created_at, CAST(:extra_data AS jsonb))
+               RETURNING id, name, token_type, status, created_at, token, token_secret, extra_data \
            """
 
 def build_count_user_keys_query(
@@ -95,7 +93,7 @@ def build_get_user_keys_query(
                         a.status,
                         a.created_at,
                         a.token,
-                        a.refresh_interval_minutes,
+                        a.token_secret,
                         a.extra_data,
                         d.name as type_name,
                         d.description as type_description,
@@ -139,6 +137,7 @@ def build_get_key_by_id_query() -> str:
                name,
                token_type,
                token,
+               token_secret,
                status,
                created_at,
                updated_at,
@@ -170,13 +169,12 @@ def build_update_key_query(
                  UPDATE api_tokens
                  SET {updates}, updated_at = :now
                  WHERE id = :key_id AND user_id = :user_id
-                     RETURNING id, name, token_type, status, created_at, refresh_interval_minutes, token, extra_data \
+                     RETURNING id, name, token_type, status, created_at, token, token_secret, extra_data \
                  """
 
     field_mapping = {
         "name": "name = :name",
         "status": "status = :status",
-        "refresh_interval_minutes": "refresh_interval_minutes = :refresh_interval_minutes"
     }
 
     updates = [field_mapping[f] for f in fields if f in field_mapping]
@@ -226,9 +224,9 @@ def build_get_token_by_value_query() -> str:
                token_type,
                name,
                status,
-               refresh_interval_minutes
+               token
            FROM api_tokens
-           WHERE token = :token AND status = 1 \
+           WHERE status = 1 \
            """
 
 
@@ -240,7 +238,6 @@ def build_get_tokens_by_type_query() -> str:
                user_id,
                token,
                name,
-               refresh_interval_minutes,
                last_used_at
            FROM api_tokens
            WHERE token_type = :token_type AND status = 1

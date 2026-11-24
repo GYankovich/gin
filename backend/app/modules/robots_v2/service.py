@@ -23,6 +23,7 @@ from app.modules.robots_v2.audit_pnl import (
     build_round_trips,
     enrich_fills_realized_pnl,
     enrich_round_trips_with_signals,
+    filter_round_trips_by_range,
 )
 from app.modules.robots_v2.config.v4_schema import CONFIG_VERSION_V4
 from app.modules.robots_v2.schemas import (
@@ -50,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 _IDLE_BROKER_CACHE: dict[int, tuple[float, dict[str, Any]]] = {}
 _IDLE_BROKER_CACHE_TTL_SEC = 20.0
-# get_accounts + portfolio can exceed 6s under rate limits; prefer cached account_id.
+# get_accounts + portfolio can exceed 6s under rate limits; prefer the linked account.
 _IDLE_BROKER_FETCH_TIMEOUT_SEC = 12.0
 
 
@@ -1220,6 +1221,8 @@ class RobotsV2Service:
         limit: int,
         offset: int,
         session_id: UUID | None,
+        from_at: datetime | None = None,
+        to_at: datetime | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
         query, params = audit_queries.build_list_decisions_query(
             robot_id=robot_id,
@@ -1227,12 +1230,16 @@ class RobotsV2Service:
             limit=limit,
             offset=offset,
             session_id=session_id,
+            from_at=from_at,
+            to_at=to_at,
             schema=self.schema,
         )
         count_q, count_p = audit_queries.build_count_decisions_query(
             robot_id=robot_id,
             user_id=user_id,
             session_id=session_id,
+            from_at=from_at,
+            to_at=to_at,
             schema=self.schema,
         )
         rows = db.execute(text(query), params).fetchall()
@@ -1456,9 +1463,12 @@ class RobotsV2Service:
         limit: int,
         offset: int,
         session_id: UUID | None,
+        from_at: datetime | None = None,
+        to_at: datetime | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
+        # FIFO needs history before `from`; cap at `to` for efficiency.
         timeline = self._audit_fills_all_chronological(
-            db, user_id=user_id, robot_id=robot_id, session_id=session_id,
+            db, user_id=user_id, robot_id=robot_id, session_id=session_id, to_at=to_at,
         )
         orders_by_id = self._audit_orders_by_id(
             db, user_id=user_id, robot_id=robot_id, session_id=session_id,
@@ -1489,13 +1499,14 @@ class RobotsV2Service:
             tax_rate=tax,
         )
         all_trips = enrich_round_trips_with_signals(all_trips, signals)
+        all_trips = filter_round_trips_by_range(all_trips, from_at=from_at, to_at=to_at)
         total = len(all_trips)
         return all_trips[offset : offset + limit], total
 
     def query_audit(self, db: Session, user_id: int, request: RobotV2AuditRequest) -> dict[str, Any]:
         self.get_robot(db, user_id, request.robot_id)
         types = request.types or list(audit_queries.AUDIT_TYPES)
-        limit = min(max(request.limit, 1), 500)
+        limit = min(max(request.limit, 1), 5000)
         offset = max(request.offset, 0)
         session_id: UUID | None = None
         if request.session_id:
@@ -1556,6 +1567,7 @@ class RobotsV2Service:
             items, total = self._audit_decisions(
                 db, user_id=user_id, robot_id=request.robot_id,
                 limit=limit, offset=offset, session_id=session_id,
+                from_at=from_at, to_at=to_at,
             )
             payload["decisions"] = {"items": items, "total": total}
         if "signals" in types:
@@ -1575,6 +1587,7 @@ class RobotsV2Service:
             items, total = self._audit_round_trips(
                 db, user_id=user_id, robot_id=request.robot_id,
                 limit=limit, offset=offset, session_id=session_id,
+                from_at=from_at, to_at=to_at,
             )
             payload["roundTrips"] = {"items": items, "total": total}
         return payload

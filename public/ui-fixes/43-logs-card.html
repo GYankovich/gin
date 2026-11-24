@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>История — card / table</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  html[data-theme='light'] {
+    --bg: #f4f5f7;
+    --page: #ffffff;
+    --panel: #f7f8fa;
+    --elevated: #eef0f3;
+    --text: #1c1f24;
+    --secondary: #3d4450;
+    --muted: #6b7280;
+    --border: rgba(20, 24, 30, 0.1);
+    --line: rgba(20, 24, 30, 0.16);
+    --up: #1f8a4c;
+    --down: #c43b4a;
+    --picker: #fff;
+    --seg: #e8eaee;
+    --seg-on: #1c1f24;
+    --seg-on-fg: #fff;
+  }
+  html[data-theme='light'] body { background: var(--bg); }
+  .theme-btn {
+    border: 1px solid var(--border); background: transparent; color: var(--secondary);
+    border-radius: 10px; padding: 8px 12px; font-size: 13px;
+  }
+  .thesis { margin: 0 0 18px; max-width: 78ch; color: var(--secondary); font-size: 14px; line-height: 1.5; }
+  .thesis strong { color: var(--text); }
+  .section { margin-bottom: 30px; }
+  .section h2 { margin: 0 0 4px; font-size: 16px; font-weight: 650; }
+  .section .lead { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+  .frame {
+    background: var(--page);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 10px 28px rgba(0,0,0,.06);
+    margin-bottom: 14px;
+  }
+  .frame-label {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    font-size: 12px; color: var(--muted);
+  }
+  .frame-label strong { color: var(--text); font-weight: 650; }
+  .tag {
+    display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px;
+    background: rgba(42,122,155,0.12); color: #2a7a9b; font-size: 10px; font-weight: 650;
+  }
+  .pad { padding: 14px 16px 16px; background: var(--bg); }
+  .note {
+    margin: 8px 0 0; font-size: 12px; color: var(--secondary); line-height: 1.45;
+  }
+  .note strong { color: var(--text); }
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr; gap: 14px;
+  }
+  @media (min-width: 1100px) {
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* shared chrome crumbs */
+  .toolbar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 10px 12px; margin-bottom: 10px;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--panel);
+  }
+  .seg { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--seg); gap: 2px; }
+  .seg span { padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: 550; color: var(--secondary); }
+  .seg span.on { background: var(--seg-on); color: var(--seg-on-fg); }
+  .muted { color: var(--muted); }
+  .mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .up { color: var(--up); }
+  .down { color: var(--down); }
+  .tk { font-weight: 650; }
+
+  /* card shell */
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel);
+    padding: 12px 14px;
+  }
+  .head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin-bottom: 8px;
+  }
+  .head h3 { margin: 0; font-size: 15px; font-weight: 650; }
+  .hint { color: var(--muted); font-weight: 400; font-size: 12px; }
+
+  /* A: DataTable style */
+  .dt { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .dt th {
+    text-align: left; padding: 8px 10px; font-size: 10px; letter-spacing: 0.05em;
+    text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border);
+    font-weight: 550;
+  }
+  .dt td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .dt tr:last-child td { border-bottom: 0; }
+  .dt tr.is-selected td { background: rgba(42,122,155,0.08); }
+  .dt tr.clickable { cursor: pointer; }
+  .scroll { max-height: 220px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--page); }
+
+  /* B: monitor blotter */
+  .blotter { border: 1px solid var(--border); border-radius: 10px; background: var(--page); overflow: hidden; }
+  .blotter table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .blotter thead th {
+    position: sticky; top: 0; background: var(--elevated);
+    text-align: left; padding: 7px 10px; font-size: 10px; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--muted); font-weight: 550;
+    border-bottom: 1px solid var(--border);
+  }
+  .blotter td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .blotter tr:last-child td { border-bottom: 0; }
+  .blotter .num { text-align: right; }
+  .sub { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .body-scroll { max-height: 200px; overflow: auto; }
+
+  /* C: headless */
+  .card--flush-head { padding-top: 10px; }
+
+  /* D: denser */
+  .dt--dense th, .dt--dense td { padding: 5px 8px; }
+  .dt--dense { font-size: 12px; }
+
+  /* E: split context */
+  .split {
+    display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px;
+  }
+  @media (max-width: 900px) {
+    .split { grid-template-columns: 1fr; }
+  }
+  .ctx {
+    border: 1px solid var(--border); border-radius: 10px; background: var(--page);
+    padding: 10px 12px; font-size: 12px;
+  }
+  .ctx h4 { margin: 0 0 8px; font-size: 13px; }
+  .ctx dl { display: grid; gap: 6px; margin: 0; }
+  .ctx dt { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  .ctx dd { margin: 0; }
+  .payload {
+    margin: 6px 0 0; padding: 8px; border-radius: 8px; background: var(--elevated);
+    border: 1px solid var(--border); white-space: pre-wrap; font-size: 11px; color: var(--secondary);
+  }
+
+  /* empty */
+  .empty { margin: 8px 0 2px; font-size: 13px; color: var(--muted); }
+  .empty b { color: var(--secondary); font-weight: 550; }
+  .empty-sub { margin: 4px 0 0; font-size: 12px; color: var(--muted); opacity: 0.9; }
+
+  /* mobile rows */
+  .mlist { display: flex; flex-direction: column; gap: 8px; }
+  .mrow {
+    border: 1px solid var(--border); border-radius: 10px; background: var(--page);
+    padding: 10px 12px;
+  }
+  .mrow__top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+  .mrow__bot { margin-top: 4px; font-size: 12px; color: var(--muted); }
+  .mobile-frame { max-width: 390px; }
+
+  .foot {
+    margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-end; font-size: 13px; font-weight: 600;
+  }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <div>
+      <h1>История — card</h1>
+      <p><code>dashboard-assets-card robots-v2-logs-card portfolio-history-zone</code></p>
+    </div>
+    <a class="picker__back" href="./index.html">← индекс</a>
+    <button type="button" class="theme-btn" id="themeToggle">Тема</button>
+  </div>
+
+  <div class="wrap">
+    <p class="thesis">
+      Карточка под тулбаром: сейчас <strong>title + count + DataTable</strong>.
+      Title дублирует сегмент тулбара («Заявки»). Ниже варианты композиции для заявок / сделок / решений.
+    </p>
+
+    <!-- A -->
+    <div class="section">
+      <h2>A · сейчас</h2>
+      <p class="lead">Head с заголовком раздела + DataTable maxHeight 480.</p>
+      <div class="frame">
+        <div class="frame-label"><strong>A · current</strong><span>Заявки</span></div>
+        <div class="pad">
+          <div class="toolbar">
+            <div class="seg"><span class="on">Заявки</span><span>Сделки</span><span>Решения</span></div>
+            <span class="muted" style="font-size:12px;margin-left:auto">30 дней</span>
+          </div>
+          <div class="card">
+            <div class="head">
+              <h3>Заявки</h3>
+              <span class="hint">128</span>
+            </div>
+            <div class="scroll">
+              <table class="dt">
+                <thead>
+                  <tr>
+                    <th>Время</th><th>Тикер</th><th>Сторона</th><th>Тип</th><th>Кол-во</th><th>Цена</th><th>Статус</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="mono">23.11 14:02:11</td><td><strong>SBER</strong></td><td>SELL</td>
+                    <td>TP</td><td class="mono">10</td><td class="mono">312,40</td><td>Исполнено</td>
+                  </tr>
+                  <tr>
+                    <td class="mono">23.11 13:41:08</td><td><strong>GAZP</strong></td><td>BUY</td>
+                    <td>Вход</td><td class="mono">20</td><td class="mono">128,15</td><td>Отменена</td>
+                  </tr>
+                  <tr>
+                    <td class="mono">23.11 11:05:44</td><td><strong>LKOH</strong></td><td>SELL</td>
+                    <td>SL</td><td class="mono">3</td><td class="mono">6 840</td><td>Отклонена</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="note">Минус: «Заявки» в тулбаре и в head карточки — двойной якорь.</p>
+    </div>
+
+    <!-- B -->
+    <div class="section">
+      <h2>B · blotter как на мониторе</h2>
+      <p class="lead">Те же колонки, что «Сделки дня»: sticky thead, muted secondary lines.</p>
+      <div class="frame">
+        <div class="frame-label"><strong>B · monitor blotter</strong><span class="tag">propose</span> · Сделки</div>
+        <div class="pad">
+          <div class="toolbar">
+            <div class="seg"><span>Заявки</span><span class="on">Сделки</span><span>Решения</span></div>
+          </div>
+          <div class="card">
+            <div class="head">
+              <h3>Сделки <span class="hint">· 14</span></h3>
+            </div>
+            <div class="blotter">
+              <div class="body-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Вход</th><th>Тикер</th><th>Почему купил</th><th>Выход</th><th>Почему продал</th>
+                      <th class="num">Вход → выход</th><th class="num">Комиссия</th><th class="num">Результат</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="mono">23.11 10:12</td>
+                      <td><span class="tk">SBER</span><span class="sub">×10</span></td>
+                      <td>Импульс</td>
+                      <td class="mono">23.11 14:02:11</td>
+                      <td>TP<span class="sub">выст. 14:01:58</span></td>
+                      <td class="num mono">308,20 → <span class="up">312,40</span></td>
+                      <td class="num mono muted">−3,12 ₽</td>
+                      <td class="num mono up">+36,40 ₽</td>
+                    </tr>
+                    <tr>
+                      <td class="mono">22.11 15:40</td>
+                      <td><span class="tk">GAZP</span><span class="sub">×20</span></td>
+                      <td>Реверсия</td>
+                      <td class="mono">23.11 09:18:02</td>
+                      <td>SL</td>
+                      <td class="num mono">131,00 → <span class="down">128,15</span></td>
+                      <td class="num mono muted">−2,60 ₽</td>
+                      <td class="num mono down">−49,80 ₽</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="foot"><span class="up">+1 250 ₽</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- C -->
+    <div class="section">
+      <h2>C · без дубля заголовка</h2>
+      <p class="lead">Сегмент тулбара = единственный title. В карточке только счётчик / таблица.</p>
+      <div class="grid-2">
+        <div class="frame">
+          <div class="frame-label"><strong>C1 · count в углу</strong><span class="tag">propose</span></div>
+          <div class="pad">
+            <div class="toolbar">
+              <div class="seg"><span class="on">Заявки</span><span>Сделки</span><span>Решения</span></div>
+            </div>
+            <div class="card card--flush-head">
+              <div class="head" style="margin-bottom:6px">
+                <span class="hint">128 из 128</span>
+              </div>
+              <div class="scroll">
+                <table class="dt dt--dense">
+                  <thead>
+                    <tr><th>Время</th><th>Тикер</th><th>Сторона</th><th>Статус</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td class="mono">14:02</td><td class="tk">SBER</td><td>SELL</td><td>Исполнено</td></tr>
+                    <tr><td class="mono">13:41</td><td class="tk">GAZP</td><td>BUY</td><td>Отменена</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="frame">
+          <div class="frame-label"><strong>C2 · совсем headless</strong><span class="tag">propose</span></div>
+          <div class="pad">
+            <div class="toolbar">
+              <div class="seg"><span class="on">Заявки</span><span>Сделки</span><span>Решения</span></div>
+              <span class="hint" style="margin-left:auto">128</span>
+            </div>
+            <div class="card card--flush-head">
+              <div class="scroll">
+                <table class="dt dt--dense">
+                  <thead>
+                    <tr><th>Время</th><th>Тикер</th><th>Сторона</th><th>Статус</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td class="mono">14:02</td><td class="tk">SBER</td><td>SELL</td><td>Исполнено</td></tr>
+                    <tr><td class="mono">13:41</td><td class="tk">GAZP</td><td>BUY</td><td>Отменена</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- D -->
+    <div class="section">
+      <h2>D · решения + контекст</h2>
+      <p class="lead">Сейчас: таблица → отдельная card контекста снизу. Альтернативы.</p>
+      <div class="grid-2">
+        <div class="frame">
+          <div class="frame-label"><strong>D1 · сейчас (stack)</strong></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Решения</h3><span class="hint">86</span></div>
+              <div class="scroll">
+                <table class="dt">
+                  <thead>
+                    <tr><th>Время</th><th>Тикер</th><th>Этап</th><th>Код</th><th>Контекст</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr class="clickable is-selected">
+                      <td class="mono">14:02:01</td><td class="tk">SBER</td><td>Риск</td><td>Вход</td><td class="hint">4 поля</td>
+                    </tr>
+                    <tr class="clickable">
+                      <td class="mono">14:01:58</td><td class="tk">GAZP</td><td>Стратегия</td><td>Тихо</td><td class="hint">—</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="card" style="margin-top:10px">
+              <div class="head"><h3>Контекст · SBER · Вход</h3><span class="hint">закрыть</span></div>
+              <div class="ctx" style="border:0;padding:0;background:transparent">
+                <dl>
+                  <div><dt>Сообщение</dt><dd>rsi 28 · ниже порога</dd></div>
+                </dl>
+                <pre class="payload">{ "rsi": 28, "threshold": 30 }</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="frame">
+          <div class="frame-label"><strong>D2 · split inspector</strong><span class="tag">propose</span></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Решения <span class="hint">· 86</span></h3></div>
+              <div class="split">
+                <div class="scroll">
+                  <table class="dt dt--dense">
+                    <thead>
+                      <tr><th>Время</th><th>Тикер</th><th>Код</th><th>Причина</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr class="clickable is-selected">
+                        <td class="mono">14:02</td><td class="tk">SBER</td><td>Вход</td><td class="muted">rsi 28</td>
+                      </tr>
+                      <tr class="clickable">
+                        <td class="mono">14:01</td><td class="tk">GAZP</td><td>Тихо</td><td class="muted">нет сигнала</td>
+                      </tr>
+                      <tr class="clickable">
+                        <td class="mono">13:55</td><td class="tk">LKOH</td><td>Блок</td><td class="muted">cooldown</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="ctx">
+                  <h4>SBER · Вход</h4>
+                  <dl>
+                    <div><dt>Этап / исход</dt><dd>Риск · Разрешено</dd></div>
+                    <div><dt>Цикл</dt><dd class="mono">a1b2…</dd></div>
+                  </dl>
+                  <pre class="payload">{ "rsi": 28, "threshold": 30, "deltaPct": 0.4 }</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- E empty -->
+    <div class="section">
+      <h2>E · пусто</h2>
+      <p class="lead">Тот же каркас, разные empty copy.</p>
+      <div class="grid-2">
+        <div class="frame">
+          <div class="frame-label"><strong>E1 · сейчас</strong></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Сделки</h3></div>
+              <p class="empty">Нет сделок за период</p>
+            </div>
+          </div>
+        </div>
+        <div class="frame">
+          <div class="frame-label"><strong>E2 · с пояснением</strong><span class="tag">propose</span></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Сделки</h3></div>
+              <p class="empty"><b>Нет сделок за период</b></p>
+              <p class="empty-sub">Закрытых кругов нет. Сдвиньте даты или дождитесь выхода из позиции.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile -->
+    <div class="section">
+      <h2>Mobile · строки</h2>
+      <p class="lead">DataTable уже даёт mobile cards. Как усилить.</p>
+      <div class="grid-2">
+        <div class="frame mobile-frame">
+          <div class="frame-label"><strong>M1 · сейчас</strong></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Сделки</h3><span class="hint">2</span></div>
+              <div class="mlist">
+                <div class="mrow">
+                  <div class="mrow__top"><strong>SBER</strong><span class="mono up">+36,40 ₽</span></div>
+                  <div class="mrow__bot">23.11 10:12 → 14:02 · TP</div>
+                </div>
+                <div class="mrow">
+                  <div class="mrow__top"><strong>GAZP</strong><span class="mono down">−49,80 ₽</span></div>
+                  <div class="mrow__bot">22.11 15:40 → 09:18 · SL</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="frame mobile-frame">
+          <div class="frame-label"><strong>M2 · richer</strong><span class="tag">propose</span></div>
+          <div class="pad">
+            <div class="card">
+              <div class="head"><h3>Сделки <span class="hint">· 2</span></h3></div>
+              <div class="mlist">
+                <div class="mrow">
+                  <div class="mrow__top"><strong>SBER</strong><span class="mono up">+36,40 ₽</span></div>
+                  <div class="mrow__bot">вход 308,20 → 312,40 · комиссия −3,12 ₽</div>
+                  <div class="mrow__bot">купил: Импульс · продал: TP</div>
+                </div>
+                <div class="mrow">
+                  <div class="mrow__top"><strong>GAZP</strong><span class="mono down">−49,80 ₽</span></div>
+                  <div class="mrow__bot">вход 131,00 → 128,15 · комиссия −2,60 ₽</div>
+                  <div class="mrow__bot">купил: Реверсия · продал: SL</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note" style="padding:12px 14px;border:1px dashed var(--border);border-radius:12px">
+      <strong>Выбрано и собрано:</strong>
+      <b>C2</b> (без дубля title; count в тулбаре) ·
+      сделки <b>B</b> (blotter) ·
+      решения <b>D2</b> desktop / <b>D1</b> mobile ·
+      empty <b>E2</b>.
+    </div>
+  </div>
+
+  <script>
+    const root = document.documentElement
+    document.getElementById('themeToggle').addEventListener('click', () => {
+      root.setAttribute('data-theme', root.getAttribute('data-theme') === 'light' ? 'dark' : 'light')
+    })
+  </script>
+</body>
+</html>

@@ -15,6 +15,7 @@ from app.core.background_jobs.worker import LANE_PORTFOLIO
 from app.core.database import SessionLocal, try_dispose_pool_on_connectivity_error
 from app.core.logging_config import get_logger
 from app.core.scheduler_utils import scheduler_startup_delay
+from app.core.secret_box import open_broker_material
 from app.modules.trading_core.brokers.routing import enforce_broker_for_token
 from app.modules.robots_v2.portfolio.queries import build_get_active_portfolio_v2_robots_query
 
@@ -47,14 +48,15 @@ class PortfolioV2Scheduler:
                 mutate=False,
                 require_token=True,
             )
+            plain, extra = open_broker_material(row.token_value, row.token_secret, row.token_extra_data)
             robots.append(
                 {
                     "robot_id": int(row.robot_id),
                     "user_id": int(row.user_id),
                     "token_id": int(row.token_id),
-                    "token": row.token_value,
+                    "token": plain,
                     "broker_type": broker_type,
-                    "token_extra_data": row.token_extra_data if isinstance(row.token_extra_data, dict) else {},
+                    "token_extra_data": extra,
                     "token_type": token_type,
                 }
             )

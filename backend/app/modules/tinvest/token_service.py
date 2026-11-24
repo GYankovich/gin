@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from fastapi import HTTPException, status
 
+from app.core.secret_box import open_broker_material, open_secret, seal
 from app.modules.tinvest.methods import create_tbank_client
 from . import queries, utils
 from .schemas import TokenCreate, TokenUpdate, TokenResponse
@@ -40,18 +41,26 @@ class TokenService:
                 extra = json.loads(extra)
             except Exception:
                 extra = None
+        stored_secret = row[11] if len(row) > 11 else None
+        token, opened_extra = open_broker_material(
+            row[3] if len(row) > 3 else None,
+            stored_secret,
+            extra if isinstance(extra, dict) else None,
+        )
+        secret = opened_extra.get("token_secret")
         return {
             "id": utils.safe_int(row[0]),
             "user_id": utils.safe_int(row[1]) if len(row) > 1 else None,
             "token_type": utils.safe_str(row[2]) if len(row) > 2 else "",
-            "token": utils.safe_str(row[3]) if len(row) > 3 else "",
+            "token": token,
             "token_name": utils.safe_str(row[4], None) if len(row) > 4 else None,
             "status": utils.safe_int(row[5]) if len(row) > 5 and row[5] is not None else 1,
             "created_at": row[6] if len(row) > 6 else None,
             "updated_at": row[7] if len(row) > 7 else None,
             "last_used_at": row[8] if len(row) > 8 else None,
             "expires_at": row[9] if len(row) > 9 else None,
-            "extra_data": extra if isinstance(extra, dict) else None,
+            "extra_data": opened_extra or None,
+            "token_secret": secret,
         }
 
     async def get_user_token(self, db: Session, user_id: int) -> Optional[str]:
@@ -63,7 +72,7 @@ class TokenService:
         result = self._execute(query, {"user_id": user_id}, fetch_one=True)
 
         if result:
-            token = utils.safe_str(result[0])
+            token = open_secret(utils.safe_str(result[0])) or ""
             token_id = utils.safe_int(result[1])
 
             return token
@@ -77,7 +86,7 @@ class TokenService:
         result = self._execute(query, {"user_id": user_id}, fetch_one=True)
 
         if result:
-            token = utils.safe_str(result[0])
+            token = open_secret(utils.safe_str(result[0])) or ""
             token_id = utils.safe_int(result[1])
             return {"id": token_id, "token": token}
 
@@ -149,11 +158,8 @@ class TokenService:
 
         # Проверяем, не существует ли уже такой токен
         check_query = queries.build_check_token_exists_query()
-        existing = self._execute(
-            check_query,
-            {"user_id": user_id, "token": token_data.token},
-            fetch_one=True
-        )
+        existing_rows = self._execute(check_query, {"user_id": user_id})
+        existing = any(open_secret(row[0]) == token_data.token for row in existing_rows)
 
         if existing:
             raise HTTPException(
@@ -170,7 +176,7 @@ class TokenService:
             {
                 "user_id": user_id,
                 "token_type": token_data.token_type,
-                "token": token_data.token,
+                "token": seal(token_data.token),
                 "token_name": token_data.token_name,
                 "created_at": now
             },

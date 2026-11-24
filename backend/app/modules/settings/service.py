@@ -10,6 +10,7 @@ import logging
 import json
 
 from . import queries
+from app.core.secret_box import open_broker_material, open_secret, seal
 from app.modules.bybit.http_client import BybitApiError, BybitHttpClient
 from app.modules.tinvest.methods import create_tbank_client
 
@@ -81,10 +82,9 @@ class ApiKeyService:
         if not row:
             return {}
 
-        # Two shapes:
-        # - legacy (create/update RETURNING): [id, name, token_type, status, created_at, refresh_interval_minutes, token, extra_data] -> 0..7
-        # - list (/apikey/data): [id, name, token_type, status, created_at, token, refresh_interval_minutes, extra_data, type_name, type_description, last_used_at, last_error, last_error_at, status_name, status_description] -> 0..14
-        is_list_shape = len(row) >= 12
+        # id, name, token_type, status, created_at, token, token_secret, extra_data
+        # List then adds type_name, type_description, last_used_at, last_error, last_error_at, status_name, status_description.
+        is_list_shape = len(row) >= 13
 
         status_val = self._safe_int(row[3]) if len(row) > 3 else 0
         created_at_val = self._safe_datetime(row[4]) if len(row) > 4 else None
@@ -94,11 +94,15 @@ class ApiKeyService:
             "typeName": self._safe_str(row[8], "") if is_list_shape and len(row) > 8 and row[8] is not None else "",
             "typeDesc": self._safe_str(row[9], "") if is_list_shape and len(row) > 9 and row[9] is not None else "",
         }
-        # broker_type — перевод TOKEN.TYPE из dictionary (d.name as type_name).
         broker_type = token_type_info["typeName"] or None
 
-        token_value_idx = 5 if is_list_shape else 6
-        token_value = row[token_value_idx] if len(row) > token_value_idx else None
+        raw_extra = row[7] if len(row) > 7 and isinstance(row[7], dict) else None
+        token_value, extra = open_broker_material(
+            row[5] if len(row) > 5 else None,
+            row[6] if len(row) > 6 else None,
+            raw_extra,
+        )
+        secret = extra.pop("token_secret", None)
 
         result: dict = {
             "id": self._safe_int(row[0]),
@@ -110,25 +114,13 @@ class ApiKeyService:
             "masked_token": self._mask_token(token_value),
         }
 
-        if include_token and token_value is not None:
+        if include_token and token_value:
             result["token"] = self._safe_str(token_value)
 
-        if len(row) > (6 if is_list_shape else 5):
-            result["refresh_interval_minutes"] = self._safe_int(row[6 if is_list_shape else 5], 60)
-
-        extra_idx = 7 if is_list_shape else 7
-        raw_extra = row[extra_idx] if len(row) > extra_idx and isinstance(row[extra_idx], dict) else None
-        if isinstance(raw_extra, dict):
-            secret = raw_extra.get("token_secret")
-            if secret:
-                result["masked_secret"] = self._mask_token(secret)
-            # Не отдаём сырой secret в списке ключей.
-            safe_extra = {k: v for k, v in raw_extra.items() if k != "token_secret"}
-            if secret:
-                safe_extra["has_token_secret"] = True
-            result["extra_data"] = safe_extra
-        else:
-            result["extra_data"] = None
+        if secret:
+            result["masked_secret"] = self._mask_token(secret)
+            extra["has_token_secret"] = True
+        result["extra_data"] = extra or None
 
         if is_list_shape:
             result["last_used_at"] = self._safe_datetime(row[10])
@@ -150,21 +142,28 @@ class ApiKeyService:
         if not row:
             return {}
 
-        token_value = row[3] if len(row) > 3 else None
+        raw_extra = row[12] if len(row) > 12 and isinstance(row[12], dict) else None
+        token_value, extra = open_broker_material(
+            row[3] if len(row) > 3 else None,
+            row[4] if len(row) > 4 else None,
+            raw_extra,
+        )
+        secret = extra.pop("token_secret", None)
 
         result = {
             "id": self._safe_int(row[0]),
             "name": self._safe_str(row[1], None),
             "key_type": self._safe_str(row[2]),
-            "token": self._safe_str(token_value) if token_value is not None else None,
-            "status": self._safe_int(row[4]) if len(row) > 4 else 1,
-            "created_at": self._safe_datetime(row[5]) if len(row) > 5 else None,
-            "updated_at": self._safe_datetime(row[6]) if len(row) > 6 else None,
-            "expires_at": self._safe_datetime(row[7]) if len(row) > 7 else None,
-            "last_used_at": self._safe_datetime(row[8]) if len(row) > 8 else None,
-            "last_error": self._safe_str(row[9], None) if len(row) > 9 else None,
-            "last_error_at": self._safe_datetime(row[10]) if len(row) > 10 else None,
-            "extra_data": row[11] if len(row) > 11 and isinstance(row[11], dict) else None,
+            "token": self._safe_str(token_value) if token_value else None,
+            "token_secret": secret or None,
+            "status": self._safe_int(row[5]) if len(row) > 5 else 1,
+            "created_at": self._safe_datetime(row[6]) if len(row) > 6 else None,
+            "updated_at": self._safe_datetime(row[7]) if len(row) > 7 else None,
+            "expires_at": self._safe_datetime(row[8]) if len(row) > 8 else None,
+            "last_used_at": self._safe_datetime(row[9]) if len(row) > 9 else None,
+            "last_error": self._safe_str(row[10], None) if len(row) > 10 else None,
+            "last_error_at": self._safe_datetime(row[11]) if len(row) > 11 else None,
+            "extra_data": extra or None,
         }
 
         result["masked_token"] = self._mask_token(token_value)
@@ -176,8 +175,8 @@ class ApiKeyService:
         """
         self.db = db
         query = queries.build_check_existing_token_query()
-        result = self._execute(query, {"token": token}, fetch_one=True)
-        return result is not None
+        rows = self._execute(query, {})
+        return any(open_secret(row[0]) == token for row in rows)
 
     async def create_key(
             self,
@@ -186,7 +185,6 @@ class ApiKeyService:
             token: str,
             key_type: str,
             name: Optional[str] = None,
-            refresh_interval_minutes: int = 60,
             extra_data: Optional[Dict[str, Any]] = None,
     ) -> dict:
         """
@@ -198,34 +196,31 @@ class ApiKeyService:
         try:
             # Проверяем, существует ли уже такой токен у пользователя
             check_query = queries.build_check_existing_token_by_user_query()
-            existing_token = self._execute(
-                check_query,
-                {
-                    "user_id": user_id,
-                    "token": token
-                },
-                fetch_one=True
-            )
-
-            if existing_token:
+            existing_rows = self._execute(check_query, {"user_id": user_id})
+            if any(open_secret(row[0]) == token for row in existing_rows):
                 logger.info(f"Token already exists for user {user_id}")
                 raise ValueError("apikey_exists:Токен уже существует")
 
+            extra_payload = dict(extra_data or {})
+            secret_plain = extra_payload.pop("token_secret", None) or extra_payload.pop("api_secret", None)
+            extra_payload.pop("token_secret", None)
+            extra_payload.pop("api_secret", None)
+            secret_text = str(secret_plain).strip() if secret_plain else ""
+
             # Валидация ключа на стороне внешнего API перед сохранением.
             if key_type is not None:
-                extra_payload = extra_data if isinstance(extra_data, dict) else {}
                 test = await self.test_key(
                     token=token,
                     key_type=key_type,
-                    token_secret=extra_payload.get("token_secret"),
+                    token_secret=secret_text or None,
                     testnet=False,
                     account_type=str(extra_payload.get("account_type") or "UNIFIED"),
                 )
                 if not bool(test.get("is_valid")):
                     raise ValueError(f"create_failed:{test.get('message') or 'Ключ не прошел проверку'}")
-                if key_type is not None and str(key_type).strip().lower() in {"2", "bybit"}:
-                    extra_data = dict(extra_payload)
-                    extra_data["testnet"] = False
+                if str(key_type).strip().lower() in {"2", "bybit"}:
+                    extra_payload["testnet"] = False
+            extra_data = extra_payload
 
             # # Опционально: деактивация старого ключа того же типа
             # if key_type == "tinvest":
@@ -249,11 +244,11 @@ class ApiKeyService:
                 insert_query,
                 {
                     "user_id": user_id,
-                    "token": token,
+                    "token": seal(token),
+                    "token_secret": seal(secret_text) if secret_text else None,
                     "key_type": key_type,
                     "name": name,
                     "created_at": now,
-                    "refresh_interval_minutes": refresh_interval_minutes,
                     "extra_data": json.dumps(extra_data or {}, ensure_ascii=False),
                 },
                 fetch_one=True
@@ -331,7 +326,6 @@ class ApiKeyService:
         results = self._execute(data_query, params).fetchall()
 
         keys = [self._row_to_api_key_response(row, include_token=False) for row in results]
-
         return keys, total
 
     def get_key_by_id(self, db: Session, key_id: int, user_id: int) -> Optional[dict]:
@@ -358,7 +352,6 @@ class ApiKeyService:
             user_id: int,
             name: Optional[str] = None,
             status: Optional[int] = None,
-            refresh_interval_minutes: Optional[int] = None
     ) -> Optional[dict]:
         """
         Обновление информации о ключе
@@ -382,8 +375,6 @@ class ApiKeyService:
             fields_to_update.append("name")
         if status is not None:
             fields_to_update.append("status")
-        if refresh_interval_minutes is not None:
-            fields_to_update.append("refresh_interval_minutes")
 
         if not fields_to_update:
             return self.get_key_by_id(db, key_id, user_id)
@@ -401,8 +392,6 @@ class ApiKeyService:
             params["name"] = name
         if status is not None:
             params["status"] = int(status)
-        if refresh_interval_minutes is not None:
-            params["refresh_interval_minutes"] = refresh_interval_minutes
 
         result = self._execute(update_query, params, fetch_one=True)
 
@@ -458,19 +447,18 @@ class ApiKeyService:
         self.db = db
         query = queries.build_get_token_by_value_query()
 
-        result = self._execute(query, {"token": token}, fetch_one=True)
-
-        if not result:
-            return None
-
-        return {
-            "id": self._safe_int(result[0]),
-            "user_id": self._safe_int(result[1]),
-            "token_type": self._safe_str(result[2]),
-            "name": self._safe_str(result[3], None),
-            "status": self._safe_int(result[4]),
-            "refresh_interval_minutes": self._safe_int(result[5], 60),
-        }
+        rows = self._execute(query, {})
+        for result in rows:
+            if open_secret(result[5]) != token:
+                continue
+            return {
+                "id": self._safe_int(result[0]),
+                "user_id": self._safe_int(result[1]),
+                "token_type": self._safe_str(result[2]),
+                "name": self._safe_str(result[3], None),
+                "status": self._safe_int(result[4]),
+            }
+        return None
 
     def get_tokens_by_type(self, db: Session, token_type: str) -> List[dict]:
         """
@@ -486,10 +474,9 @@ class ApiKeyService:
             tokens.append({
                 "id": self._safe_int(row[0]),
                 "user_id": self._safe_int(row[1]),
-                "token": self._safe_str(row[2]),
+                "token": self._safe_str(open_secret(row[2])),
                 "name": self._safe_str(row[3], None),
-                "refresh_interval_minutes": self._safe_int(row[4], 60),
-                "last_used_at": self._safe_datetime(row[5]),
+                "last_used_at": self._safe_datetime(row[4]),
             })
 
         return tokens
@@ -646,7 +633,7 @@ class ApiKeyService:
         result = await self.test_key(
             token=str(detail.get("token") or ""),
             key_type=str(detail.get("key_type") or ""),
-            token_secret=extra.get("token_secret"),
+            token_secret=detail.get("token_secret"),
             testnet=False,
             account_type=str(extra.get("account_type") or "UNIFIED"),
             key_id=key_id,
@@ -663,9 +650,7 @@ class ApiKeyService:
         if not detail:
             return None
         token = str(detail.get("token") or "")
-        extra = detail.get("extra_data") if isinstance(detail.get("extra_data"), dict) else {}
-        secret_raw = extra.get("token_secret")
-        secret = str(secret_raw).strip() if secret_raw is not None else ""
+        secret = str(detail.get("token_secret") or "").strip()
         out: Dict[str, Any] = {
             "token": token,
             "masked_token": self._mask_token(token),

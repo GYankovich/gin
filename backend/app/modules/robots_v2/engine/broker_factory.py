@@ -80,7 +80,7 @@ def persist_token_account_id(
     account_id: str | None,
     schema: str | None = None,
 ) -> None:
-    """Cache resolved broker account on api_tokens for live sessions."""
+    """Link the resolved broker account to the token. Does not drop other links."""
     if not account_id:
         return
     from app.core.config import settings
@@ -90,25 +90,11 @@ def persist_token_account_id(
     try:
         db.execute(
             text(f"""
-                UPDATE {sch}.api_tokens
-                SET account_id = :account_id,
-                    last_error = NULL,
-                    last_error_at = NULL,
-                    updated_at = NOW()
-                WHERE id = :token_id AND user_id = :user_id
-            """),
-            {
-                "account_id": str(account_id),
-                "token_id": token_id,
-                "user_id": user_id,
-            },
-        )
-        db.execute(
-            text(f"""
                 INSERT INTO {sch}.token_portfolio_accounts
                     (token_id, portfolio_account_id, status, usercre)
-                SELECT :token_id, pa.id, 1, :user_id
+                SELECT :token_id, pa.id, 1, u.login
                   FROM {sch}.portfolio_accounts pa
+                  JOIN {sch}."user" u ON u.id = :user_id
                  WHERE pa.user_id = :user_id
                    AND pa.account_id = :account_id
                 ON CONFLICT (token_id, portfolio_account_id) DO UPDATE
@@ -139,6 +125,10 @@ def persist_token_account_id(
 
 
 def load_token_account_id(token_id: int, user_id: int, *, schema: str | None = None) -> str | None:
+    """External broker account id from the token's first open portfolio link.
+
+    A robot that must use a specific account sets core.accountId itself.
+    """
     from app.core.config import settings
 
     sch = schema or getattr(settings, "DB_SCHEMA", None) or "public"
@@ -146,8 +136,21 @@ def load_token_account_id(token_id: int, user_id: int, *, schema: str | None = N
     try:
         row = db.execute(
             text(f"""
-                SELECT account_id FROM {sch}.api_tokens
-                WHERE id = :token_id AND user_id = :user_id
+                SELECT pa.account_id
+                  FROM {sch}.token_portfolio_accounts tpa
+                  JOIN {sch}.portfolio_accounts pa
+                    ON pa.id = tpa.portfolio_account_id
+                  JOIN {sch}.api_tokens t
+                    ON t.id = tpa.token_id
+                 WHERE tpa.token_id = :token_id
+                   AND t.user_id = :user_id
+                   AND pa.user_id = :user_id
+                   AND tpa.status = 1
+                   AND UPPER(COALESCE(pa.account_status, '')) = 'OPEN'
+                   AND pa.account_id IS NOT NULL
+                   AND btrim(pa.account_id) <> ''
+                 ORDER BY pa.id
+                 LIMIT 1
             """),
             {"token_id": token_id, "user_id": user_id},
         ).fetchone()

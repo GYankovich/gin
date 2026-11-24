@@ -13,36 +13,38 @@ def build_get_user_by_login_query() -> str:
                id,
                login,
                password_hash,
-               created_at
+               date_creation,
+               status
            FROM "user"
            WHERE login = :login \
            """
 
 
 def build_get_user_by_email_query() -> str:
-    """Пользователь по действующей почте. Регистр не важен."""
+    """Пользователь по почте. Регистр не важен."""
     return """
            SELECT
                u.id,
                u.login,
                u.password_hash,
-               u.created_at
+               u.date_creation,
+               u.status
            FROM "user" u
            JOIN user_email e ON e.user_id = u.id
            WHERE lower(e.email) = :email
-             AND (e.valid_to IS NULL OR e.valid_to > CURRENT_TIMESTAMP)
-           ORDER BY e.is_primary DESC, e.valid_from DESC
+             AND e.status = 1
+           ORDER BY e.is_primary DESC, e.creation_date DESC
            LIMIT 1 \
            """
 
 
 def build_check_email_exists_query() -> str:
-    """Есть ли действующая запись с этой почтой."""
+    """Есть ли запись с этой почтой."""
     return """
            SELECT e.user_id
            FROM user_email e
            WHERE lower(e.email) = :email
-             AND (e.valid_to IS NULL OR e.valid_to > CURRENT_TIMESTAMP)
+             AND e.status = 1
            LIMIT 1 \
            """
 
@@ -66,7 +68,9 @@ def build_update_login_query() -> str:
     """Обновляет логин пользователя"""
     return """
            UPDATE "user"
-           SET login = :login
+           SET login = :login,
+               usermod = :usermod,
+               date_modification = :date_modification
            WHERE id = :user_id \
            """
 
@@ -74,25 +78,39 @@ def build_update_login_query() -> str:
 def build_create_user_query() -> str:
     """Возвращает запрос для создания пользователя"""
     return """
-           INSERT INTO "user" (login, password_hash, created_at, package_code)
-           VALUES (:login, :password_hash, :created_at, :package_code)
-               RETURNING id, login, created_at \
+           INSERT INTO "user" (login, password_hash, status, date_creation, package_code, usercre)
+           VALUES (:login, :password_hash, :status, :date_creation, :package_code, :usercre)
+               RETURNING id, login, date_creation, status \
            """
 
 
 def build_create_email_query() -> str:
     """Возвращает запрос для добавления email пользователя"""
     return """
-           INSERT INTO user_email (user_id, email, is_primary, valid_from)
-           VALUES (:user_id, :email, :is_primary, :valid_from) \
+           INSERT INTO user_email (user_id, email, is_primary, status, creation_date, usercre)
+           VALUES (
+               :user_id,
+               :email,
+               :is_primary,
+               :status,
+               :creation_date,
+               COALESCE(:usercre, (SELECT login FROM "user" WHERE id = :user_id))
+           ) \
            """
 
 
 def build_create_phone_query() -> str:
     """Возвращает запрос для добавления телефона пользователя"""
     return """
-           INSERT INTO user_phone (user_id, phone, is_primary, valid_from)
-           VALUES (:user_id, :phone, :is_primary, :valid_from) \
+           INSERT INTO user_phone (user_id, phone, is_primary, status, creation_date, usercre)
+           VALUES (
+               :user_id,
+               :phone,
+               :is_primary,
+               :status,
+               :creation_date,
+               COALESCE(:usercre, (SELECT login FROM "user" WHERE id = :user_id))
+           ) \
            """
 
 
@@ -158,14 +176,16 @@ def build_get_user_by_id_query(include_email: bool = True, include_phone: bool =
         SELECT
             u.id,
             u.login,
-            u.created_at
+            u.date_creation,
+            u.status
     """
 
     if include_email:
         base_query += """,
             (SELECT email FROM user_email 
-             WHERE user_id = u.id AND (valid_to IS NULL OR valid_to > CURRENT_TIMESTAMP)
-             ORDER BY is_primary DESC, valid_from DESC LIMIT 1) as email
+             WHERE user_id = u.id
+               AND status = 1
+             ORDER BY is_primary DESC, creation_date DESC LIMIT 1) as email
         """
     else:
         base_query += ", NULL as email"
@@ -173,8 +193,9 @@ def build_get_user_by_id_query(include_email: bool = True, include_phone: bool =
     if include_phone:
         base_query += """,
             (SELECT phone FROM user_phone 
-             WHERE user_id = u.id AND (valid_to IS NULL OR valid_to > CURRENT_TIMESTAMP)
-             ORDER BY is_primary DESC, valid_from DESC LIMIT 1) as phone
+             WHERE user_id = u.id
+               AND status = 1
+             ORDER BY is_primary DESC, creation_date DESC LIMIT 1) as phone
         """
     else:
         base_query += ", NULL as phone"
@@ -203,20 +224,26 @@ def build_get_user_contacts_query() -> tuple[str, Dict[str, Any]]:
                 'email' as contact_type,
                 email as contact_value,
                 is_primary,
-                valid_from,
-                valid_to
+                creation_date,
+                modification_date,
+                usercre,
+                usermod
             FROM user_email
             WHERE user_id = :user_id
+              AND status = 1
             UNION ALL
             SELECT
                 'phone' as contact_type,
                 phone as contact_value,
                 is_primary,
-                valid_from,
-                valid_to
+                creation_date,
+                modification_date,
+                usercre,
+                usermod
             FROM user_phone
             WHERE user_id = :user_id
-            ORDER BY is_primary DESC, valid_from DESC \
+              AND status = 1
+            ORDER BY is_primary DESC, creation_date DESC \
             """
     return query, {"user_id": ":user_id"}
 
@@ -264,70 +291,37 @@ def build_update_password_query() -> str:
     """Обновляет password_hash пользователя"""
     return """
            UPDATE "user"
-           SET password_hash = :password_hash
+           SET password_hash = :password_hash,
+               usermod = :usermod,
+               date_modification = :date_modification
            WHERE id = :user_id \
            """
 
 
-def build_update_user_email_query() -> str:
-    """Обновляет актуальную email-запись пользователя (без INSERT)."""
+def build_close_user_emails_query() -> str:
+    """Активные почты пользователя становятся историей (status = 0)."""
     return """
            UPDATE user_email
-           SET email = :email,
-               is_primary = TRUE,
-               valid_to = NULL
-           WHERE id = (
-               SELECT id FROM (
-                   SELECT id FROM user_email
-                   WHERE user_id = :user_id
-                   ORDER BY CASE WHEN valid_to IS NULL THEN 0 ELSE 1 END,
-                            is_primary DESC,
-                            valid_from DESC
-                   LIMIT 1
-               ) AS pick
-           )
+           SET status = 0,
+               is_primary = FALSE,
+               usermod = :usermod,
+               modification_date = :modification_date
+           WHERE user_id = :user_id
+             AND status = 1 \
            """
 
 
-def build_update_user_phone_query() -> str:
-    """Обновляет актуальную phone-запись пользователя (без INSERT)."""
+def build_close_user_phones_query() -> str:
+    """Активные телефоны пользователя становятся историей (status = 0)."""
     return """
            UPDATE user_phone
-           SET phone = :phone,
-               is_primary = TRUE,
-               valid_to = NULL
-           WHERE id = (
-               SELECT id FROM (
-                   SELECT id FROM user_phone
-                   WHERE user_id = :user_id
-                   ORDER BY CASE WHEN valid_to IS NULL THEN 0 ELSE 1 END,
-                            is_primary DESC,
-                            valid_from DESC
-                   LIMIT 1
-               ) AS pick
-           )
-           """
-
-
-def build_expire_user_emails_query() -> str:
-    """Закрывает активные email-записи пользователя"""
-    return """
-           UPDATE user_email
-           SET valid_to = :now
+           SET status = 0,
+               is_primary = FALSE,
+               usermod = :usermod,
+               modification_date = :modification_date
            WHERE user_id = :user_id
-             AND (valid_to IS NULL OR valid_to > :now) \
+             AND status = 1 \
            """
-
-
-def build_expire_user_phones_query() -> str:
-    """Закрывает активные phone-записи пользователя"""
-    return """
-           UPDATE user_phone
-           SET valid_to = :now
-           WHERE user_id = :user_id
-             AND (valid_to IS NULL OR valid_to > :now) \
-           """
-
 
 def build_get_email_confirmation_query() -> str:
     return """
@@ -385,16 +379,15 @@ def build_delete_email_confirmation_query() -> str:
 
 
 def build_get_active_email_query() -> str:
-    """Действующая карточка почты: id записи и пользователь."""
+    """Карточка почты: id записи и пользователь."""
     return """
            SELECT e.id, e.user_id
            FROM user_email e
            WHERE lower(e.email) = :email
-             AND (e.valid_to IS NULL OR e.valid_to > CURRENT_TIMESTAMP)
-           ORDER BY e.is_primary DESC, e.valid_from DESC
+             AND e.status = 1
+           ORDER BY e.is_primary DESC, e.creation_date DESC
            LIMIT 1 \
            """
-
 
 def build_insert_outbound_message_query() -> str:
     return """

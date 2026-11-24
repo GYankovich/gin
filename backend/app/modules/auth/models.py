@@ -36,7 +36,11 @@ class User(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     login = Column(String(128), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    status = Column(Integer, nullable=False, default=STATUS_ON)
+    date_creation = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    usercre = Column(String(128), nullable=True)
+    usermod = Column(String(128), nullable=True)
+    date_modification = Column(DateTime(timezone=True), nullable=True)
     # Numeric FK to package.id (column name kept as package_code per product contract)
     package_code = Column(
         BigInteger,
@@ -76,9 +80,9 @@ class Package(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     name = Column(String(128), nullable=False)
     status = Column(Integer, nullable=False, default=STATUS_ON)
-    usercre = Column(BigInteger, nullable=True)
+    usercre = Column(String(128), nullable=True)
     date_creation = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-    usermod = Column(BigInteger, nullable=True)
+    usermod = Column(String(128), nullable=True)
     date_modification = Column(DateTime(timezone=True), nullable=True)
 
     features = relationship(
@@ -96,9 +100,9 @@ class PackageFeature(Base):
     package_id = Column(BigInteger, ForeignKey("package.id", ondelete="CASCADE"), nullable=False)
     feature = Column(String(64), nullable=False)
     status = Column(Integer, nullable=False, default=STATUS_OFF)
-    usercre = Column(BigInteger, nullable=True)
+    usercre = Column(String(128), nullable=True)
     date_creation = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-    usermod = Column(BigInteger, nullable=True)
+    usermod = Column(String(128), nullable=True)
     date_modification = Column(DateTime(timezone=True), nullable=True)
 
     package = relationship("Package", back_populates="features")
@@ -110,8 +114,11 @@ class UserEmail(Base):
     user_id = Column(BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     email = Column(String(255), nullable=False)
     is_primary = Column(Boolean, nullable=False, default=True)
-    valid_from = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-    valid_to = Column(DateTime(timezone=True), nullable=True)
+    status = Column(Integer, nullable=False, default=STATUS_ON)
+    creation_date = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    usercre = Column(String(128), nullable=True)
+    usermod = Column(String(128), nullable=True)
+    modification_date = Column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User", back_populates="emails")
 
@@ -122,8 +129,11 @@ class UserPhone(Base):
     user_id = Column(BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     phone = Column(String(32), nullable=False)
     is_primary = Column(Boolean, nullable=False, default=True)
-    valid_from = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-    valid_to = Column(DateTime(timezone=True), nullable=True)
+    status = Column(Integer, nullable=False, default=STATUS_ON)
+    creation_date = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    usercre = Column(String(128), nullable=True)
+    usermod = Column(String(128), nullable=True)
+    modification_date = Column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User", back_populates="phones")
 

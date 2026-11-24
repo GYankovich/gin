@@ -11,11 +11,14 @@ os.environ.setdefault("SECRET_KEY", "test")
 
 from datetime import datetime, timezone
 
+from app.modules.robots_v2.audit_pnl import filter_round_trips_by_range
 from app.modules.robots_v2.audit_queries import (
     build_count_cycles_query,
+    build_count_decisions_query,
     build_count_fills_query,
     build_count_orders_query,
     build_list_cycles_query,
+    build_list_decisions_query,
     build_list_fills_query,
     build_list_orders_query,
 )
@@ -89,3 +92,29 @@ def test_fifo_timeline_can_cap_at_to_without_from():
     assert "from_at" not in query
     assert "from_at" not in params
     assert query.replace("ORDER BY f.filled_at DESC", "ORDER BY f.filled_at ASC") != query
+
+
+def test_decisions_range_uses_created_at():
+    query, params = build_list_decisions_query(
+        robot_id=1, user_id=2, limit=500, from_at=START, to_at=END,
+    )
+    assert "d.created_at >= :from_at" in query
+    assert "d.created_at < :to_at" in query
+    assert params["from_at"] == START
+    assert params["to_at"] == END
+    count_q, count_params = build_count_decisions_query(
+        robot_id=1, user_id=2, from_at=START, to_at=END,
+    )
+    assert "d.created_at < :to_at" in count_q
+    assert count_params["to_at"] == END
+
+
+def test_filter_round_trips_by_range_half_open():
+    trips = [
+        {"id": "1", "sellAt": "2026-10-01T20:59:59+00:00"},
+        {"id": "2", "sellAt": "2026-10-01T21:00:00+00:00"},
+        {"id": "3", "buyAt": "2026-10-22T20:59:59+00:00"},
+        {"id": "4", "sellAt": "2026-10-22T21:00:00+00:00"},
+    ]
+    filtered = filter_round_trips_by_range(trips, from_at=START, to_at=END)
+    assert [t["id"] for t in filtered] == ["2", "3"]

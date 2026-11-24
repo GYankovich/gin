@@ -41,10 +41,10 @@ class ApiToken(Base):
 
     token_type = Column(String(50), nullable=False)
     token = Column(Text, nullable=False)
+    token_secret = Column(Text, nullable=True)
     token_name = Column(String(255), nullable=True)
 
     status = Column(Integer, nullable=False, default=1)
-    refresh_interval_minutes = Column(Integer, nullable=False, default=60)
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), nullable=True, onupdate=datetime.utcnow)
@@ -54,7 +54,8 @@ class ApiToken(Base):
     expires_at = Column(DateTime(timezone=True), nullable=True)
 
     extra_data = Column(JSON, nullable=True)
-    account_id = Column(String(50), nullable=True)
+    usercre = Column(String(128), nullable=True)
+    usermod = Column(String(128), nullable=True)
 
     user = relationship("User", back_populates="api_tokens")
     robots = relationship("Robot", back_populates="token")

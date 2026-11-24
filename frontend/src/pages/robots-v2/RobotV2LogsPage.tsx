@@ -2,30 +2,33 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-import { DataTable, type Column } from '@/components/ui/DataTable'
 import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useToast } from '@/components/ui/Toast'
+import { MonitorDecisionsCard } from '@/pages/robots-v2/components/MonitorDecisionsCard'
+import { MonitorLiveOrdersCard } from '@/pages/robots-v2/components/MonitorLiveOrdersCard'
+import { MonitorOrdersCard } from '@/pages/robots-v2/components/MonitorOrdersCard'
 import { useQuietChromeActions } from '@/pages/robots-v2/RobotQuietShell'
-import { fmtErr, fmtNum, fmtPrice } from '@/pages/robots-v2/formatters'
-import { todayMoscowDayKey } from '@/pages/robots-v2/monitorUtils'
-import { tradeReasonLabel } from '@/pages/robots-v2/tradeReasonLabels'
+import { fmtErr } from '@/pages/robots-v2/formatters'
+import {
+    fmtNetPnl,
+    toOrderDisplayRow,
+    todayMoscowDayKey,
+} from '@/pages/robots-v2/monitorUtils'
 import { robotV2Service } from '@/services/robotV2Service'
 import type {
     AuditDataType,
     RobotV2AuditResponse,
-    RobotV2Cycle,
-    RobotV2Fill,
-    RobotV2Order,
+    RobotV2RoundTrip,
 } from '@/types/robotV2'
 
-type ViewMode = AuditDataType
+type ViewMode = 'orders' | 'roundTrips' | 'decisions'
 
 const VIEW_OPTIONS: Array<{ value: ViewMode; label: string }> = [
-    { value: 'fills', label: 'Исполнения' },
     { value: 'orders', label: 'Заявки' },
-    { value: 'cycles', label: 'Циклы' },
+    { value: 'roundTrips', label: 'Сделки' },
+    { value: 'decisions', label: 'Решения' },
 ]
 
 const PERIOD_PRESETS = [
@@ -35,7 +38,9 @@ const PERIOD_PRESETS = [
     { id: '90', label: '90 дней', days: 90 },
 ] as const
 
-const HISTORY_LIMIT = 500
+/** Per-request page size — must stay within API `limit` max (500 on older servers). */
+const AUDIT_PAGE_SIZE = 500
+const AUDIT_MAX_PAGES = 20
 
 function shiftMoscowDate(dayKey: string, deltaDays: number): string {
     const [year, month, day] = dayKey.split('-').map(Number)
@@ -52,61 +57,46 @@ function moscowPeriodToUtc(fromDate: string, toDate: string): { from: string; to
     return { from, to: end.toISOString() }
 }
 
-function pickField<T>(row: Record<string, unknown>, camel: string, snake: string): T | undefined {
-    return (row[camel] ?? row[snake]) as T | undefined
-}
+type AuditSectionKey = Exclude<keyof RobotV2AuditResponse, 'robotId'>
 
-function fmtTimeShort(ts: string | null | undefined): string {
-    if (!ts) return '—'
-    const d = new Date(ts)
-    if (!Number.isFinite(d.getTime())) return '—'
-    return d.toLocaleString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-    })
-}
+/** Fetch every page for one audit type so history is not truncated at 500. */
+async function fetchAuditSection(
+    robotId: number,
+    type: AuditDataType,
+    range: { from: string; to: string },
+): Promise<RobotV2AuditResponse> {
+    const key = type as AuditSectionKey
+    const items: unknown[] = []
+    let total = 0
+    let offset = 0
 
-function orderStatusLabel(status: string): string {
-    switch (String(status || '').toLowerCase()) {
-        case 'closed':
-            return 'Закрыта'
-        case 'open':
-            return 'Открыта'
-        case 'resting':
-            return 'В рынке'
-        case 'filled':
-            return 'Исполнено'
-        case 'cancelled':
-        case 'canceled':
-            return 'Отменена'
-        case 'rejected':
-            return 'Отклонена'
-        default:
-            return status || '—'
+    for (let page = 0; page < AUDIT_MAX_PAGES; page += 1) {
+        const data = await robotV2Service.fetchAudit({
+            robotId,
+            limit: AUDIT_PAGE_SIZE,
+            offset,
+            types: [type],
+            from: range.from,
+            to: range.to,
+        })
+        const section = data[key]
+        if (!section) {
+            return { robotId, [key]: { items: [], total: 0 } }
+        }
+        total = section.total
+        items.push(...section.items)
+        if (items.length >= total || section.items.length === 0) {
+            return { robotId: data.robotId, [key]: { items, total } }
+        }
+        offset += section.items.length
     }
+
+    return { robotId, [key]: { items, total } }
 }
 
 function shownCount(shown: number, total: number): string {
     if (total > shown) return `${shown} из ${total}`
     return String(total)
-}
-
-function cycleStatusLabel(status: string): string {
-    switch (String(status || '').toLowerCase()) {
-        case 'completed':
-            return 'Завершён'
-        case 'skipped':
-            return 'Пропущен'
-        case 'failed':
-            return 'Ошибка'
-        case 'running':
-            return 'В работе'
-        default:
-            return status || '—'
-    }
 }
 
 function AuditTableSkeleton({ rows = 6 }: { rows?: number }) {
@@ -126,7 +116,7 @@ export default function RobotV2LogsPage() {
     const { id } = useParams()
     const robotId = Number(id)
     const toast = useToast()
-    const [view, setView] = useState<ViewMode>('fills')
+    const [view, setView] = useState<ViewMode>('orders')
     const [audit, setAudit] = useState<RobotV2AuditResponse | null>(null)
     const [auditLoading, setAuditLoading] = useState(false)
     const todayKey = todayMoscowDayKey()
@@ -140,13 +130,7 @@ export default function RobotV2LogsPage() {
             const start = fromDate <= toDate ? fromDate : toDate
             const end = fromDate <= toDate ? toDate : fromDate
             const range = moscowPeriodToUtc(start, end)
-            const data = await robotV2Service.fetchAudit({
-                robotId,
-                limit: HISTORY_LIMIT,
-                types: [view],
-                from: range.from,
-                to: range.to,
-            })
+            const data = await fetchAuditSection(robotId, view as AuditDataType, range)
             setAudit(data)
         } catch (e) {
             toast.show(fmtErr(e), 'error')
@@ -173,106 +157,52 @@ export default function RobotV2LogsPage() {
         URL.revokeObjectURL(url)
     }, [audit, robotId, view])
 
-    const fills = audit?.fills?.items || []
     const orders = audit?.orders?.items || []
-    const cycles = audit?.cycles?.items || []
+    const trips = audit?.roundTrips?.items || []
+    const decisions = audit?.decisions?.items || []
     const auditCount =
-        view === 'fills' ? audit?.fills?.total ?? fills.length
-        : view === 'orders' ? audit?.orders?.total ?? orders.length
-        : view === 'cycles' ? audit?.cycles?.total ?? cycles.length
+        view === 'orders' ? audit?.orders?.total ?? orders.length
+        : view === 'roundTrips' ? audit?.roundTrips?.total ?? trips.length
+        : view === 'decisions' ? audit?.decisions?.total ?? decisions.length
         : 0
 
-    const fillRows = useMemo(() => fills.map((row: RobotV2Fill) => {
-        const raw = row as unknown as Record<string, unknown>
-        const netPnl = pickField<number | null>(raw, 'netPnl', 'net_pnl')
-        return {
-            id: row.id,
-            time: fmtTimeShort(row.filledAt ?? pickField(raw, 'filledAt', 'filled_at')),
-            ticker: row.ticker,
-            side: row.side,
-            quantity: fmtNum(row.quantity, 4),
-            price: fmtPrice(row.price, 4),
-            commission: fmtNum(row.commission),
-            netPnl,
-            netPnlLabel: netPnl == null ? '—' : `${fmtNum(netPnl)} ₽`,
-            tone: netPnl == null ? 'neutral' : netPnl >= 0 ? 'up' : 'down',
-            kind: tradeReasonLabel(row.kind),
+    const shownItems =
+        view === 'orders' ? orders.length
+            : view === 'roundTrips' ? trips.length
+            : decisions.length
+
+    const orderRecords = useMemo(
+        () => orders.map(row => row as unknown as Record<string, unknown>),
+        [orders],
+    )
+
+    const tradeRows = useMemo(
+        () => trips.map((row: RobotV2RoundTrip) => toOrderDisplayRow(row)),
+        [trips],
+    )
+
+    const tradeTotal = useMemo(() => {
+        let sum = 0
+        let n = 0
+        for (const row of tradeRows) {
+            if (row.isOpen || row.pocket == null || !Number.isFinite(row.pocket)) continue
+            sum += row.pocket
+            n += 1
         }
-    }), [fills])
+        if (n === 0) return null
+        return fmtNetPnl(sum)
+    }, [tradeRows])
 
-    const fillColumns = useMemo<Column<(typeof fillRows)[number]>[]>(() => [
-        { key: 'time', header: 'Время', render: r => <span className="mono">{r.time}</span> },
-        { key: 'ticker', header: 'Тикер', sortable: true, render: r => <strong>{r.ticker}</strong> },
-        { key: 'side', header: 'Сторона' },
-        { key: 'quantity', header: 'Кол-во', render: r => <span className="mono">{r.quantity}</span> },
-        { key: 'price', header: 'Цена', render: r => <span className="mono">{r.price}</span> },
-        { key: 'commission', header: 'Комиссия', render: r => <span className="mono">{r.commission}</span> },
-        {
-            key: 'netPnl',
-            header: 'В карман',
-            sortable: true,
-            render: r => <span className={`mono robots-v2-pnl--${r.tone}`}>{r.netPnlLabel}</span>,
-        },
-        { key: 'kind', header: 'Тип' },
-    ], [])
-
-    const orderRows = useMemo(() => orders.map((row: RobotV2Order) => {
-        const raw = row as unknown as Record<string, unknown>
-        const submitted = row.submittedAt ?? pickField<string>(raw, 'submittedAt', 'submitted_at')
-        const reject = row.rejectReason ?? pickField<string | null>(raw, 'rejectReason', 'reject_reason')
-        return {
-            id: row.id,
-            time: fmtTimeShort(submitted),
-            ticker: row.ticker,
-            side: row.side,
-            kind: tradeReasonLabel(row.kind),
-            quantity: fmtNum(row.quantity, 4),
-            price: fmtPrice(row.price, 4),
-            status: orderStatusLabel(row.status),
-            reject: reject || '—',
-        }
-    }), [orders])
-
-    const orderColumns = useMemo<Column<(typeof orderRows)[number]>[]>(() => [
-        { key: 'time', header: 'Время', render: r => <span className="mono">{r.time}</span> },
-        { key: 'ticker', header: 'Тикер', sortable: true, render: r => <strong>{r.ticker}</strong> },
-        { key: 'side', header: 'Сторона' },
-        { key: 'kind', header: 'Тип' },
-        { key: 'quantity', header: 'Кол-во', render: r => <span className="mono">{r.quantity}</span> },
-        { key: 'price', header: 'Цена', render: r => <span className="mono">{r.price}</span> },
-        { key: 'status', header: 'Статус' },
-        { key: 'reject', header: 'Отказ', render: r => <span className="robots-v2-scan-reason">{r.reject}</span> },
-    ], [])
-
-    const cycleRows = useMemo(() => cycles.map((row: RobotV2Cycle) => {
-        const raw = row as unknown as Record<string, unknown>
-        return {
-            id: row.id,
-            cycleNumber: Number(row.cycleNumber ?? pickField(raw, 'cycleNumber', 'cycle_number') ?? 0),
-            trigger: String(row.triggeredBy ?? pickField(raw, 'triggeredBy', 'triggered_by') ?? '—'),
-            started: fmtTimeShort(row.startedAt ?? pickField(raw, 'startedAt', 'started_at')),
-            finished: fmtTimeShort(row.finishedAt ?? pickField(raw, 'finishedAt', 'finished_at')),
-            status: cycleStatusLabel(row.status),
-            skip: String(row.skipReason ?? pickField(raw, 'skipReason', 'skip_reason') ?? '—'),
-            equity: fmtNum(row.equity, 0),
-        }
-    }), [cycles])
-
-    const cycleColumns = useMemo<Column<(typeof cycleRows)[number]>[]>(() => [
-        { key: 'cycleNumber', header: '#', sortable: true, render: r => <span className="mono">{r.cycleNumber}</span> },
-        { key: 'trigger', header: 'Триггер', render: r => <span className="mono">{r.trigger}</span> },
-        { key: 'started', header: 'Начало', render: r => <span className="mono">{r.started}</span> },
-        { key: 'finished', header: 'Конец', render: r => <span className="mono">{r.finished}</span> },
-        { key: 'status', header: 'Статус' },
-        { key: 'skip', header: 'Skip', render: r => <span className="robots-v2-scan-reason">{r.skip}</span> },
-        { key: 'equity', header: 'Equity', render: r => <span className="mono">{r.equity}</span> },
-    ], [])
+    const decisionRecords = useMemo(
+        () => decisions.map(row => row as unknown as Record<string, unknown>),
+        [decisions],
+    )
 
     const showSkeleton =
         auditLoading
-        && ((view === 'fills' && fills.length === 0)
-            || (view === 'orders' && orders.length === 0)
-            || (view === 'cycles' && cycles.length === 0))
+        && ((view === 'orders' && orders.length === 0)
+            || (view === 'roundTrips' && trips.length === 0)
+            || (view === 'decisions' && decisions.length === 0))
 
     useQuietChromeActions(() => (
         <>
@@ -298,128 +228,118 @@ export default function RobotV2LogsPage() {
     ), [auditCount, auditLoading, exportJson, loadAudit])
 
     return (
-            <div className="dashboard-layout">
-                <Card className="portfolio-toolbar robots-v2-toolbar robots-v2-logs-toolbar">
+        <div className="dashboard-layout">
+            <Card className="portfolio-toolbar robots-v2-toolbar robots-v2-logs-toolbar">
+                <div className="robots-v2-logs-toolbar__view">
                     <SegmentedControl
-                        className="portfolio-period-control"
+                        className="portfolio-period-control robots-v2-logs-toolbar__sections"
                         aria-label="Раздел истории"
                         options={VIEW_OPTIONS}
                         value={view}
                         onChange={v => setView(v as ViewMode)}
                     />
-                    <div className="robots-v2-lab-period" aria-label="Период истории">
-                        <SegmentedControl
-                            className="portfolio-period-control"
-                            aria-label="Пресет периода"
-                            options={[
-                                ...PERIOD_PRESETS.map(p => ({ value: p.id, label: p.label })),
-                                { value: 'custom', label: 'Свой' },
-                            ]}
-                            value={
-                                PERIOD_PRESETS.find(
-                                    p => fromDate === shiftMoscowDate(todayKey, -(p.days - 1)) && toDate === todayKey,
-                                )?.id ?? 'custom'
-                            }
-                            onChange={id => {
-                                const preset = PERIOD_PRESETS.find(p => p.id === id)
-                                if (!preset) return
-                                setFromDate(shiftMoscowDate(todayKey, -(preset.days - 1)))
-                                setToDate(todayKey)
-                            }}
+                    <span className="robots-v2-logs-toolbar__count robots-v2-hint">
+                        {auditCount > 0 ? shownCount(shownItems, auditCount) : '0'}
+                    </span>
+                </div>
+                <div className="robots-v2-lab-period robots-v2-logs-toolbar__period" aria-label="Период истории">
+                    <span className="robots-v2-logs-toolbar__period-label">Период</span>
+                    <SegmentedControl
+                        className="portfolio-period-control robots-v2-logs-toolbar__presets"
+                        aria-label="Пресет периода"
+                        options={[
+                            ...PERIOD_PRESETS.map(p => ({
+                                value: p.id,
+                                label: p.label,
+                            })),
+                            { value: 'custom', label: 'Свой' },
+                        ]}
+                        value={
+                            PERIOD_PRESETS.find(
+                                p => fromDate === shiftMoscowDate(todayKey, -(p.days - 1)) && toDate === todayKey,
+                            )?.id ?? 'custom'
+                        }
+                        onChange={id => {
+                            const preset = PERIOD_PRESETS.find(p => p.id === id)
+                            if (!preset) return
+                            setFromDate(shiftMoscowDate(todayKey, -(preset.days - 1)))
+                            setToDate(todayKey)
+                        }}
+                    />
+                    <DateRangePicker
+                        variant="fields"
+                        showLabel={false}
+                        fromValue={fromDate ? `${fromDate}T00:00` : ''}
+                        toValue={toDate ? `${toDate}T00:00` : ''}
+                        onFromChange={v => setFromDate(v ? v.slice(0, 10) : '')}
+                        onToChange={v => setToDate(v ? v.slice(0, 10) : '')}
+                    />
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="robots-v2-logs-toolbar__reset"
+                        onClick={() => {
+                            setFromDate(shiftMoscowDate(todayKey, -29))
+                            setToDate(todayKey)
+                        }}
+                    >
+                        Сбросить
+                    </Button>
+                </div>
+            </Card>
+
+            {view === 'orders' && (
+                <Card className="dashboard-assets-card robots-v2-logs-card portfolio-history-zone robots-v2-logs-card--headless robots-monitor-day-trades">
+                    {showSkeleton ? (
+                        <AuditTableSkeleton />
+                    ) : (
+                        <MonitorLiveOrdersCard
+                            bare
+                            mode="history"
+                            title={null}
+                            orders={orderRecords}
+                            footnote={null}
                         />
-                        <DateRangePicker
-                            variant="fields"
-                            showLabel={false}
-                            fromValue={fromDate ? `${fromDate}T00:00` : ''}
-                            toValue={toDate ? `${toDate}T00:00` : ''}
-                            onFromChange={v => setFromDate(v ? v.slice(0, 10) : '')}
-                            onToChange={v => setToDate(v ? v.slice(0, 10) : '')}
-                        />
-                    </div>
+                    )}
                 </Card>
+            )}
 
-                {view === 'fills' && (
-                    <Card className="dashboard-assets-card robots-v2-logs-card portfolio-history-zone">
-                        <div className="dashboard-assets-card__head">
-                            <h3 className="dashboard-panel-title">Исполнения</h3>
-                            {auditCount > 0 ? <span className="robots-v2-hint">{shownCount(fills.length, auditCount)}</span> : null}
-                        </div>
-                        {showSkeleton ? (
-                            <AuditTableSkeleton />
-                        ) : (
-                            <DataTable
-                                columns={fillColumns}
-                                data={fillRows}
-                                keyField="id"
-                                emptyText="Нет исполнений за период"
-                                maxHeight={480}
-                                mobilePrimary={r => (
-                                    <div className="portfolio-mobile-split">
-                                        <strong>{r.ticker}</strong>
-                                        <span className={`mono robots-v2-pnl--${r.tone}`}>{r.netPnlLabel}</span>
-                                    </div>
-                                )}
-                                mobileDetails={r => `${r.time} · ${r.side} · ${r.price}`}
-                            />
-                        )}
-                    </Card>
-                )}
+            {view === 'roundTrips' && (
+                <Card className="dashboard-assets-card robots-v2-logs-card portfolio-history-zone robots-v2-logs-card--headless robots-monitor-day-trades">
+                    {showSkeleton ? (
+                        <AuditTableSkeleton />
+                    ) : (
+                        <MonitorOrdersCard
+                            bare
+                            title={null}
+                            rows={tradeRows}
+                            includeOpen
+                            ariaLabel="История сделок"
+                            emptyTitle="Нет сделок за период"
+                            emptySub="Сдвиньте даты или дождитесь входа / выхода из позиции."
+                            dayTotalLabel={tradeTotal?.text ?? null}
+                            dayTotalTone={tradeTotal?.tone ?? 'neutral'}
+                        />
+                    )}
+                </Card>
+            )}
 
-                {view === 'orders' && (
-                    <Card className="dashboard-assets-card robots-v2-logs-card portfolio-history-zone">
-                        <div className="dashboard-assets-card__head">
-                            <h3 className="dashboard-panel-title">Заявки</h3>
-                            {auditCount > 0 ? <span className="robots-v2-hint">{shownCount(orders.length, auditCount)}</span> : null}
-                        </div>
-                        {showSkeleton ? (
-                            <AuditTableSkeleton />
-                        ) : (
-                            <DataTable
-                                columns={orderColumns}
-                                data={orderRows}
-                                keyField="id"
-                                emptyText="Нет заявок за период"
-                                maxHeight={480}
-                                mobilePrimary={r => (
-                                    <div className="portfolio-mobile-split">
-                                        <strong>{r.ticker}</strong>
-                                        <span>{r.status}</span>
-                                    </div>
-                                )}
-                                mobileDetails={r => `${r.time} · ${r.side} · ${r.kind}`}
-                            />
-                        )}
-                    </Card>
-                )}
-
-                {view === 'cycles' && (
-                    <Card className="dashboard-assets-card robots-v2-logs-card portfolio-history-zone">
-                        <div className="dashboard-assets-card__head">
-                            <h3 className="dashboard-panel-title">Циклы</h3>
-                            {auditCount > 0 ? <span className="robots-v2-hint">{shownCount(cycles.length, auditCount)}</span> : null}
-                        </div>
-                        {showSkeleton ? (
-                            <AuditTableSkeleton />
-                        ) : (
-                            <DataTable
-                                columns={cycleColumns}
-                                data={cycleRows}
-                                keyField="id"
-                                emptyText="Нет циклов за период"
-                                maxHeight={480}
-                                defaultSortKey="cycleNumber"
-                                defaultSortDir="desc"
-                                mobilePrimary={r => (
-                                    <div className="portfolio-mobile-split">
-                                        <strong>#{r.cycleNumber}</strong>
-                                        <span>{r.status}</span>
-                                    </div>
-                                )}
-                                mobileDetails={r => `${r.started} · equity ${r.equity}`}
-                            />
-                        )}
-                    </Card>
-                )}
-            </div>
+            {view === 'decisions' && (
+                <Card className="dashboard-assets-card robots-v2-logs-card portfolio-history-zone robots-v2-logs-card--headless robots-monitor-day-trades">
+                    {showSkeleton ? (
+                        <AuditTableSkeleton />
+                    ) : (
+                        <MonitorDecisionsCard
+                            bare
+                            mode="history"
+                            title={null}
+                            limit={null}
+                            decisions={decisionRecords}
+                        />
+                    )}
+                </Card>
+            )}
+        </div>
     )
 }

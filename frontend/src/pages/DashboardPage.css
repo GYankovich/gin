@@ -3741,7 +3741,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     min-width: 0;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-positions__foot {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-positions__foot {
     display: flex;
     justify-content: flex-end;
     margin-top: 8px;
@@ -3749,7 +3749,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     border-top: 1px solid var(--border-subtle);
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-positions__total {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-positions__total {
     font-size: 13px;
     font-weight: 650;
     font-variant-numeric: tabular-nums;
@@ -3856,7 +3856,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     word-break: break-word;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__sort {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__sort {
     display: inline;
     margin: 0;
     padding: 0;
@@ -3870,7 +3870,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     text-align: inherit;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__sort:hover {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__sort:hover {
     color: var(--text-primary);
 }
 
@@ -3911,23 +3911,29 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     gap: 12px;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades {
     min-width: 0;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__viewport {
+/* Same side inset on Лайв and История (logs-card used to be tighter than .card space-5) */
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades.dashboard-assets-card,
+[data-page='robots'][data-robots-view='logs'] .robots-v2-logs-card.dashboard-assets-card {
+    padding: var(--space-3) var(--space-4);
+}
+
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__viewport {
     width: 100%;
     max-width: 100%;
     min-width: 0;
 }
 
 /* Header sits above the vertical scrollport — scrollbar never covers it */
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__head {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__head {
     overflow: hidden;
     border-bottom: 1px solid var(--border-subtle);
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__scroll {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__scroll {
     width: 100%;
     max-width: 100%;
     max-height: min(420px, 52vh);
@@ -3935,7 +3941,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     overscroll-behavior: auto;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__table {
     width: max-content;
     min-width: 100%;
     border-collapse: separate;
@@ -3944,67 +3950,68 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 }
 
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th:nth-child(6),
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table td:nth-child(6),
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th:nth-child(7),
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table td:nth-child(7),
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th:nth-child(8),
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table td:nth-child(8) {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__table th:nth-child(6),
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__table td:nth-child(6),
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__table th:nth-child(7),
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__table td:nth-child(7),
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__table th:nth-child(8),
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__table td:nth-child(8) {
     min-width: 7.5rem;
     white-space: nowrap;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__table th {
     text-align: left;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
+    letter-spacing: 0.04em;
     color: var(--text-muted);
-    padding: 6px 10px;
+    padding: 9px 10px;
     white-space: nowrap;
     background: var(--bg-card, var(--page-bg, #fff));
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__head .robots-monitor-day-trades__table th {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__head .robots-monitor-day-trades__table th {
     border-bottom: 0;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th:first-child,
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table td:first-child {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__table th:first-child,
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__table td:first-child {
     padding-left: 0;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th:last-child,
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table td:last-child {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__table th:last-child,
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__table td:last-child {
     padding-right: 0;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table td {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__table td {
     padding: 9px 10px;
     border-bottom: 1px solid var(--border-subtle);
     font-size: 13px;
     vertical-align: baseline;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table tr:last-child td {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__table tr:last-child td {
     border-bottom: 0;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__num {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__num {
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
 
 /* th { text-align: left } beats bare __num — keep numeric headers with cells */
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__table th.robots-monitor-day-trades__num {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__table th.robots-monitor-day-trades__num {
     text-align: right;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__tk {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__tk {
     font-weight: 650;
     letter-spacing: 0.02em;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__muted {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__muted {
     color: var(--text-muted);
     font-size: 12px;
 }
@@ -4017,24 +4024,24 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     margin-top: 8px;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-empty {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-empty {
     margin: 2px 0 4px;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-empty__sub {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-empty__sub {
     margin: 0;
     font-size: 13px;
     color: var(--text-muted);
     line-height: 1.45;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__stack {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__stack {
     display: flex;
     flex-direction: column;
     gap: 2px;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__drawer {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__drawer {
     margin-top: 10px;
     padding: 10px 12px;
     border: 1px solid var(--border-subtle);
@@ -4042,25 +4049,25 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     background: var(--bg-elevated, var(--page-bg, #fff));
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__drawer-title {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__drawer-title {
     margin: 0 0 8px;
     font-size: 13px;
     font-weight: 650;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__drawer-dl {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__drawer-dl {
     margin: 0;
     display: grid;
     gap: 8px;
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__drawer-dl dt {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__drawer-dl dt {
     font-size: 11px;
     font-weight: 500;
     color: var(--text-muted);
 }
 
-[data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__drawer-dl dd {
+[data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__drawer-dl dd {
     margin: 2px 0 0;
     font-size: 13px;
     color: var(--text-secondary);
@@ -4327,7 +4334,7 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
         padding-top: 12px;
     }
 
-    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-day-trades__scroll {
+    [data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__scroll {
         max-height: min(320px, 45vh);
     }
 

@@ -18,6 +18,7 @@ from typing import Any
 from sqlalchemy import text
 
 from app.core.config import settings
+from app.core.secret_box import open_broker_material
 from app.core.database import SessionLocal
 from app.modules.bybit.live_smoke import run_bybit_live_smoke, run_bybit_public_smoke
 
@@ -28,21 +29,20 @@ def _load_token_from_db(token_id: int) -> tuple[str, dict[str, Any]]:
         row = db.execute(
             text(
                 f"""
-                SELECT token, extra_data
+                SELECT token, token_secret, extra_data
                 FROM api_tokens
-                WHERE id = :tid AND is_active = 1
+                WHERE id = :tid AND status = 1
                 """
             ),
             {"tid": token_id},
         ).mappings().first()
         if not row:
             raise SystemExit(f"Active token id={token_id} not found")
-        extra = row["extra_data"] if isinstance(row["extra_data"], dict) else {}
-        api_key = str(row["token"] or "").strip()
-        if not api_key:
+        api_key, extra = open_broker_material(row["token"], row["token_secret"], row["extra_data"])
+        if not api_key.strip():
             raise SystemExit(f"Token id={token_id} has empty api key")
         if not str(extra.get("token_secret") or "").strip():
-            raise SystemExit(f"Token id={token_id} missing extra_data.token_secret")
+            raise SystemExit(f"Token id={token_id} missing token_secret")
         return api_key, extra
     finally:
         db.close()

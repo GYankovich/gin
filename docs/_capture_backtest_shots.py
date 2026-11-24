@@ -22,7 +22,7 @@ def main() -> None:
 
     with get_db_context() as db:
         row = db.execute(
-            text('SELECT id, login, created_at FROM "user" WHERE id = 1')
+            text('SELECT id, login, date_creation FROM "user" WHERE id = 1')
         ).fetchone()
         if not row:
             raise SystemExit("user id=1 not found")

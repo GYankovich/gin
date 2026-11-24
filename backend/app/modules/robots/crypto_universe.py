@@ -14,6 +14,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.secret_box import open_broker_material
 from app.core.logging_config import get_logger
 from app.modules.bybit.http_client import BybitHttpClient
 from app.modules.robots.crypto_universe_metrics import (
@@ -1113,7 +1114,7 @@ def _find_active_bybit_token(db: Session, user_id: int, token_id: Optional[int] 
         row = db.execute(
             text(
                 f"""
-                SELECT token, extra_data
+                SELECT token, token_secret, extra_data
                 FROM api_tokens
                 WHERE id = :tid
                   AND user_id = :uid
@@ -1128,7 +1129,7 @@ def _find_active_bybit_token(db: Session, user_id: int, token_id: Optional[int] 
         row = db.execute(
             text(
                 f"""
-                SELECT token, extra_data
+                SELECT token, token_secret, extra_data
                 FROM api_tokens
                 WHERE user_id = :uid
                   AND status = 1
@@ -1141,9 +1142,13 @@ def _find_active_bybit_token(db: Session, user_id: int, token_id: Optional[int] 
         ).first()
     if not row:
         return None
-    extra = row[1] if isinstance(row[1], dict) else {}
+    plain, extra = open_broker_material(
+        row[0],
+        row[1],
+        row[2] if isinstance(row[2], dict) else None,
+    )
     return {
-        "token": str(row[0] or ""),
+        "token": plain,
         "token_secret": str(extra.get("token_secret") or ""),
         "testnet": False,
     }

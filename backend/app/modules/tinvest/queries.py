@@ -64,7 +64,8 @@ def build_get_token_by_id_query() -> str:
                updated_at,
                last_used_at,
                expires_at,
-               extra_data
+               extra_data,
+               token_secret
            FROM api_tokens
            WHERE id = :token_id AND user_id = :user_id \
            """
@@ -73,8 +74,8 @@ def build_get_token_by_id_query() -> str:
 def build_check_token_exists_query() -> str:
     """Проверка существования токена"""
     return """
-           SELECT id FROM api_tokens
-           WHERE user_id = :user_id AND token = :token AND status = 1 \
+           SELECT token FROM api_tokens
+           WHERE user_id = :user_id AND status = 1 \
            """
 
 
@@ -266,7 +267,12 @@ def build_link_token_portfolio_account_query() -> str:
     return """
            INSERT INTO token_portfolio_accounts
                (token_id, portfolio_account_id, status, usercre)
-           VALUES (:token_id, :portfolio_account_id, 1, :user_id)
+           VALUES (
+               :token_id,
+               :portfolio_account_id,
+               1,
+               (SELECT login FROM "user" WHERE id = :user_id)
+           )
            ON CONFLICT (token_id, portfolio_account_id) DO UPDATE
                SET status = 1,
                    usermod = CASE
@@ -296,8 +302,9 @@ def build_link_token_accounts_by_external_ids_query(
     query = f"""
            INSERT INTO token_portfolio_accounts
                (token_id, portfolio_account_id, status, usercre)
-           SELECT :token_id, pa.id, 1, :user_id
+           SELECT :token_id, pa.id, 1, u.login
              FROM portfolio_accounts pa
+             JOIN "user" u ON u.id = :user_id
             WHERE pa.user_id = :user_id
               AND pa.account_id IN ({in_list})
            ON CONFLICT (token_id, portfolio_account_id) DO UPDATE
@@ -328,7 +335,7 @@ def build_prune_token_accounts_query(account_ids: list[str]) -> tuple[str, dict]
     query = f"""
            UPDATE token_portfolio_accounts tpa
               SET status = 0,
-                  usermod = :user_id,
+                  usermod = (SELECT login FROM "user" WHERE id = :user_id),
                   date_modification = CURRENT_TIMESTAMP
              FROM portfolio_accounts pa
             WHERE tpa.portfolio_account_id = pa.id

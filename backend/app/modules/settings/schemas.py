@@ -17,7 +17,6 @@ class ApiKeyCreate(BaseModel):
     token: str = Field(..., min_length=6, description="API токен / API key")
     key_type: str = Field(..., description="Тип ключа (tinvest, telegram и т.д.)")
     name: Optional[str] = Field(None, max_length=100, description="Название ключа")
-    refresh_interval_minutes: Optional[int] = Field(60, ge=5, le=1440, description="Частота обновления в минутах (минимум 5)")
     token_secret: Optional[str] = Field(None, description="Секрет ключа (например ByBit API secret)")
     testnet: Optional[bool] = Field(None, description="Использовать testnet окружение")
     account_type: Optional[str] = Field(None, description="Тип аккаунта брокера (например UNIFIED)")
@@ -27,7 +26,6 @@ class ApiKeyUpdate(BaseModel):
     """Схема для обновления ключа"""
     name: Optional[str] = Field(None, max_length=100, description="Новое название")
     status: Optional[int] = Field(None, description="Статус токена (1 active, 0 inactive, 3 expired)")
-    refresh_interval_minutes: Optional[int] = Field(None, ge=5, le=1440, description="Частота обновления в минутах")
 
 
 class ApiKeyResponse(BaseModel):

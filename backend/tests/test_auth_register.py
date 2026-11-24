@@ -38,4 +38,6 @@ def test_confirmation_query_is_scoped_by_purpose():
 def test_email_login_query_is_case_insensitive():
     sql = build_get_user_by_email_query()
     assert "lower(e.email)" in sql
-    assert "valid_to IS NULL" in sql
+    assert "creation_date" in sql
+    assert "e.status = 1" in sql
+    assert "valid_to" not in sql

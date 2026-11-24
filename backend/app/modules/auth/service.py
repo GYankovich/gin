@@ -44,9 +44,12 @@ logger = logging.getLogger(__name__)
 
 ACTOR_REGISTRATION = "POST /api/registration"
 ACTOR_REGISTRATION_RESEND = "POST /api/registration/resend"
+ACTOR_REGISTRATION_CONFIRM = "/api/registration/confirm"
 ACTOR_AUTH = "POST /api/auth"
 ACTOR_AUTH_RESEND = "POST /api/auth/resend"
+ACTOR_USERS_CHANGE = "/api/users/change"
 ACTOR_CHANGE_PASS_REQUEST = "POST /api/change_pass_request"
+ACTOR_CHANGE_PASS = "/api/change_pass"
 
 
 def mail_contact(email: str, email_row: tuple | None) -> dict:
@@ -98,9 +101,10 @@ class AuthService:
             "id": self._safe_int(row[0]),
             "login": self._safe_str(row[1]),
             "created_at": self._safe_datetime(row[2]) if len(row) > 2 else None,
+            "status": self._safe_int(row[3], 1) if len(row) > 3 else 1,
         }
 
-        idx = 3
+        idx = 4
         if has_email:
             result["email"] = self._safe_str(row[idx], None) if idx < len(row) else None
             idx += 1
@@ -114,6 +118,7 @@ class AuthService:
         return schemas.UserOut(
             id=user["id"],
             login=user["login"],
+            status=int(user.get("status") or 1),
             email=user.get("email"),
             phone=user.get("phone"),
             created_at=user.get("created_at"),
@@ -143,8 +148,12 @@ class AuthService:
             "id": result[0],
             "login": result[1],
             "password_hash": result[2],
-            "created_at": result[3]
+            "created_at": result[3],
+            "status": int(result[4]) if len(result) > 4 and result[4] is not None else 1,
         }
+
+        if user_data["status"] != 1:
+            return None
 
         if not verify_password(password, user_data["password_hash"]):
             return None
@@ -154,6 +163,7 @@ class AuthService:
             user_data["email"] = user_full.get("email")
             user_data["phone"] = user_full.get("phone")
             user_data["created_at"] = user_full.get("created_at") or user_data.get("created_at")
+            user_data["status"] = user_full.get("status", user_data["status"])
 
         return user_data
 
@@ -188,15 +198,17 @@ class AuthService:
 
         # Вставляем пользователя
         insert_query = queries.build_create_user_query()
-        from app.modules.auth.models import DEFAULT_PACKAGE_ID
+        from app.modules.auth.models import DEFAULT_PACKAGE_ID, STATUS_ON
 
         result = self._execute(
             insert_query,
             {
                 "login": user_data.login,
                 "password_hash": password_hash,
-                "created_at": now,
+                "status": STATUS_ON,
+                "date_creation": now,
                 "package_code": DEFAULT_PACKAGE_ID,
+                "usercre": user_data.login,
             },
             fetch_one=True
         )
@@ -218,7 +230,9 @@ class AuthService:
                     "user_id": user_id,
                     "email": user_data.email,
                     "is_primary": True,
-                    "valid_from": now
+                    "status": STATUS_ON,
+                    "creation_date": now,
+                    "usercre": user_data.login,
                 }
             )
 
@@ -231,7 +245,9 @@ class AuthService:
                     "user_id": user_id,
                     "phone": user_data.phone,
                     "is_primary": True,
-                    "valid_from": now
+                    "status": STATUS_ON,
+                    "creation_date": now,
+                    "usercre": user_data.login,
                 }
             )
 
@@ -622,15 +638,21 @@ class AuthService:
         )
         if not row:
             return None
+        status_val = int(row[4]) if len(row) > 4 and row[4] is not None else 1
+        if status_val != 1:
+            return None
         user = self.get_user_by_id_full(self.db, row[0])
         if user is None:
             return {
                 "id": row[0],
                 "login": row[1],
+                "status": status_val,
                 "email": email,
                 "phone": None,
                 "created_at": row[3],
             }
+        if int(user.get("status") or 1) != 1:
+            return None
         return user
 
     def request_password_reset(self, db: Session, payload: schemas.PasswordForgotRequest, app_base: str) -> schemas.PasswordForgotResponse:
@@ -696,9 +718,15 @@ class AuthService:
         self.db = db
         user = self._user_from_reset_token(payload.token)
         email = str(user.get("email") or "").strip().lower()
+        now = datetime.now(timezone.utc)
         self._execute(
             queries.build_update_password_query(),
-            {"user_id": user["id"], "password_hash": get_password_hash(payload.password)},
+            {
+                "user_id": user["id"],
+                "password_hash": get_password_hash(payload.password),
+                "usermod": ACTOR_CHANGE_PASS,
+                "date_modification": now,
+            },
         )
         if email:
             self._delete_confirmation(email, PURPOSE_RESET)
@@ -750,15 +778,17 @@ class AuthService:
         return user
 
     def _persist_user(self, *, login: str, password_hash: str, email: str, now: datetime) -> dict:
-        from app.modules.auth.models import DEFAULT_PACKAGE_ID
+        from app.modules.auth.models import DEFAULT_PACKAGE_ID, STATUS_ON
 
         result = self._execute(
             queries.build_create_user_query(),
             {
                 "login": login,
                 "password_hash": password_hash,
-                "created_at": now,
+                "status": STATUS_ON,
+                "date_creation": now,
                 "package_code": DEFAULT_PACKAGE_ID,
+                "usercre": ACTOR_REGISTRATION_CONFIRM,
             },
             fetch_one=True,
         )
@@ -770,12 +800,20 @@ class AuthService:
         user_id = result[0]
         self._execute(
             queries.build_create_email_query(),
-            {"user_id": user_id, "email": email, "is_primary": True, "valid_from": now},
+            {
+                "user_id": user_id,
+                "email": email,
+                "is_primary": True,
+                "status": STATUS_ON,
+                "creation_date": now,
+                "usercre": login,
+            },
         )
         self.db.commit()
         return {
             "id": user_id,
             "login": login,
+            "status": STATUS_ON,
             "email": email,
             "phone": None,
             "created_at": now,
@@ -975,8 +1013,10 @@ class AuthService:
                 "type": row[0],
                 "value": row[1],
                 "is_primary": bool(row[2]),
-                "valid_from": row[3],
-                "valid_to": row[4]
+                "creation_date": row[3],
+                "modification_date": row[4] if len(row) > 4 else None,
+                "usercre": row[5] if len(row) > 5 else None,
+                "usermod": row[6] if len(row) > 6 else None,
             })
 
         return contacts
@@ -1005,11 +1045,95 @@ class AuthService:
 
         return bool(result and result[2])  # is_active = True
 
+    def _retire_contact(self, query: str, user_id: int, now: datetime) -> None:
+        self._execute(
+            query,
+            {
+                "user_id": user_id,
+                "usermod": ACTOR_USERS_CHANGE,
+                "modification_date": now,
+            },
+        )
+
+    def _replace_email(self, user_id: int, current_email: Optional[str], new_email: Optional[str], now: datetime, login: str) -> None:
+        current = (current_email or "").strip().lower()
+        incoming = str(new_email).strip().lower() if new_email else ""
+        if incoming == current:
+            return
+        if incoming:
+            taken = self._execute(
+                queries.build_check_email_exists_query(),
+                {"email": incoming},
+                fetch_one=True,
+            )
+            if taken and int(taken[0]) != int(user_id):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Эта почта уже зарегистрирована",
+                )
+            login_clash = self._execute(
+                queries.build_check_login_taken_by_other_query(),
+                {"login": incoming, "user_id": user_id},
+                fetch_one=True,
+            )
+            if login_clash:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Эта почта уже зарегистрирована",
+                )
+        if current:
+            self._retire_contact(queries.build_close_user_emails_query(), user_id, now)
+        if not incoming:
+            return
+        from app.modules.auth.models import STATUS_ON
+
+        self._execute(
+            queries.build_create_email_query(),
+            {
+                "user_id": user_id,
+                "email": incoming,
+                "is_primary": True,
+                "status": STATUS_ON,
+                "creation_date": now,
+                "usercre": login,
+            },
+        )
+
+    def _replace_phone(self, user_id: int, current_phone: Optional[str], new_phone: Optional[str], now: datetime, login: str) -> None:
+        current = (current_phone or "").strip()
+        incoming = str(new_phone).strip() if new_phone else ""
+        if incoming == current:
+            return
+        if current:
+            self._retire_contact(queries.build_close_user_phones_query(), user_id, now)
+        if not incoming:
+            return
+        from app.modules.auth.models import STATUS_ON
+
+        self._execute(
+            queries.build_create_phone_query(),
+            {
+                "user_id": user_id,
+                "phone": incoming,
+                "is_primary": True,
+                "status": STATUS_ON,
+                "creation_date": now,
+                "usercre": login,
+            },
+        )
+
     def change_user(self, db: Session, user_id: int, data: schemas.UserChange) -> dict:
         """Изменяет логин/контакты и опционально пароль текущего пользователя."""
         self.db = db
         payload = data.model_dump(exclude_unset=True)
         now = datetime.now(timezone.utc)
+
+        current = self.get_user_by_id_full(db, user_id)
+        if not current:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
 
         new_login = str(payload.get("login") or "").strip()
         if len(new_login) < 2:
@@ -1031,33 +1155,16 @@ class AuthService:
 
         self._execute(
             queries.build_update_login_query(),
-            {"user_id": user_id, "login": new_login},
+            {
+                "user_id": user_id,
+                "login": new_login,
+                "usermod": ACTOR_USERS_CHANGE,
+                "date_modification": now,
+            },
         )
 
-        # Email/phone: only UPDATE existing contact rows (no INSERT).
-        email = payload.get("email")
-        if email:
-            self._execute(
-                queries.build_update_user_email_query(),
-                {"user_id": user_id, "email": str(email)},
-            )
-        else:
-            self._execute(
-                queries.build_expire_user_emails_query(),
-                {"user_id": user_id, "now": now},
-            )
-
-        phone = payload.get("phone")
-        if phone:
-            self._execute(
-                queries.build_update_user_phone_query(),
-                {"user_id": user_id, "phone": str(phone)},
-            )
-        else:
-            self._execute(
-                queries.build_expire_user_phones_query(),
-                {"user_id": user_id, "now": now},
-            )
+        self._replace_email(user_id, current.get("email"), payload.get("email"), now, new_login)
+        self._replace_phone(user_id, current.get("phone"), payload.get("phone"), now, new_login)
 
         if payload.get("new_password"):
             row = self._execute(
@@ -1096,6 +1203,8 @@ class AuthService:
                 {
                     "user_id": user_id,
                     "password_hash": get_password_hash(new_password),
+                    "usermod": ACTOR_USERS_CHANGE,
+                    "date_modification": now,
                 },
             )
             logger.info("Password changed for user_id=%s", user_id)
