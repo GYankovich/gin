@@ -1,17 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
+import { checkBackendReachable, probeBackendHealth } from '@/services/backendHealth'
 import { useBackendStatusStore } from '@/stores/backendStatusStore'
 
 const PROBE_MS = 5000
-
-async function probeHealth(): Promise<boolean> {
-    try {
-        const response = await fetch('/health', { cache: 'no-store' })
-        return response.ok
-    } catch {
-        return false
-    }
-}
 
 ///@EPIC Frontend.ITEM Shell.TOPIC Backend Unavailability Banner [1]
 ///@ Один баннер на всё приложение, когда API недоступен. Локальные
@@ -54,7 +46,7 @@ export function BackendDownBanner() {
         if (!down) return
         let cancelled = false
         const tick = async () => {
-            const ok = await probeHealth()
+            const ok = await probeBackendHealth()
             if (!cancelled && ok) markReachable()
         }
         void tick()
@@ -70,7 +62,7 @@ export function BackendDownBanner() {
     const onCheck = async () => {
         setChecking(true)
         try {
-            if (await probeHealth()) markReachable()
+            await checkBackendReachable()
         } finally {
             setChecking(false)
         }

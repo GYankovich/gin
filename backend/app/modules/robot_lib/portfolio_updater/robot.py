@@ -593,7 +593,7 @@ class PortfolioUpdaterRobot(BaseRobot):
         self.db.execute(
             text(
                 f"""
-                UPDATE {self.schema}.robots_v2
+                UPDATE {self.schema}.robots
                 SET status = 2,
                     last_error = :error_message,
                     last_error_at = :now,

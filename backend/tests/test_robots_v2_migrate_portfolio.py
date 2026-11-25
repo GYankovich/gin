@@ -15,7 +15,7 @@ def test_create_robot_defaults_status_enabled():
     def _execute(stmt, params=None):
         sql = str(stmt)
         prm = dict(params or {})
-        if "INSERT INTO" in sql and ".robots_v2" in sql:
+        if "INSERT INTO" in sql and ".robots" in sql:
             captured.update(prm)
             return MagicMock(fetchone=MagicMock(return_value=MagicMock(id=55)))
         if "SELECT COALESCE(MAX(version)" in sql:

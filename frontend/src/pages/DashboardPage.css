@@ -4151,9 +4151,9 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 .robots-monitor-hero__tiles {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px 14px;
+    gap: 14px 18px;
     margin-top: auto;
-    padding-top: 12px;
+    padding-top: 16px;
     border-top: 1px solid var(--border-subtle);
 }
 
@@ -4163,18 +4163,19 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
 
 .robots-monitor-hero__kpi-label {
     display: block;
-    margin: 0 0 3px;
-    font-size: 11px;
+    margin: 0 0 4px;
+    font-size: 13px;
     font-weight: 500;
     color: var(--text-muted);
 }
 
 .robots-monitor-hero__kpi-value {
     display: block;
-    font-size: 15px;
+    font-size: 20px;
     font-weight: 650;
     font-variant-numeric: tabular-nums;
     line-height: 1.2;
+    letter-spacing: -0.2px;
     color: var(--text-primary);
 }
 
@@ -4333,8 +4334,17 @@ body:has([data-page='robots'][data-robots-view='wizard'])::-webkit-scrollbar {
     }
 
     [data-page='robots'][data-robots-view='monitor'] .robots-monitor-hero__tiles {
-        margin-top: 12px;
-        padding-top: 12px;
+        margin-top: 14px;
+        padding-top: 14px;
+        gap: 12px 16px;
+    }
+
+    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-hero__kpi-label {
+        font-size: 12px;
+    }
+
+    [data-page='robots'][data-robots-view='monitor'] .robots-monitor-hero__kpi-value {
+        font-size: 18px;
     }
 
     [data-page='robots']:is([data-robots-view='monitor'],[data-robots-view='logs']) .robots-monitor-day-trades__scroll {

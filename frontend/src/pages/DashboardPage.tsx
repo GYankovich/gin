@@ -8,6 +8,7 @@ import { AccountVisibilityGear, AccountVisibilityModal } from '@/components/acco
 import { ConnectBrokerEmpty } from '@/components/ConnectBrokerEmpty'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { dashboardService } from '@/services/dashboardService'
+import { useBackendStatusStore } from '@/stores/backendStatusStore'
 import { usePageCacheStore } from '@/stores/pageCacheStore'
 import type {
     DashboardAccountItem,
@@ -28,6 +29,7 @@ export default function DashboardPage() {
     const previewEmpty = searchParams.get('empty') === '1'
     const cachedDashboard = usePageCacheStore(s => s.dashboard)
     const setDashboardCache = usePageCacheStore(s => s.setDashboard)
+    const backendDown = useBackendStatusStore(s => s.down)
     const [data, setData] = useState<DashboardDataResponse | null>(cachedDashboard)
     const [loading, setLoading] = useState(cachedDashboard == null)
     const [retrying, setRetrying] = useState(false)
@@ -110,6 +112,14 @@ export default function DashboardPage() {
     }
 
     if (!data) {
+        if (backendDown) {
+            return (
+                <div className="page" data-page="dashboard">
+                    <h1 className="dash-sr-only">Дашборд</h1>
+                    <DashboardSkeleton />
+                </div>
+            )
+        }
         return (
             <div className="page" data-page="dashboard">
                 <h1 className="dash-sr-only">Дашборд</h1>

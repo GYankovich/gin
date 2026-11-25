@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/Skeleton'
 import { RobotIllustration } from '@/components/ui/RobotIllustration'
 import { ConnectBrokerEmpty } from '@/components/ConnectBrokerEmpty'
 import { analyticsService } from '@/services/analyticsService'
+import { useBackendStatusStore } from '@/stores/backendStatusStore'
 import { usePageCacheStore } from '@/stores/pageCacheStore'
 import type {
     AccountSummary,
@@ -114,6 +115,7 @@ export default function PortfolioPage() {
     const isMobile = useMediaQuery('(max-width: 767px)')
     const cachedPortfolio = usePageCacheStore(s => s.portfolioAccounts)
     const setPortfolioAccountsCache = usePageCacheStore(s => s.setPortfolioAccounts)
+    const backendDown = useBackendStatusStore(s => s.down)
 
     const [accounts, setAccounts] = useState<AccountSummary[]>(cachedPortfolio?.accounts ?? [])
     const [selectedAccountId, setSelectedAccountId] = useState<number | null>(() => {
@@ -1094,6 +1096,15 @@ export default function PortfolioPage() {
     )
 
     if (loading) {
+        return (
+            <div className="page" data-page="portfolio">
+                <h1 className="dash-sr-only">Портфель</h1>
+                <PortfolioSkeleton isMobile={isMobile} />
+            </div>
+        )
+    }
+
+    if (!previewEmpty && backendDown && accounts.length === 0) {
         return (
             <div className="page" data-page="portfolio">
                 <h1 className="dash-sr-only">Портфель</h1>

@@ -534,7 +534,7 @@ class RobotsV2Service:
             _IDLE_BROKER_CACHE.pop(request.robot_id, None)
             db.execute(
                 text(f"""
-                    UPDATE {self.schema}.robots_v2
+                    UPDATE {self.schema}.robots
                     SET metadata = :metadata, usermod = :usermod, date_modification = NOW()
                     WHERE id = :robot_id AND user_id = :user_id
                 """),
@@ -591,7 +591,7 @@ class RobotsV2Service:
         metadata[SESSION_DESIRED_KEY] = session_desired
         db.execute(
             text(f"""
-                UPDATE {self.schema}.robots_v2
+                UPDATE {self.schema}.robots
                 SET metadata = :metadata, last_started = NOW(),
                     usermod = :usermod, date_modification = NOW()
                 WHERE id = :robot_id AND user_id = :user_id
@@ -638,7 +638,7 @@ class RobotsV2Service:
         else:
             db.execute(
                 text(f"""
-                    UPDATE {self.schema}.robots_v2
+                    UPDATE {self.schema}.robots
                     SET metadata = :metadata, usermod = :usermod, date_modification = NOW()
                     WHERE id = :robot_id AND user_id = :user_id
                 """),
@@ -709,7 +709,7 @@ class RobotsV2Service:
         metadata["sessionStopMode"] = stop_mode or metadata.get("sessionStopMode") or "soft"
         db.execute(
             text(f"""
-                UPDATE {self.schema}.robots_v2
+                UPDATE {self.schema}.robots
                 SET metadata = :metadata, usermod = :usermod, date_modification = NOW()
                 WHERE id = :robot_id AND user_id = :user_id
             """),

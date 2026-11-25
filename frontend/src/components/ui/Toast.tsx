@@ -1,7 +1,8 @@
 ///@EPIC Frontend.ITEM Components.TOPIC FrontendSrcComponentsUiToast [1]
 ///@ Исходный модуль `frontend/src/components/ui/Toast.tsx` — автоматическая разметка для Obsidian Source Scanner.
 
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react'
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react'
+import { useBackendStatusStore } from '@/stores/backendStatusStore'
 
 type ToastType = 'success' | 'error' | 'warning' | 'info'
 
@@ -23,8 +24,15 @@ let nextId = 0
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
     const [toasts, setToasts] = useState<ToastItem[]>([])
+    const backendDown = useBackendStatusStore(s => s.down)
+
+    // Banner already explains outage — don't stack transport/API noise on top.
+    useEffect(() => {
+        if (backendDown) setToasts([])
+    }, [backendDown])
 
     const show = useCallback((message: string, type: ToastType = 'info', durationMs = 4000) => {
+        if (useBackendStatusStore.getState().down) return
         const id = ++nextId
         setToasts(prev => [...prev, { id, message, type }])
         setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), durationMs)

@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { PageHero } from '@/components/ui/PageHero'
 import { useToast } from '@/components/ui/Toast'
+import { Skeleton } from '@/components/ui/Skeleton'
 import { BacktestRunWorkspace } from '@/pages/robots/components/BacktestRunWorkspace'
 import { SaveAsRobotModal } from '@/pages/robots/components/SaveAsRobotModal'
+import { useBackendStatusStore } from '@/stores/backendStatusStore'
 import {
     archetypeOfConfig,
     backtestStatusVariant,
@@ -23,6 +25,7 @@ export default function BacktestRunPage() {
     const runId = parseBacktestRunId(runIdParam)
     const navigate = useNavigate()
     const toast = useToast()
+    const backendDown = useBackendStatusStore(s => s.down)
 
     const [robots, setRobots] = useState<TradingRobot[]>([])
     const [status, setStatus] = useState<RobotBacktestRunDetails | null>(null)
@@ -216,15 +219,21 @@ export default function BacktestRunPage() {
 
             <div className="dashboard-layout">
                 {error && !status && !opening ? (
-                    <Card className="dashboard-totals-card dashboard-error-card">
-                        <p className="dashboard-empty">{error}</p>
-                        <div className="dashboard-error-card__actions">
-                            <Button type="button" onClick={() => void loadDetails(runId)}>Повторить</Button>
-                            <Button type="button" variant="ghost" onClick={() => navigate('/backtest')}>
-                                К лаборатории
-                            </Button>
-                        </div>
-                    </Card>
+                    backendDown ? (
+                        <Card className="dashboard-totals-card dashboard-skeleton-card">
+                            <Skeleton height="280px" />
+                        </Card>
+                    ) : (
+                        <Card className="dashboard-totals-card dashboard-error-card">
+                            <p className="dashboard-empty">{error}</p>
+                            <div className="dashboard-error-card__actions">
+                                <Button type="button" onClick={() => void loadDetails(runId)}>Повторить</Button>
+                                <Button type="button" variant="ghost" onClick={() => navigate('/backtest')}>
+                                    К лаборатории
+                                </Button>
+                            </div>
+                        </Card>
+                    )
                 ) : (
                     <BacktestRunWorkspace
                         runId={runId}

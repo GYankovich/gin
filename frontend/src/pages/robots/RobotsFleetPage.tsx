@@ -10,6 +10,7 @@ import { FleetRobotCard } from '@/pages/robots/components/FleetRobotCard'
 import { RobotConfirmModal } from '@/pages/robots/components/RobotConfirmModal'
 import { fmtErr } from '@/pages/robots/formatters'
 import { robotService, type TradingRobotFleetItem, type TradingRobotFleetLive } from '@/services/robotService'
+import { useBackendStatusStore } from '@/stores/backendStatusStore'
 import { usePageCacheStore } from '@/stores/pageCacheStore'
 import type { TradingRobot, TradingRobotStatus } from '@/types/robots'
 
@@ -68,6 +69,7 @@ export default function RobotsFleetPage() {
     const toast = useToast()
     const cachedFleet = usePageCacheStore(s => s.robotsFleet)
     const setRobotsFleetCache = usePageCacheStore(s => s.setRobotsFleet)
+    const backendDown = useBackendStatusStore(s => s.down)
     const [robots, setRobots] = useState<TradingRobotFleetItem[]>(
         (cachedFleet?.robots as TradingRobotFleetItem[] | undefined) ?? [],
     )
@@ -255,15 +257,19 @@ export default function RobotsFleetPage() {
                 <h1 className="dash-sr-only">Роботы</h1>
 
                 {!loading && error && (
-                    <Card className="dashboard-totals-card dashboard-error-card">
-                        <div className="dashboard-error-card__robot" aria-hidden>
-                            <RobotIllustration size={96} mode="inactive" interactive={false} />
-                        </div>
-                        <p className="dashboard-empty">{error}</p>
-                        <div className="dashboard-error-card__actions">
-                            <Button type="button" onClick={() => void load()}>Повторить</Button>
-                        </div>
-                    </Card>
+                    backendDown ? (
+                        <FleetSkeleton />
+                    ) : (
+                        <Card className="dashboard-totals-card dashboard-error-card">
+                            <div className="dashboard-error-card__robot" aria-hidden>
+                                <RobotIllustration size={96} mode="inactive" interactive={false} />
+                            </div>
+                            <p className="dashboard-empty">{error}</p>
+                            <div className="dashboard-error-card__actions">
+                                <Button type="button" onClick={() => void load()}>Повторить</Button>
+                            </div>
+                        </Card>
+                    )
                 )}
 
                 {!loading && !error && (

@@ -1,5 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
 import { useBackendStatusStore } from '@/stores/backendStatusStore'
+import { probeBackendHealth } from '@/services/backendHealth'
 
 ///@EPIC Frontend.ITEM APIClient.TOPIC Axios Base And Auth Interceptors [1]
 ///@ Базовый HTTP-клиент фронтенда: подставляет bearer token в запросы и
@@ -28,6 +29,14 @@ function retryDelayMs(attempt: number): number {
     return Math.min(1000 * 2 ** (attempt - 1), 8000)
 }
 
+/** Vite historically maps ECONNREFUSED to 500; confirm via /health before banner. */
+async function markDownIfHealthFails(startedAt: number): Promise<void> {
+    const healthy = await probeBackendHealth()
+    if (!healthy) {
+        useBackendStatusStore.getState().markDown(startedAt)
+    }
+}
+
 api.interceptors.request.use((config) => {
     const retryConfig = config as RetryConfig
     if (retryConfig.__startedAt == null) retryConfig.__startedAt = Date.now()
@@ -51,6 +60,8 @@ api.interceptors.response.use(
                 return api.request(config)
             }
             useBackendStatusStore.getState().markDown(config.__startedAt ?? Date.now())
+        } else if (err.response?.status === 500) {
+            await markDownIfHealthFails(config?.__startedAt ?? Date.now())
         }
         if (err.response?.status === 401) {
             const url = config?.url ?? ''

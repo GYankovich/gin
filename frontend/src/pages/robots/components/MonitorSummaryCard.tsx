@@ -47,12 +47,12 @@ export function MonitorSummaryCard({
             <div className="robots-monitor-hero" aria-busy="true" aria-label="Загрузка сводки">
                 <Skeleton width="62%" height="32px" borderRadius="6px" />
                 <div className="robots-monitor-hero__tiles">
-                    <Skeleton width="100%" height="36px" borderRadius="6px" />
-                    <Skeleton width="100%" height="36px" borderRadius="6px" />
-                    <Skeleton width="100%" height="36px" borderRadius="6px" />
-                    <Skeleton width="100%" height="36px" borderRadius="6px" />
-                    <Skeleton width="100%" height="36px" borderRadius="6px" />
-                    <Skeleton width="100%" height="36px" borderRadius="6px" />
+                    <Skeleton width="100%" height="48px" borderRadius="6px" />
+                    <Skeleton width="100%" height="48px" borderRadius="6px" />
+                    <Skeleton width="100%" height="48px" borderRadius="6px" />
+                    <Skeleton width="100%" height="48px" borderRadius="6px" />
+                    <Skeleton width="100%" height="48px" borderRadius="6px" />
+                    <Skeleton width="100%" height="48px" borderRadius="6px" />
                 </div>
             </div>
         )
