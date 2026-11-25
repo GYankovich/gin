@@ -206,7 +206,7 @@ class AuthService:
                 "login": user_data.login,
                 "password_hash": password_hash,
                 "status": STATUS_ON,
-                "date_creation": now,
+                "creation_date": now,
                 "package_code": DEFAULT_PACKAGE_ID,
                 "usercre": user_data.login,
             },
@@ -725,7 +725,7 @@ class AuthService:
                 "user_id": user["id"],
                 "password_hash": get_password_hash(payload.password),
                 "usermod": ACTOR_CHANGE_PASS,
-                "date_modification": now,
+                "modification_date": now,
             },
         )
         if email:
@@ -786,7 +786,7 @@ class AuthService:
                 "login": login,
                 "password_hash": password_hash,
                 "status": STATUS_ON,
-                "date_creation": now,
+                "creation_date": now,
                 "package_code": DEFAULT_PACKAGE_ID,
                 "usercre": ACTOR_REGISTRATION_CONFIRM,
             },
@@ -861,13 +861,14 @@ class AuthService:
                 "user_id": user_data["id"],
                 "token": token,
                 "status": 1,  # ACTIVE
-                "created_at": now,
+                "creation_date": now,
                 "expires_at": expires_at,
                 "ip": meta.ip,
                 "user_agent": meta.user_agent,
                 "device_label": meta.device_label,
                 "geo_label": meta.geo_label,
                 "last_seen_at": now,
+                "usercre": user_data.get("login"),
             }
         )
         db.commit()
@@ -1159,7 +1160,7 @@ class AuthService:
                 "user_id": user_id,
                 "login": new_login,
                 "usermod": ACTOR_USERS_CHANGE,
-                "date_modification": now,
+                "modification_date": now,
             },
         )
 
@@ -1204,7 +1205,7 @@ class AuthService:
                     "user_id": user_id,
                     "password_hash": get_password_hash(new_password),
                     "usermod": ACTOR_USERS_CHANGE,
-                    "date_modification": now,
+                    "modification_date": now,
                 },
             )
             logger.info("Password changed for user_id=%s", user_id)

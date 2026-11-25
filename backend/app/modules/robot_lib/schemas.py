@@ -880,10 +880,10 @@ class RobotInDB(BaseModel):
     last_error: Optional[str] = None
     last_error_at: Optional[datetime] = None
     last_stopped: Optional[datetime] = None
-    usercre: Optional[int] = None
-    date_creation: datetime
-    usermod: Optional[int] = None
-    date_modification: Optional[datetime] = None
+    usercre: Optional[str] = None
+    creation_date: datetime
+    usermod: Optional[str] = None
+    modification_date: Optional[datetime] = None
 
     class Config:
         from_attributes = True

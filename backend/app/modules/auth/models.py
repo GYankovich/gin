@@ -37,10 +37,10 @@ class User(Base):
     login = Column(String(128), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     status = Column(Integer, nullable=False, default=STATUS_ON)
-    date_creation = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    creation_date = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     usercre = Column(String(128), nullable=True)
     usermod = Column(String(128), nullable=True)
-    date_modification = Column(DateTime(timezone=True), nullable=True)
+    modification_date = Column(DateTime(timezone=True), nullable=True)
     # Numeric FK to package.id (column name kept as package_code per product contract)
     package_code = Column(
         BigInteger,
@@ -77,9 +77,9 @@ class Package(Base):
     name = Column(String(128), nullable=False)
     status = Column(Integer, nullable=False, default=STATUS_ON)
     usercre = Column(String(128), nullable=True)
-    date_creation = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    creation_date = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     usermod = Column(String(128), nullable=True)
-    date_modification = Column(DateTime(timezone=True), nullable=True)
+    modification_date = Column(DateTime(timezone=True), nullable=True)
 
     features = relationship(
         "PackageFeature",
@@ -97,9 +97,9 @@ class PackageFeature(Base):
     feature = Column(String(64), nullable=False)
     status = Column(Integer, nullable=False, default=STATUS_OFF)
     usercre = Column(String(128), nullable=True)
-    date_creation = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    creation_date = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     usermod = Column(String(128), nullable=True)
-    date_modification = Column(DateTime(timezone=True), nullable=True)
+    modification_date = Column(DateTime(timezone=True), nullable=True)
 
     package = relationship("Package", back_populates="features")
 
@@ -146,7 +146,10 @@ class UserToken(Base):
     user_id = Column(BigInteger, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     token = Column(Text, nullable=False, unique=True)
     status = Column(Integer, nullable=False, default=UserTokenStatus.ACTIVE)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    creation_date = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    modification_date = Column(DateTime(timezone=True), nullable=True)
+    usercre = Column(String(128), nullable=True)
+    usermod = Column(String(128), nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     invalidated_at = Column(DateTime(timezone=True), nullable=True)
     ip = Column(String(45), nullable=True)

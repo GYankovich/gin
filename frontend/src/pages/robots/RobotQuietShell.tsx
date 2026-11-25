@@ -14,12 +14,18 @@ import {
     type RobotLiveStage,
     type RobotsQuietChromeActive,
 } from '@/pages/robots/components/RobotsQuietChrome'
+import type { TradingRobot, TradingRobotStatus } from '@/types/robots'
 
 type QuietChromeSlot = {
     setActions: (node: React.ReactNode) => void
     setLiveStage: (stage: RobotLiveStage | null) => void
     setStreamConnected: (connected: boolean | undefined) => void
     setPhaseNote: (note: string | null) => void
+    setMonitorSnapshot: (snap: {
+        robot: TradingRobot | null
+        status: TradingRobotStatus | null
+        statusLoaded: boolean
+    } | null) => void
 }
 
 const QuietChromeContext = createContext<QuietChromeSlot | null>(null)
@@ -66,6 +72,20 @@ export function useQuietChromePhaseNote(note: string | null) {
     }, [ctx, note])
 }
 
+/** Push Live page robot/status into the persistent chrome (single source of truth). */
+export function useQuietChromeMonitorSnapshot(
+    robot: TradingRobot | null,
+    status: TradingRobotStatus | null,
+    statusLoaded: boolean,
+) {
+    const ctx = useContext(QuietChromeContext)
+    useLayoutEffect(() => {
+        if (!ctx) return
+        ctx.setMonitorSnapshot({ robot, status, statusLoaded })
+        return () => ctx.setMonitorSnapshot(null)
+    }, [ctx, robot, status, statusLoaded])
+}
+
 function ShellFallback() {
     return (
         <div className="page-loader" aria-busy="true">
@@ -88,6 +108,11 @@ export default function RobotQuietShell() {
     const [liveStage, setLiveStage] = useState<RobotLiveStage | null>(null)
     const [streamConnected, setStreamConnected] = useState<boolean | undefined>(undefined)
     const [phaseNote, setPhaseNote] = useState<string | null>(null)
+    const [monitorSnap, setMonitorSnap] = useState<{
+        robot: TradingRobot | null
+        status: TradingRobotStatus | null
+        statusLoaded: boolean
+    } | null>(null)
 
     const setActionsStable = useCallback((node: React.ReactNode) => {
         setActions(node)
@@ -101,13 +126,29 @@ export default function RobotQuietShell() {
     const setPhaseNoteStable = useCallback((note: string | null) => {
         setPhaseNote(note)
     }, [])
+    const setMonitorSnapshotStable = useCallback((
+        snap: {
+            robot: TradingRobot | null
+            status: TradingRobotStatus | null
+            statusLoaded: boolean
+        } | null,
+    ) => {
+        setMonitorSnap(snap)
+    }, [])
 
     const slot = useMemo<QuietChromeSlot>(() => ({
         setActions: setActionsStable,
         setLiveStage: setLiveStageStable,
         setStreamConnected: setStreamConnectedStable,
         setPhaseNote: setPhaseNoteStable,
-    }), [setActionsStable, setLiveStageStable, setStreamConnectedStable, setPhaseNoteStable])
+        setMonitorSnapshot: setMonitorSnapshotStable,
+    }), [
+        setActionsStable,
+        setLiveStageStable,
+        setStreamConnectedStable,
+        setPhaseNoteStable,
+        setMonitorSnapshotStable,
+    ])
 
     if (!Number.isFinite(robotId)) {
         return <ShellFallback />
@@ -120,6 +161,9 @@ export default function RobotQuietShell() {
                     robotId={robotId}
                     active={active}
                     actions={actions}
+                    robot={monitorSnap ? monitorSnap.robot : undefined}
+                    status={monitorSnap ? monitorSnap.status : undefined}
+                    statusLoaded={monitorSnap ? monitorSnap.statusLoaded : undefined}
                     liveStage={liveStage}
                     streamConnected={streamConnected}
                     phaseNote={phaseNote}

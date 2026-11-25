@@ -1366,8 +1366,8 @@ async def rebuild_crypto_universe(
                         """
                         UPDATE robots
                         SET config = CAST(:config AS jsonb),
-                            date_modification = :now,
-                            usermod = :uid
+                            modification_date = :now,
+                            usermod = (SELECT login FROM "user" WHERE id = :uid)
                         WHERE id = :rid AND user_id = :uid
                           AND COALESCE(metadata->>'deletedAt', '') = ''
                         """
@@ -1464,8 +1464,8 @@ async def rebuild_crypto_universe(
             """
             UPDATE robots
             SET config = CAST(:config AS jsonb),
-                date_modification = :now,
-                usermod = :uid
+                modification_date = :now,
+                usermod = (SELECT login FROM "user" WHERE id = :uid)
             WHERE id = :rid AND user_id = :uid
               AND COALESCE(metadata->>'deletedAt', '') = ''
             """

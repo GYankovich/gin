@@ -16,7 +16,7 @@ def build_get_user_token_query() -> str:
                  LIMIT 1
              )
              AND status = 1
-           ORDER BY created_at DESC
+           ORDER BY creation_date DESC
                LIMIT 1 \
            """
 
@@ -34,7 +34,7 @@ def build_get_user_tokens_query(active_only: bool = True) -> str:
                      token,
                      name,
                      status,
-                     created_at,
+                     creation_date,
                      modification_date,
                      last_used_at,
                      expires_at
@@ -46,7 +46,7 @@ def build_get_user_tokens_query(active_only: bool = True) -> str:
                       LIMIT 1
                   )
                   {active_clause}
-                 ORDER BY created_at DESC
+                 ORDER BY creation_date DESC
                  """
 
 
@@ -60,7 +60,7 @@ def build_get_token_by_id_query() -> str:
                token,
                name,
                status,
-               created_at,
+               creation_date,
                modification_date,
                last_used_at,
                expires_at,
@@ -182,11 +182,11 @@ def build_get_accounts_list_query() -> str:
                opened_date,
                last_sync_at,
                last_token_id,
-               created_at
+               creation_date
            FROM portfolio_accounts
            WHERE user_id = :user_id AND is_active = 1
              AND COALESCE(dashboard_hidden, 0) = 0
-           ORDER BY created_at DESC \
+           ORDER BY creation_date DESC \
            """
 
 
@@ -218,10 +218,10 @@ def build_link_token_portfolio_account_query() -> str:
                            THEN EXCLUDED.usercre
                        ELSE token_portfolio_accounts.usermod
                    END,
-                   date_modification = CASE
+                   modification_date = CASE
                        WHEN token_portfolio_accounts.status IS DISTINCT FROM 1
                            THEN CURRENT_TIMESTAMP
-                       ELSE token_portfolio_accounts.date_modification
+                       ELSE token_portfolio_accounts.modification_date
                    END \
            """
 
@@ -252,10 +252,10 @@ def build_link_token_accounts_by_external_ids_query(
                            THEN EXCLUDED.usercre
                        ELSE token_portfolio_accounts.usermod
                    END,
-                   date_modification = CASE
+                   modification_date = CASE
                        WHEN token_portfolio_accounts.status IS DISTINCT FROM 1
                            THEN CURRENT_TIMESTAMP
-                       ELSE token_portfolio_accounts.date_modification
+                       ELSE token_portfolio_accounts.modification_date
                    END
            """
     return query, params
@@ -274,7 +274,7 @@ def build_prune_token_accounts_query(account_ids: list[str]) -> tuple[str, dict]
            UPDATE token_portfolio_accounts tpa
               SET status = 0,
                   usermod = (SELECT login FROM "user" WHERE id = :user_id),
-                  date_modification = CURRENT_TIMESTAMP
+                  modification_date = CURRENT_TIMESTAMP
              FROM portfolio_accounts pa
             WHERE tpa.portfolio_account_id = pa.id
               AND tpa.token_id = :token_id

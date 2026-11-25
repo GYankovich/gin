@@ -46,10 +46,10 @@ def build_create_api_key_query() -> str:
     """Создание нового API ключа"""
     return """
            INSERT INTO api_tokens
-           (user_id, token, token_secret, token_type, name, status, created_at, extra_data, usercre, usermod)
+           (user_id, token, token_secret, token_type, name, status, creation_date, extra_data, usercre, usermod)
            VALUES
                (:user_id, :token, :token_secret, :key_type, :name, 1, :created_at, CAST(:extra_data AS jsonb), :actor, :actor)
-               RETURNING id, name, token_type, status, created_at, token, token_secret, extra_data \
+               RETURNING id, name, token_type, status, creation_date, token, token_secret, extra_data \
            """
 
 def build_count_user_keys_query(
@@ -91,7 +91,7 @@ def build_get_user_keys_query(
                         a.name,
                         a.token_type,
                         a.status,
-                        a.created_at,
+                        a.creation_date,
                         a.token,
                         a.token_secret,
                         a.extra_data,
@@ -124,7 +124,7 @@ def build_get_user_keys_query(
     if conditions:
         base_query += " AND " + " AND ".join(conditions)
 
-    base_query += " ORDER BY a.created_at DESC LIMIT :limit OFFSET :offset"
+    base_query += " ORDER BY a.creation_date DESC LIMIT :limit OFFSET :offset"
 
     return base_query, params
 
@@ -139,7 +139,7 @@ def build_get_key_by_id_query() -> str:
                token,
                token_secret,
                status,
-               created_at,
+               creation_date,
                modification_date,
                expires_at,
                last_used_at,
@@ -169,7 +169,7 @@ def build_update_key_query(
                  UPDATE api_tokens
                  SET {updates}, modification_date = :now, usermod = :actor
                  WHERE id = :key_id AND user_id = :user_id
-                     RETURNING id, name, token_type, status, created_at, token, token_secret, extra_data \
+                     RETURNING id, name, token_type, status, creation_date, token, token_secret, extra_data \
                  """
 
     field_mapping = {
@@ -243,7 +243,7 @@ def build_get_tokens_by_type_query() -> str:
                last_used_at
            FROM api_tokens
            WHERE token_type = :token_type AND status = 1
-           ORDER BY created_at DESC \
+           ORDER BY creation_date DESC \
            """
 
 

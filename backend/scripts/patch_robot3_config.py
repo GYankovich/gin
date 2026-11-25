@@ -99,7 +99,7 @@ def main() -> None:
         TradingRobotConfigV4.model_validate(cfg)
 
         db.execute(
-            text(f"UPDATE {schema}.robots SET config = CAST(:cfg AS jsonb), date_modification = NOW() WHERE id = :id"),
+            text(f"UPDATE {schema}.robots SET config = CAST(:cfg AS jsonb), modification_date = NOW() WHERE id = :id"),
             {"id": ROBOT_ID, "cfg": json.dumps(cfg)},
         )
         db.commit()

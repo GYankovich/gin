@@ -48,10 +48,10 @@ class RobotV2(Base):
     last_started = Column(DateTime(timezone=True), nullable=True)
     last_error = Column(Text, nullable=True)
     last_error_at = Column(DateTime(timezone=True), nullable=True)
-    usercre = Column(BigInteger, nullable=True)
-    date_creation = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-    usermod = Column(BigInteger, nullable=True)
-    date_modification = Column(DateTime(timezone=True), nullable=True, onupdate=datetime.utcnow)
+    usercre = Column(String(128), nullable=True)
+    creation_date = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    usermod = Column(String(128), nullable=True)
+    modification_date = Column(DateTime(timezone=True), nullable=True, onupdate=datetime.utcnow)
 
     user = relationship("User", foreign_keys=[user_id])
     token = relationship("ApiToken", foreign_keys=[token_id])
@@ -76,6 +76,6 @@ class RobotConfigHistory(Base):
     version = Column(Integer, nullable=False)
     config = Column(JSON, nullable=False)
     created_by = Column(BigInteger, nullable=True)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    creation_date = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
     robot = relationship("RobotV2", back_populates="config_history")

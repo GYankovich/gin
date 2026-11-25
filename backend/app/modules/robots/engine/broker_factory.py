@@ -104,10 +104,10 @@ def persist_token_account_id(
                                 THEN EXCLUDED.usercre
                             ELSE token_portfolio_accounts.usermod
                         END,
-                        date_modification = CASE
+                        modification_date = CASE
                             WHEN token_portfolio_accounts.status IS DISTINCT FROM 1
                                 THEN CURRENT_TIMESTAMP
-                            ELSE token_portfolio_accounts.date_modification
+                            ELSE token_portfolio_accounts.modification_date
                         END
             """),
             {

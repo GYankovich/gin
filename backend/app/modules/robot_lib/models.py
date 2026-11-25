@@ -42,10 +42,10 @@ class Dictionary(Base):
     string_value = Column(String(255), nullable=True)
     hide_from_ui = Column(Integer, nullable=False, default=0)
 
-    usercre = Column(BigInteger, nullable=True)
-    date_creation = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
-    usermod = Column(BigInteger, nullable=True)
-    date_modification = Column(DateTime(timezone=True), nullable=True, onupdate=datetime.utcnow)
+    usercre = Column(String(128), nullable=True)
+    creation_date = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    usermod = Column(String(128), nullable=True)
+    modification_date = Column(DateTime(timezone=True), nullable=True, onupdate=datetime.utcnow)
 
 
 class BacktestRun(Base):

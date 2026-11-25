@@ -57,8 +57,8 @@ def build_list_robots_query(
             r.config_version,
             r.config,
             r.metadata,
-            r.date_creation,
-            r.date_modification,
+            r.creation_date,
+            r.modification_date,
             r.last_started,
             dt.name AS type_name,
             ds.name AS status_name,
@@ -100,7 +100,7 @@ def build_list_robots_query(
            AND ds.column_name = 'STATUS'
            AND COALESCE(ds.hide_from_ui, 0) != 1
         WHERE {where}
-        ORDER BY r.date_creation DESC
+        ORDER BY r.creation_date DESC
     """
     return query, params
 
@@ -307,8 +307,8 @@ def build_get_robot_query(*, robot_id: int, user_id: int, schema: str = "public"
             r.config_version,
             r.config,
             r.metadata,
-            r.date_creation,
-            r.date_modification,
+            r.creation_date,
+            r.modification_date,
             r.last_started,
             dt.name AS type_name,
             ds.name AS status_name
@@ -333,7 +333,8 @@ def build_insert_robot_query(schema: str = "public") -> str:
         INSERT INTO {schema}.robots (
             name, user_id, token_id, type, status, config_version, config, metadata, usercre
         ) VALUES (
-            :name, :user_id, :token_id, :type, :status, :config_version, :config, :metadata, :usercre
+            :name, :user_id, :token_id, :type, :status, :config_version, :config, :metadata,
+            (SELECT login FROM {schema}."user" WHERE id = :user_id)
         )
         RETURNING id
     """
@@ -350,8 +351,8 @@ def build_update_robot_query(schema: str = "public") -> str:
             config_version = :config_version,
             config = :config,
             metadata = :metadata,
-            usermod = :usermod,
-            date_modification = NOW()
+            usermod = (SELECT login FROM {schema}."user" WHERE id = :user_id),
+            modification_date = NOW()
         WHERE id = :robot_id AND user_id = :user_id
         RETURNING id
     """
@@ -364,8 +365,8 @@ def build_soft_delete_robot_query(schema: str = "public") -> str:
         SET
             status = :status,
             metadata = CAST(:metadata AS jsonb),
-            usermod = :usermod,
-            date_modification = NOW()
+            usermod = (SELECT login FROM {schema}."user" WHERE id = :user_id),
+            modification_date = NOW()
         WHERE id = :robot_id
           AND user_id = :user_id
           AND COALESCE(metadata->>'deletedAt', '') = ''
@@ -395,7 +396,9 @@ def build_next_config_version_query(*, robot_id: int, schema: str = "public") ->
 def build_update_status_query(schema: str = "public") -> str:
     return f"""
         UPDATE {schema}.robots
-        SET status = :status, usermod = :usermod, date_modification = NOW()
+        SET status = :status,
+            usermod = (SELECT login FROM {schema}."user" WHERE id = :user_id),
+            modification_date = NOW()
         WHERE id = :robot_id AND user_id = :user_id
         RETURNING id
     """

@@ -13,7 +13,7 @@ def build_get_user_by_login_query() -> str:
                id,
                login,
                password_hash,
-               date_creation,
+               creation_date,
                status
            FROM "user"
            WHERE login = :login \
@@ -27,7 +27,7 @@ def build_get_user_by_email_query() -> str:
                u.id,
                u.login,
                u.password_hash,
-               u.date_creation,
+               u.creation_date,
                u.status
            FROM "user" u
            JOIN user_email e ON e.user_id = u.id
@@ -70,7 +70,7 @@ def build_update_login_query() -> str:
            UPDATE "user"
            SET login = :login,
                usermod = :usermod,
-               date_modification = :date_modification
+               modification_date = :modification_date
            WHERE id = :user_id \
            """
 
@@ -78,9 +78,9 @@ def build_update_login_query() -> str:
 def build_create_user_query() -> str:
     """Возвращает запрос для создания пользователя"""
     return """
-           INSERT INTO "user" (login, password_hash, status, date_creation, package_code, usercre)
-           VALUES (:login, :password_hash, :status, :date_creation, :package_code, :usercre)
-               RETURNING id, login, date_creation, status \
+           INSERT INTO "user" (login, password_hash, status, creation_date, package_code, usercre)
+           VALUES (:login, :password_hash, :status, :creation_date, :package_code, :usercre)
+               RETURNING id, login, creation_date, status \
            """
 
 
@@ -118,12 +118,14 @@ def build_create_token_query() -> str:
     """Возвращает запрос для сохранения токена"""
     return """
            INSERT INTO user_token (
-               user_id, token, status, created_at, expires_at,
-               ip, user_agent, device_label, geo_label, last_seen_at
+               user_id, token, status, creation_date, expires_at,
+               ip, user_agent, device_label, geo_label, last_seen_at,
+               usercre
            )
            VALUES (
-               :user_id, :token, :status, :created_at, :expires_at,
-               :ip, :user_agent, :device_label, :geo_label, :last_seen_at
+               :user_id, :token, :status, :creation_date, :expires_at,
+               :ip, :user_agent, :device_label, :geo_label, :last_seen_at,
+               COALESCE(:usercre, (SELECT login FROM "user" WHERE id = :user_id))
            ) \
            """
 
@@ -136,7 +138,7 @@ def build_list_active_sessions_query() -> str:
                ip,
                device_label,
                geo_label,
-               created_at,
+               creation_date,
                expires_at,
                last_seen_at,
                token
@@ -144,9 +146,8 @@ def build_list_active_sessions_query() -> str:
            WHERE user_id = :user_id
              AND status = 1
              AND expires_at > CURRENT_TIMESTAMP
-           ORDER BY (token = :current_token) DESC, created_at DESC \
+           ORDER BY (token = :current_token) DESC, creation_date DESC \
            """
-
 
 def build_invalidate_token_by_id_query() -> str:
     """Инвалидация конкретной сессии пользователя по id."""
@@ -176,7 +177,7 @@ def build_get_user_by_id_query(include_email: bool = True, include_phone: bool =
         SELECT
             u.id,
             u.login,
-            u.date_creation,
+            u.creation_date,
             u.status
     """
 
@@ -293,7 +294,7 @@ def build_update_password_query() -> str:
            UPDATE "user"
            SET password_hash = :password_hash,
                usermod = :usermod,
-               date_modification = :date_modification
+               modification_date = :modification_date
            WHERE id = :user_id \
            """
 

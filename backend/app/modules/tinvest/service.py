@@ -189,8 +189,8 @@ class TInvestService:
                 SET status = 2,
                     last_error = :error_message,
                     last_error_at = :now,
-                    usermod = :user_id,
-                    date_modification = :now
+                    usermod = (SELECT login FROM "user" WHERE id = :user_id),
+                    modification_date = :now
                 WHERE token_id = :token_id
                   AND user_id = :user_id
                   AND status != 0

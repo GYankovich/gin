@@ -921,7 +921,7 @@ class TradingSessionV2:
             db.execute(
                 text(f"""
                     UPDATE {schema}.robots
-                    SET metadata = :metadata, date_modification = NOW()
+                    SET metadata = :metadata, modification_date = NOW()
                     WHERE id = :rid
                 """),
                 {
@@ -993,7 +993,7 @@ class TradingSessionV2:
             db.execute(
                 text(f"""
                     UPDATE {schema}.robots
-                    SET metadata = :metadata, date_modification = NOW()
+                    SET metadata = :metadata, modification_date = NOW()
                     WHERE id = :rid
                 """),
                 {

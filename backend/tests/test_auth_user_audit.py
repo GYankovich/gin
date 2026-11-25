@@ -76,8 +76,8 @@ def test_change_user_stamps_user_and_versions_the_email():
     assert db.commits == 1
     user_update = next(params for sql, params in calls if sql.startswith('UPDATE "user"'))
     assert user_update["usermod"] == ACTOR_USERS_CHANGE
-    assert isinstance(user_update["date_modification"], datetime)
-    assert abs((datetime.now(timezone.utc) - user_update["date_modification"]).total_seconds()) < 5
+    assert isinstance(user_update["modification_date"], datetime)
+    assert abs((datetime.now(timezone.utc) - user_update["modification_date"]).total_seconds()) < 5
     assert any(sql.startswith("UPDATE user_email") and "status = 0" in sql for sql, _ in calls)
     email_insert = next(params for sql, params in calls if sql.startswith("INSERT INTO user_email"))
     assert email_insert["email"] == "new@example.com"
@@ -141,7 +141,7 @@ def test_reset_password_stamps_actor_and_date():
     assert db.commits == 1
     _sql, params = next(item for item in calls if item[0].startswith('UPDATE "user"'))
     assert params["usermod"] == ACTOR_CHANGE_PASS
-    assert isinstance(params["date_modification"], datetime)
-    assert abs((datetime.now(timezone.utc) - params["date_modification"]).total_seconds()) < 5
+    assert isinstance(params["modification_date"], datetime)
+    assert abs((datetime.now(timezone.utc) - params["modification_date"]).total_seconds()) < 5
     assert params["password_hash"] != "newpassword"
     assert any(item[0].startswith("DELETE FROM email_confirmation") for item in calls)

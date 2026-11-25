@@ -598,7 +598,7 @@ class PortfolioUpdaterRobot(BaseRobot):
                     last_error = :error_message,
                     last_error_at = :now,
                     usermod = :user_id,
-                    date_modification = :now
+                    modification_date = :now
                 WHERE token_id = :token_id
                   AND user_id = :user_id
                   AND status != 0

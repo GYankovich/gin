@@ -46,7 +46,7 @@ class ApiToken(Base):
 
     status = Column(Integer, nullable=False, default=1)
 
-    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    creation_date = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     modification_date = Column(DateTime(timezone=True), nullable=True, onupdate=datetime.utcnow)
     last_used_at = Column(DateTime(timezone=True), nullable=True)
     last_error = Column(Text, nullable=True)

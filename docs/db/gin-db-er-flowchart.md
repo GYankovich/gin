@@ -1,8 +1,8 @@
 # GIN — ER flowchart (стиль subgraph)
 
-Runtime: **69** таблиц/view · FK: **42** · зеркала: **33** (внизу списком).
+Runtime: **69** таблиц/view · FK: **42** · зеркала сняты (`0095_drop_mirrors`).
 
-Стрелка: владелец → зависимое (как в вашем примере). В БД FK обратный. Пунктир — смысл без FK.
+Стрелка: владелец → зависимое. В БД FK обратный. Пунктир — смысл без FK.
 
 ```mermaid
 flowchart TB
@@ -131,21 +131,6 @@ flowchart TB
     N_osengine_ingest_heartbeat["osengine_ingest_heartbeat"]
   end
 
-  subgraph Z["6. Зеркала — не runtime"]
-    direction TB
-    MIR_NOTE["копии после переноса облака<br/>приложение не читает"]
-    MIR_0["backtest__backtest_metrics<br/>backtest__backtest_orders<br/>backtest__backtest_runs<br/>backtest__backtest_signals<br/>ganaly__account_orders<br/>ganaly__api_tokens<br/>ganaly__backtest_decisions<br/>ganaly__backtest_metrics"]
-    MIR_NOTE -.-> MIR_0
-    MIR_8["ganaly__backtest_orders<br/>ganaly__backtest_portfolio_snapshots<br/>ganaly__backtest_runs<br/>ganaly__backtest_signals<br/>ganaly__crypto_universe_daily<br/>ganaly__daily_universe<br/>ganaly__dms_subscriptions<br/>ganaly__external_api_logs"]
-    MIR_NOTE -.-> MIR_8
-    MIR_16["ganaly__portfolio_accounts<br/>ganaly__portfolio_operations<br/>ganaly__portfolio_orders<br/>ganaly__portfolio_positions<br/>ganaly__portfolio_snapshots<br/>ganaly__robot_backtest_runs<br/>ganaly__robot_decisions<br/>ganaly__robot_execution_logs"]
-    MIR_NOTE -.-> MIR_16
-    MIR_24["ganaly__robot_logs<br/>ganaly__robot_order_events<br/>ganaly__robot_run_cycles<br/>ganaly__robot_schedules<br/>ganaly__robot_session_logs<br/>ganaly__robot_signals<br/>ganaly__robot_trades<br/>ganaly__robots"]
-    MIR_NOTE -.-> MIR_24
-    MIR_32["ganaly__users"]
-    MIR_NOTE -.-> MIR_32
-  end
-
   %% cross-block FK
   N_user --> N_api_tokens
   N_user --> N_backtest_runs
@@ -171,4 +156,3 @@ flowchart TB
 
 - В Obsidian: Reading Mode.
 - Или вставьте блок в https://mermaid.live
-- Зеркала намеренно отдельно: это не граф runtime.

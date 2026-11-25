@@ -91,21 +91,27 @@ function PhaseTrack({
         || sessionUpper === 'STOPPING'
     const statusStage = pick<string>(status || ({} as TradingRobotStatus), 'cycleStage', 'cycle_stage')
     const statusProgress = pick<number>(status || ({} as TradingRobotStatus), 'cycleProgress', 'cycle_progress')
+    const statusDetail = pick<string>(status || ({} as TradingRobotStatus), 'cycleDetail', 'cycle_detail')
 
     const stageKey = liveStage?.stage || statusStage || (isActive ? 'idle' : null)
+    const sameStage = Boolean(
+        liveStage?.stage
+        && statusStage
+        && String(liveStage.stage).toLowerCase() === String(statusStage).toLowerCase(),
+    )
+    const liveProgress = typeof liveStage?.progress === 'number' ? Number(liveStage.progress) : null
+    const restProgress = typeof statusProgress === 'number' ? Number(statusProgress) : null
+    const mergedProgress = sameStage
+        ? Math.max(liveProgress ?? 0, restProgress ?? 0)
+        : (liveProgress ?? restProgress ?? (stageKey === 'done' || stageKey === 'skipped' ? 1 : 0))
     const stageText = liveStage?.label
         || (stageKey ? stageLabel(stageKey) : null)
         || (isActive ? 'Ожидание' : null)
-    const stageProgress = Math.max(
-        0,
-        Math.min(1, Number(
-            liveStage?.progress
-            ?? statusProgress
-            ?? (stageKey === 'done' || stageKey === 'skipped' ? 1 : 0),
-        )),
-    )
+    const stageDetail = liveStage?.detail || statusDetail || null
+    const stageProgress = Math.max(0, Math.min(1, Number(mergedProgress)))
     const stagePct = Math.round(stageProgress * 100)
     const stageIndex = CYCLE_STAGE_ORDER.indexOf(stageKey as typeof CYCLE_STAGE_ORDER[number])
+    const phaseFootnote = [stageDetail, phaseNote].filter(Boolean).join(' · ') || null
 
     if (!statusLoaded || !stageText) return null
 
@@ -134,7 +140,7 @@ function PhaseTrack({
                     )
                 })}
             </div>
-            {phaseNote ? <p className="robots-monitor-phase__note">{phaseNote}</p> : null}
+            {phaseFootnote ? <p className="robots-monitor-phase__note">{phaseFootnote}</p> : null}
         </div>
     )
 }

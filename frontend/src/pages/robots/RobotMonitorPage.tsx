@@ -14,6 +14,7 @@ import { MonitorUniverseCard } from '@/pages/robots/components/MonitorUniverseCa
 import {
     useQuietChromeActions,
     useQuietChromeLive,
+    useQuietChromeMonitorSnapshot,
     useQuietChromePhaseNote,
 } from '@/pages/robots/RobotQuietShell'
 import { fmtErr, fmtRubSmart, readCssColor } from '@/pages/robots/formatters'
@@ -148,6 +149,28 @@ export default function RobotMonitorPage() {
                 }
                 return s
             })
+            // Keep phase track moving when WS stage events are sparse (e.g. long ATR warmup).
+            {
+                const stage = pick<string>(s, 'cycleStage', 'cycle_stage')
+                const progress = pick<number>(s, 'cycleProgress', 'cycle_progress')
+                const detail = pick<string>(s, 'cycleDetail', 'cycle_detail')
+                if (stage) {
+                    setLiveStage(prev => {
+                        const same = prev && String(prev.stage).toLowerCase() === String(stage).toLowerCase()
+                        const nextProgress = typeof progress === 'number' ? Number(progress) : undefined
+                        return {
+                            stage: String(stage),
+                            label: same ? prev?.label : undefined,
+                            progress: same
+                                ? Math.max(Number(prev?.progress ?? 0), Number(nextProgress ?? 0))
+                                : nextProgress,
+                            skipReason: pick<string>(s, 'cycleSkipReason', 'cycle_skip_reason') ?? (same ? prev?.skipReason : null) ?? null,
+                            triggeredBy: pick<string>(s, 'lastTriggeredBy', 'last_triggered_by') ?? (same ? prev?.triggeredBy : null) ?? null,
+                            detail: detail != null ? String(detail) : (same ? (prev?.detail ?? null) : null),
+                        }
+                    })
+                }
+            }
             setStatusLoaded(true)
             setRoundTrips(auditRes.roundTrips?.items || [])
             const liveDecisions = pick<Array<Record<string, unknown>>>(s, 'decisions', 'decisions')
@@ -280,13 +303,21 @@ export default function RobotMonitorPage() {
                 }
             }
             if (type === 'stage') {
-                setLiveStage({
-                    stage: String(msg.stage || 'idle'),
-                    label: msg.label ? String(msg.label) : undefined,
-                    progress: typeof msg.progress === 'number' ? Number(msg.progress) : undefined,
-                    skipReason: msg.skipReason != null ? String(msg.skipReason) : null,
-                    triggeredBy: msg.triggeredBy != null ? String(msg.triggeredBy) : null,
-                    detail: msg.detail != null ? String(msg.detail) : null,
+                setLiveStage(prev => {
+                    const stage = String(msg.stage || 'idle')
+                    const incomingProgress = typeof msg.progress === 'number' ? Number(msg.progress) : undefined
+                    const same = prev && String(prev.stage).toLowerCase() === stage.toLowerCase()
+                    const progress = same
+                        ? Math.max(Number(prev?.progress ?? 0), Number(incomingProgress ?? 0))
+                        : incomingProgress
+                    return {
+                        stage,
+                        label: msg.label ? String(msg.label) : undefined,
+                        progress,
+                        skipReason: msg.skipReason != null ? String(msg.skipReason) : null,
+                        triggeredBy: msg.triggeredBy != null ? String(msg.triggeredBy) : null,
+                        detail: msg.detail != null ? String(msg.detail) : null,
+                    }
                 })
             }
             if (type === 'health') {
@@ -559,6 +590,7 @@ export default function RobotMonitorPage() {
         : null
 
     useQuietChromeLive(liveStage, streamConnected)
+    useQuietChromeMonitorSnapshot(robot, status, statusLoaded)
     useQuietChromePhaseNote(balanceNote)
     useQuietChromeActions(() => (
         !statusLoaded ? (

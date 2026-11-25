@@ -32,7 +32,7 @@ def build_update_portfolio_last_started_query(*, schema: str = "public") -> str:
     return f"""
         UPDATE {schema}.robots
         SET last_started = :now,
-            date_modification = :now
+            modification_date = :now
         WHERE id = :robot_id
     """
 

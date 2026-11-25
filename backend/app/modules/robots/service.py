@@ -142,8 +142,8 @@ class RobotsV2Service:
             configVersion=int(row.config_version),
             config=row.config if isinstance(row.config, dict) else json.loads(row.config or "{}"),
             metadata=row.metadata if isinstance(row.metadata, dict) else json.loads(row.metadata or "{}"),
-            createdAt=row.date_creation,
-            updatedAt=row.date_modification,
+            createdAt=row.creation_date,
+            updatedAt=row.modification_date,
             lastStarted=getattr(row, "last_started", None),
         )
 
@@ -434,7 +434,6 @@ class RobotsV2Service:
                     "config_version": CONFIG_VERSION_V4,
                     "config": json.dumps(request.config, ensure_ascii=False),
                     "metadata": json.dumps(metadata, ensure_ascii=False),
-                    "usermod": user_id,
                 },
             )
             self._persist_config_history(db, robot_id=request.id, config=request.config, user_id=user_id)
@@ -457,7 +456,6 @@ class RobotsV2Service:
                 "config_version": CONFIG_VERSION_V4,
                 "config": json.dumps(request.config, ensure_ascii=False),
                 "metadata": json.dumps(metadata, ensure_ascii=False),
-                "usercre": user_id,
             },
         ).fetchone()
         db.commit()
@@ -487,7 +485,6 @@ class RobotsV2Service:
                 "user_id": user_id,
                 "status": soft_status,
                 "metadata": json.dumps(metadata, ensure_ascii=False),
-                "usermod": user_id,
             },
         ).fetchone()
         if row is None:
@@ -535,12 +532,11 @@ class RobotsV2Service:
             db.execute(
                 text(f"""
                     UPDATE {self.schema}.robots
-                    SET metadata = :metadata, usermod = :usermod, date_modification = NOW()
+                    SET metadata = :metadata, usermod = (SELECT login FROM "user" WHERE id = :user_id), modification_date = NOW()
                     WHERE id = :robot_id AND user_id = :user_id
                 """),
                 {
                     "metadata": json.dumps(metadata, ensure_ascii=False),
-                    "usermod": user_id,
                     "robot_id": request.robot_id,
                     "user_id": user_id,
                 },
@@ -553,7 +549,6 @@ class RobotsV2Service:
                 "robot_id": request.robot_id,
                 "user_id": user_id,
                 "status": request.status,
-                "usermod": user_id,
             },
         ).fetchone()
         if row is None:
@@ -593,12 +588,11 @@ class RobotsV2Service:
             text(f"""
                 UPDATE {self.schema}.robots
                 SET metadata = :metadata, last_started = NOW(),
-                    usermod = :usermod, date_modification = NOW()
+                    usermod = (SELECT login FROM "user" WHERE id = :user_id), modification_date = NOW()
                 WHERE id = :robot_id AND user_id = :user_id
             """),
             {
                 "metadata": json.dumps(metadata, ensure_ascii=False),
-                "usermod": user_id,
                 "robot_id": robot_id,
                 "user_id": user_id,
             },
@@ -639,12 +633,11 @@ class RobotsV2Service:
             db.execute(
                 text(f"""
                     UPDATE {self.schema}.robots
-                    SET metadata = :metadata, usermod = :usermod, date_modification = NOW()
+                    SET metadata = :metadata, usermod = (SELECT login FROM "user" WHERE id = :user_id), modification_date = NOW()
                     WHERE id = :robot_id AND user_id = :user_id
                 """),
                 {
                     "metadata": json.dumps(metadata, ensure_ascii=False),
-                    "usermod": user_id,
                     "robot_id": int(robot.id),
                     "user_id": user_id,
                 },
@@ -710,12 +703,11 @@ class RobotsV2Service:
         db.execute(
             text(f"""
                 UPDATE {self.schema}.robots
-                SET metadata = :metadata, usermod = :usermod, date_modification = NOW()
+                SET metadata = :metadata, usermod = (SELECT login FROM "user" WHERE id = :user_id), modification_date = NOW()
                 WHERE id = :robot_id AND user_id = :user_id
             """),
             {
                 "metadata": json.dumps(metadata, ensure_ascii=False),
-                "usermod": user_id,
                 "robot_id": robot_id,
                 "user_id": user_id,
             },
