@@ -1008,15 +1008,17 @@ class ExecutionService:
         )
         if not self.quiet:
             await event_bus.publish(self.robot_id, "order", {
-            "ticker": ro.ticker,
-            "side": ro.side,
-            "qty": qty,
-            "price": px,
-            "status": "filled",
-            "mode": self.mode,
-            "orderId": oid,
-            "kind": ro.kind,
-        })
+                "ticker": ro.ticker,
+                "side": ro.side,
+                "qty": qty,
+                "price": px,
+                "status": "filled",
+                "mode": self.mode,
+                "orderId": oid,
+                "kind": ro.kind,
+                "pnl": pnl,
+                "filledAt": datetime.now(timezone.utc).isoformat(),
+            })
         return ExecutionResult(
             intent_id=ro.intent_id,
             ticker=ro.ticker,
@@ -1302,6 +1304,8 @@ class ExecutionService:
                 await event_bus.publish(self.robot_id, "order", {
                     "ticker": ticker, "side": side, "qty": conf_qty, "price": conf_price,
                     "status": "filled", "mode": "live", "orderId": order_id, "kind": intent.kind,
+                    "pnl": pnl,
+                    "filledAt": datetime.now(timezone.utc).isoformat(),
                 })
                 return result
 

@@ -350,6 +350,7 @@ def build_upsert_operation_query() -> str:
                operation_id,
                parent_operation_id,
                figi,
+               ticker,
                instrument_type,
                instrument_uid,
                position_uid,
@@ -373,6 +374,7 @@ def build_upsert_operation_query() -> str:
                :operation_id,
                :parent_operation_id,
                :figi,
+               :ticker,
                :instrument_type,
                :instrument_uid,
                :position_uid,
@@ -393,6 +395,7 @@ def build_upsert_operation_query() -> str:
            ON CONFLICT (operation_id) DO UPDATE SET
                parent_operation_id = EXCLUDED.parent_operation_id,
                figi = EXCLUDED.figi,
+               ticker = COALESCE(EXCLUDED.ticker, portfolio_operations.ticker),
                instrument_type = EXCLUDED.instrument_type,
                instrument_uid = EXCLUDED.instrument_uid,
                position_uid = EXCLUDED.position_uid,
@@ -411,6 +414,30 @@ def build_upsert_operation_query() -> str:
                extra_data = EXCLUDED.extra_data \
            """
 
+
+def build_resolve_ticker_by_figi_query() -> str:
+    """Latest known ticker for a FIGI (positions, then instrument_cache)."""
+    return """
+           SELECT COALESCE(
+               (
+                   SELECT pp.ticker
+                   FROM portfolio_positions pp
+                   WHERE pp.figi = :figi
+                     AND pp.ticker IS NOT NULL
+                     AND TRIM(pp.ticker) <> ''
+                   ORDER BY pp.id DESC
+                   LIMIT 1
+               ),
+               (
+                   SELECT ic.ticker
+                   FROM instrument_cache ic
+                   WHERE ic.figi = :figi
+                     AND ic.ticker IS NOT NULL
+                     AND TRIM(ic.ticker) <> ''
+                   LIMIT 1
+               )
+           ) AS ticker
+           """
 
 def build_get_operations_for_account_query() -> str:
     """Список операций счета за период."""

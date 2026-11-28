@@ -33,10 +33,12 @@ DOMAINS: list[tuple[str, str, list[str]]] = [
         "Портфель и заявки",
         "portfolio",
         [
+            "portfolio_account_stats",
             "portfolio_accounts",
             "portfolio_operations",
             "portfolio_orders",
             "portfolio_positions",
+            "portfolio_snapshot_daily",
             "portfolio_snapshots",
             "token_portfolio_accounts",
         ],
@@ -47,6 +49,7 @@ DOMAINS: list[tuple[str, str, list[str]]] = [
         [
             "robot_config_history",
             "robot_cycles",
+            "robot_day_stats",
             "robot_decisions",
             "robot_fills",
             "robot_orders",
@@ -126,76 +129,292 @@ DOMAINS: list[tuple[str, str, list[str]]] = [
     ),
 ]
 
-BLURBS: dict[str, str] = {
-    "user": "Учётная запись приложения.",
-    "package": "Тарифный пакет.",
-    "package_feature": "Флаги возможностей пакета.",
-    "user_email": "Почта пользователя (история через status).",
-    "user_phone": "Телефон пользователя (история через status).",
-    "user_token": "Сессии входа (refresh / метаданные клиента).",
-    "email_confirmation": "Коды подтверждения почты и сброса доступа.",
-    "app_config": "Ключ-значение настроек приложения.",
-    "api_tokens": "Токены брокеров (T-Invest, Bybit) пользователя.",
-    "token_portfolio_accounts": "Привязка брокерского счёта к API-токену.",
-    "portfolio_accounts": "Брокерские счета пользователя.",
-    "portfolio_snapshots": "Снимки капитала счёта.",
-    "portfolio_positions": "Позиции внутри снимка.",
-    "portfolio_operations": "Операции брокера по счёту.",
-    "portfolio_orders": "Заявки брокера по счёту (UI портфеля).",
-    "robots": "Торговый робот (paper/live): конфиг, статус, тип.",
-    "robot_config_history": "Неизменяемые версии конфига робота.",
-    "robot_sessions": "Один запуск робота от Start до Stop.",
-    "robot_cycles": "Торговый цикл внутри сессии.",
-    "robot_signals": "Сигналы цикла.",
-    "robot_decisions": "Решения цикла (risk / sizing).",
-    "robot_orders": "Ордера цикла.",
-    "robot_fills": "Исполнения ордеров.",
-    "backtest_runs": "Прогон бэктеста.",
-    "backtest_comparisons": "Сравнение прогонов.",
-    "market_backtests": "Market-level backtest jobs.",
-    "backtest_daily_universe": "Вселенная инструментов на день прогона.",
-    "backtest_universe_membership": "Состав universe прогона.",
-    "backtest_signals": "Сигналы прогона.",
-    "backtest_decisions": "Решения прогона.",
-    "backtest_orders": "Ордера прогона.",
-    "backtest_trades": "Сделки прогона.",
-    "backtest_positions": "Позиции прогона.",
-    "backtest_portfolio_snapshots": "Снимки портфеля прогона.",
-    "backtest_equity_curve": "Кривая капитала.",
-    "backtest_metrics": "Метрики прогона.",
-    "backtest_execution_events": "События исполнения (glass-box).",
-    "backtest_risk_events": "Risk-события прогона.",
-    "optimization_batches": "Батч оптимизации параметров.",
-    "optimization_batch_items": "Элемент батча оптимизации.",
-    "candles_cache": "Кэш свечей.",
-    "shared_market_candles": "Общие свечи для роботов и бэктеста.",
-    "market_candles": "Свечи market-контура.",
-    "market_ticks": "Тики.",
-    "market_depth_latest": "Последний стакан.",
-    "candle_load_jobs": "Задачи загрузки свечей.",
-    "market_instruments": "Справочник инструментов.",
-    "instrument_cache": "Кэш инструментов.",
-    "securities_static": "Статические атрибуты бумаг.",
-    "tqbr_securities": "TQBR-бумаги.",
-    "market_snapshot": "Снимок рынка.",
-    "market_snapshot_data": "Строки текущего снимка.",
-    "market_snapshot_history": "История снимков.",
-    "market_snapshot_data_history": "Строки истории снимков.",
-    "market_cache_leases": "Лизы рыночного кэша.",
-    "equity_dividend_events": "Дивидендные события.",
-    "moex_index_cache": "Кэш индексов MOEX.",
-    "dictionary": "Справочник значений UI (status и др.).",
-    "bybit_funding_history": "История funding Bybit.",
-    "bybit_lsr_history": "История long/short ratio Bybit.",
-    "bybit_open_interest_history": "История open interest Bybit.",
-    "background_jobs": "Очередь фоновых задач.",
-    "background_worker_leases": "Лизы lane-воркеров.",
-    "cron_table": "Расписание cron.",
-    "external_api_logs": "Логи внешних API.",
-    "outbound_message": "Очередь исходящих писем.",
-    "osengine_ingest_heartbeat": "Heartbeat OSEngine ingest.",
-    "alembic_version": "Текущая ревизия Alembic.",
-    "portfolio_snapshot_daily": "Дневной агрегат снимков портфеля.",
+# Кратко: зачем таблица и кто её трогает в runtime.
+BLURBS: dict[str, tuple[str, str]] = {
+    "user": (
+        "Tenant приложения: логин, пароль, тариф, status.",
+        "Auth и все FK «чей это объект»; UI настроек.",
+    ),
+    "package": (
+        "Тарифный план.",
+        "FK с user.package_code; админка пакетов.",
+    ),
+    "package_feature": (
+        "Флаги возможностей тарифа (вкладки/лимиты).",
+        "Проверка доступа к фичам UI/API.",
+    ),
+    "user_email": (
+        "Почты пользователя (текущая + история через status).",
+        "Регистрация, сброс пароля, outbound_message.",
+    ),
+    "user_phone": (
+        "Телефоны пользователя (текущий + история через status).",
+        "Профиль / будущие SMS; outbound_message.",
+    ),
+    "user_token": (
+        "Сессии входа (JWT/refresh, устройство, last_seen).",
+        "Логин, logout, список сессий в настройках.",
+    ),
+    "email_confirmation": (
+        "Одноразовые коды до/вместо сессии (register, reset).",
+        "POST /api/auth и смежные confirm-flow.",
+    ),
+    "app_config": (
+        "Глобальные key→value настройки приложения.",
+        "TTL сессий и прочие runtime-флаги без релиза.",
+    ),
+    "api_tokens": (
+        "Брокерский ключ пользователя (T-Invest / Bybit), секрет шифруется.",
+        "Settings UI; роботы берут token_id для live.",
+    ),
+    "token_portfolio_accounts": (
+        "Какие брокерские счета видны под данным api_token.",
+        "Синк портфеля и выбор счёта роботом (не is_trading).",
+    ),
+    "portfolio_accounts": (
+        "Справочник брокерских счетов пользователя.",
+        "Дашборд, связка с токеном, корень snapshots/orders/ops.",
+    ),
+    "portfolio_snapshots": (
+        "Снимки equity/PnL счёта во времени.",
+        "Пишет portfolio_updater; читает дашборд/аналитика.",
+    ),
+    "portfolio_positions": (
+        "Позиции внутри одного snapshot.",
+        "Дашборд позиций; источник ticker для ops.",
+    ),
+    "portfolio_operations": (
+        "Операции брокера по счёту (сделки, вводы, комиссии).",
+        "Синк T-Invest/Bybit operations; аналитика / KPI.",
+    ),
+    "portfolio_orders": (
+        "Журнал заявок по счёту (active + history), не audit робота.",
+        "Пишет portfolio_updater + live trading_core; Bybit history есть, у T-Invest — в основном open/GetOrders.",
+    ),
+    "portfolio_snapshot_daily": (
+        "Дневной mart по счёту (EOD equity, day_delta).",
+        "Пишется при синке; дашборд/графики без тяжёлого DISTINCT ON.",
+    ),
+    "portfolio_account_stats": (
+        "Сводные KPI счёта (own_funds, win-rate, avg monthly ROI).",
+        "Mart при синке; dashboard и analytics вместо тяжёлых агрегатов.",
+    ),
+    "robots": (
+        "Торговый робот paper/live: конфиг JSON, status, type, token_id.",
+        "CRUD роботов, старт/стоп сессии; торговый счёт в config.core.accountId.",
+    ),
+    "robot_config_history": (
+        "Неизменяемые версии конфига.",
+        "Аудит изменений настроек робота.",
+    ),
+    "robot_sessions": (
+        "Один Start→Stop запуска.",
+        "Корень audit trail; mode/account_id/virtual_capital.",
+    ),
+    "robot_cycles": (
+        "Торговый цикл (poll/bar/tick) внутри сессии.",
+        "Пишет engine; к нему вяжутся signals/decisions/orders.",
+    ),
+    "robot_signals": (
+        "Сырой сигнал стратегии в цикле.",
+        "Монитор робота / glass-box.",
+    ),
+    "robot_decisions": (
+        "Решение risk/sizing по сигналу.",
+        "Монитор; почему ордер выставлен или нет.",
+    ),
+    "robot_orders": (
+        "Ордера audit робота (не portfolio_orders).",
+        "Live/paper execution trail.",
+    ),
+    "robot_fills": (
+        "Исполнения ордеров робота.",
+        "PnL цикла и reconcile.",
+    ),
+    "robot_day_stats": (
+        "Дневной rollup W/L по роботу.",
+        "Пишет audit после цикла; быстрые KPI без скана fills.",
+    ),
+    "backtest_runs": (
+        "Прогон бэктеста (параметры, статус, robot_id опционально).",
+        "UI бэктеста + background_jobs heavy lane.",
+    ),
+    "backtest_comparisons": (
+        "Сравнение нескольких прогонов.",
+        "UI сравнения результатов.",
+    ),
+    "market_backtests": (
+        "Очередь/мета market-level бэктестов.",
+        "Пакетные прогоны по рынку.",
+    ),
+    "backtest_daily_universe": (
+        "Вселенная инструментов на день прогона.",
+        "Симулятор фильтрует тикеры по дню.",
+    ),
+    "backtest_universe_membership": (
+        "Состав universe конкретного run.",
+        "Фиксация, на чём считали прогон.",
+    ),
+    "backtest_signals": (
+        "Сигналы прогона.",
+        "Glass-box / отладка стратегии.",
+    ),
+    "backtest_decisions": (
+        "Решения прогона.",
+        "Glass-box risk path.",
+    ),
+    "backtest_orders": (
+        "Ордера симуляции.",
+        "Отчёт и метрики исполнения.",
+    ),
+    "backtest_trades": (
+        "Сделки симуляции.",
+        "PnL и trade list в UI.",
+    ),
+    "backtest_positions": (
+        "Позиции по ходу прогона.",
+        "Отчёты / equity path.",
+    ),
+    "backtest_portfolio_snapshots": (
+        "Снимки портфеля прогона.",
+        "Кривая и аналитика run.",
+    ),
+    "backtest_equity_curve": (
+        "Точки equity curve.",
+        "График капитала в UI.",
+    ),
+    "backtest_metrics": (
+        "Итоговые метрики (Sharpe, DD, …).",
+        "Карточка результата / сравнение.",
+    ),
+    "backtest_execution_events": (
+        "События исполнения (glass-box).",
+        "Отладка fill/slippage модели.",
+    ),
+    "backtest_risk_events": (
+        "Срабатывания risk-правил в прогоне.",
+        "Почему сделка отклонена.",
+    ),
+    "optimization_batches": (
+        "Батч перебора параметров.",
+        "Оптимизатор → много backtest_runs.",
+    ),
+    "optimization_batch_items": (
+        "Один набор параметров в батче.",
+        "Статус/связь item → run.",
+    ),
+    "candles_cache": (
+        "Кэш OHLCV для роботов и бэктеста.",
+        "Чтение стратегиями; наполнение load jobs / брокером.",
+    ),
+    "shared_market_candles": (
+        "Общие свечи между контурами.",
+        "Дедуп загрузки рынка.",
+    ),
+    "market_candles": (
+        "Свечи market-контура.",
+        "Снапшоты/исследования рынка.",
+    ),
+    "market_ticks": (
+        "Тиковые данные.",
+        "Тонкий поток цен (если включён ingest).",
+    ),
+    "market_depth_latest": (
+        "Последний стакан.",
+        "UI/стратегии, которым нужен depth.",
+    ),
+    "candle_load_jobs": (
+        "Задачи догрузки истории свечей.",
+        "Воркеры заполняют candles_cache.",
+    ),
+    "market_instruments": (
+        "Справочник инструментов (ticker↔figi).",
+        "Резолв символов в ордерах и синке.",
+    ),
+    "instrument_cache": (
+        "Кэш карточек инструментов.",
+        "Быстрый lookup без похода в брокера.",
+    ),
+    "securities_static": (
+        "Статика бумаг.",
+        "Справочник/фильтры вселенной.",
+    ),
+    "tqbr_securities": (
+        "TQBR-листинг MOEX.",
+        "Universe и справочники акций.",
+    ),
+    "market_snapshot": (
+        "Заголовок снимка рынка.",
+        "Корень market_snapshot_data*.",
+    ),
+    "market_snapshot_data": (
+        "Строки текущего снимка (тяжелые).",
+        "Скрининг / universe на «сейчас».",
+    ),
+    "market_snapshot_history": (
+        "Заголовки исторических снимков.",
+        "Архив market_snapshot.",
+    ),
+    "market_snapshot_data_history": (
+        "Строки истории снимков (самая тяжёлая).",
+        "Ретро-скрининг и исследования.",
+    ),
+    "market_cache_leases": (
+        "Лизы на куски рыночного кэша.",
+        "Чтобы воркеры не дублировали загрузку.",
+    ),
+    "equity_dividend_events": (
+        "Дивидендные события.",
+        "Корректировки/календарь в аналитике.",
+    ),
+    "moex_index_cache": (
+        "Кэш индексов MOEX.",
+        "Бенчмарки и фильтры.",
+    ),
+    "dictionary": (
+        "Справочник UI-значений (status и др.).",
+        "Подписи enum в фронте/API.",
+    ),
+    "bybit_funding_history": (
+        "История funding Bybit.",
+        "Крипто-стратегии и бэктест.",
+    ),
+    "bybit_lsr_history": (
+        "Long/short ratio Bybit.",
+        "Сигналы/фильтры крипто.",
+    ),
+    "bybit_open_interest_history": (
+        "Open interest Bybit.",
+        "Сигналы/фильтры крипто.",
+    ),
+    "background_jobs": (
+        "Очередь фоновых compute-задач.",
+        "Бэктест/оптимизация на heavy/portfolio workers.",
+    ),
+    "background_worker_leases": (
+        "Лизы lane-воркеров (кто держит heavy/portfolio).",
+        "Антидубль воркеров на одной БД.",
+    ),
+    "cron_table": (
+        "Расписание периодических задач.",
+        "Хостовый/app cron.",
+    ),
+    "external_api_logs": (
+        "Логи вызовов внешних API (брокер и др.).",
+        "Отладка rate-limit/ошибок; очень объёмная.",
+    ),
+    "outbound_message": (
+        "Очередь писем (SMTP).",
+        "Коды логина/регистрации, уведомления.",
+    ),
+    "osengine_ingest_heartbeat": (
+        "Heartbeat OSEngine ingest.",
+        "Мониторинг внешнего загрузчика рынка.",
+    ),
+    "alembic_version": (
+        "Текущая ревизия схемы.",
+        "Alembic upgrade/downgrade.",
+    ),
 }
 
 
@@ -510,8 +729,8 @@ def build_doc(meta) -> str:
     a("|---|---|---|")
     a("| Пользователи и доступ | Аккаунты, пакеты, сессии входа, подтверждение почты | `user`, `package`, `user_token`, `email_confirmation` |")
     a("| Брокерские токены | Подключение T-Invest / Bybit без хранения ключей в коде | `api_tokens`, `token_portfolio_accounts` |")
-    a("| Портфель | Что видит пользователь на дашборде: счета, позиции, операции, заявки | `portfolio_*` |")
-    a("| Роботы | Торговый контур: paper/live, audit сессия→цикл→ордер | `robots`, `robot_*`, `robot_config_history` |")
+    a("| Портфель | Дашборд: счета, снимки, операции, заявки + KPI marts | `portfolio_*`, `token_portfolio_accounts` |")
+    a("| Роботы | Paper/live + audit сессия→цикл→ордер + дневные KPI | `robots`, `robot_*` |")
     a("| Бэктест | Прогоны стратегий, метрики, glass-box события | `backtest_runs`, `backtest_*`, `optimization_*` |")
     a("| Рынок и справочники | Свечи, снимки MOEX, кэши — топливо роботов и бэктеста | `candles_cache`, `shared_market_candles`, `market_*`, `dictionary` |")
     a("| Bybit-история | Funding / OI / LSR для крипто-стратегий | `bybit_*_history` |")
@@ -528,7 +747,7 @@ def build_doc(meta) -> str:
     a("  end")
     a("")
     a('  subgraph Portfolio["Портфель — дашборд"]')
-    a("    PA[\"portfolio_accounts<br/>token_portfolio_accounts<br/>portfolio_snapshots<br/>portfolio_positions<br/>portfolio_operations<br/>portfolio_orders<br/>portfolio_snapshot_daily\"]")
+    a("    PA[\"portfolio_accounts<br/>token_portfolio_accounts<br/>portfolio_snapshots<br/>portfolio_positions<br/>portfolio_operations<br/>portfolio_orders<br/>portfolio_snapshot_daily<br/>portfolio_account_stats\"]")
     a("  end")
     a("")
     a('  subgraph Market["Рынок — топливо"]')
@@ -540,7 +759,7 @@ def build_doc(meta) -> str:
     a("  end")
     a("")
     a('  subgraph Robots["Роботы"]')
-    a("    R[\"robots<br/>robot_config_history<br/>robot_sessions<br/>robot_cycles<br/>robot_signals<br/>robot_decisions<br/>robot_orders<br/>robot_fills\"]")
+    a("    R[\"robots<br/>robot_config_history<br/>robot_sessions<br/>robot_cycles<br/>robot_signals<br/>robot_decisions<br/>robot_orders<br/>robot_fills<br/>robot_day_stats\"]")
     a("  end")
     a("")
     a('  subgraph Backtest["Бэктест"]')
@@ -605,8 +824,8 @@ def build_doc(meta) -> str:
     a("")
     a("1. **Вход пользователя** — `user` + `package` + `user_token` / `email_confirmation`. Без этого нет мультитенантности.")
     a("2. **Доступ к брокеру** — `api_tokens` (секрет) и `token_portfolio_accounts` (какой счёт виден под токеном).")
-    a("3. **Деньги на экране** — дерево `portfolio_accounts` → snapshots / positions / operations / orders. Это UI портфеля, не audit робота.")
-    a("4. **Торговля** — `robots` и audit `sessions → cycles → orders/fills`. Торговый счёт задаётся в конфиге робота (`core.accountId`), не на связи токена.")
+    a("3. **Деньги на экране** — `portfolio_accounts` → snapshots / positions / operations / orders; KPI в `portfolio_account_stats` / `portfolio_snapshot_daily`. Это UI портфеля, не audit робота.")
+    a("4. **Торговля** — `robots` и audit `sessions → cycles → orders/fills` (+ `robot_day_stats`). Торговый счёт — `config.core.accountId`, не флаг на связи токена.")
     a("5. **Идеи до live** — `backtest_runs` и дети; тяжёлые прогоны идут через `background_jobs`.")
     a("6. **Данные рынка** — самые тяжёлые таблицы (`market_snapshot_data_history`, `candles_cache`). Без них робот и бэктест слепы.")
     a("")
@@ -662,11 +881,16 @@ def build_doc(meta) -> str:
         a("")
         for n in names:
             r = tables[n]
-            blurb = BLURBS.get(n, "")
-            header = f"{blurb} " if blurb else ""
             a(f"### public.{n}")
             a("")
-            a(f"{header}Оценка строк {fmt_rows(int(r['est_rows']))}, размер {fmt_size(int(r['bytes']))}.")
+            purpose = BLURBS.get(n)
+            if purpose:
+                why, how = purpose
+                a(f"**Зачем:** {why}")
+                a("")
+                a(f"**Как используется:** {how}")
+                a("")
+            a(f"Оценка строк {fmt_rows(int(r['est_rows']))}, размер {fmt_size(int(r['bytes']))}.")
             a("")
             a("| Колонка | Тип | NULL | По умолчанию |")
             a("|---|---|---|---|")
@@ -718,9 +942,12 @@ def build_doc(meta) -> str:
         for v in view_names:
             a(f"### public.{v}")
             a("")
-            blurb = BLURBS.get(v, "")
-            if blurb:
-                a(blurb)
+            purpose = BLURBS.get(v)
+            if purpose:
+                why, how = purpose
+                a(f"**Зачем:** {why}")
+                a("")
+                a(f"**Как используется:** {how}")
                 a("")
             defn = next((x["view_definition"] for x in meta["views"] if x["table_name"] == v), None)
             if defn:

@@ -1,8 +1,8 @@
 # Health check for an unattended week.
 # Reboots only when RDP is actually dead, or when half-closed TCP sockets
 # have piled up far past the level that already makes the machine sick.
-# If the site is down but RDP is fine, restarts the GIN scheduled tasks
-# instead of rebooting.
+# If the site is down and WebStorm is not open, starts GIN-WebStorm.
+# The IDE startup tasks then run the backend and npm run nginx:start.
 #
 #   powershell -File scripts/host-watch.ps1 -DryRun
 
@@ -66,12 +66,24 @@ function Request-Reboot([string]$Reason) {
     }
 }
 
-function Restart-GinTask([string]$Name) {
-    Write-WatchLog "restarting scheduled task $Name"
+function Start-WebStormIfNeeded {
+    $ide = Get-Process -Name "webstorm64" -ErrorAction SilentlyContinue
+    if ($ide) {
+        Write-WatchLog "WebStorm is open; startup tasks run only when the project opens"
+        return
+    }
+    $task = Get-ScheduledTask -TaskName "GIN-WebStorm" -ErrorAction SilentlyContinue
+    if (-not $task) {
+        Write-WatchLog "GIN-WebStorm task is missing"
+        return
+    }
+    if ($task.State -eq "Running") {
+        Write-WatchLog "GIN-WebStorm task is already running"
+        return
+    }
+    Write-WatchLog "starting GIN-WebStorm"
     if ($DryRun) { return }
-    Stop-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 2
-    Start-ScheduledTask -TaskName $Name
+    Start-ScheduledTask -TaskName "GIN-WebStorm"
 }
 
 if ((Get-Item $LogFile -ErrorAction SilentlyContinue).Length -gt 2MB) {
@@ -119,16 +131,9 @@ if ($finWait2 -ge 2500 -or $closeWait -ge 1500) {
     exit 0
 }
 
-if (-not $tlsListen) {
-    Write-WatchLog "nginx is not listening on :443"
-    if (-not $DryRun) {
-        Get-Process nginx -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-    }
-    Restart-GinTask "GIN-Nginx"
-}
-
-if (-not $apiListen) {
-    Restart-GinTask "GIN-Boot"
+if ((-not $tlsListen) -or (-not $apiListen)) {
+    Write-WatchLog "site is down (api=$apiListen tls=$tlsListen)"
+    Start-WebStormIfNeeded
 }
 
 exit 0

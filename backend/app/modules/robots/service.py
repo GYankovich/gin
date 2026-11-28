@@ -372,6 +372,68 @@ class RobotsV2Service:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Robot not found")
         return self._row_to_response(row)
 
+    def get_robot_day_stats(
+        self,
+        db: Session,
+        robot_id: int,
+        *,
+        stats_day: datetime | None = None,
+    ) -> dict[str, Any]:
+        """Moscow-day W·L from robot_day_stats (monitor / WS seed)."""
+        from zoneinfo import ZoneInfo
+
+        moscow = ZoneInfo("Europe/Moscow")
+        if stats_day is None:
+            day = datetime.now(moscow).date()
+        else:
+            ts = stats_day if stats_day.tzinfo else stats_day.replace(tzinfo=timezone.utc)
+            day = ts.astimezone(moscow).date()
+
+        row = db.execute(
+            text(
+                f"""
+                SELECT wins, losses, realized_pnl, fills_count
+                FROM {self.schema}.robot_day_stats
+                WHERE robot_id = :robot_id
+                  AND stats_day = :stats_day
+                """
+            ),
+            {"robot_id": int(robot_id), "stats_day": day},
+        ).fetchone()
+        if row is None:
+            return {
+                "wins": 0,
+                "losses": 0,
+                "realizedPnl": None,
+                "fillsCount": 0,
+                "statsDay": day.isoformat(),
+            }
+        return {
+            "wins": int(row[0] or 0),
+            "losses": int(row[1] or 0),
+            "realizedPnl": float(row[2]) if row[2] is not None else None,
+            "fillsCount": int(row[3] or 0),
+            "statsDay": day.isoformat(),
+        }
+
+    async def build_monitor_stream_snapshot(
+        self,
+        db: Session,
+        user_id: int,
+        robot_id: int,
+    ) -> dict[str, Any]:
+        """Full monitor seed for WS connect (replaces REST poll while stream is up)."""
+        robot = self.get_robot(db, user_id, robot_id)
+        status_payload = await self.get_status(db, user_id, robot_id)
+        day_stats = self.get_robot_day_stats(db, robot_id)
+        return {
+            "type": "snapshot",
+            "robotId": robot_id,
+            "robot": robot.model_dump(mode="json", by_alias=True),
+            "status": status_payload,
+            "dayStats": day_stats,
+        }
+
     def _persist_config_history(
         self,
         db: Session,

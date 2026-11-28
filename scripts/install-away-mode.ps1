@@ -1,5 +1,6 @@
-# Unattended week: boot GIN without a login, reboot every day at 05:10,
-# and reboot sooner if RDP or the TCP stack is dead.
+# Unattended week: reboot every day at 05:10.
+# On logon, WebStorm opens this project and its startup tasks run
+# the backend and npm run nginx:start.
 #
 # Run once from an elevated PowerShell (this script asks for UAC itself):
 #   powershell -ExecutionPolicy Bypass -File scripts/install-away-mode.ps1
@@ -39,8 +40,12 @@ if (-not $isAdmin) {
 }
 
 Set-Content -Path $ResultFile -Value ("{0}  install start uninstall={1} rebootAt={2}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), [bool]$Uninstall, $RebootAt) -Encoding UTF8
+trap {
+    Write-Result ("ERROR: " + $_)
+    exit 1
+}
 
-$taskNames = @("GIN-Boot", "GIN-Nginx", "GIN-DailyReboot", "GIN-HostWatch")
+$taskNames = @("GIN-Boot", "GIN-Nginx", "GIN-WebStorm", "GIN-DailyReboot", "GIN-HostWatch")
 foreach ($name in $taskNames) {
     Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue
     Write-Result "removed task $name (if it existed)"
@@ -76,46 +81,43 @@ try {
     Write-Result "nic power management skipped: $_"
 }
 
-function New-GinSettings {
-    $settings = New-ScheduledTaskSettingsSet `
-        -AllowStartIfOnBatteries `
-        -DontStopIfGoingOnBatteries `
-        -DontStopOnIdleEnd `
-        -MultipleInstances IgnoreNew `
-        -RestartCount 3 `
-        -RestartInterval (New-TimeSpan -Minutes 2) `
-        -ExecutionTimeLimit (New-TimeSpan -Seconds 0) `
-        -StartWhenAvailable:$false
+function New-GinSettings([int]$RestartCount = 0) {
+    $params = @{
+        AllowStartIfOnBatteries = $true
+        DontStopIfGoingOnBatteries = $true
+        DontStopOnIdleEnd = $true
+        MultipleInstances = "IgnoreNew"
+        ExecutionTimeLimit = (New-TimeSpan -Seconds 0)
+        StartWhenAvailable = $false
+    }
+    if ($RestartCount -gt 0) {
+        $params.RestartCount = $RestartCount
+        $params.RestartInterval = (New-TimeSpan -Minutes 2)
+    }
+    $settings = New-ScheduledTaskSettingsSet @params
     $settings.AllowDemandStart = $true
     $settings.ExecutionTimeLimit = "PT0S"
     return $settings
 }
 
-$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+$system = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 
-$bootAction = New-ScheduledTaskAction `
-    -Execute "powershell.exe" `
-    -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$Root\scripts\boot-gin.ps1`"" `
-    -WorkingDirectory $Root
-$bootTrigger = New-ScheduledTaskTrigger -AtStartup
-$bootTrigger.Delay = "PT2M"
-Register-ScheduledTask -TaskName "GIN-Boot" -Action $bootAction -Trigger $bootTrigger -Principal $principal -Settings (New-GinSettings) -Force | Out-Null
-Write-Result "registered GIN-Boot at startup +2min"
-
-$nginxExe = Join-Path $Root "nginx\nginx.exe"
-$nginxDir = Join-Path $Root "nginx"
-$nginxAction = New-ScheduledTaskAction -Execute $nginxExe -WorkingDirectory $nginxDir
-$nginxTrigger = New-ScheduledTaskTrigger -AtStartup
-$nginxTrigger.Delay = "PT1M"
-Register-ScheduledTask -TaskName "GIN-Nginx" -Action $nginxAction -Trigger $nginxTrigger -Principal $principal -Settings (New-GinSettings) -Force | Out-Null
-Write-Result "registered GIN-Nginx at startup +1min"
+$webstorm = "C:\Program Files\JetBrains\WebStorm 2025.2\bin\webstorm64.exe"
+if (-not (Test-Path $webstorm)) { throw "webstorm64.exe not found: $webstorm" }
+$user = $env:USERNAME
+$userPrincipal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
+$ideAction = New-ScheduledTaskAction -Execute $webstorm -Argument $Root -WorkingDirectory $Root
+$ideTrigger = New-ScheduledTaskTrigger -AtLogOn -User $user
+$ideTrigger.Delay = "PT45S"
+Register-ScheduledTask -TaskName "GIN-WebStorm" -Action $ideAction -Trigger $ideTrigger -Principal $userPrincipal -Settings (New-GinSettings 0) -Force | Out-Null
+Write-Result "registered GIN-WebStorm at logon of $user +45s"
 
 $rebootAction = New-ScheduledTaskAction `
     -Execute "powershell.exe" `
     -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$Root\scripts\planned-reboot.ps1`" -Reason daily" `
     -WorkingDirectory $Root
 $rebootTrigger = New-ScheduledTaskTrigger -Daily -At $RebootAt
-Register-ScheduledTask -TaskName "GIN-DailyReboot" -Action $rebootAction -Trigger $rebootTrigger -Principal $principal -Settings (New-GinSettings) -Force | Out-Null
+Register-ScheduledTask -TaskName "GIN-DailyReboot" -Action $rebootAction -Trigger $rebootTrigger -Principal $system -Settings (New-GinSettings 0) -Force | Out-Null
 Write-Result "registered GIN-DailyReboot daily at $RebootAt"
 
 # Minute schedule survives reboot. A one-shot trigger with a repetition often does not.
@@ -131,10 +133,14 @@ $watchTask.Settings.MultipleInstances = "IgnoreNew"
 Set-ScheduledTask -InputObject $watchTask | Out-Null
 Write-Result "registered GIN-HostWatch every 20 min"
 
-foreach ($name in $taskNames) {
+$auto = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -ErrorAction SilentlyContinue
+Write-Result ("autologon={0} user={1}" -f $auto.AutoAdminLogon, $auto.DefaultUserName)
+
+foreach ($name in @("GIN-WebStorm", "GIN-DailyReboot", "GIN-HostWatch")) {
     $task = Get-ScheduledTask -TaskName $name
     $info = Get-ScheduledTaskInfo -TaskName $name
-    Write-Result ("task {0} state={1} limit={2} next={3}" -f $name, $task.State, $task.Settings.ExecutionTimeLimit, $info.NextRunTime)
+    $action = $task.Actions | Select-Object -First 1
+    Write-Result ("task {0} state={1} limit={2} next={3} exec={4}" -f $name, $task.State, $task.Settings.ExecutionTimeLimit, $info.NextRunTime, $action.Execute)
 }
 
 Write-Result "install done. First forced reboot is the next $RebootAt. Cancel a pending one with: shutdown /a"

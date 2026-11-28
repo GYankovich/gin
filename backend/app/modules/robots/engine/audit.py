@@ -398,7 +398,71 @@ class AuditStore:
                     },
                 )
 
+        self._refresh_robot_day_stats(bundle)
         self._db.commit()
+
+    def _refresh_robot_day_stats(self, bundle: AuditCycleBundle) -> None:
+        """Upsert Moscow-day W·L / realized pnl from robot_fills (fleet-compatible rules)."""
+        sch = self._schema
+        day_rows = self._db.execute(
+            text(f"""
+                SELECT DISTINCT (timezone('Europe/Moscow', filled_at))::date AS stats_day
+                FROM {sch}.robot_fills
+                WHERE robot_id = :robot_id
+                  AND filled_at >= :from_at
+                  AND filled_at <= :to_at
+            """),
+            {
+                "robot_id": bundle.robot_id,
+                "from_at": bundle.started_at or bundle.finished_at,
+                "to_at": bundle.finished_at,
+            },
+        ).fetchall()
+        moscow_days = [r[0] for r in day_rows if r and r[0] is not None]
+        if not moscow_days:
+            # Cycle with fills may still land on finished_at day only; refresh that day.
+            if bundle.finished_at is None:
+                return
+            row = self._db.execute(
+                text("SELECT (timezone('Europe/Moscow', CAST(:ts AS timestamptz)))::date"),
+                {"ts": bundle.finished_at},
+            ).fetchone()
+            if not row or row[0] is None:
+                return
+            moscow_days = [row[0]]
+
+        for stats_day in moscow_days:
+            self._db.execute(
+                text(f"""
+                    INSERT INTO {sch}.robot_day_stats (
+                        robot_id, stats_day, wins, losses, realized_pnl, fills_count, computed_at
+                    )
+                    SELECT
+                        :robot_id,
+                        :stats_day,
+                        COUNT(*) FILTER (
+                            WHERE (UPPER(f.side) = 'SELL' OR f.kind ILIKE 'exit%') AND f.pnl > 0
+                        )::int,
+                        COUNT(*) FILTER (
+                            WHERE (UPPER(f.side) = 'SELL' OR f.kind ILIKE 'exit%') AND f.pnl < 0
+                        )::int,
+                        SUM(f.pnl) FILTER (
+                            WHERE UPPER(f.side) = 'SELL' OR f.kind ILIKE 'exit%'
+                        ),
+                        COUNT(*)::int,
+                        NOW()
+                    FROM {sch}.robot_fills f
+                    WHERE f.robot_id = :robot_id
+                      AND (timezone('Europe/Moscow', f.filled_at))::date = :stats_day
+                    ON CONFLICT (robot_id, stats_day) DO UPDATE SET
+                        wins = EXCLUDED.wins,
+                        losses = EXCLUDED.losses,
+                        realized_pnl = EXCLUDED.realized_pnl,
+                        fills_count = EXCLUDED.fills_count,
+                        computed_at = EXCLUDED.computed_at
+                """),
+                {"robot_id": bundle.robot_id, "stats_day": stats_day},
+            )
 
 
 def signal_row_from_eval(
@@ -569,5 +633,29 @@ async def audit_persist_cycle(bundle: AuditCycleBundle) -> None:
             "audit persist_cycle failed robot=%s cycle=%s: %s",
             bundle.robot_id,
             bundle.cycle_number,
+            exc,
+        )
+        return
+
+    # Push day W·L so monitor can drop REST audit poll.
+    try:
+        from app.modules.robots.engine.event_bus import event_bus
+        from app.modules.robots.service import robots_v2_service
+
+        day = bundle.finished_at
+        if day is not None and day.tzinfo is None:
+            day = day.replace(tzinfo=timezone.utc)
+        db = SessionLocal()
+        try:
+            day_stats = robots_v2_service.get_robot_day_stats(
+                db, bundle.robot_id, stats_day=day,
+            )
+        finally:
+            db.close()
+        await event_bus.publish(bundle.robot_id, "day_stats", day_stats)
+    except Exception as exc:
+        logger.warning(
+            "audit day_stats publish failed robot=%s: %s",
+            bundle.robot_id,
             exc,
         )

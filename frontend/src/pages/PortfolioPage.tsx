@@ -39,6 +39,8 @@ import { useMediaQuery } from '@/hooks/useMediaQuery'
 
 const RETRY_MIN_MS = 1800
 const OBSERVATION_LOOKBACK_DAYS = 3650
+/** Hourly chart must not scan ~10y of raw snapshots. */
+const HOURLY_LOOKBACK_DAYS = 14
 const HISTORY_PAGE_SIZE = 50
 
 const CHART_ZOOM_DAYS = { day: 1, week: 7, month: 30, year: 365 } as const
@@ -459,10 +461,13 @@ export default function PortfolioPage() {
 
         let ok = false
         const { from, to } = resolveObservationWindow()
+        const chartFrom = hourly
+            ? isoDateDaysAgo(HOURLY_LOOKBACK_DAYS)
+            : from
         try {
             const data = await analyticsService.getAccountChartSeries({
                 account_id: accId,
-                from_date: toApiFromDate(from),
+                from_date: toApiFromDate(chartFrom),
                 to_date: toApiToDate(to),
                 include_instruments: includeInstruments,
                 include_hourly: hourly,

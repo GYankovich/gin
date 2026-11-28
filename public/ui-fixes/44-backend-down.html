@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Backend down — оттенки жёлтого</title>
+<link rel="stylesheet" href="./_shared.css" />
+<style>
+  .stage {
+    position: relative;
+    min-height: 220px;
+    background:
+      linear-gradient(rgba(0, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 255, 255, 0.03) 1px, transparent 1px),
+      #0a0a0f;
+    background-size: 40px 40px, 40px 40px, auto;
+  }
+  .stage--light {
+    background:
+      linear-gradient(rgba(26, 26, 26, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(26, 26, 26, 0.04) 1px, transparent 1px),
+      #f4f5f7;
+  }
+  .stage--light .nav { background: #f8f9fa; color: #0f172a; }
+  .stage--light .nav-link { color: #64748b; }
+  .stage--light .nav-link--active { background: #0f172a; color: #fff; box-shadow: none; }
+  .stage--light .avatar { background: #fff; color: #0f172a; }
+  .stage--light .skel-card,
+  .stage--light .skel-accounts { background: #fff; border-color: rgba(15, 23, 42, 0.08); }
+  .stage--light .skel-bar { background: rgba(15, 23, 42, 0.08); }
+
+  .banner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    box-sizing: border-box;
+    padding: 8px 16px;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  .banner p { margin: 0; max-width: 56rem; }
+  .banner strong { font-weight: 700; }
+  .banner .btn {
+    border-radius: 8px;
+    padding: 4px 12px;
+    font-size: 12px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .banner .link {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    white-space: nowrap;
+    color: inherit;
+  }
+
+  /* Y1 — current amber */
+  .y1 {
+    background: color-mix(in srgb, #ffaa00 42%, #1a1200);
+    border-bottom: 1px solid color-mix(in srgb, #ffaa00 78%, rgba(255,255,255,.08));
+    color: #fff4d6;
+    box-shadow: 0 8px 24px color-mix(in srgb, #ffaa00 28%, transparent);
+  }
+  .y1 strong { color: #fff; }
+  .stage--light .y1 {
+    background: color-mix(in srgb, #CC8800 55%, #ffe08a);
+    border-bottom-color: color-mix(in srgb, #CC8800 85%, #8a5a00);
+    color: #2a1a00;
+    box-shadow: 0 8px 22px color-mix(in srgb, #CC8800 35%, transparent);
+  }
+  .stage--light .y1 strong { color: #1a1000; }
+
+  /* Y2 — softer gold, less neon */
+  .y2 {
+    background: color-mix(in srgb, #d4a017 38%, #16120a);
+    border-bottom: 1px solid color-mix(in srgb, #d4a017 65%, rgba(255,255,255,.08));
+    color: #f3e6c2;
+    box-shadow: 0 8px 22px color-mix(in srgb, #d4a017 18%, transparent);
+  }
+  .y2 strong { color: #fff8e8; }
+  .stage--light .y2 {
+    background: color-mix(in srgb, #b8860b 32%, #fff3d1);
+    border-bottom-color: color-mix(in srgb, #b8860b 70%, #8a6a20);
+    color: #3d2c08;
+    box-shadow: 0 8px 18px color-mix(in srgb, #b8860b 18%, transparent);
+  }
+  .stage--light .y2 strong { color: #241a04; }
+
+  /* Y3 — honey / warm paper */
+  .y3 {
+    background: color-mix(in srgb, #e8c36a 22%, #1c1810);
+    border-bottom: 1px solid color-mix(in srgb, #e8c36a 45%, rgba(255,255,255,.1));
+    color: #f6ebcf;
+    box-shadow: 0 8px 20px rgba(0,0,0,.35);
+  }
+  .y3 strong { color: #fff; }
+  .stage--light .y3 {
+    background: #f6e7b8;
+    border-bottom-color: #c9a227;
+    color: #3a2e10;
+    box-shadow: 0 8px 18px rgba(201, 162, 39, .18);
+  }
+  .stage--light .y3 strong { color: #1f1808; }
+
+  /* Y4 — mustard, more brown */
+  .y4 {
+    background: color-mix(in srgb, #c9853b 40%, #1a120c);
+    border-bottom: 1px solid color-mix(in srgb, #c9853b 70%, rgba(255,255,255,.08));
+    color: #ffe8c8;
+    box-shadow: 0 8px 22px color-mix(in srgb, #c9853b 22%, transparent);
+  }
+  .y4 strong { color: #fff; }
+  .stage--light .y4 {
+    background: color-mix(in srgb, #c9853b 45%, #ffe2c2);
+    border-bottom-color: #9a5f24;
+    color: #3b220e;
+    box-shadow: 0 8px 18px color-mix(in srgb, #c9853b 22%, transparent);
+  }
+  .stage--light .y4 strong { color: #221308; }
+
+  /* Y5 — bright but cooler lemon */
+  .y5 {
+    background: color-mix(in srgb, #e6c200 36%, #17160a);
+    border-bottom: 1px solid color-mix(in srgb, #e6c200 70%, rgba(255,255,255,.08));
+    color: #fff7c2;
+    box-shadow: 0 8px 22px color-mix(in srgb, #e6c200 20%, transparent);
+  }
+  .y5 strong { color: #fff; }
+  .stage--light .y5 {
+    background: #ffe95a;
+    border-bottom-color: #c9a800;
+    color: #2a2400;
+    box-shadow: 0 8px 18px rgba(230, 194, 0, .22);
+  }
+  .stage--light .y5 strong { color: #161300; }
+
+  /* Y6 — dark bar + gold text (less fill scream) */
+  .y6 {
+    background: #17140f;
+    border-bottom: 1px solid color-mix(in srgb, #d4a017 55%, rgba(255,255,255,.1));
+    box-shadow: inset 0 2px 0 #d4a017;
+    color: #e8d7a8;
+  }
+  .y6 strong { color: #ffd666; }
+  .stage--light .y6 {
+    background: #fffaf0;
+    border-bottom-color: #d4a017;
+    box-shadow: inset 0 2px 0 #d4a017;
+    color: #5a4300;
+  }
+  .stage--light .y6 strong { color: #8a5a00; }
+
+  .btn-ghost {
+    border-color: color-mix(in srgb, #fff 50%, transparent);
+    background: color-mix(in srgb, #000 30%, transparent);
+    color: #fff;
+  }
+  .stage--light .btn-ghost {
+    border-color: color-mix(in srgb, currentColor 30%, transparent);
+    background: #fff;
+    color: inherit;
+  }
+  .btn-solid {
+    border-color: transparent;
+    background: #fff;
+    color: #17120a;
+  }
+  .stage--light .btn-solid {
+    background: #17120a;
+    color: #fff;
+  }
+
+  .content { padding: 14px 16px 16px; }
+  .skel-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 10px; }
+  @media (max-width: 720px) { .skel-grid { grid-template-columns: 1fr; } }
+  .skel-card, .skel-accounts {
+    background: #12121a;
+    border: 1px solid rgba(255,255,255,.06);
+    border-radius: 14px;
+    padding: 14px;
+  }
+  .skel-accounts { margin-top: 10px; }
+  .skel-bar {
+    display: block;
+    height: 10px;
+    border-radius: 4px;
+    background: rgba(255,255,255,.08);
+    margin-bottom: 8px;
+  }
+  .skel-bar--lg { height: 18px; width: 42%; }
+  .skel-row { display: flex; justify-content: space-between; gap: 16px; margin-top: 10px; }
+
+  .variants { display: grid; gap: 20px; }
+  .variant-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0 0 8px;
+  }
+  .variant-head h2 {
+    margin: 0;
+    font-size: 13px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .variant-head span { font-size: 13px; color: var(--secondary); }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 960px) { .pair { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+  <div class="picker">
+    <a class="picker__back" href="./index.html">← К списку</a>
+    <div>
+      <h1>Backend down — оттенки жёлтого</h1>
+      <p>Плотность A. Слева dark, справа light. Скажи Y1–Y6 и кнопку: ghost / solid / link / none.</p>
+    </div>
+    <span class="badge badge--new">yellow</span>
+  </div>
+
+  <div class="wrap">
+    <div class="note">
+      <strong>Y1</strong> сейчас ·
+      <strong>Y2</strong> soft gold ·
+      <strong>Y3</strong> honey ·
+      <strong>Y4</strong> mustard/bronze ·
+      <strong>Y5</strong> lemon ·
+      <strong>Y6</strong> dark + gold accent
+    </div>
+
+    <div class="variants">
+      <section>
+        <div class="variant-head"><h2>Y1 — current</h2><span>яркий янтарь · ghost</span></div>
+        <div class="pair">
+          <div class="frame"><div class="stage" data-demo='{"y":"y1","action":"ghost"}'></div></div>
+          <div class="frame"><div class="stage stage--light" data-demo='{"y":"y1","action":"ghost"}'></div></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="variant-head"><h2>Y2 — soft gold</h2><span>тише, меньше «неона» · solid</span></div>
+        <div class="pair">
+          <div class="frame"><div class="stage" data-demo='{"y":"y2","action":"solid"}'></div></div>
+          <div class="frame"><div class="stage stage--light" data-demo='{"y":"y2","action":"solid"}'></div></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="variant-head"><h2>Y3 — honey</h2><span>тёплая бумага · link</span></div>
+        <div class="pair">
+          <div class="frame"><div class="stage" data-demo='{"y":"y3","action":"link"}'></div></div>
+          <div class="frame"><div class="stage stage--light" data-demo='{"y":"y3","action":"link"}'></div></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="variant-head"><h2>Y4 — mustard</h2><span>бронзовее, ближе к UI-accent кабинета · ghost</span></div>
+        <div class="pair">
+          <div class="frame"><div class="stage" data-demo='{"y":"y4","action":"ghost"}'></div></div>
+          <div class="frame"><div class="stage stage--light" data-demo='{"y":"y4","action":"ghost"}'></div></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="variant-head"><h2>Y5 — lemon</h2><span>самый светлый/кричащий · none</span></div>
+        <div class="pair">
+          <div class="frame"><div class="stage" data-demo='{"y":"y5","action":"none"}'></div></div>
+          <div class="frame"><div class="stage stage--light" data-demo='{"y":"y5","action":"none"}'></div></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="variant-head"><h2>Y6 — dark + gold</h2><span>полоса тёмная, жёлтый только акцент · solid | none</span></div>
+        <div class="pair">
+          <div class="frame"><div class="stage" data-demo='{"y":"y6","action":"solid"}'></div></div>
+          <div class="frame"><div class="stage stage--light" data-demo='{"y":"y6","action":"none"}'></div></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <template id="demo">
+    <div class="nav">
+      <div class="brand">GINITY</div>
+      <div class="nav-pill">
+        <button class="nav-link nav-link--active" type="button">Дашборд</button>
+        <button class="nav-link" type="button">Портфель</button>
+        <button class="nav-link" type="button">Роботы</button>
+        <button class="nav-link" type="button">Лаборатория</button>
+      </div>
+      <div class="avatar">GE</div>
+    </div>
+    <div class="banner" role="status">
+      <p>
+        <strong>Сервис временно недоступен.</strong>
+        Нет связи с сервером — экраны обновятся, когда он ответит.
+      </p>
+    </div>
+    <div class="content" aria-busy="true">
+      <div class="skel-grid">
+        <div class="skel-card">
+          <span class="skel-bar" style="width:28%"></span>
+          <span class="skel-bar" style="width:55%"></span>
+          <span class="skel-bar skel-bar--lg"></span>
+        </div>
+        <div class="skel-card">
+          <span class="skel-bar" style="width:42%"></span>
+          <span class="skel-bar" style="width:72%"></span>
+          <span class="skel-bar" style="width:48%"></span>
+        </div>
+      </div>
+      <div class="skel-accounts">
+        <span class="skel-bar" style="width:88px"></span>
+        <div class="skel-row">
+          <span class="skel-bar" style="width:32%;margin:0"></span>
+          <span class="skel-bar" style="width:18%;margin:0"></span>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    const tpl = document.getElementById('demo')
+    document.querySelectorAll('[data-demo]').forEach((stage) => {
+      const cfg = JSON.parse(stage.dataset.demo)
+      const node = tpl.content.cloneNode(true)
+      const banner = node.querySelector('.banner')
+      banner.classList.add(cfg.y)
+      if (cfg.action === 'ghost' || cfg.action === 'solid') {
+        const b = document.createElement('button')
+        b.type = 'button'
+        b.className = `btn btn-${cfg.action}`
+        b.textContent = 'Проверить'
+        banner.appendChild(b)
+      } else if (cfg.action === 'link') {
+        const b = document.createElement('button')
+        b.type = 'button'
+        b.className = 'link'
+        b.textContent = 'Проверить'
+        banner.appendChild(b)
+      }
+      stage.appendChild(node)
+    })
+  </script>
+</body>
+</html>

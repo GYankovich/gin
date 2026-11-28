@@ -99,6 +99,7 @@ html[data-backend='down'] {
     --content-top: calc(var(--navbar-h) + var(--backend-banner-h, 48px) + 20px);
 }
 
+/* Y2 soft gold — dense attention bar, quieter than neon amber */
 .backend-down-banner {
     position: fixed;
     top: 0;
@@ -111,20 +112,20 @@ html[data-backend='down'] {
     gap: var(--space-3);
     box-sizing: border-box;
     padding: calc(var(--space-2) + env(safe-area-inset-top, 0px)) var(--space-4) var(--space-2);
-    background: color-mix(in srgb, var(--color-warn) 42%, #1a1200);
-    border-bottom: 1px solid color-mix(in srgb, var(--color-warn) 78%, var(--border-subtle));
-    color: #fff4d6;
+    background: color-mix(in srgb, #d4a017 38%, #16120a);
+    border-bottom: 1px solid color-mix(in srgb, #d4a017 65%, var(--border-subtle));
+    color: #f3e6c2;
     font-family: var(--font-sans);
     font-size: var(--text-sm);
     line-height: 1.4;
-    box-shadow: 0 8px 24px color-mix(in srgb, var(--color-warn) 28%, transparent);
+    box-shadow: 0 8px 22px color-mix(in srgb, #d4a017 18%, transparent);
 }
 
 [data-theme='light'] .backend-down-banner {
-    background: color-mix(in srgb, var(--color-warn) 55%, #ffe08a);
-    border-bottom-color: color-mix(in srgb, var(--color-warn) 85%, #8a5a00);
-    color: #2a1a00;
-    box-shadow: 0 8px 22px color-mix(in srgb, var(--color-warn) 35%, transparent);
+    background: color-mix(in srgb, #b8860b 32%, #fff3d1);
+    border-bottom-color: color-mix(in srgb, #b8860b 70%, #8a6a20);
+    color: #3d2c08;
+    box-shadow: 0 8px 18px color-mix(in srgb, #b8860b 18%, transparent);
 }
 
 html[data-shell='app'] .backend-down-banner {
@@ -144,33 +145,35 @@ html[data-shell='app'] .backend-down-banner {
 
 .backend-down-banner__text strong {
     font-weight: 700;
-    color: #ffffff;
+    color: #fff8e8;
 }
 
 [data-theme='light'] .backend-down-banner__text strong {
-    color: #1a1000;
+    color: #241a04;
 }
 
 .backend-down-banner .btn--secondary {
-    border-color: color-mix(in srgb, #ffffff 55%, var(--color-warn));
-    background: color-mix(in srgb, #000000 35%, transparent);
-    color: #ffffff;
+    border-color: transparent;
+    background: #ffffff;
+    color: #17120a;
 }
 
 .backend-down-banner .btn--secondary:hover {
-    background: color-mix(in srgb, #000000 50%, transparent);
-    border-color: #ffffff;
+    background: #fff8e8;
+    border-color: transparent;
+    color: #17120a;
 }
 
 [data-theme='light'] .backend-down-banner .btn--secondary {
-    border-color: color-mix(in srgb, var(--color-warn) 45%, #2a1a00);
-    background: #ffffff;
-    color: #2a1a00;
+    border-color: transparent;
+    background: #17120a;
+    color: #ffffff;
 }
 
 [data-theme='light'] .backend-down-banner .btn--secondary:hover {
-    background: #fff8e8;
-    border-color: #2a1a00;
+    background: #000000;
+    border-color: transparent;
+    color: #ffffff;
 }
 
 html[data-backend='down'] .dashboard-error-card {

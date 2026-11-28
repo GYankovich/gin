@@ -800,34 +800,57 @@ class AnalyticsService:
         if not self.check_account_ownership(db, account_id, user_id):
             return None
 
-        own_funds_row = self._execute(
-            queries.build_account_own_funds_query(account_id), fetch_all=False
+        # Prefer portfolio_account_stats mart when populated (written at sync).
+        stats_row = self._execute(
+            (
+                """
+                SELECT own_funds, total_amount, snapshot_at, gain_percent,
+                       first_input_at, avg_monthly_roi_percent
+                FROM portfolio_account_stats
+                WHERE account_id = :account_id
+                """,
+                {"account_id": account_id},
+            ),
+            fetch_all=False,
         )
-        own_funds = self._safe_float(own_funds_row[0] if own_funds_row else 0.0, 0.0) or 0.0
+        if stats_row and stats_row[0] is not None and stats_row[1] is not None:
+            own_funds = self._safe_float(stats_row[0], 0.0) or 0.0
+            current_total_value = self._safe_float(stats_row[1], 0.0) or 0.0
+            latest_snapshot_date = self._safe_datetime(stats_row[2], None)
+            overall_roi_percent = self._safe_float(stats_row[3], None)
+            first_input_date = self._safe_datetime(stats_row[4], None)
+            avg_monthly_roi_percent = self._safe_float(stats_row[5], None)
+            if overall_roi_percent is None and abs(own_funds) > 1e-9:
+                overall_roi_percent = ((current_total_value - own_funds) / own_funds) * 100.0
+        else:
+            own_funds_row = self._execute(
+                queries.build_account_own_funds_query(account_id), fetch_all=False
+            )
+            own_funds = self._safe_float(own_funds_row[0] if own_funds_row else 0.0, 0.0) or 0.0
 
-        latest_snapshot_row = self._execute(
-            queries.build_account_latest_value_query(account_id), fetch_all=False
-        )
-        current_total_value = self._safe_float(
-            latest_snapshot_row[0] if latest_snapshot_row else 0.0,
-            0.0,
-        ) or 0.0
-        latest_snapshot_date = self._safe_datetime(latest_snapshot_row[1], None) if latest_snapshot_row else None
+            latest_snapshot_row = self._execute(
+                queries.build_account_latest_value_query(account_id), fetch_all=False
+            )
+            current_total_value = self._safe_float(
+                latest_snapshot_row[0] if latest_snapshot_row else 0.0,
+                0.0,
+            ) or 0.0
+            latest_snapshot_date = self._safe_datetime(latest_snapshot_row[1], None) if latest_snapshot_row else None
 
-        overall_roi_percent: Optional[float] = None
-        if abs(own_funds) > 1e-9:
-            overall_roi_percent = ((current_total_value - own_funds) / own_funds) * 100.0
+            overall_roi_percent: Optional[float] = None
+            if abs(own_funds) > 1e-9:
+                overall_roi_percent = ((current_total_value - own_funds) / own_funds) * 100.0
 
-        first_input_row = self._execute(
-            queries.build_account_first_input_date_query(account_id), fetch_all=False
-        )
-        first_input_date = self._safe_datetime(first_input_row[0], None) if first_input_row else None
+            first_input_row = self._execute(
+                queries.build_account_first_input_date_query(account_id), fetch_all=False
+            )
+            first_input_date = self._safe_datetime(first_input_row[0], None) if first_input_row else None
 
-        avg_monthly_roi_percent: Optional[float] = None
-        if overall_roi_percent is not None and first_input_date and latest_snapshot_date:
-            months = max((latest_snapshot_date - first_input_date).total_seconds() / (86400.0 * 30.4375), 0.0)
-            if months > 1e-9:
-                avg_monthly_roi_percent = overall_roi_percent / months
+            avg_monthly_roi_percent: Optional[float] = None
+            if overall_roi_percent is not None and first_input_date and latest_snapshot_date:
+                months = max((latest_snapshot_date - first_input_date).total_seconds() / (86400.0 * 30.4375), 0.0)
+                if months > 1e-9:
+                    avg_monthly_roi_percent = overall_roi_percent / months
 
         period_inflow_row = self._execute(
             queries.build_account_inflow_before_query(account_id, from_date), fetch_all=False

@@ -82,10 +82,20 @@ export default function RobotMonitorPage() {
     const [tickerScanAt, setTickerScanAt] = useState<string | null>(null)
     const [roundTrips, setRoundTrips] = useState<TradingRobotRoundTrip[]>([])
     const [decisionFeed, setDecisionFeed] = useState<Array<Record<string, unknown>>>([])
+    const [dayStatsLive, setDayStatsLive] = useState<{
+        dayKey: string
+        trades: number
+        wins: number
+        losses: number
+        sumPlus: number
+        sumMinus: number
+        delta: number
+    } | null>(null)
     const [busy, setBusy] = useState(false)
     const [universeBusy, setUniverseBusy] = useState(false)
     const positionsFreshAtRef = useRef(0)
     const scanFreshAtRef = useRef(0)
+    const snapshotReceivedRef = useRef(false)
 
     const chartRef = useRef<IChartApi | null>(null)
     const seriesRef = useRef<ISeriesApi<'Line'> | null>(null)
@@ -116,21 +126,40 @@ export default function RobotMonitorPage() {
         setTickerScanAt(at)
     }, [])
 
+    /** Heavy audit (FIFO round-trips). Cold start + health + slow interval — not every status poll. */
+    const refreshAudit = useCallback(async (includeDecisions = false) => {
+        if (!Number.isFinite(robotId)) return
+        try {
+            const types = includeDecisions ? ['roundTrips', 'decisions'] as const : ['roundTrips'] as const
+            const auditRes = await robotService.fetchAudit({
+                robotId,
+                limit: 200,
+                types: [...types],
+            }).catch(() => ({
+                robotId,
+                roundTrips: { items: [] as TradingRobotRoundTrip[], total: 0 },
+                decisions: { items: [] as Array<Record<string, unknown>>, total: 0 },
+            }))
+            setRoundTrips(auditRes.roundTrips?.items || [])
+            if (includeDecisions) {
+                const auditDecisions = (auditRes.decisions?.items || []) as Array<Record<string, unknown>>
+                setDecisionFeed(prev => mergeDecisionFeed(
+                    prev as Array<Record<string, unknown>>,
+                    auditDecisions,
+                ))
+            }
+        } catch {
+            /* keep last audit snapshot */
+        }
+    }, [robotId])
+
+    /** Live cockpit: robot row + status. Decisions come from status/WS; audit is separate. */
     const refresh = useCallback(async () => {
         if (!Number.isFinite(robotId)) return
         try {
-            const [r, s, auditRes] = await Promise.all([
+            const [r, s] = await Promise.all([
                 robotService.getById(robotId),
                 robotService.getStatus(robotId),
-                robotService.fetchAudit({
-                    robotId,
-                    limit: 200,
-                    types: ['roundTrips', 'decisions'],
-                }).catch(() => ({
-                    robotId,
-                    roundTrips: { items: [] as TradingRobotRoundTrip[], total: 0 },
-                    decisions: { items: [], total: 0 },
-                })),
             ])
             setRobot(r)
             setStatus(prev => {
@@ -172,10 +201,10 @@ export default function RobotMonitorPage() {
                 }
             }
             setStatusLoaded(true)
-            setRoundTrips(auditRes.roundTrips?.items || [])
             const liveDecisions = pick<Array<Record<string, unknown>>>(s, 'decisions', 'decisions')
-            const auditDecisions = (auditRes.decisions?.items || []) as Array<Record<string, unknown>>
-            setDecisionFeed(mergeDecisionFeed(liveDecisions, auditDecisions))
+            if (Array.isArray(liveDecisions) && liveDecisions.length > 0) {
+                setDecisionFeed(prev => mergeDecisionFeed(liveDecisions, prev as Array<Record<string, unknown>>))
+            }
             const scan = pick<TradingRobotTickerScan[]>(s, 'tickerScan', 'ticker_scan')
             const scanAt = pick<string>(s, 'tickerScanAt', 'ticker_scan_at')
             if (Array.isArray(scan) && scan.length > 0) {
@@ -213,14 +242,116 @@ export default function RobotMonitorPage() {
         }
     }, [robotId, toast, applyTickerScan])
 
+    const applyStatusPayload = useCallback((s: TradingRobotStatus) => {
+        setStatus(prev => {
+            const restAt = positionsStampMs(
+                pick<string>(s, 'positionsUpdatedAt', 'positions_updated_at'),
+            )
+            if (prev && restAt > 0 && restAt < positionsFreshAtRef.current) {
+                return {
+                    ...s,
+                    openPositions: prev.openPositions,
+                    positionsUpdatedAt: prev.positionsUpdatedAt,
+                }
+            }
+            if (restAt >= positionsFreshAtRef.current) {
+                positionsFreshAtRef.current = restAt
+            }
+            return s
+        })
+        const stage = pick<string>(s, 'cycleStage', 'cycle_stage')
+        const progress = pick<number>(s, 'cycleProgress', 'cycle_progress')
+        const detail = pick<string>(s, 'cycleDetail', 'cycle_detail')
+        if (stage) {
+            setLiveStage(prev => {
+                const same = prev && String(prev.stage).toLowerCase() === String(stage).toLowerCase()
+                const nextProgress = typeof progress === 'number' ? Number(progress) : undefined
+                return {
+                    stage: String(stage),
+                    label: same ? prev?.label : undefined,
+                    progress: same
+                        ? Math.max(Number(prev?.progress ?? 0), Number(nextProgress ?? 0))
+                        : nextProgress,
+                    skipReason: pick<string>(s, 'cycleSkipReason', 'cycle_skip_reason') ?? (same ? prev?.skipReason : null) ?? null,
+                    triggeredBy: pick<string>(s, 'lastTriggeredBy', 'last_triggered_by') ?? (same ? prev?.triggeredBy : null) ?? null,
+                    detail: detail != null ? String(detail) : (same ? (prev?.detail ?? null) : null),
+                }
+            })
+        }
+        const liveDecisions = pick<Array<Record<string, unknown>>>(s, 'decisions', 'decisions')
+        if (Array.isArray(liveDecisions) && liveDecisions.length > 0) {
+            setDecisionFeed(prev => mergeDecisionFeed(liveDecisions, prev as Array<Record<string, unknown>>))
+        }
+        const scan = pick<TradingRobotTickerScan[]>(s, 'tickerScan', 'ticker_scan')
+        const scanAt = pick<string>(s, 'tickerScanAt', 'ticker_scan_at')
+        if (Array.isArray(scan) && scan.length > 0) {
+            const scanMs = scanStampMs(scanAt)
+            applyTickerScan(scan, scanAt || new Date().toISOString(), scanMs || Date.now())
+        }
+        const curve = pick<Array<{ time?: string; equity?: number }>>(s, 'equityCurve', 'equity_curve')
+        if (Array.isArray(curve) && curve.length > 0) {
+            const points = curve
+                .map(p => {
+                    const eq = Number(p.equity)
+                    if (!Number.isFinite(eq)) return null
+                    let tSec: number
+                    if (p.time) {
+                        const ms = Date.parse(String(p.time))
+                        tSec = Number.isFinite(ms) ? Math.floor(ms / 1000) : Math.floor(Date.now() / 1000)
+                    } else {
+                        tSec = Math.floor(Date.now() / 1000)
+                    }
+                    return { time: tSec as Time, value: eq }
+                })
+                .filter((x): x is { time: Time; value: number } => x != null)
+            if (points.length) {
+                setEquityPoints(normalizeEquityPoints(points).filter(p => isMoscowToday(p.time as number)))
+            }
+        } else {
+            const eq = pick<number>(s, 'equity', 'equity')
+            if (eq != null && Number.isFinite(eq)) {
+                setEquityPoints(prev => appendEquityPoint(prev, Number(eq)))
+            }
+        }
+        setStatusLoaded(true)
+    }, [applyTickerScan])
+
+    const applyDayStatsMsg = useCallback((raw: Record<string, unknown>) => {
+        const wins = Number(raw.wins ?? 0) || 0
+        const losses = Number(raw.losses ?? 0) || 0
+        const pnlRaw = raw.realizedPnl != null ? Number(raw.realizedPnl)
+            : (raw.realized_pnl != null ? Number(raw.realized_pnl) : 0)
+        const pnl = Number.isFinite(pnlRaw) ? pnlRaw : 0
+        const fills = Number(raw.fillsCount ?? raw.fills_count ?? wins + losses) || (wins + losses)
+        setDayStatsLive({
+            dayKey: String(raw.statsDay || raw.stats_day || ''),
+            trades: fills,
+            wins,
+            losses,
+            sumPlus: pnl > 0 ? pnl : 0,
+            sumMinus: pnl < 0 ? pnl : 0,
+            delta: pnl,
+        })
+    }, [])
+
     useEffect(() => {
         setStatusLoaded(false)
         setStatus(null)
         setDecisionFeed([])
+        setRoundTrips([])
+        setDayStatsLive(null)
+        snapshotReceivedRef.current = false
         positionsFreshAtRef.current = 0
         scanFreshAtRef.current = 0
-        void refresh()
-    }, [robotId, refresh])
+        // REST fallback if WS snapshot does not arrive quickly (idle / WS down).
+        const timer = window.setTimeout(() => {
+            if (!snapshotReceivedRef.current) {
+                void refresh()
+                void refreshAudit(true)
+            }
+        }, 2500)
+        return () => window.clearTimeout(timer)
+    }, [robotId, refresh, refreshAudit])
 
     const token = useAuthStore(s => s.token)
     const wsUrl = useMemo(() => {
@@ -234,6 +365,28 @@ export default function RobotMonitorPage() {
             if (!msg || typeof msg !== 'object') return
             const type = String(msg.type || 'event')
             if (type === 'ping') return
+
+            if (type === 'snapshot') {
+                snapshotReceivedRef.current = true
+                if (msg.robot && typeof msg.robot === 'object') {
+                    setRobot(msg.robot as TradingRobot)
+                }
+                if (msg.status && typeof msg.status === 'object') {
+                    applyStatusPayload(msg.status as TradingRobotStatus)
+                }
+                if (msg.dayStats && typeof msg.dayStats === 'object') {
+                    applyDayStatsMsg(msg.dayStats as Record<string, unknown>)
+                }
+                // One-shot blotter history (not polled while WS is up).
+                void refreshAudit(false)
+                return
+            }
+
+            if (type === 'day_stats') {
+                applyDayStatsMsg(msg as Record<string, unknown>)
+                return
+            }
+
             const posRows = (type === 'cycle' || type === 'positions')
                 ? pickOpenPositions(msg as Record<string, unknown>)
                 : null
@@ -260,8 +413,17 @@ export default function RobotMonitorPage() {
                 }
                 return
             }
-            if (type === 'cycle' && typeof msg.equity === 'number' && isMoscowToday(msg.ts ? String(msg.ts) : Date.now())) {
-                setEquityPoints(prev => appendEquityPoint(prev, Number(msg.equity)))
+            if (type === 'cycle') {
+                if (typeof msg.equity === 'number') {
+                    setStatus(prev => prev ? { ...prev, equity: Number(msg.equity) } : prev)
+                    if (isMoscowToday(msg.ts ? String(msg.ts) : Date.now())) {
+                        setEquityPoints(prev => appendEquityPoint(prev, Number(msg.equity)))
+                    }
+                }
+                if (Array.isArray(msg.openOrders) || Array.isArray(msg.open_orders)) {
+                    const oo = (msg.openOrders ?? msg.open_orders) as Array<Record<string, unknown>>
+                    setStatus(prev => prev ? { ...prev, openOrders: oo } : prev)
+                }
             }
             if (type === 'cycle' && Array.isArray(msg.tickerScan)) {
                 const at = msg.ts ? String(msg.ts) : new Date().toISOString()
@@ -322,19 +484,61 @@ export default function RobotMonitorPage() {
             }
             if (type === 'health') {
                 const state = String(msg.state || '').toUpperCase()
-                if (state === 'RUNNING' || state === 'BOOTSTRAP' || state === 'STOPPING'
-                    || state === 'TERMINATED' || state === 'ERROR') {
-                    void refresh()
+                if (state) {
+                    setStatus(prev => prev ? {
+                        ...prev,
+                        sessionState: state,
+                        message: msg.message != null ? String(msg.message) : prev.message,
+                    } : prev)
                 }
+                // No full REST refresh — snapshot/deltas keep the board.
+            }
+            if (type === 'order') {
+                const statusOrd = String(msg.status || '').toLowerCase()
+                if (statusOrd === 'filled') {
+                    const kind = String(msg.kind || '')
+                    const side = String(msg.side || '').toUpperCase()
+                    const isClose = side === 'SELL' || kind.toLowerCase().startsWith('exit')
+                    const pnl = typeof msg.pnl === 'number' ? Number(msg.pnl) : null
+                    if (isClose && pnl != null && Number.isFinite(pnl) && pnl !== 0) {
+                        setDayStatsLive(prev => {
+                            const wins = (prev?.wins ?? 0) + (pnl > 0 ? 1 : 0)
+                            const losses = (prev?.losses ?? 0) + (pnl < 0 ? 1 : 0)
+                            const delta = (prev?.delta ?? 0) + pnl
+                            return {
+                                dayKey: prev?.dayKey || '',
+                                trades: (prev?.trades ?? 0) + 1,
+                                wins,
+                                losses,
+                                sumPlus: (prev?.sumPlus ?? 0) + (pnl > 0 ? pnl : 0),
+                                sumMinus: (prev?.sumMinus ?? 0) + (pnl < 0 ? pnl : 0),
+                                delta,
+                            }
+                        })
+                    }
+                }
+            }
+            if (type === 'account') {
+                const cash = msg.cash != null ? Number(msg.cash) : null
+                const equity = msg.equity != null ? Number(msg.equity) : null
+                setStatus(prev => prev ? {
+                    ...prev,
+                    cash: cash != null && Number.isFinite(cash) ? cash : prev.cash,
+                    equity: equity != null && Number.isFinite(equity) ? equity : prev.equity,
+                } : prev)
             }
         },
     })
 
+    // REST poll only as fallback when WebSocket is down.
     useEffect(() => {
-        const pollMs = streamConnected ? 8_000 : 5_000
-        const timer = window.setInterval(() => void refresh(), pollMs)
+        if (streamConnected) return
+        const timer = window.setInterval(() => {
+            void refresh()
+            void refreshAudit(false)
+        }, 5_000)
         return () => window.clearInterval(timer)
-    }, [refresh, streamConnected])
+    }, [refresh, refreshAudit, streamConnected])
 
     useEffect(() => {
         const series = seriesRef.current
@@ -467,8 +671,10 @@ export default function RobotMonitorPage() {
         () => orderRows.filter(trip => tripOnLiveDay(trip)),
         [orderRows],
     )
-    const dayStats = useMemo(() => computeDayTradeStats(roundTrips), [roundTrips])
+    const dayStatsFromTrips = useMemo(() => computeDayTradeStats(roundTrips), [roundTrips])
+    const dayStats = dayStatsLive ?? dayStatsFromTrips
     const dayDelta = fmtNetPnl(dayStats.delta)
+
     const dayMtm = useMemo(() => {
         if (equityPoints.length < 2) return null
         const first = Number(equityPoints[0]?.value)

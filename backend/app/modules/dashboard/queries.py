@@ -11,12 +11,7 @@ from sqlalchemy.orm import Session
 from app.modules.portfolio.models import PortfolioAccount
 
 
-def build_own_funds_query(account_id: int, currency: str) -> Tuple[str, Dict[str, Any]]:
-    """Net external cash in the snapshot currency. No matching rows → NULL, not zero."""
-    return """
-        SELECT SUM(signed_payment)
-        FROM (
-            SELECT
+_OWN_FUNDS_CASE = """
                 CASE
                     WHEN operation_type IN (
                         'OPERATION_TYPE_INPUT',
@@ -24,7 +19,7 @@ def build_own_funds_query(account_id: int, currency: str) -> Tuple[str, Dict[str
                         'OPERATION_TYPE_INP_MULTI'
                     )
                     AND status = 'OPERATION_STATE_EXECUTED'
-                    AND UPPER(payment_currency) = :currency
+                    AND UPPER(payment_currency) = {currency_expr}
                     AND ABS(payment) > 1e-9
                         THEN payment
                     WHEN operation_type IN (
@@ -33,45 +28,133 @@ def build_own_funds_query(account_id: int, currency: str) -> Tuple[str, Dict[str
                         'OPERATION_TYPE_OUT_MULTI'
                     )
                     AND status = 'OPERATION_STATE_EXECUTED'
-                    AND UPPER(payment_currency) = :currency
+                    AND UPPER(payment_currency) = {currency_expr}
                     AND ABS(payment) > 1e-9
                         THEN -ABS(payment)
                     WHEN operation_type LIKE 'BYBIT_FUND_IN%'
-                    AND UPPER(payment_currency) = :currency
+                    AND UPPER(payment_currency) = {currency_expr}
                         THEN CASE
                             WHEN ABS(payment) > 1e-9 THEN payment
                             WHEN ABS(quantity) > 1e-9 THEN ABS(quantity)
                             ELSE NULL
                         END
                     WHEN operation_type LIKE 'BYBIT_FUND_OUT%'
-                    AND UPPER(payment_currency) = :currency
+                    AND UPPER(payment_currency) = {currency_expr}
                         THEN CASE
                             WHEN ABS(payment) > 1e-9 THEN -ABS(payment)
                             WHEN ABS(quantity) > 1e-9 THEN -ABS(quantity)
                             ELSE NULL
                         END
                     WHEN operation_type LIKE 'BYBIT_TRANSFER_IN%'
-                    AND UPPER(payment_currency) = :currency
+                    AND UPPER(payment_currency) = {currency_expr}
                         THEN CASE
                             WHEN ABS(payment) > 1e-9 THEN payment
                             WHEN ABS(quantity) > 1e-9 THEN ABS(quantity)
                             ELSE NULL
                         END
                     WHEN operation_type LIKE 'BYBIT_TRANSFER_OUT%'
-                    AND UPPER(payment_currency) = :currency
+                    AND UPPER(payment_currency) = {currency_expr}
                         THEN CASE
                             WHEN ABS(payment) > 1e-9 THEN -ABS(payment)
                             WHEN ABS(quantity) > 1e-9 THEN -ABS(quantity)
                             ELSE NULL
                         END
                     ELSE NULL
-                END AS signed_payment
+                END
+"""
+
+_OWN_FUNDS_TYPE_FILTER = """
+              AND (
+                    operation_type IN (
+                        'OPERATION_TYPE_INPUT',
+                        'OPERATION_TYPE_INPUT_ACQUIRING',
+                        'OPERATION_TYPE_INP_MULTI',
+                        'OPERATION_TYPE_OUTPUT',
+                        'OPERATION_TYPE_OUTPUT_ACQUIRING',
+                        'OPERATION_TYPE_OUT_MULTI'
+                    )
+                    OR operation_type LIKE 'BYBIT_FUND_IN%'
+                    OR operation_type LIKE 'BYBIT_FUND_OUT%'
+                    OR operation_type LIKE 'BYBIT_TRANSFER_IN%'
+                    OR operation_type LIKE 'BYBIT_TRANSFER_OUT%'
+              )
+"""
+
+
+def build_own_funds_query(account_id: int, currency: str) -> Tuple[str, Dict[str, Any]]:
+    """Net external cash in the snapshot currency. No matching rows → NULL, not zero."""
+    case_sql = _OWN_FUNDS_CASE.format(currency_expr=":currency")
+    return f"""
+        SELECT SUM(signed_payment)
+        FROM (
+            SELECT {case_sql} AS signed_payment
             FROM portfolio_operations
             WHERE account_id = :account_id
+            {_OWN_FUNDS_TYPE_FILTER}
         ) cashflows
         WHERE signed_payment IS NOT NULL
         """, {"account_id": account_id, "currency": currency.upper()}
 
+
+def build_accounts_kpi_batch_query(account_ids: List[int]) -> Tuple[str, Dict[str, Any]]:
+    """Latest snapshot, yesterday close, own_funds, and first snapshot for many accounts."""
+    case_sql = _OWN_FUNDS_CASE.format(currency_expr="l.currency")
+    return f"""
+        WITH latest AS (
+            SELECT DISTINCT ON (ps.account_id)
+                ps.account_id,
+                ps.total_amount_portfolio,
+                ps.snapshot_date,
+                UPPER(COALESCE(NULLIF(TRIM(ps.currency), ''), 'RUB')) AS currency,
+                (timezone('Europe/Moscow', ps.snapshot_date))::date AS snap_day
+            FROM portfolio_snapshots ps
+            WHERE ps.account_id = ANY(:account_ids)
+            ORDER BY ps.account_id, ps.snapshot_date DESC
+        ),
+        yesterday AS (
+            SELECT DISTINCT ON (ps.account_id)
+                ps.account_id,
+                ps.total_amount_portfolio AS yesterday_total
+            FROM portfolio_snapshots ps
+            INNER JOIN latest l ON l.account_id = ps.account_id
+            WHERE (timezone('Europe/Moscow', ps.snapshot_date))::date = l.snap_day - 1
+            ORDER BY ps.account_id, ps.snapshot_date DESC
+        ),
+        own AS (
+            SELECT
+                cash.account_id,
+                SUM(cash.signed_payment) AS own_funds
+            FROM (
+                SELECT
+                    po.account_id,
+                    {case_sql} AS signed_payment
+                FROM portfolio_operations po
+                INNER JOIN latest l ON l.account_id = po.account_id
+                WHERE po.account_id = ANY(:account_ids)
+                {_OWN_FUNDS_TYPE_FILTER}
+            ) cash
+            WHERE cash.signed_payment IS NOT NULL
+            GROUP BY cash.account_id
+        ),
+        opened AS (
+            SELECT account_id, MIN(snapshot_date) AS first_snapshot_at
+            FROM portfolio_snapshots
+            WHERE account_id = ANY(:account_ids)
+            GROUP BY account_id
+        )
+        SELECT
+            l.account_id,
+            l.total_amount_portfolio,
+            l.snapshot_date,
+            l.currency,
+            y.yesterday_total,
+            o.own_funds,
+            op.first_snapshot_at
+        FROM latest l
+        LEFT JOIN yesterday y ON y.account_id = l.account_id
+        LEFT JOIN own o ON o.account_id = l.account_id
+        LEFT JOIN opened op ON op.account_id = l.account_id
+        """, {"account_ids": account_ids}
 
 def build_latest_snapshot_query(account_id: int) -> Tuple[str, Dict[str, Any]]:
     """Build the query for an account's most recent portfolio snapshot."""

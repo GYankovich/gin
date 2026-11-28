@@ -2,7 +2,12 @@
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
-from app.modules.dashboard.queries import build_assets_query, build_own_funds_query, build_yesterday_total_query
+from app.modules.dashboard.queries import (
+    build_accounts_kpi_batch_query,
+    build_assets_query,
+    build_own_funds_query,
+    build_yesterday_total_query,
+)
 from app.modules.dashboard.schemas import DashboardAccountSummaryKpi
 from app.modules.dashboard.service import (
     DashboardService,
@@ -62,10 +67,21 @@ def test_own_funds_unknown_without_cashflows_and_no_fake_percent():
     assert "BYBIT_FUND_IN" in sql
     assert "BYBIT_TRANSFER_OUT" in sql
     assert "ABS(quantity)" in sql
+    assert "OPERATION_TYPE_INPUT" in sql  # type filter still present
     assert params["currency"] == "USDT"
     assert gain_vs_deposits_percent(1000.0, None) is None
     assert gain_vs_deposits_percent(1000.0, 0.0) is None
     assert gain_vs_deposits_percent(10.0, 100.0) == 10.0
+
+
+def test_accounts_kpi_batch_query_covers_latest_yesterday_own_opened():
+    sql, params = build_accounts_kpi_batch_query([1, 2, 9])
+    assert "ANY(:account_ids)" in sql
+    assert "latest AS" in sql
+    assert "yesterday AS" in sql
+    assert "own AS" in sql
+    assert "opened AS" in sql
+    assert params["account_ids"] == [1, 2, 9]
 
 
 def test_currency_day_percent_uses_yesterday_totals():

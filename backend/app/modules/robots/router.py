@@ -496,40 +496,40 @@ async def robot_stream(
         await websocket.close(code=4001)
         return
 
+    queue = event_bus.subscribe(robot_id)
+    await websocket.send_text(json.dumps({"type": "connected", "robotId": robot_id}))
+    # Seed full monitor snapshot (status + robot + dayStats), then recent cycles.
     db = SessionLocal()
     try:
         try:
-            service.robots_v2_service.get_robot(db, user_id, robot_id)
+            seed = await service.robots_v2_service.build_monitor_stream_snapshot(
+                db, user_id, robot_id,
+            )
+            await websocket.send_text(json.dumps(seed, default=str))
         except HTTPException:
             await websocket.send_text(json.dumps({"type": "error", "message": "Robot not found"}))
             await websocket.close(code=4004)
             return
+        except Exception as exc:
+            logger.warning(
+                "Failed to seed robots stream snapshot robot_id=%s user_id=%s: %s",
+                robot_id,
+                user_id,
+                exc,
+            )
+        try:
+            recent = list(reversed(event_bus.recent(robot_id, limit=100, event_type="cycle")))
+            for ev in recent:
+                await websocket.send_text(json.dumps(ev, default=str))
+        except Exception as exc:
+            logger.warning(
+                "Failed to seed robots stream cycles robot_id=%s user_id=%s: %s",
+                robot_id,
+                user_id,
+                exc,
+            )
     finally:
         db.close()
-
-    queue = event_bus.subscribe(robot_id)
-    await websocket.send_text(json.dumps({"type": "connected", "robotId": robot_id}))
-    # Seed equity curve from session + recent cycle events (oldest → newest)
-    try:
-        from app.modules.robots.engine.session_manager import session_manager
-
-        snap = session_manager.status(robot_id)
-        if snap and snap.equity_curve:
-            await websocket.send_text(json.dumps({
-                "type": "equity_snapshot",
-                "robotId": robot_id,
-                "points": snap.equity_curve,
-            }, default=str))
-        recent = list(reversed(event_bus.recent(robot_id, limit=100, event_type="cycle")))
-        for ev in recent:
-            await websocket.send_text(json.dumps(ev, default=str))
-    except Exception as exc:
-        logger.warning(
-            "Failed to seed robots stream robot_id=%s user_id=%s: %s",
-            robot_id,
-            user_id,
-            exc,
-        )
     try:
         while True:
             try:

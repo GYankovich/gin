@@ -570,8 +570,8 @@ def build_account_operations_query(
             po.operation_type,
             COALESCE(dt.name, po.operation_type) AS operation_type_name,
             po.figi,
-            pt.ticker,
-            COALESCE(ts.name, pt.ticker) AS ticker_name,
+            COALESCE(NULLIF(TRIM(po.ticker), ''), pt.ticker) AS ticker,
+            COALESCE(ts.name, NULLIF(TRIM(po.ticker), ''), pt.ticker) AS ticker_name,
             NULLIF(TRIM(ts.shortname), '') AS short_name,
             po.instrument_type,
             po.quantity,
@@ -595,7 +595,8 @@ def build_account_operations_query(
         LEFT JOIN LATERAL (
             SELECT pp.ticker
             FROM portfolio_positions pp
-            WHERE po.figi IS NOT NULL
+            WHERE (po.ticker IS NULL OR TRIM(po.ticker) = '')
+              AND po.figi IS NOT NULL
               AND pp.figi = po.figi
               AND pp.ticker IS NOT NULL
               AND TRIM(pp.ticker) <> ''
@@ -603,7 +604,7 @@ def build_account_operations_query(
             LIMIT 1
         ) pt ON true
         LEFT JOIN tqbr_securities ts
-            ON UPPER(TRIM(replace(ts.secid, '@', ''))) = UPPER(TRIM(COALESCE(pt.ticker, po.figi)))
+            ON UPPER(TRIM(replace(ts.secid, '@', ''))) = UPPER(TRIM(COALESCE(NULLIF(TRIM(po.ticker), ''), pt.ticker, po.figi)))
         WHERE {' AND '.join(conditions)}
         ORDER BY po.operation_date DESC
         LIMIT :limit OFFSET :offset

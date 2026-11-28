@@ -158,6 +158,7 @@ class PortfolioOperation(Base):
     parent_operation_id = Column(String(50), nullable=True)
 
     figi = Column(String(20), nullable=True)
+    ticker = Column(String(50), nullable=True)
     instrument_type = Column(String(30), nullable=True)
     instrument_uid = Column(String(50), nullable=True)
     position_uid = Column(String(50), nullable=True)

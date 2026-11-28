@@ -18,6 +18,7 @@ from app.modules.dashboard.schemas import (
 )
 from app.modules.dashboard.queries import (
     build_account_opened_query,
+    build_accounts_kpi_batch_query,
     build_assets_query,
     build_latest_snapshot_query,
     build_own_funds_query,
@@ -374,6 +375,66 @@ class DashboardService:
 
         return sorted(items, key=cmp_to_key(compare))
 
+    def _kpi_from_batch_row(
+        self,
+        row: Any,
+        last_sync_pa: Optional[datetime],
+    ) -> Tuple[DashboardAccountSummaryKpi, Optional[datetime], Optional[float]]:
+        """Map one batch KPI row → summary (same math as `_build_summary_kpi`)."""
+        if row is None:
+            return (
+                DashboardAccountSummaryKpi(
+                    own_funds=None,
+                    value=None,
+                    minus_own_funds=None,
+                    minus_own_funds_percent=None,
+                    day_over_day_delta=None,
+                    day_over_day_delta_percent=None,
+                    currency=None,
+                ),
+                last_sync_pa,
+                None,
+            )
+        total = float(row[1] or 0.0)
+        snap_date = row[2]
+        currency = str(row[3] or "").strip().upper() or None
+        yesterday_raw = row[4]
+        own_raw = row[5]
+        own = float(own_raw) if own_raw is not None else None
+        minus = None if own is None else total - own
+
+        yesterday_total: Optional[float] = None
+        day_delta: Optional[float] = None
+        if snap_date is not None:
+            latest_day = moscow_date(snap_date)
+            today = moscow_date(datetime.now(MOSCOW))
+            if latest_day == today or latest_day == today - timedelta(days=1):
+                if yesterday_raw is not None:
+                    try:
+                        yesterday_total = float(yesterday_raw)
+                    except (TypeError, ValueError):
+                        yesterday_total = None
+                day_delta, yesterday_total = resolve_day_change(snap_date, yesterday_total, total)
+
+        last_account_sync: Optional[datetime] = None
+        candidates = [x for x in (last_sync_pa, snap_date) if x is not None]
+        if candidates:
+            last_account_sync = max(candidates)
+
+        return (
+            DashboardAccountSummaryKpi(
+                own_funds=own,
+                value=total,
+                minus_own_funds=minus,
+                minus_own_funds_percent=gain_vs_deposits_percent(minus, own),
+                day_over_day_delta=day_delta,
+                day_over_day_delta_percent=percent_vs_base(day_delta, yesterday_total),
+                currency=currency,
+            ),
+            last_account_sync,
+            yesterday_total if day_delta is not None else None,
+        )
+
     def _build_accounts(
         self,
         db: Session,
@@ -381,10 +442,64 @@ class DashboardService:
         sort_specs: List[Tuple[str, str]],
     ) -> List[Dict[str, Any]]:
         rows = list_open_accounts(db, user_id)
+        ids = [int(pa.id) for pa in rows]
+        stats_by_id: Dict[int, Any] = {}
+        if ids:
+            for row in db.execute(
+                text(
+                    """
+                    SELECT account_id, total_amount, currency, snapshot_at,
+                           day_over_day_delta, day_over_day_percent,
+                           own_funds, gain_abs, gain_percent
+                    FROM portfolio_account_stats
+                    WHERE account_id = ANY(:ids)
+                    """
+                ),
+                {"ids": ids},
+            ).all():
+                stats_by_id[int(row[0])] = row
+
+        kpi_by_id: Dict[int, Any] = {}
+        missing = [i for i in ids if i not in stats_by_id]
+        if missing:
+            query, params = build_accounts_kpi_batch_query(missing)
+            for row in db.execute(text(query), params).all():
+                kpi_by_id[int(row[0])] = row
 
         out: List[Dict[str, Any]] = []
         for pa in rows:
-            summary, last_sync, yesterday_value = self._build_summary_kpi(db, pa.id, pa.last_sync_at)
+            mart = stats_by_id.get(int(pa.id))
+            if mart is not None and mart[1] is not None:
+                total = float(mart[1])
+                currency = str(mart[2] or "").strip().upper() or None
+                snap_at = mart[3]
+                day_delta = float(mart[4]) if mart[4] is not None else None
+                day_pct = float(mart[5]) if mart[5] is not None else None
+                own = float(mart[6]) if mart[6] is not None else None
+                minus = float(mart[7]) if mart[7] is not None else (None if own is None else total - own)
+                gain_pct = float(mart[8]) if mart[8] is not None else gain_vs_deposits_percent(minus, own)
+                summary = DashboardAccountSummaryKpi(
+                    own_funds=own,
+                    value=total,
+                    minus_own_funds=minus,
+                    minus_own_funds_percent=gain_pct,
+                    day_over_day_delta=day_delta,
+                    day_over_day_delta_percent=day_pct,
+                    currency=currency,
+                )
+                candidates = [x for x in (pa.last_sync_at, snap_at) if x is not None]
+                last_sync = max(candidates) if candidates else pa.last_sync_at
+                yesterday_value = (total - day_delta) if day_delta is not None else None
+                opened = pa.opened_date or pa.created_at
+            else:
+                batch = kpi_by_id.get(int(pa.id))
+                if batch is not None:
+                    summary, last_sync, yesterday_value = self._kpi_from_batch_row(batch, pa.last_sync_at)
+                    first_snap = batch[6]
+                    opened = pa.opened_date or first_snap or pa.created_at
+                else:
+                    summary, last_sync, yesterday_value = self._build_summary_kpi(db, pa.id, pa.last_sync_at)
+                    opened = self._resolve_account_opened(db, pa.id, pa.opened_date, pa.created_at)
             out.append(
                 {
                     "account_id": pa.id,
@@ -392,7 +507,7 @@ class DashboardService:
                     "account_name": pa.account_name,
                     "account_type": pa.account_type or "unknown",
                     "account_status": pa.account_status,
-                    "account_opened": self._resolve_account_opened(db, pa.id, pa.opened_date, pa.created_at),
+                    "account_opened": opened,
                     "last_account_sync": last_sync,
                     "dashboard_hidden": bool(getattr(pa, "dashboard_hidden", 0) or 0),
                     "last_token_id": (

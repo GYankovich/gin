@@ -481,14 +481,19 @@ class TInvestService:
 
             # Сохраняем снимок портфеля
             portfolio = portfolio_data["portfolio"]
+            snap_at = datetime.now(timezone.utc)
+            snap_total = utils.safe_float(portfolio["total_amount_portfolio"].get("decimal") if portfolio["total_amount_portfolio"] else None)
+            snap_currency = portfolio["total_amount_portfolio"]["currency"] if portfolio["total_amount_portfolio"] else "RUB"
+            snap_daily_yield = _optional_decimal(portfolio.get("daily_yield"))
+            snap_expected = utils.safe_float((portfolio.get("expected_yield") or {}).get("decimal"))
 
             insert_snapshot = queries.build_create_snapshot_query()
             snapshot = self._execute(
                 insert_snapshot,
                 {
                     "account_id": db_account_id,
-                    "snapshot_date": datetime.now(timezone.utc),
-                    "total_amount_portfolio": utils.safe_float(portfolio["total_amount_portfolio"].get("decimal") if portfolio["total_amount_portfolio"] else None),
+                    "snapshot_date": snap_at,
+                    "total_amount_portfolio": snap_total,
                     "total_amount_shares": utils.safe_float((portfolio.get("total_amount_shares") or {}).get("decimal")),
                     "total_amount_bonds": utils.safe_float((portfolio.get("total_amount_bonds") or {}).get("decimal")),
                     "total_amount_etf": utils.safe_float((portfolio.get("total_amount_etf") or {}).get("decimal")),
@@ -496,10 +501,10 @@ class TInvestService:
                     "total_amount_futures": utils.safe_float((portfolio.get("total_amount_futures") or {}).get("decimal")),
                     "total_amount_options": utils.safe_float((portfolio.get("total_amount_options") or {}).get("decimal")),
                     "total_amount_sp": _optional_decimal(portfolio.get("total_amount_sp")),
-                    "expected_yield": utils.safe_float((portfolio.get("expected_yield") or {}).get("decimal")),
-                    "daily_yield": _optional_decimal(portfolio.get("daily_yield")),
+                    "expected_yield": snap_expected,
+                    "daily_yield": snap_daily_yield,
                     "daily_yield_relative": utils.safe_float((portfolio.get("daily_yield_relative") or {}).get("decimal")),
-                    "currency": portfolio["total_amount_portfolio"]["currency"] if portfolio["total_amount_portfolio"] else "RUB"
+                    "currency": snap_currency,
                 },
                 fetch_one=True
             )
@@ -508,6 +513,7 @@ class TInvestService:
 
             # Сохраняем позиции
             insert_position = queries.build_create_position_query()
+            positions_count = 0
             for pos in portfolio["positions"]:
                 self._execute(
                     insert_position,
@@ -527,6 +533,34 @@ class TInvestService:
                         "instrument_uid": pos.get("instrument_uid")
                     }
                 )
+                positions_count += 1
+
+            try:
+                from app.modules.portfolio.marts import (
+                    refresh_account_stats_snapshot,
+                    upsert_portfolio_snapshot_daily,
+                )
+                upsert_portfolio_snapshot_daily(
+                    db,
+                    snapshot_id=int(snapshot_id),
+                    account_id=int(db_account_id),
+                    snapshot_date=snap_at,
+                    total_amount_portfolio=snap_total,
+                    daily_yield=snap_daily_yield,
+                    expected_yield=snap_expected,
+                    currency=snap_currency,
+                )
+                refresh_account_stats_snapshot(
+                    db,
+                    account_id=int(db_account_id),
+                    snapshot_id=int(snapshot_id),
+                    snapshot_date=snap_at,
+                    total_amount=snap_total,
+                    currency=snap_currency,
+                    positions_count=positions_count,
+                )
+            except Exception as mart_err:
+                logger.warning("Portfolio marts refresh skipped: %s", mart_err)
 
             db.commit()
             logger.info(f"Saved portfolio snapshot {snapshot_id} for account {account_id}")
@@ -875,6 +909,39 @@ class TInvestService:
         saved = 0
         seen_operation_ids: set[str] = set()
         duplicate_operation_ids_skipped = 0
+        ticker_by_figi: Dict[str, str] = {}
+        figis = {
+            str(op.get("figi")).strip()
+            for op in operations
+            if op.get("figi") and str(op.get("figi")).strip()
+        }
+        if figis:
+            rows = self.db.execute(
+                text(
+                    """
+                    SELECT DISTINCT ON (figi) figi, ticker
+                    FROM (
+                        SELECT pp.figi, pp.ticker, pp.id AS ord
+                        FROM portfolio_positions pp
+                        WHERE pp.figi = ANY(:figis)
+                          AND pp.ticker IS NOT NULL
+                          AND TRIM(pp.ticker) <> ''
+                        UNION ALL
+                        SELECT ic.figi, ic.ticker, 0 AS ord
+                        FROM instrument_cache ic
+                        WHERE ic.figi = ANY(:figis)
+                          AND ic.ticker IS NOT NULL
+                          AND TRIM(ic.ticker) <> ''
+                    ) src
+                    ORDER BY figi, ord DESC
+                    """
+                ),
+                {"figis": list(figis)},
+            ).all()
+            for row in rows:
+                if row[0] and row[1]:
+                    ticker_by_figi[str(row[0])] = str(row[1]).strip()
+
         for idx, op in enumerate(operations, start=1):
             if idx % 500 == 0:
                 logger.info("Operations sync: upserted %s/%s", idx, len(operations))
@@ -894,13 +961,21 @@ class TInvestService:
                 "asset_uid": op.get("assetUid"),
                 "child_operations": op.get("childOperations") or [],
             }
+            figi = op.get("figi") or None
+            ticker = (
+                (str(op.get("ticker")).strip() if op.get("ticker") else None)
+                or (str(op.get("tickerName")).strip() if op.get("tickerName") else None)
+                or (ticker_by_figi.get(str(figi)) if figi else None)
+                or None
+            )
             self._execute(
                 upsert_query,
                 {
                     "account_id": account_db_id,
                     "operation_id": op_id,
                     "parent_operation_id": op.get("parentOperationId") or None,
-                    "figi": op.get("figi") or None,
+                    "figi": figi,
+                    "ticker": ticker,
                     "instrument_type": op.get("instrumentType") or None,
                     "instrument_uid": op.get("instrumentUid") or None,
                     "position_uid": op.get("positionUid") or None,
@@ -938,6 +1013,11 @@ class TInvestService:
             }
         )
         self.link_token_portfolio_account(token_id, account_db_id, user_id)
+        try:
+            from app.modules.portfolio.marts import refresh_account_stats_after_ops
+            refresh_account_stats_after_ops(db, int(account_db_id))
+        except Exception as mart_err:
+            logger.warning("Account stats after ops sync skipped: %s", mart_err)
         db.commit()
         return {
             "account_id": account_db_id,
